@@ -29,6 +29,13 @@
       "when": 1791132865155,
       "tag": "0003_action_context",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791133398072,
+      "tag": "0004_chunk_search_text",
+      "breakpoints": true
     }
   ]
 }

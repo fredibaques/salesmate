@@ -394,9 +394,11 @@ export const kbChunks = pgTable(
       .references(() => kbDocuments.id, { onDelete: "cascade" }),
     position: integer("position").notNull(),
     content: text("content").notNull(),
+    /** Lower-cased, accent-free copy of `content` (computed by the app) used for search. */
+    searchText: text("search_text").notNull(),
     tsv: tsvector("tsv")
       .notNull()
-      .generatedAlwaysAs(sql`to_tsvector('simple', content)`),
+      .generatedAlwaysAs(sql`to_tsvector('simple', search_text)`),
     metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
   },
   (t) => [
