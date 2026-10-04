@@ -35,6 +35,19 @@ function defaultAppUrl(): string {
   return host ? `https://${host}` : "http://localhost:3000";
 }
 
+/**
+ * Origins allowed to call the auth API: APP_URL plus the URLs Vercel serves this
+ * deployment under (per-deployment, branch and production), which differ from APP_URL.
+ */
+export function trustedOrigins(): string[] {
+  const hosts = [
+    process.env.VERCEL_URL,
+    process.env.VERCEL_BRANCH_URL,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+  ].filter((h): h is string => Boolean(h));
+  return [...new Set([env().APP_URL, ...hosts.map((h) => `https://${h}`)])];
+}
+
 let cached: Env | undefined;
 
 export function env(): Env {

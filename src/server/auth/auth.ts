@@ -4,7 +4,7 @@ import { nextCookies } from "better-auth/next-js";
 import { organization } from "better-auth/plugins";
 import { getDb } from "../db/client";
 import * as schema from "../db/schema";
-import { env } from "../env";
+import { env, trustedOrigins } from "../env";
 
 /**
  * Users sign in to SalesMate itself. Organizations are the SaaS tenants;
@@ -18,6 +18,7 @@ function createAuth() {
     appName: "SalesMate",
     baseURL: env().APP_URL,
     secret: env().BETTER_AUTH_SECRET,
+    trustedOrigins: trustedOrigins(),
     database: drizzleAdapter(getDb(), { provider: "pg", schema }),
     emailAndPassword: { enabled: true, minPasswordLength: 10 },
     socialProviders:
