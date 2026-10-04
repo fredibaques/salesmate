@@ -85,8 +85,10 @@ export const projects = pgTable(
 export type ProjectSettings = {
   /** Days during which a contact touched by another project needs approval. */
   crossProjectCooldownDays?: number;
-  /** Local-time window for outbound messages, e.g. ["08:00", "20:00"]. */
+  /** Local-time window for outbound actions, e.g. ["08:00", "20:00"]. */
   sendWindow?: [string, string];
+  /** ISO weekdays (1 = Monday … 7 = Sunday) when outbound actions may run. */
+  sendDays?: number[];
 };
 
 // ---------------------------------------------------------------------------
@@ -467,6 +469,12 @@ export type Citation = {
   excerpt?: string;
 };
 
+export type ActionContext = {
+  customerType?: "b2b" | "b2c";
+  /** Free reference to the contact/deal this action is about (CRM id, email…). */
+  subjectRef?: string;
+};
+
 export type PolicyOutcome = {
   policy: string;
   outcome: "allow" | "require_approval" | "defer" | "block";
@@ -491,6 +499,8 @@ export const actions = pgTable(
       onDelete: "set null",
     }),
     payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    /** Facts about the action that policies need but connectors do not (e.g. customer type). */
+    context: jsonb("context").$type<ActionContext>().notNull().default({}),
     citations: jsonb("citations").$type<Citation[]>().notNull().default([]),
     reason: text("reason"),
     /** Normalized recipients (email:x, domain:y, phone:z) for suppression and cooldown checks. */

@@ -1,0 +1,1 @@
+ALTER TABLE "actions" ADD COLUMN "context" jsonb DEFAULT '{}'::jsonb NOT NULL;
