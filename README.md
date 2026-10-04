@@ -6,22 +6,22 @@ y **ejecutan** procesos de venta sobre sus herramientas (CRM, correo,
 calendario, teléfono, WhatsApp…) vía API, MCP o navegador.
 
 - **Agente Outbound**: prospección, investigación, outreach personalizado y seguimientos.
-- **Agente Inbound**: respuesta inmediata, cualificación, recogida de datos, agendado y registro en el CRM.
+- **Agente Inbound**: respuesta inmediata, cualificación y conversión según el modelo de venta (reunión, presupuesto, pago, llamada…) con registro en el CRM.
 - **Agente de Cartera**: renovaciones, venta cruzada y reactivación.
 - **Agente de Inteligencia**: señales de compra, cuentas calientes y optimización.
 
-Proyectos piloto: **Swipoo** (gestoría de trámites de vehículos, B2B),
-**Protectio** (correduría de seguros, B2B/B2C, CRM Twenty) y actividad como
-autónomo (B2B). Diseñada para venderse como SaaS más adelante.
+Agnóstica de sector y de modelo de venta (B2B consultivo, B2B transaccional,
+B2C asistido, B2C autoservicio). Diseñada para uso propio en varios proyectos y
+para venderse como SaaS más adelante.
 
 Inspirado en [Alta](https://www.altahq.com/).
 
 ## Documentación
 
 - [Plan de producto y técnico](docs/PLAN.md): capas de conocimiento y
-  ejecución, playbooks, agentes, autonomía, multi-tenant, integraciones,
-  arquitectura, modelo de datos, cumplimiento legal (incluida la distribución
-  de seguros), roadmap, métricas, costes y riesgos.
+  ejecución, modelos de venta B2B/B2C, playbooks, agentes, autonomía,
+  multi-tenant, integraciones, arquitectura, modelo de datos, cumplimiento
+  legal, roadmap, métricas, costes y riesgos.
 
 ## Estado
 
