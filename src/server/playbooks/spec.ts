@@ -85,7 +85,10 @@ const base = {
   disqualifiers: [],
   requiredData: [],
   objections: [],
-  handoff: ["Piden un precio o condición que no está en las fuentes de verdad", "Muestran enfado o hablan de temas legales"],
+  handoff: [
+    "Piden un precio o condición que no está en las fuentes de verdad",
+    "Muestran enfado o hablan de temas legales",
+  ],
   signature: "",
 } satisfies Partial<PlaybookSpec>;
 

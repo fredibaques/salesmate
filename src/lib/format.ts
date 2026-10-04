@@ -49,3 +49,24 @@ export const AGENT_LABELS: Record<string, string> = {
   intelligence: "Inteligencia",
   copilot: "Copiloto",
 };
+
+export const CONVERSATION_STATUS: Record<
+  string,
+  { label: string; tone: "neutral" | "success" | "warning" | "danger" | "accent" }
+> = {
+  open: { label: "Abierta", tone: "neutral" },
+  waiting_us: { label: "Nos toca", tone: "accent" },
+  waiting_customer: { label: "Esperando al contacto", tone: "neutral" },
+  handed_off: { label: "Derivada", tone: "warning" },
+  closed: { label: "Cerrada", tone: "neutral" },
+};
+
+export const CONTACT_STATUS_LABELS: Record<string, string> = {
+  new: "Nuevo",
+  contacted: "Contactado",
+  engaged: "En conversación",
+  qualified: "Cualificado",
+  disqualified: "Descartado",
+  customer: "Cliente",
+  lost: "Perdido",
+};

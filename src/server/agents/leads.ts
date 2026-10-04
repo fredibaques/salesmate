@@ -6,7 +6,10 @@ import type { Lead } from "./conversations";
  * is kept as extra context for the agent.
  */
 
-const FIELD_ALIASES: Record<keyof Pick<Lead, "email" | "phone" | "firstName" | "lastName" | "companyName" | "subject" | "body">, string[]> & {
+const FIELD_ALIASES: Record<
+  keyof Pick<Lead, "email" | "phone" | "firstName" | "lastName" | "companyName" | "subject" | "body">,
+  string[]
+> & {
   fullName: string[];
   consent: string[];
 } = {
@@ -17,7 +20,17 @@ const FIELD_ALIASES: Record<keyof Pick<Lead, "email" | "phone" | "firstName" | "
   fullName: ["name", "full_name", "fullname", "nombre_completo", "your-name"],
   companyName: ["company", "empresa", "company_name", "organizacion", "organización", "negocio"],
   subject: ["subject", "asunto", "motivo", "tema"],
-  body: ["message", "mensaje", "comments", "comentarios", "consulta", "description", "descripcion", "descripción", "your-message"],
+  body: [
+    "message",
+    "mensaje",
+    "comments",
+    "comentarios",
+    "consulta",
+    "description",
+    "descripcion",
+    "descripción",
+    "your-message",
+  ],
   consent: ["consent", "consentimiento", "privacy", "privacidad", "acepto", "gdpr", "rgpd"],
 };
 
@@ -128,8 +141,13 @@ export function stripQuotedReply(text: string): string {
   return kept.join("\n").trim();
 }
 
-const AUTO_SUBJECT = /(fuera de la oficina|out of office|respuesta autom[aá]tica|automatic reply|autoreply|delivery status notification|undeliverable|no se pudo entregar)/i;
+const AUTO_SUBJECT =
+  /(fuera de la oficina|out of office|respuesta autom[aá]tica|automatic reply|autoreply|delivery status notification|undeliverable|no se pudo entregar)/i;
 
 export function looksAutomated(lead: Lead, autoSubmitted = false): boolean {
-  return autoSubmitted || AUTO_SUBJECT.test(lead.subject ?? "") || /^(mailer-daemon|postmaster|no-?reply)@/i.test(lead.email ?? "");
+  return (
+    autoSubmitted ||
+    AUTO_SUBJECT.test(lead.subject ?? "") ||
+    /^(mailer-daemon|postmaster|no-?reply)@/i.test(lead.email ?? "")
+  );
 }

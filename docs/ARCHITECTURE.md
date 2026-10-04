@@ -1,4 +1,4 @@
-# Arquitectura (fase 0)
+# Arquitectura (fases 0 y 1)
 
 Este documento describe el código tal como está. La visión completa está en
 [PLAN.md](PLAN.md).
@@ -96,9 +96,40 @@ cifradas; si un proveedor devuelve 401/403 la conexión pasa a `error`.
 - Cada fuente es *fuente de verdad* u *orientativa*; el gateway solo acepta
   cifras en mensajes salientes si citan una fuente de verdad.
 
-## Pendiente para la fase 1
+## Agentes (fase 1)
 
-- Capa LLM (Claude) y copiloto que use `queryTable` / `searchKnowledge` como herramientas.
-- Playbooks y Agente Inbound (procesando `inbound_events` y el correo).
+```
+src/server/
+  llm/client.ts        Cliente de Claude (claude-opus-5-5, fallbacks del servidor) tras una interfaz inyectable
+  llm/agent-loop.ts    Bucle de herramientas append-only, validación zod, traza y coste
+  agents/tools.ts      Herramientas: conocimiento, tablas, CRM, disponibilidad y propose_action
+  agents/inbound.ts    Evento entrante → contacto → conversación → ejecución del agente
+  agents/leads.ts      Normalización de formularios y emails (alias en español e inglés)
+  agents/gmail-poller.ts  Lectura de buzones con permiso de lectura → inbound_events
+  agents/copilot.ts    Chat sobre un proyecto, con las mismas herramientas
+  playbooks/           Especificación, plantillas, versiones y borrador con IA (salida estructurada)
+```
+
+- **Los agentes nunca actúan directamente.** Su única herramienta con efecto
+  externo es `propose_action`, que entra en el Action Gateway con
+  `actorType: "agent"`; la autonomía del proyecto decide si se ejecuta, se
+  programa o espera aprobación.
+- **Prompt estable y cacheable.** El *system prompt* contiene proyecto,
+  identidades y playbook (cambia solo al cambiar el playbook); la hora y el
+  mensaje del contacto van en el turno de usuario. El historial del bucle es
+  solo de anexado.
+- **Entradas.** Formularios: `POST /api/inbound/form/:projectId` con la clave
+  del proyecto; se procesa justo después de responder (`after()`). Email y
+  pendientes: `GET /api/cron/inbound` desde el workflow programado.
+- **Trazabilidad.** Cada ejecución queda en `agent_runs` (pasos, tokens,
+  coste); cada conversación guarda mensajes entrantes y salientes (los emails
+  enviados se registran tras ejecutarse, vía `afterExecute`).
+- **Tests sin red.** `tests/helpers/fake-llm.ts` reproduce turnos guionizados
+  del modelo para probar agentes de forma determinista.
+
+## Pendiente
+
+- Agente outbound (fase 2) y Account Manager (fase 3).
+- Gmail push (Pub/Sub) para responder en segundos también por email.
 - Worker de workflows durables (Inngest/Trigger.dev) en lugar del cron simple.
 - Embeddings (pgvector) para complementar la búsqueda de texto completo.

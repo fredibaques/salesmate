@@ -2,8 +2,7 @@ import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/mess
 import type { LlmClient, LlmRequest } from "@/server/llm/client";
 
 type Block =
-  | { type: "text"; text: string }
-  | { type: "tool_use"; name: string; input: Record<string, unknown> };
+  { type: "text"; text: string } | { type: "tool_use"; name: string; input: Record<string, unknown> };
 
 export type ScriptedTurn = {
   blocks: Block[];
@@ -39,7 +38,12 @@ export function scriptedLlm(turns: (ScriptedTurn | ((req: LlmRequest) => Scripte
         content,
         stop_reason: turn.stop ?? (turn.blocks.some((b) => b.type === "tool_use") ? "tool_use" : "end_turn"),
         stop_sequence: null,
-        usage: { input_tokens: 1000, output_tokens: 200, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        usage: {
+          input_tokens: 1000,
+          output_tokens: 200,
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 0,
+        },
       } as unknown as BetaMessage;
     },
   };

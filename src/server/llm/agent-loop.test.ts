@@ -13,13 +13,23 @@ const echo = defineTool({
 describe("runAgentLoop", () => {
   it("runs tools, sends results back and returns the final text", async () => {
     const { llm, requests } = scriptedLlm([
-      { blocks: [{ type: "text", text: "Voy a calcular." }, { type: "tool_use", name: "echo", input: { value: 21 } }] },
+      {
+        blocks: [
+          { type: "text", text: "Voy a calcular." },
+          { type: "tool_use", name: "echo", input: { value: 21 } },
+        ],
+      },
       (req) => {
         expect(lastToolResults(req)).toEqual([{ doubled: 42 }]);
         return { blocks: [{ type: "text", text: "El resultado es 42." }] };
       },
     ]);
-    const result = await runAgentLoop({ llm, system: "sys", messages: [{ role: "user", content: "hola" }], tools: [echo] });
+    const result = await runAgentLoop({
+      llm,
+      system: "sys",
+      messages: [{ role: "user", content: "hola" }],
+      tools: [echo],
+    });
     expect(result.status).toBe("completed");
     expect(result.finalText).toBe("El resultado es 42.");
     expect(result.steps.map((s) => s.type)).toEqual(["text", "tool_call", "tool_result", "text"]);
@@ -44,7 +54,12 @@ describe("runAgentLoop", () => {
         return { blocks: [{ type: "text", text: "Perdón." }] };
       },
     ]);
-    const result = await runAgentLoop({ llm, system: "s", messages: [{ role: "user", content: "x" }], tools: [echo] });
+    const result = await runAgentLoop({
+      llm,
+      system: "s",
+      messages: [{ role: "user", content: "x" }],
+      tools: [echo],
+    });
     expect(result.status).toBe("completed");
   });
 
@@ -57,8 +72,18 @@ describe("runAgentLoop", () => {
     });
     expect(refused.status).toBe("refused");
 
-    const looping = scriptedLlm(Array.from({ length: 3 }, () => ({ blocks: [{ type: "tool_use" as const, name: "echo", input: { value: 1 } }] })));
-    const limited = await runAgentLoop({ llm: looping.llm, system: "s", messages: [{ role: "user", content: "x" }], tools: [echo], maxTurns: 3 });
+    const looping = scriptedLlm(
+      Array.from({ length: 3 }, () => ({
+        blocks: [{ type: "tool_use" as const, name: "echo", input: { value: 1 } }],
+      })),
+    );
+    const limited = await runAgentLoop({
+      llm: looping.llm,
+      system: "s",
+      messages: [{ role: "user", content: "x" }],
+      tools: [echo],
+      maxTurns: 3,
+    });
     expect(limited.status).toBe("max_turns");
   });
 });

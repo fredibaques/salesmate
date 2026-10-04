@@ -777,6 +777,13 @@ Estimaciones para 1 desarrollador apoyado por IA.
 - Registro en el CRM y notificaciones; bandeja móvil.
 - **Hito:** un playbook B2B y uno B2C funcionando en inbound con aprobación.
 
+> **Estado (implementada):** plantillas por modelo de venta, editor de
+> playbooks versionado y borrador con IA; agente inbound para formularios web y
+> Gmail con cualificación, contacto, conversación y acciones propuestas por el
+> Action Gateway; copiloto por proyecto. La "recogida de datos para cotizar" se
+> cubre con el campo *Datos que hay que reunir* del playbook. Pendiente de esta
+> fase: Gmail push (ahora se lee cada 30 minutos) y una vista móvil dedicada.
+
 ### Fase 2 — Agente Outbound (4–6 semanas)
 - Construcción de listas (CRM, CSV, proveedor de datos), deduplicación, exclusiones y comprobación de base legal.
 - Verificación, puntuación, investigación y redacción con citas.

@@ -105,7 +105,8 @@ export function crmTools(ctx: AgentToolContext): AgentTool[] {
   return [
     defineTool({
       name: "crm_find_person",
-      description: "Busca una persona en el CRM del proyecto por email o por nombre para conocer su historial.",
+      description:
+        "Busca una persona en el CRM del proyecto por email o por nombre para conocer su historial.",
       input: z.object({ email: z.string().email().optional(), query: z.string().optional() }),
       run: async ({ email, query }) => {
         const connectionId = await withTenant(ctx.db, tenant, async (tx) => {
@@ -172,7 +173,13 @@ export function calendarTools(ctx: AgentToolContext): AgentTool[] {
           timeZone: ctx.timezone,
         });
         return {
-          slots: slots.slice(0, 10).map((s) => ({ start: s.start.toISOString(), end: s.end.toISOString(), local: fmt.format(s.start) })),
+          slots: slots
+            .slice(0, 10)
+            .map((s) => ({
+              start: s.start.toISOString(),
+              end: s.end.toISOString(),
+              local: fmt.format(s.start),
+            })),
           warnings,
         };
       },
@@ -183,13 +190,24 @@ export function calendarTools(ctx: AgentToolContext): AgentTool[] {
 /** Identities the project may act through, so the agent can fill identityId. */
 export async function projectIdentityHints(ctx: Pick<AgentToolContext, "db" | "orgId" | "projectId">) {
   return withTenant(ctx.db, { orgId: ctx.orgId }, async (tx) => {
-    const links = await tx.select().from(projectIdentities).where(eq(projectIdentities.projectId, ctx.projectId));
+    const links = await tx
+      .select()
+      .from(projectIdentities)
+      .where(eq(projectIdentities.projectId, ctx.projectId));
     if (links.length === 0) return [];
     const rows = await tx
       .select({ id: identities.id, kind: identities.kind, address: identities.address })
       .from(identities)
-      .where(inArray(identities.id, links.map((l) => l.identityId)));
-    return rows.map((r) => ({ ...r, isDefault: links.find((l) => l.identityId === r.id)?.isDefault ?? false }));
+      .where(
+        inArray(
+          identities.id,
+          links.map((l) => l.identityId),
+        ),
+      );
+    return rows.map((r) => ({
+      ...r,
+      isDefault: links.find((l) => l.identityId === r.id)?.isDefault ?? false,
+    }));
   });
 }
 
@@ -198,9 +216,7 @@ export async function projectIdentityHints(ctx: Pick<AgentToolContext, "db" | "o
  * schedule, ask for approval or block) according to the project's rules.
  */
 export function actionTools(ctx: AgentToolContext, allowed: (keyof typeof ACTION_DEFINITIONS)[]): AgentTool {
-  const descriptions = allowed
-    .map((t) => `- ${t}: ${ACTION_DEFINITIONS[t].label}`)
-    .join("\n");
+  const descriptions = allowed.map((t) => `- ${t}: ${ACTION_DEFINITIONS[t].label}`).join("\n");
   return defineTool({
     name: "propose_action",
     description: `Propone una acción con efecto externo. No se ejecuta directamente: pasa por las reglas del proyecto y puede quedar pendiente de aprobación humana, programada o bloqueada. Tipos permitidos:\n${descriptions}\nIncluye en citations las fuentes (sourceId + chunkId/rowId) de cualquier precio, plazo o condición que menciones.`,

@@ -72,7 +72,14 @@ export async function upsertContact(
 /** Same thread → same conversation; a form from a known contact reuses their open conversation. */
 export async function findOrCreateConversation(
   tx: Tx,
-  input: { orgId: string; projectId: string; contactId: string; playbookId: string | null; lead: Lead; now: Date },
+  input: {
+    orgId: string;
+    projectId: string;
+    contactId: string;
+    playbookId: string | null;
+    lead: Lead;
+    now: Date;
+  },
 ): Promise<ConversationRow> {
   if (input.lead.externalThreadId) {
     const [existing] = await tx

@@ -71,7 +71,10 @@ export function estimateCostUsd(
   const p = PRICES[model];
   if (!p) return 0;
   return (
-    (usage.input * p.input + usage.output * p.output + usage.cacheRead * p.cacheRead + usage.cacheWrite * p.input * 1.25) /
+    (usage.input * p.input +
+      usage.output * p.output +
+      usage.cacheRead * p.cacheRead +
+      usage.cacheWrite * p.input * 1.25) /
     1_000_000
   );
 }

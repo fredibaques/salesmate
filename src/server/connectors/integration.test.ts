@@ -184,13 +184,10 @@ describe("connections end to end", () => {
       const [project] = await tx.insert(projects).values({ orgId: tenant.orgId, name: "Mail" }).returning();
       return project.id;
     });
-    const emailIdentity = await withTenant(
-      db,
-      tenant,
-      async (tx) =>
-        (await tx.select().from(identities).where(eq(identities.address, "yo@acme.com"))).find(
-          (i) => i.kind === "email",
-        )!,
+    const emailIdentity = await withTenant(db, tenant, async (tx) =>
+      (await tx.select().from(identities).where(eq(identities.address, "yo@acme.com"))).find(
+        (i) => i.kind === "email",
+      )!,
     );
     await setProjectIdentity({ db }, tenant, { projectId, identityId: emailIdentity.id, assigned: true });
 
@@ -229,13 +226,10 @@ describe("connections end to end", () => {
       const [p] = await tx.insert(projects).values({ orgId: tenant.orgId, name: "Fail" }).returning();
       return p.id;
     });
-    const emailIdentity = await withTenant(
-      db,
-      tenant,
-      async (tx) =>
-        (await tx.select().from(identities).where(eq(identities.address, "yo@acme.com"))).find(
-          (i) => i.kind === "email",
-        )!,
+    const emailIdentity = await withTenant(db, tenant, async (tx) =>
+      (await tx.select().from(identities).where(eq(identities.address, "yo@acme.com"))).find(
+        (i) => i.kind === "email",
+      )!,
     );
     await setProjectIdentity({ db }, tenant, { projectId, identityId: emailIdentity.id, assigned: true });
     const result = await proposeAction(

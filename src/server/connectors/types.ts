@@ -47,6 +47,11 @@ export type Capabilities = {
     body: string;
     personExternalId?: string;
   }) => Promise<{ id: string }>;
+  "email.list_messages": (input: {
+    query: string;
+    maxResults?: number;
+  }) => Promise<{ id: string; threadId: string }[]>;
+  "email.get_message": (input: { id: string }) => Promise<IncomingEmail>;
   "email.send": (input: OutgoingEmail) => Promise<{ messageId: string; threadId: string | null }>;
   "email.create_draft": (input: OutgoingEmail) => Promise<{ draftId: string }>;
   "calendar.free_busy": (input: {
@@ -75,6 +80,20 @@ export type OutgoingEmail = {
   body: string;
   threadId?: string;
   inReplyToMessageId?: string;
+};
+
+export type IncomingEmail = {
+  messageId: string;
+  threadId: string;
+  /** RFC 822 Message-ID header, used for In-Reply-To when answering. */
+  rfcMessageId: string | null;
+  from: { email: string; name: string | null };
+  to: string[];
+  subject: string;
+  text: string;
+  date: string | null;
+  /** Auto-Submitted / bulk headers present (auto-replies, newsletters). */
+  autoSubmitted: boolean;
 };
 
 export type ConnectorClient = Partial<Capabilities>;

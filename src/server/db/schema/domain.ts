@@ -626,8 +626,13 @@ export const playbooks = pgTable(
     name: text("name").notNull(),
     salesMotion: text("sales_motion", { enum: SALES_MOTIONS }).notNull(),
     /** Agents that follow this playbook. */
-    agentTypes: text("agent_types").array().notNull().default(sql`'{inbound}'::text[]`),
-    status: text("status", { enum: ["draft", "active", "archived"] }).notNull().default("draft"),
+    agentTypes: text("agent_types")
+      .array()
+      .notNull()
+      .default(sql`'{inbound}'::text[]`),
+    status: text("status", { enum: ["draft", "active", "archived"] })
+      .notNull()
+      .default("draft"),
     currentVersion: integer("current_version").notNull().default(1),
     createdBy: text("created_by"),
     createdAt: createdAt(),
@@ -651,10 +656,7 @@ export const playbookVersions = pgTable(
     createdBy: text("created_by"),
     createdAt: createdAt(),
   },
-  (t) => [
-    unique("playbook_versions_uq").on(t.playbookId, t.version),
-    tenantPolicy("playbook_versions"),
-  ],
+  (t) => [unique("playbook_versions_uq").on(t.playbookId, t.version), tenantPolicy("playbook_versions")],
 );
 
 export const CONTACT_STATUSES = [
@@ -743,7 +745,10 @@ export const messages = pgTable(
     channel: text("channel").notNull(),
     externalId: text("external_id"),
     fromAddress: text("from_address"),
-    toAddresses: text("to_addresses").array().notNull().default(sql`'{}'::text[]`),
+    toAddresses: text("to_addresses")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     subject: text("subject"),
     body: text("body").notNull(),
     actionId: uuid("action_id").references(() => actions.id, { onDelete: "set null" }),

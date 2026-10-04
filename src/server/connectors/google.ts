@@ -5,8 +5,10 @@ import {
   type Capability,
   type ConnectorContext,
   type ConnectorProvider,
+  type IncomingEmail,
   type OutgoingEmail,
 } from "./types";
+import { htmlToText } from "../knowledge/documents";
 
 /**
  * Google account connected as a project mailbox/calendar (not the login).
@@ -143,6 +145,61 @@ export function buildMimeMessage(email: OutgoingEmail): string {
   return `${headers.join("\r\n")}\r\n\r\n${body}`;
 }
 
+type GmailPart = {
+  mimeType?: string;
+  headers?: { name: string; value: string }[];
+  body?: { data?: string; size?: number };
+  parts?: GmailPart[];
+};
+
+function header(part: GmailPart, name: string): string | null {
+  return part.headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? null;
+}
+
+function findBody(part: GmailPart, mime: string): string | null {
+  if (part.mimeType === mime && part.body?.data)
+    return Buffer.from(part.body.data, "base64url").toString("utf8");
+  for (const child of part.parts ?? []) {
+    const found = findBody(child, mime);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** "Ana López <ana@x.com>" → { email, name } */
+export function parseAddress(value: string): { email: string; name: string | null } {
+  const match = /^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/.exec(value);
+  if (match) return { email: match[2].trim().toLowerCase(), name: match[1].trim() || null };
+  return { email: value.trim().toLowerCase(), name: null };
+}
+
+export function parseGmailMessage(message: {
+  id: string;
+  threadId: string;
+  payload: GmailPart;
+}): IncomingEmail {
+  const p = message.payload;
+  const text = findBody(p, "text/plain") ?? htmlToText(findBody(p, "text/html") ?? "");
+  const autoHeader = header(p, "Auto-Submitted");
+  return {
+    messageId: message.id,
+    threadId: message.threadId,
+    rfcMessageId: header(p, "Message-ID") ?? header(p, "Message-Id"),
+    from: parseAddress(header(p, "From") ?? ""),
+    to: (header(p, "To") ?? "")
+      .split(",")
+      .map((v) => parseAddress(v).email)
+      .filter(Boolean),
+    subject: header(p, "Subject") ?? "",
+    text,
+    date: header(p, "Date"),
+    autoSubmitted:
+      (autoHeader !== null && autoHeader.toLowerCase() !== "no") ||
+      /^(bulk|list|junk)$/i.test(header(p, "Precedence") ?? "") ||
+      header(p, "List-Unsubscribe") !== null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Client
 // ---------------------------------------------------------------------------
@@ -195,6 +252,21 @@ export function createGoogleClient(
   const raw = (email: OutgoingEmail) => Buffer.from(buildMimeMessage(email), "utf8").toString("base64url");
 
   return {
+    async "email.list_messages"({ query, maxResults = 20 }: { query: string; maxResults?: number }) {
+      const params = new URLSearchParams({ q: query, maxResults: String(maxResults) });
+      const res = (await call(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`)) as {
+        messages?: { id: string; threadId: string }[];
+      };
+      return res.messages ?? [];
+    },
+
+    async "email.get_message"({ id }: { id: string }) {
+      const message = (await call(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(id)}?format=full`,
+      )) as { id: string; threadId: string; payload: GmailPart };
+      return parseGmailMessage(message);
+    },
+
     async "email.send"(email: OutgoingEmail) {
       const sent = (await call("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
         method: "POST",
@@ -269,6 +341,7 @@ export function googleProvider(
       const caps: Capability[] = [];
       if (read.includes("calendar")) caps.push("calendar.free_busy");
       if (write.includes("calendar")) caps.push("calendar.book");
+      if (read.includes("email")) caps.push("email.list_messages", "email.get_message");
       if (write.includes("email")) caps.push("email.create_draft", "email.send");
       return caps;
     },

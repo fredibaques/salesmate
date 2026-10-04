@@ -36,7 +36,10 @@ export type AgentLoopResult = {
 };
 
 function toApiTool(tool: AgentTool): BetaTool {
-  const schema = z.toJSONSchema(tool.input, { io: "input", unrepresentable: "any" }) as Record<string, unknown>;
+  const schema = z.toJSONSchema(tool.input, { io: "input", unrepresentable: "any" }) as Record<
+    string,
+    unknown
+  >;
   delete schema.$schema;
   return {
     name: tool.name,

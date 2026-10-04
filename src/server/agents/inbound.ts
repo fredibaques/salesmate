@@ -18,12 +18,7 @@ import { runAgentLoop, defineTool, type AgentTool } from "../llm/agent-loop";
 import type { LlmClient } from "../llm/client";
 import { activePlaybookFor, type PlaybookWithSpec } from "../playbooks/service";
 import { renderPlaybook } from "../playbooks/spec";
-import {
-  conversationRef,
-  findOrCreateConversation,
-  upsertContact,
-  type Lead,
-} from "./conversations";
+import { conversationRef, findOrCreateConversation, upsertContact, type Lead } from "./conversations";
 import { leadFromEmail, leadFromForm, looksAutomated, type GmailInboundPayload } from "./leads";
 import {
   actionTools,
@@ -50,7 +45,10 @@ export type InboundOutcome =
 
 const MAX_ATTEMPTS = 3;
 
-function leadFromEvent(source: string, payload: Record<string, unknown>): { lead: Lead; automated: boolean } | null {
+function leadFromEvent(
+  source: string,
+  payload: Record<string, unknown>,
+): { lead: Lead; automated: boolean } | null {
   if (source === "form") {
     const lead = leadFromForm((payload.fields ?? payload) as Record<string, unknown>);
     return { lead, automated: false };
@@ -86,7 +84,9 @@ function systemPrompt(input: {
 - Termina con un resumen de 2 a 4 frases para la persona responsable: qué pide el contacto, tu valoración y qué has propuesto.`,
     `## Identidades del proyecto\n${
       input.identities.length
-        ? input.identities.map((i) => `- ${i.kind} ${i.address} (id ${i.id})${i.isDefault ? " · por defecto" : ""}`).join("\n")
+        ? input.identities
+            .map((i) => `- ${i.kind} ${i.address} (id ${i.id})${i.isDefault ? " · por defecto" : ""}`)
+            .join("\n")
         : "- Ninguna asignada: no puedes enviar emails ni reservar reuniones; propone una tarea en el CRM o deriva."
     }${calendars.length ? "" : "\n(No hay calendario asignado: no reserves reuniones directamente; ofrece huecos solo si get_availability los devuelve.)"}`,
     playbook
@@ -119,7 +119,10 @@ function leadMessage(input: {
   const extra = Object.entries(lead.extra);
   const history = input.history
     .slice(-10)
-    .map((m) => `[${m.direction === "inbound" ? "Contacto" : "Nosotros"} · ${m.sentAt.toISOString()}] ${m.subject ? `${m.subject}: ` : ""}${m.body}`)
+    .map(
+      (m) =>
+        `[${m.direction === "inbound" ? "Contacto" : "Nosotros"} · ${m.sentAt.toISOString()}] ${m.subject ? `${m.subject}: ` : ""}${m.body}`,
+    )
     .join("\n\n");
 
   return [
@@ -132,7 +135,9 @@ function leadMessage(input: {
       ? `Para responder en el mismo hilo incluye en el email threadId=${lead.externalThreadId}${lead.rfcMessageId ? ` e inReplyToMessageId=${lead.rfcMessageId}` : ""}${lead.subject ? ` y el asunto «Re: ${lead.subject.replace(/^re:\s*/i, "")}»` : ""}.`
       : null,
     `Estado actual del contacto: ${input.contact.status}${input.contact.crmExternalId ? ` · id en el CRM ${input.contact.crmExternalId}` : ""}.`,
-    history ? `Historial reciente de la conversación:\n${history}` : "Es el primer mensaje de esta conversación.",
+    history
+      ? `Historial reciente de la conversación:\n${history}`
+      : "Es el primer mensaje de esta conversación.",
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -152,14 +157,19 @@ function leadStateTool(ctx: { db: Db; orgId: string; contactId: string; conversa
         .describe("p. ej. interesado, pide presupuesto, consulta, cliente actual, soporte, no encaja, spam"),
       summary: z.string().optional(),
       nextStep: z.string().optional(),
-      conversationStatus: z.enum(["open", "waiting_customer", "waiting_us", "handed_off", "closed"]).optional(),
+      conversationStatus: z
+        .enum(["open", "waiting_customer", "waiting_us", "handed_off", "closed"])
+        .optional(),
       customerType: z.enum(["b2b", "b2c"]).optional(),
       firstName: z.string().optional(),
       lastName: z.string().optional(),
       companyName: z.string().optional(),
       jobTitle: z.string().optional(),
       phone: z.string().optional(),
-      crmExternalId: z.string().optional().describe("Id del contacto en el CRM si lo has creado o encontrado"),
+      crmExternalId: z
+        .string()
+        .optional()
+        .describe("Id del contacto en el CRM si lo has creado o encontrado"),
     }),
     run: async (input) =>
       withTenant(ctx.db, { orgId: ctx.orgId }, async (tx) => {
@@ -188,7 +198,10 @@ function leadStateTool(ctx: { db: Db; orgId: string; contactId: string; conversa
           }).filter(([, v]) => v !== undefined),
         );
         if (Object.keys(conversationPatch).length) {
-          await tx.update(conversations).set(conversationPatch).where(eq(conversations.id, ctx.conversationId));
+          await tx
+            .update(conversations)
+            .set(conversationPatch)
+            .where(eq(conversations.id, ctx.conversationId));
         }
         return { ok: true };
       }),
@@ -215,7 +228,10 @@ export async function processInboundEvent(
       .where(
         and(
           eq(inboundEvents.id, eventId),
-          or(eq(inboundEvents.status, "pending"), and(eq(inboundEvents.status, "error"), lt(inboundEvents.attempts, MAX_ATTEMPTS))),
+          or(
+            eq(inboundEvents.status, "pending"),
+            and(eq(inboundEvents.status, "error"), lt(inboundEvents.attempts, MAX_ATTEMPTS)),
+          ),
         ),
       )
       .returning();
@@ -337,7 +353,14 @@ export async function processInboundEvent(
       ...crmTools(toolCtx),
       ...(needsCalendar ? calendarTools(toolCtx) : []),
       leadStateTool({ db: deps.db, orgId, contactId: contact.id, conversationId: conversation.id }),
-      actionTools(toolCtx, ["email.send", "email.create_draft", "crm.upsert_contact", "crm.create_task", "crm.log_note", "calendar.book"]),
+      actionTools(toolCtx, [
+        "email.send",
+        "email.create_draft",
+        "crm.upsert_contact",
+        "crm.create_task",
+        "crm.log_note",
+        "calendar.book",
+      ]),
     ];
 
     const result = await runAgentLoop({
@@ -363,7 +386,8 @@ export async function processInboundEvent(
       await tx
         .update(agentRuns)
         .set({
-          status: result.status === "refused" ? "refused" : result.status === "completed" ? "completed" : "failed",
+          status:
+            result.status === "refused" ? "refused" : result.status === "completed" ? "completed" : "failed",
           error: result.status === "completed" ? null : `Fin del agente: ${result.status}`,
           model: result.model,
           inputTokens: result.usage.input,
@@ -377,7 +401,10 @@ export async function processInboundEvent(
         .where(eq(agentRuns.id, run.id));
       const [current] = await tx.select().from(conversations).where(eq(conversations.id, conversation.id));
       if (!current.summary && result.finalText) {
-        await tx.update(conversations).set({ summary: result.finalText }).where(eq(conversations.id, conversation.id));
+        await tx
+          .update(conversations)
+          .set({ summary: result.finalText })
+          .where(eq(conversations.id, conversation.id));
       }
     });
     await finish("processed");

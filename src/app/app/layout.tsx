@@ -34,6 +34,7 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
               </span>
             ) : null}
           </NavLink>
+          <NavLink href="/app/copilot">Copiloto</NavLink>
           <NavLink href="/app/connections">Conexiones</NavLink>
           <NavLink href="/app/audit">Auditoría</NavLink>
         </nav>

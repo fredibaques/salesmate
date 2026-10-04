@@ -1,12 +1,7 @@
 import { and, arrayContains, asc, desc, eq } from "drizzle-orm";
 import { audit } from "../audit";
 import type { Db } from "../db/client";
-import {
-  playbooks,
-  playbookVersions,
-  type AgentType,
-  type SalesMotion,
-} from "../db/schema";
+import { playbooks, playbookVersions, type AgentType, type SalesMotion } from "../db/schema";
 import { withTenant, type TenantContext, type Tx } from "../db/tenant";
 import { PLAYBOOK_TEMPLATES, playbookSpecSchema, type PlaybookSpec } from "./spec";
 
@@ -23,7 +18,12 @@ async function loadCurrent(tx: Tx, playbook: PlaybookRow): Promise<PlaybookWithS
   const [version] = await tx
     .select()
     .from(playbookVersions)
-    .where(and(eq(playbookVersions.playbookId, playbook.id), eq(playbookVersions.version, playbook.currentVersion)));
+    .where(
+      and(
+        eq(playbookVersions.playbookId, playbook.id),
+        eq(playbookVersions.version, playbook.currentVersion),
+      ),
+    );
   return { ...playbook, versionId: version.id, spec: playbookSpecSchema.parse(version.spec) };
 }
 

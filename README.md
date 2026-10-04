@@ -21,8 +21,8 @@ para venderse como SaaS más adelante. Inspirado en [Alta](https://www.altahq.co
 
 ## Estado
 
-**Fase 0 (fundamentos) implementada.** Ver el detalle en
-[§16 del plan](docs/PLAN.md#16-roadmap-por-fases).
+**Fase 0 (fundamentos) y Fase 1 (playbooks, agente inbound y copiloto)
+implementadas.** Ver el detalle en [§16 del plan](docs/PLAN.md#16-roadmap-por-fases).
 
 | Pieza | Estado |
 |---|---|
@@ -34,7 +34,10 @@ para venderse como SaaS más adelante. Inspirado en [Alta](https://www.altahq.co
 | Disponibilidad global entre calendarios y tipos de reunión por proyecto | ✅ |
 | Conocimiento: Excel/CSV como tablas consultables, PDF/Word/Markdown con búsqueda y citas | ✅ |
 | Reglas de cumplimiento por proyecto y exclusiones (globales y por proyecto) | ✅ |
-| Copiloto / agentes con LLM | Fase 1 |
+| Playbooks versionados con plantillas por modelo de venta y borrador con IA | ✅ |
+| Agente inbound (formulario web y Gmail): contacto, conversación, cualificación y acciones propuestas | ✅ |
+| Copiloto sobre el conocimiento, el CRM y las conversaciones de cada proyecto | ✅ |
+| Agente outbound | Fase 2 |
 
 ## Puesta en marcha
 
@@ -75,6 +78,24 @@ Las migraciones nuevas se aplican con `pnpm db:migrate`.
   horario laboral (configura los secretos `APP_URL` y `CRON_SECRET` del
   repositorio). Así la base de datos puede apagarse el resto del tiempo y el
   consumo cabe en el plan gratuito de Neon.
+
+### IA (Claude)
+
+Pon `ANTHROPIC_API_KEY` en `.env.local`. Los agentes usan `claude-opus-5-5`
+(se puede cambiar con `ANTHROPIC_MODEL`) con *fallback* automático del lado del
+servidor si un clasificador de seguridad rechaza una petición. Sin clave, los
+mensajes entrantes se guardan y se procesan cuando la configures.
+
+### Agente inbound
+
+1. Crea un playbook en *Proyecto → Playbooks* (desde la plantilla de tu modelo
+   de venta o con *Proponer con IA*) y actívalo.
+2. Entradas:
+   - **Formulario web**: en *Proyecto → Conversaciones*, activa el formulario y
+     apunta tu web a la dirección que aparece (incluye un ejemplo HTML).
+   - **Email**: conecta una cuenta de Google con permiso de lectura y asígnala
+     al proyecto en *Canales*. El buzón se revisa en cada ejecución programada.
+3. Prueba con *Enviar lead de prueba* y revisa lo propuesto en la *Bandeja*.
 
 ### Probar sin agentes
 

@@ -47,7 +47,13 @@ async function formEvent(fields: Record<string, string>) {
   const [event] = await withTenant(db, tenant, (tx) =>
     tx
       .insert(inboundEvents)
-      .values({ orgId: tenant.orgId, projectId, source: "form", eventType: "form.submitted", payload: { fields } })
+      .values({
+        orgId: tenant.orgId,
+        projectId,
+        source: "form",
+        eventType: "form.submitted",
+        payload: { fields },
+      })
       .returning(),
   );
   return event.id;
@@ -60,7 +66,11 @@ beforeAll(async () => {
   ({ projectId, mailboxId } = await withTenant(db, tenant, async (tx) => {
     const [project] = await tx
       .insert(projects)
-      .values({ orgId: tenant.orgId, name: "Servicios B2B", description: "Gestión de trámites para empresas" })
+      .values({
+        orgId: tenant.orgId,
+        name: "Servicios B2B",
+        description: "Gestión de trámites para empresas",
+      })
       .returning();
     const [conn] = await tx
       .insert(connections)
@@ -68,12 +78,24 @@ beforeAll(async () => {
       .returning();
     const [mailbox] = await tx
       .insert(identities)
-      .values({ orgId: tenant.orgId, kind: "email", provider: "google", address: "ventas@empresa.com", connectionId: conn.id })
+      .values({
+        orgId: tenant.orgId,
+        kind: "email",
+        provider: "google",
+        address: "ventas@empresa.com",
+        connectionId: conn.id,
+      })
       .returning();
-    await tx.insert(projectIdentities).values({ orgId: tenant.orgId, projectId: project.id, identityId: mailbox.id, isDefault: true });
+    await tx
+      .insert(projectIdentities)
+      .values({ orgId: tenant.orgId, projectId: project.id, identityId: mailbox.id, isDefault: true });
     return { projectId: project.id, mailboxId: mailbox.id };
   }));
-  const playbook = await createPlaybook(db, tenant, { projectId, name: "Inbound empresas", salesMotion: "b2b_consultative" });
+  const playbook = await createPlaybook(db, tenant, {
+    projectId,
+    name: "Inbound empresas",
+    salesMotion: "b2b_consultative",
+  });
   await setPlaybookStatus(db, tenant, playbook.id, "active");
   const ingested = await ingestTableFile(db, tenant, {
     projectId,
@@ -99,13 +121,30 @@ describe("inbound agent", () => {
     });
 
     const { llm, requests } = scriptedLlm([
-      { blocks: [{ type: "tool_use", name: "query_table", input: { tableId, filters: [{ column: "servicio", op: "contains", value: "estándar" }] } }] },
+      {
+        blocks: [
+          {
+            type: "tool_use",
+            name: "query_table",
+            input: { tableId, filters: [{ column: "servicio", op: "contains", value: "estándar" }] },
+          },
+        ],
+      },
       (req) => {
         const [table] = lastToolResults(req) as { rows: { rowId: string; precio: number }[] }[];
         expect(table.rows[0].precio).toBe(49);
         return {
           blocks: [
-            { type: "tool_use", name: "update_lead", input: { status: "qualified", fitScore: 80, classification: "pide presupuesto", customerType: "b2b" } },
+            {
+              type: "tool_use",
+              name: "update_lead",
+              input: {
+                status: "qualified",
+                fitScore: 80,
+                classification: "pide presupuesto",
+                customerType: "b2b",
+              },
+            },
             {
               type: "tool_use",
               name: "propose_action",
@@ -127,11 +166,22 @@ describe("inbound agent", () => {
       (req) => {
         const results = lastToolResults(req) as { outcome?: string }[];
         expect(results[1].outcome).toBe("pending_approval");
-        return { blocks: [{ type: "text", text: "Lucía (Motor Centro) pide precio para ~40 trámites/mes. Encaja. He propuesto responder con la tarifa estándar." }] };
+        return {
+          blocks: [
+            {
+              type: "text",
+              text: "Lucía (Motor Centro) pide precio para ~40 trámites/mes. Encaja. He propuesto responder con la tarifa estándar.",
+            },
+          ],
+        };
       },
     ]);
 
-    const outcome = await processInboundEvent({ db, llm, gateway: gateway(), now: () => new Date("2026-10-07T09:00:00Z") }, tenant.orgId, eventId);
+    const outcome = await processInboundEvent(
+      { db, llm, gateway: gateway(), now: () => new Date("2026-10-07T09:00:00Z") },
+      tenant.orgId,
+      eventId,
+    );
     expect(outcome.status).toBe("processed");
     if (outcome.status !== "processed") return;
 
@@ -142,17 +192,33 @@ describe("inbound agent", () => {
 
     const state = await withTenant(db, tenant, async (tx) => ({
       contact: (await tx.select().from(contacts).where(eq(contacts.email, "lucia@concesionario.com")))[0],
-      conversation: (await tx.select().from(conversations).where(eq(conversations.id, outcome.conversationId)))[0],
+      conversation: (
+        await tx.select().from(conversations).where(eq(conversations.id, outcome.conversationId))
+      )[0],
       run: (await tx.select().from(agentRuns).where(eq(agentRuns.id, outcome.runId)))[0],
       action: (await tx.select().from(actions).where(eq(actions.runId, outcome.runId)))[0],
       event: (await tx.select().from(inboundEvents).where(eq(inboundEvents.id, eventId)))[0],
     }));
-    expect(state.contact).toMatchObject({ firstName: "Lucía", lastName: "Martín", companyName: "Motor Centro", status: "qualified", fitScore: 80, legalBasis: "consent" });
+    expect(state.contact).toMatchObject({
+      firstName: "Lucía",
+      lastName: "Martín",
+      companyName: "Motor Centro",
+      status: "qualified",
+      fitScore: 80,
+      legalBasis: "consent",
+    });
     expect(state.conversation).toMatchObject({ classification: "pide presupuesto", channel: "form" });
     expect(state.run).toMatchObject({ status: "completed", agentType: "inbound", inputTokens: 3000 });
     expect(state.run.summary).toContain("Motor Centro");
-    expect(state.action).toMatchObject({ type: "email.send", status: "pending_approval", agentType: "inbound" });
-    expect(state.action.context).toEqual({ customerType: "b2b", subjectRef: `conversation:${outcome.conversationId}` });
+    expect(state.action).toMatchObject({
+      type: "email.send",
+      status: "pending_approval",
+      agentType: "inbound",
+    });
+    expect(state.action.context).toEqual({
+      customerType: "b2b",
+      subjectRef: `conversation:${outcome.conversationId}`,
+    });
     // Figures are backed by the cited truth table, so no extra warning for them.
     expect(state.action.policyResults.find((p) => p.policy === "backed_figures")?.outcome).toBe("allow");
     expect(state.event.status).toBe("processed");
@@ -209,10 +275,21 @@ describe("inbound agent", () => {
 
   it("records failures and lets the event be retried", async () => {
     const eventId = await formEvent({ email: "fallo@cliente.com", mensaje: "Hola" });
-    const failing = { model: "claude-opus-5-5", create: async () => { throw new Error("API caída"); } };
-    const outcome = await processInboundEvent({ db, llm: failing, gateway: gateway() }, tenant.orgId, eventId);
+    const failing = {
+      model: "claude-opus-5-5",
+      create: async () => {
+        throw new Error("API caída");
+      },
+    };
+    const outcome = await processInboundEvent(
+      { db, llm: failing, gateway: gateway() },
+      tenant.orgId,
+      eventId,
+    );
     expect(outcome).toEqual({ status: "error", error: "API caída" });
     const { llm } = scriptedLlm([{ blocks: [{ type: "text", text: "Ok." }] }]);
-    expect((await processInboundEvent({ db, llm, gateway: gateway() }, tenant.orgId, eventId)).status).toBe("processed");
+    expect((await processInboundEvent({ db, llm, gateway: gateway() }, tenant.orgId, eventId)).status).toBe(
+      "processed",
+    );
   });
 });
