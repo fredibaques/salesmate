@@ -3,6 +3,7 @@ import {
   bigint,
   boolean,
   customType,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -77,6 +78,8 @@ export const projects = pgTable(
     /** Kill switch: when true no agent action of this project may execute. */
     agentsPaused: boolean("agents_paused").notNull().default(false),
     settings: jsonb("settings").$type<ProjectSettings>().notNull().default({}),
+    /** Secret used by the project's web forms to post leads (POST /api/inbound/form/:projectId). */
+    inboundFormKey: text("inbound_form_key"),
     createdBy: text("created_by"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -577,16 +580,217 @@ export const inboundEvents = pgTable(
     connectionId: uuid("connection_id").references(() => connections.id, {
       onDelete: "set null",
     }),
+    /** Set when the source already knows the project (forms, project mailboxes). */
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
     source: text("source").notNull(),
     eventType: text("event_type").notNull(),
+    /** Id in the source system (Gmail message id, CRM record id…) used to avoid duplicates. */
+    externalId: text("external_id"),
     payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
-    status: text("status", { enum: ["pending", "processed", "ignored", "error"] })
+    status: text("status", { enum: ["pending", "processing", "processed", "ignored", "error"] })
       .notNull()
       .default("pending"),
+    error: text("error"),
+    attempts: integer("attempts").notNull().default(0),
     receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
     processedAt: timestamp("processed_at", { withTimezone: true }),
   },
-  (t) => [index("inbound_events_org_status_idx").on(t.orgId, t.status), tenantPolicy("inbound_events")],
+  (t) => [
+    index("inbound_events_org_status_idx").on(t.orgId, t.status),
+    unique("inbound_events_external_uq").on(t.orgId, t.source, t.externalId),
+    tenantPolicy("inbound_events"),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Sales process: playbooks, contacts, conversations, agent runs
+// ---------------------------------------------------------------------------
+
+export const SALES_MOTIONS = [
+  "b2b_consultative",
+  "b2b_transactional",
+  "b2c_assisted",
+  "b2c_self_serve",
+  "custom",
+] as const;
+export type SalesMotion = (typeof SALES_MOTIONS)[number];
+
+export const playbooks = pgTable(
+  "playbooks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: orgId(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    salesMotion: text("sales_motion", { enum: SALES_MOTIONS }).notNull(),
+    /** Agents that follow this playbook. */
+    agentTypes: text("agent_types").array().notNull().default(sql`'{inbound}'::text[]`),
+    status: text("status", { enum: ["draft", "active", "archived"] }).notNull().default("draft"),
+    currentVersion: integer("current_version").notNull().default(1),
+    createdBy: text("created_by"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("playbooks_project_idx").on(t.projectId), tenantPolicy("playbooks")],
+);
+
+export const playbookVersions = pgTable(
+  "playbook_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: orgId(),
+    playbookId: uuid("playbook_id")
+      .notNull()
+      .references(() => playbooks.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    /** See server/playbooks/spec.ts */
+    spec: jsonb("spec").$type<Record<string, unknown>>().notNull(),
+    notes: text("notes"),
+    createdBy: text("created_by"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique("playbook_versions_uq").on(t.playbookId, t.version),
+    tenantPolicy("playbook_versions"),
+  ],
+);
+
+export const CONTACT_STATUSES = [
+  "new",
+  "contacted",
+  "engaged",
+  "qualified",
+  "disqualified",
+  "customer",
+  "lost",
+] as const;
+
+export const contacts = pgTable(
+  "contacts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: orgId(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    customerType: text("customer_type", { enum: ["b2b", "b2c"] }),
+    email: text("email"),
+    phone: text("phone"),
+    firstName: text("first_name"),
+    lastName: text("last_name"),
+    companyName: text("company_name"),
+    jobTitle: text("job_title"),
+    crmExternalId: text("crm_external_id"),
+    status: text("status", { enum: CONTACT_STATUSES }).notNull().default("new"),
+    fitScore: integer("fit_score"),
+    legalBasis: text("legal_basis", { enum: ["legitimate_interest", "consent", "contract", "other"] }),
+    consentRef: text("consent_ref"),
+    dataOrigin: text("data_origin"),
+    doNotContact: boolean("do_not_contact").notNull().default(false),
+    data: jsonb("data").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique("contacts_project_email_uq").on(t.projectId, t.email),
+    index("contacts_project_status_idx").on(t.projectId, t.status),
+    tenantPolicy("contacts"),
+  ],
+);
+
+export const conversations = pgTable(
+  "conversations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: orgId(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    contactId: uuid("contact_id").references(() => contacts.id, { onDelete: "set null" }),
+    playbookId: uuid("playbook_id").references(() => playbooks.id, { onDelete: "set null" }),
+    channel: text("channel", { enum: ["email", "form", "whatsapp", "phone", "chat", "crm"] }).notNull(),
+    externalThreadId: text("external_thread_id"),
+    status: text("status", {
+      enum: ["open", "waiting_customer", "waiting_us", "handed_off", "closed"],
+    })
+      .notNull()
+      .default("open"),
+    classification: text("classification"),
+    summary: text("summary"),
+    nextStep: text("next_step"),
+    lastMessageAt: timestamp("last_message_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index("conversations_project_status_idx").on(t.projectId, t.status),
+    unique("conversations_thread_uq").on(t.projectId, t.channel, t.externalThreadId),
+    tenantPolicy("conversations"),
+  ],
+);
+
+export const messages = pgTable(
+  "messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: orgId(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    direction: text("direction", { enum: ["inbound", "outbound", "internal"] }).notNull(),
+    channel: text("channel").notNull(),
+    externalId: text("external_id"),
+    fromAddress: text("from_address"),
+    toAddresses: text("to_addresses").array().notNull().default(sql`'{}'::text[]`),
+    subject: text("subject"),
+    body: text("body").notNull(),
+    actionId: uuid("action_id").references(() => actions.id, { onDelete: "set null" }),
+    sentAt: timestamp("sent_at", { withTimezone: true }).defaultNow().notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  },
+  (t) => [
+    index("messages_conversation_idx").on(t.conversationId, t.sentAt),
+    unique("messages_external_uq").on(t.conversationId, t.externalId),
+    tenantPolicy("messages"),
+  ],
+);
+
+export type AgentRunStep =
+  | { type: "text"; text: string }
+  | { type: "tool_call"; name: string; input: unknown }
+  | { type: "tool_result"; name: string; output: unknown; isError?: boolean };
+
+export const agentRuns = pgTable(
+  "agent_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: orgId(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    agentType: text("agent_type", { enum: AGENT_TYPES }).notNull(),
+    trigger: text("trigger", { enum: ["inbound_event", "copilot", "manual", "schedule"] }).notNull(),
+    triggerRef: text("trigger_ref"),
+    playbookVersionId: uuid("playbook_version_id").references(() => playbookVersions.id, {
+      onDelete: "set null",
+    }),
+    status: text("status", { enum: ["running", "completed", "failed", "refused"] })
+      .notNull()
+      .default("running"),
+    model: text("model").notNull(),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    cacheReadTokens: integer("cache_read_tokens").notNull().default(0),
+    costUsd: doublePrecision("cost_usd").notNull().default(0),
+    steps: jsonb("steps").$type<AgentRunStep[]>().notNull().default([]),
+    summary: text("summary"),
+    error: text("error"),
+    startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (t) => [index("agent_runs_project_idx").on(t.projectId, t.startedAt), tenantPolicy("agent_runs")],
 );
 
 // ---------------------------------------------------------------------------

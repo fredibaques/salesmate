@@ -31,6 +31,8 @@ export type GatewayDeps = {
   db: Db;
   executor: ActionExecutor;
   now?: () => Date;
+  /** Best-effort side effects after a successful execution (e.g. log the email in its conversation). */
+  afterExecute?: (input: { orgId: string; action: ActionRow }) => Promise<void>;
 };
 
 export type ProposeInput = {
@@ -498,6 +500,13 @@ export async function executeAction(
     });
     return row;
   });
+  if (!error && deps.afterExecute) {
+    try {
+      await deps.afterExecute({ orgId: tenant.orgId, action: finished });
+    } catch (err) {
+      console.error("afterExecute failed", err);
+    }
+  }
   return { action: finished, outcome: error ? "failed" : "executed" };
 }
 
