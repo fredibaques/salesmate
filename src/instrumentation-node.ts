@@ -3,13 +3,19 @@
  * the server starts, so `pnpm dev` works with zero setup. Real Postgres
  * databases are migrated explicitly with `pnpm db:migrate`.
  *
- * Skipped during `next build`: build workers run in parallel and PGlite is a
- * single-process database.
+ * Skipped during `next build` (parallel workers; PGlite is single-process) and
+ * on serverless hosts. A failure here is logged, never fatal: a crashing
+ * instrumentation hook turns every request into a 500.
  */
 import { getDb } from "./server/db/client";
 import { runMigrations } from "./server/db/migrate";
+import { env, isServerless } from "./server/env";
 
-const url = process.env.DATABASE_URL ?? "pglite:./.data/pglite";
-if (url.startsWith("pglite:") && process.env.NEXT_PHASE !== "phase-production-build") {
-  await runMigrations(getDb(), url);
+try {
+  const url = env().DATABASE_URL;
+  if (url.startsWith("pglite:") && !isServerless() && process.env.NEXT_PHASE !== "phase-production-build") {
+    await runMigrations(getDb(), url);
+  }
+} catch (err) {
+  console.error("[salesmate] Local migrations skipped:", err);
 }

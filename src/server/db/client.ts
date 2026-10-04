@@ -17,6 +17,7 @@ export type Db = PgDatabase<PgQueryResultHKT, Schema>;
  *   pglite:memory                 → embedded, in-memory (tests)
  */
 export function createDb(url: string): { db: Db; close: () => Promise<void> } {
+  if (!url) throw new Error("DATABASE_URL no está configurada.");
   if (url.startsWith("pglite:")) {
     const target = url.slice("pglite:".length);
     if (target !== "memory") mkdirSync(target, { recursive: true });
