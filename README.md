@@ -51,9 +51,13 @@ pnpm dev
 Abre http://localhost:3000, crea una cuenta y tu organización.
 
 Por defecto se usa **Postgres embebido (PGlite)** guardado en `./.data`, sin
-instalar nada; las migraciones se aplican solas al arrancar. Para usar un
-Postgres real (Neon, Supabase…), pon su URL en `DATABASE_URL` y ejecuta
-`pnpm db:migrate`.
+instalar nada; las migraciones se aplican solas al arrancar.
+
+En producción usamos **Neon** (proyecto `SalesMate`, región Frankfurt). Copia
+la cadena de conexión *pooled* desde la consola de Neon a `DATABASE_URL`,
+quitando el parámetro `channel_binding` (el driver `postgres` no lo admite):
+`postgresql://usuario:clave@ep-…-pooler.eu-central-1.aws.neon.tech/salesmate?sslmode=require`.
+Las migraciones nuevas se aplican con `pnpm db:migrate`.
 
 ### Conectar herramientas
 
@@ -66,8 +70,11 @@ Postgres real (Neon, Supabase…), pon su URL en `DATABASE_URL` y ejecuta
   Pon `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` en `.env.local`. Mientras la app
   no esté verificada por Google, añade tus cuentas como usuarios de prueba.
 - **Acciones programadas**: las acciones fuera de horario se liberan llamando a
-  `GET /api/cron/release-deferred` con `Authorization: Bearer $CRON_SECRET`
-  (en Vercel lo hace `vercel.json` cada 5 minutos).
+  `GET /api/cron/release-deferred` con `Authorization: Bearer $CRON_SECRET`.
+  Lo hace el workflow `release-deferred` de GitHub Actions cada 30 minutos en
+  horario laboral (configura los secretos `APP_URL` y `CRON_SECRET` del
+  repositorio). Así la base de datos puede apagarse el resto del tiempo y el
+  consumo cabe en el plan gratuito de Neon.
 
 ### Probar sin agentes
 
