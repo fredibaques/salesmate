@@ -66,11 +66,23 @@ async function createProject(name: string): Promise<Fixture> {
       .returning();
     const [identity] = await tx
       .insert(identities)
-      .values({ orgId, kind: "email", provider: "google", address: `${name}@example.com`, connectionId: mail.id })
+      .values({
+        orgId,
+        kind: "email",
+        provider: "google",
+        address: `${name}@example.com`,
+        connectionId: mail.id,
+      })
       .returning();
     const [other] = await tx
       .insert(identities)
-      .values({ orgId, kind: "email", provider: "google", address: `other-${name}@example.com`, connectionId: mail.id })
+      .values({
+        orgId,
+        kind: "email",
+        provider: "google",
+        address: `other-${name}@example.com`,
+        connectionId: mail.id,
+      })
       .returning();
     await tx.insert(projectIdentities).values({ orgId, projectId: project.id, identityId: identity.id });
     await tx.insert(projectConnections).values({
@@ -85,7 +97,11 @@ async function createProject(name: string): Promise<Fixture> {
 
 let recipientSeq = 0;
 /** Each call gets a fresh recipient unless one is given (avoids cross-test cooldowns). */
-function email(f: Fixture, to = `cliente${++recipientSeq}@cliente.com`, body = "Hola Ana, ¿hablamos esta semana?") {
+function email(
+  f: Fixture,
+  to = `cliente${++recipientSeq}@cliente.com`,
+  body = "Hola Ana, ¿hablamos esta semana?",
+) {
   return {
     projectId: f.projectId,
     type: "email.send",
@@ -98,7 +114,14 @@ async function setAutonomy(projectId: string, level: number, limits = {}) {
   await withTenant(db, { orgId }, (tx) =>
     tx
       .insert(agentConfigs)
-      .values({ orgId, projectId, agentType: "outbound", enabled: true, autonomy: { default: level }, limits })
+      .values({
+        orgId,
+        projectId,
+        agentType: "outbound",
+        enabled: true,
+        autonomy: { default: level },
+        limits,
+      })
       .onConflictDoUpdate({
         target: [agentConfigs.projectId, agentConfigs.agentType],
         set: { autonomy: { default: level }, limits },
@@ -167,7 +190,11 @@ describe("approval flow", () => {
     const [approval] = await withTenant(db, { orgId }, (tx) =>
       tx.select().from(approvals).where(eq(approvals.actionId, proposed.action.id)),
     );
-    expect(approval).toMatchObject({ decision: "rejected", reason: "Tono demasiado agresivo", decidedBy: userId });
+    expect(approval).toMatchObject({
+      decision: "rejected",
+      reason: "Tono demasiado agresivo",
+      decidedBy: userId,
+    });
     await expect(
       decideAction(deps(), person, { actionId: proposed.action.id, decision: "approved" }),
     ).rejects.toMatchObject({ code: "invalid_state" });
@@ -176,7 +203,9 @@ describe("approval flow", () => {
   it("re-validates an edited payload before executing it", async () => {
     const f = await createProject("p4");
     await withTenant(db, { orgId }, (tx) =>
-      tx.insert(suppressions).values({ orgId, type: "email", value: "baja@cliente.com", reason: "Pidió la baja" }),
+      tx
+        .insert(suppressions)
+        .values({ orgId, type: "email", value: "baja@cliente.com", reason: "Pidió la baja" }),
     );
     const proposed = await proposeAction(deps(), agent, email(f));
     const result = await decideAction(deps(), person, {
@@ -245,7 +274,9 @@ describe("policies", () => {
   it("blocks suppressed recipients (by domain)", async () => {
     const f = await createProject("supp");
     await withTenant(db, { orgId }, (tx) =>
-      tx.insert(suppressions).values({ orgId, projectId: f.projectId, type: "domain", value: "competidor.com" }),
+      tx
+        .insert(suppressions)
+        .values({ orgId, projectId: f.projectId, type: "domain", value: "competidor.com" }),
     );
     const result = await proposeAction(deps(), agent, email(f, "ceo@competidor.com"));
     expect(result.outcome).toBe("blocked");
@@ -370,7 +401,10 @@ describe("policies", () => {
     const b2c = await proposeAction(deps(), agent, { ...email(f), context: { customerType: "b2c" } });
     expect(b2c.outcome).toBe("blocked");
 
-    const noNotice = await proposeAction(deps(), agent, { ...email(f, "x@y.com"), context: { customerType: "b2b" } });
+    const noNotice = await proposeAction(deps(), agent, {
+      ...email(f, "x@y.com"),
+      context: { customerType: "b2b" },
+    });
     expect(noNotice.outcome).toBe("pending_approval");
 
     const withNotice = await proposeAction(deps(), agent, {

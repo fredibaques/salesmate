@@ -57,8 +57,24 @@ export function computeSlots(rules: SlotRules, busy: Interval[], now: Date): Int
     for (const [from, to] of ranges) {
       const [fh, fm] = hm(from);
       const [th, tm] = hm(to);
-      const rangeStart = new TZDate(date.getFullYear(), date.getMonth(), date.getDate(), fh, fm, 0, rules.timezone).getTime();
-      const rangeEnd = new TZDate(date.getFullYear(), date.getMonth(), date.getDate(), th, tm, 0, rules.timezone).getTime();
+      const rangeStart = new TZDate(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+        fh,
+        fm,
+        0,
+        rules.timezone,
+      ).getTime();
+      const rangeEnd = new TZDate(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+        th,
+        tm,
+        0,
+        rules.timezone,
+      ).getTime();
 
       for (
         let start = rangeStart;

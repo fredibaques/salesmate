@@ -28,10 +28,14 @@ export function mockFetch(routes: Record<string, (req: RecordedRequest) => unkno
         return m === method && url.startsWith(prefix);
       })
       .sort((a, b) => b.length - a.length)[0];
-    if (!key) return new Response(JSON.stringify({ error: `no route for ${method} ${url}` }), { status: 404 });
+    if (!key)
+      return new Response(JSON.stringify({ error: `no route for ${method} ${url}` }), { status: 404 });
     const result = routes[key](req);
     if (result instanceof Response) return result;
-    return new Response(JSON.stringify(result), { status: 200, headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
   }) as typeof fetch;
   return { fetch: impl, requests };
 }

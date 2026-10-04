@@ -36,7 +36,10 @@ export async function ingestTableFile(
     filename: string;
     data: ArrayBuffer | Buffer;
   },
-): Promise<{ source: SourceRow; tables: { id: string; name: string; rowCount: number; columns: TableColumn[] }[] }> {
+): Promise<{
+  source: SourceRow;
+  tables: { id: string; name: string; rowCount: number; columns: TableColumn[] }[];
+}> {
   const sheets = await parseTabularFile(input.data, input.filename);
   const typed = sheets.map(inferTable).filter((t) => t.columns.length > 0);
   if (typed.length === 0) throw new Error("El fichero no contiene ninguna tabla con cabeceras.");
@@ -88,7 +91,11 @@ export async function ingestTableFile(
       projectId: input.projectId,
       entityType: "knowledge_source",
       entityId: source.id,
-      data: { kind: "table", name: input.name, tables: tables.map((t) => ({ name: t.name, rows: t.rowCount })) },
+      data: {
+        kind: "table",
+        name: input.name,
+        tables: tables.map((t) => ({ name: t.name, rows: t.rowCount })),
+      },
     });
     return { source, tables };
   });
@@ -255,7 +262,11 @@ function columnExpr(column: TableColumn): SQL {
 }
 
 /** Structured lookup over a knowledge table. Values are always bound parameters. */
-export async function queryTable(db: Db, tenant: Pick<TenantContext, "orgId">, raw: TableQuery): Promise<TableQueryResult> {
+export async function queryTable(
+  db: Db,
+  tenant: Pick<TenantContext, "orgId">,
+  raw: TableQuery,
+): Promise<TableQueryResult> {
   const query = tableQuerySchema.parse(raw);
   return withTenant(db, tenant, async (tx) => {
     const [table] = await tx
@@ -282,7 +293,9 @@ export async function queryTable(db: Db, tenant: Pick<TenantContext, "orgId">, r
           conditions.push(text ? sql`lower(${expr}) = lower(${String(f.value)})` : sql`${expr} = ${f.value}`);
           break;
         case "neq":
-          conditions.push(text ? sql`lower(${expr}) <> lower(${String(f.value)})` : sql`${expr} <> ${f.value}`);
+          conditions.push(
+            text ? sql`lower(${expr}) <> lower(${String(f.value)})` : sql`${expr} <> ${f.value}`,
+          );
           break;
         case "lt":
           conditions.push(sql`${expr} < ${numeric ? Number(f.value) : String(f.value)}`);
@@ -384,7 +397,10 @@ export async function searchKnowledge(
       // Fall back to "any word" matching when the full query has no exact hit.
       const words = folded.split(/\s+/).filter((w) => w.length > 2);
       if (words.length > 1) {
-        const anyQuery = sql`to_tsquery('simple', ${words.map((w) => w.replace(/[^a-z0-9]/g, "")).filter(Boolean).join(" | ")})`;
+        const anyQuery = sql`to_tsquery('simple', ${words
+          .map((w) => w.replace(/[^a-z0-9]/g, ""))
+          .filter(Boolean)
+          .join(" | ")})`;
         const anyRank = sql<number>`ts_rank_cd(${kbChunks.tsv}, ${anyQuery})`;
         rows = await tx
           .select({

@@ -15,7 +15,10 @@ export function getProvider(id: string): ConnectorProvider<unknown> {
       if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
         throw new Error("Google is not configured (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).");
       }
-      return googleProvider({ clientId: GOOGLE_CLIENT_ID, clientSecret: GOOGLE_CLIENT_SECRET }) as ConnectorProvider<unknown>;
+      return googleProvider({
+        clientId: GOOGLE_CLIENT_ID,
+        clientSecret: GOOGLE_CLIENT_SECRET,
+      }) as ConnectorProvider<unknown>;
     }
     default:
       throw new Error(`Unknown connector provider: ${id}`);

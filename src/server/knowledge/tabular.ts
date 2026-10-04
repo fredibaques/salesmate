@@ -15,7 +15,9 @@ export type TypedTable = { name: string; columns: TableColumn[]; rows: Record<st
 export async function parseTabularFile(data: ArrayBuffer | Buffer, filename: string): Promise<RawSheet[]> {
   const lower = filename.toLowerCase();
   if (lower.endsWith(".csv") || lower.endsWith(".tsv") || lower.endsWith(".txt")) {
-    const text = Buffer.from(data as ArrayBuffer).toString("utf8").replace(/^﻿/, "");
+    const text = Buffer.from(data as ArrayBuffer)
+      .toString("utf8")
+      .replace(/^﻿/, "");
     const parsed = Papa.parse<string[]>(text, { skipEmptyLines: "greedy" });
     const [headers = [], ...rows] = parsed.data;
     return [{ name: filename.replace(/\.[^.]+$/, ""), headers, rows }];
@@ -31,7 +33,8 @@ export async function parseTabularFile(data: ArrayBuffer | Buffer, filename: str
         matrix.push(values);
       });
       const [headers = [], ...rows] = matrix;
-      if (headers.length > 0) sheets.push({ name: sheet.name, headers: headers.map((h) => String(h ?? "")), rows });
+      if (headers.length > 0)
+        sheets.push({ name: sheet.name, headers: headers.map((h) => String(h ?? "")), rows });
     });
     return sheets;
   }
@@ -42,7 +45,12 @@ function cellValue(value: unknown): unknown {
   if (value === null || value === undefined) return null;
   if (value instanceof Date) return value;
   if (typeof value === "object") {
-    const v = value as { result?: unknown; text?: unknown; richText?: { text: string }[]; hyperlink?: string };
+    const v = value as {
+      result?: unknown;
+      text?: unknown;
+      richText?: { text: string }[];
+      hyperlink?: string;
+    };
     if ("result" in v) return cellValue(v.result);
     if (v.richText) return v.richText.map((t) => t.text).join("");
     if (typeof v.text === "string") return v.text;
@@ -70,7 +78,10 @@ function detectDecimalComma(values: string[]): boolean {
 export function parseNumber(raw: unknown, decimalComma: boolean): number | null {
   if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
   if (typeof raw !== "string") return null;
-  let s = raw.trim().replace(/[€$£%\s ]/g, "").replace(/(eur|euros|usd)$/i, "");
+  let s = raw
+    .trim()
+    .replace(/[€$£%\s ]/g, "")
+    .replace(/(eur|euros|usd)$/i, "");
   if (!/^[-+]?[\d.,]+$/.test(s) || !/\d/.test(s)) return null;
   s = decimalComma ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, "");
   if ((s.match(/\./g) ?? []).length > 1) return null;

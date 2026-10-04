@@ -13,9 +13,7 @@ export function normalizePhone(raw: string): string | null {
   const trimmed = raw.trim();
   const digits = trimmed.replace(/\D/g, "");
   if (digits.length < 6) return null;
-  return trimmed.startsWith("+") || trimmed.startsWith("00")
-    ? `+${digits.replace(/^00/, "")}`
-    : digits;
+  return trimmed.startsWith("+") || trimmed.startsWith("00") ? `+${digits.replace(/^00/, "")}` : digits;
 }
 
 export function normalizeDomain(raw: string): string | null {
@@ -55,7 +53,9 @@ export function personKeys(keys: readonly string[]): string[] {
 }
 
 /** Keys to look up in suppression lists: the emails/phones plus their domains. */
-export function suppressionLookupKeys(keys: readonly string[]): { type: "email" | "domain" | "phone"; value: string }[] {
+export function suppressionLookupKeys(
+  keys: readonly string[],
+): { type: "email" | "domain" | "phone"; value: string }[] {
   return keys.map((k) => {
     const [type, ...rest] = k.split(":");
     return { type: type as "email" | "domain" | "phone", value: rest.join(":") };

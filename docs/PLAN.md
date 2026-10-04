@@ -763,6 +763,14 @@ Estimaciones para 1 desarrollador apoyado por IA.
 - Action Gateway + auditoría + bandeja de aprobaciones.
 - **Hito:** los proyectos del usuario dados de alta con sus fuentes y herramientas, y el copiloto respondiendo sobre su información.
 
+> **Estado (implementada):** todo lo anterior salvo el copiloto, que pasa al
+> inicio de la Fase 1 junto con la capa LLM. Decisiones tomadas al construirla:
+> Better Auth (organizaciones y roles propios, sin proveedor externo) en lugar de
+> Clerk/Supabase Auth; Postgres embebido (PGlite) para desarrollo y tests; Twenty
+> integrado por su API REST y webhooks (el cliente MCP genérico sigue en la
+> Fase 3); cron simple para liberar acciones programadas hasta introducir un
+> worker de workflows en la Fase 1. Detalle en [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ### Fase 1 — Playbooks y Agente Inbound (4 semanas)
 - Plantillas de modelo de venta (§4.2), editor de playbooks, entrevista guiada y simulador.
 - Inbound por email y formularios con los siguientes pasos **reunión**, **presupuesto desde tablas**, **callback** y **derivar a una persona**.

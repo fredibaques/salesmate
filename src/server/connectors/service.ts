@@ -20,7 +20,10 @@ export type ConnectorDeps = {
 };
 
 /** Capabilities a stored connection grants, from its read/write scopes. */
-export function connectionCapabilities(conn: Pick<ConnectionRow, "provider" | "readScopes" | "writeScopes">, deps?: Pick<ConnectorDeps, "providers">): Capability[] {
+export function connectionCapabilities(
+  conn: Pick<ConnectionRow, "provider" | "readScopes" | "writeScopes">,
+  deps?: Pick<ConnectorDeps, "providers">,
+): Capability[] {
   const provider = (deps?.providers ?? getProvider)(conn.provider);
   return provider.capabilitiesFor({ read: conn.readScopes, write: conn.writeScopes });
 }
@@ -269,7 +272,10 @@ export async function setProjectIdentity(
       await tx
         .delete(projectIdentities)
         .where(
-          and(eq(projectIdentities.projectId, input.projectId), eq(projectIdentities.identityId, input.identityId)),
+          and(
+            eq(projectIdentities.projectId, input.projectId),
+            eq(projectIdentities.identityId, input.identityId),
+          ),
         );
     }
     await audit(tx, tenant, {

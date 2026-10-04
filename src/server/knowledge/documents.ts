@@ -5,7 +5,11 @@
 
 export async function extractText(data: ArrayBuffer | Buffer, filename: string): Promise<string> {
   const lower = filename.toLowerCase();
-  const bytes = new Uint8Array(data instanceof ArrayBuffer ? data : data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength));
+  const bytes = new Uint8Array(
+    data instanceof ArrayBuffer
+      ? data
+      : data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength),
+  );
   if (lower.endsWith(".pdf")) {
     const { extractText: pdfText, getDocumentProxy } = await import("unpdf");
     const pdf = await getDocumentProxy(bytes);

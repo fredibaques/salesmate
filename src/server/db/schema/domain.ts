@@ -39,8 +39,7 @@ const tenantPolicy = (table: string) =>
     withCheck: sameOrg,
   });
 
-const createdAt = () =>
-  timestamp("created_at", { withTimezone: true }).defaultNow().notNull();
+const createdAt = () => timestamp("created_at", { withTimezone: true }).defaultNow().notNull();
 const updatedAt = () =>
   timestamp("updated_at", { withTimezone: true })
     .defaultNow()
@@ -67,7 +66,10 @@ export const projects = pgTable(
     name: text("name").notNull(),
     description: text("description"),
     website: text("website"),
-    languages: text("languages").array().notNull().default(sql`'{es}'::text[]`),
+    languages: text("languages")
+      .array()
+      .notNull()
+      .default(sql`'{es}'::text[]`),
     timezone: text("timezone").notNull().default("Europe/Madrid"),
     status: text("status", { enum: ["active", "paused", "archived"] })
       .notNull()
@@ -110,8 +112,14 @@ export const connections = pgTable(
     /** Human-readable account reference: mailbox address, CRM base URL… */
     accountRef: text("account_ref").notNull(),
     credentialsEncrypted: text("credentials_encrypted"),
-    readScopes: text("read_scopes").array().notNull().default(sql`'{}'::text[]`),
-    writeScopes: text("write_scopes").array().notNull().default(sql`'{}'::text[]`),
+    readScopes: text("read_scopes")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    writeScopes: text("write_scopes")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     status: text("status", { enum: ["active", "error", "revoked"] })
       .notNull()
       .default("active"),
@@ -167,10 +175,7 @@ export const projectIdentities = pgTable(
     orgId: orgId(),
     isDefault: boolean("is_default").notNull().default(false),
   },
-  (t) => [
-    primaryKey({ columns: [t.projectId, t.identityId] }),
-    tenantPolicy("project_identities"),
-  ],
+  (t) => [primaryKey({ columns: [t.projectId, t.identityId] }), tenantPolicy("project_identities")],
 );
 
 export const projectConnections = pgTable(
@@ -184,13 +189,13 @@ export const projectConnections = pgTable(
       .references(() => connections.id, { onDelete: "cascade" }),
     orgId: orgId(),
     /** Capabilities of the connection this project may use (subset). */
-    capabilities: text("capabilities").array().notNull().default(sql`'{}'::text[]`),
+    capabilities: text("capabilities")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     objectMappings: jsonb("object_mappings").$type<Record<string, unknown>>().notNull().default({}),
   },
-  (t) => [
-    primaryKey({ columns: [t.projectId, t.connectionId] }),
-    tenantPolicy("project_connections"),
-  ],
+  (t) => [primaryKey({ columns: [t.projectId, t.connectionId] }), tenantPolicy("project_connections")],
 );
 
 // ---------------------------------------------------------------------------
@@ -265,13 +270,7 @@ export const complianceRules = pgTable(
   (t) => [tenantPolicy("compliance_rules")],
 );
 
-export const AGENT_TYPES = [
-  "outbound",
-  "inbound",
-  "account_manager",
-  "intelligence",
-  "copilot",
-] as const;
+export const AGENT_TYPES = ["outbound", "inbound", "account_manager", "intelligence", "copilot"] as const;
 export type AgentType = (typeof AGENT_TYPES)[number];
 
 export type AutonomyConfig = {
@@ -351,7 +350,9 @@ export const knowledgeSources = pgTable(
       .notNull()
       .default("reference"),
     exposedObjects: jsonb("exposed_objects").$type<Record<string, unknown>>().notNull().default({}),
-    status: text("status", { enum: ["pending", "ready", "error"] }).notNull().default("pending"),
+    status: text("status", { enum: ["pending", "ready", "error"] })
+      .notNull()
+      .default("pending"),
     error: text("error"),
     lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
     validatedAt: timestamp("validated_at", { withTimezone: true }),
@@ -441,10 +442,7 @@ export const knowledgeRows = pgTable(
     rowIndex: integer("row_index").notNull(),
     data: jsonb("data").$type<Record<string, string | number | boolean | null>>().notNull(),
   },
-  (t) => [
-    index("knowledge_rows_table_idx").on(t.tableId, t.rowIndex),
-    tenantPolicy("knowledge_rows"),
-  ],
+  (t) => [index("knowledge_rows_table_idx").on(t.tableId, t.rowIndex), tenantPolicy("knowledge_rows")],
 );
 
 // ---------------------------------------------------------------------------
@@ -506,7 +504,10 @@ export const actions = pgTable(
     citations: jsonb("citations").$type<Citation[]>().notNull().default([]),
     reason: text("reason"),
     /** Normalized recipients (email:x, domain:y, phone:z) for suppression and cooldown checks. */
-    targetKeys: text("target_keys").array().notNull().default(sql`'{}'::text[]`),
+    targetKeys: text("target_keys")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     status: text("status", { enum: ACTION_STATUSES }).notNull(),
     autonomyLevel: integer("autonomy_level").notNull(),
     policyResults: jsonb("policy_results").$type<PolicyOutcome[]>().notNull().default([]),

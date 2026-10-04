@@ -31,7 +31,9 @@ describe("Twenty connector", () => {
       lastName: "López",
     });
     expect(result).toEqual({ id: "p1", created: false });
-    expect(new URL(requests[0].url).searchParams.get("filter")).toBe('emails.primaryEmail[eq]:"ana@cliente.com"');
+    expect(new URL(requests[0].url).searchParams.get("filter")).toBe(
+      'emails.primaryEmail[eq]:"ana@cliente.com"',
+    );
     expect(requests[1].body).toMatchObject({
       name: { firstName: "Ana", lastName: "López" },
       emails: { primaryEmail: "ana@cliente.com" },
@@ -66,7 +68,11 @@ describe("Twenty connector", () => {
       personExternalId: "p1",
     });
     expect(task).toEqual({ id: "t1" });
-    expect(requests[0].body).toMatchObject({ title: "Llamar", bodyV2: { markdown: "Preparar propuesta" }, status: "TODO" });
+    expect(requests[0].body).toMatchObject({
+      title: "Llamar",
+      bodyV2: { markdown: "Preparar propuesta" },
+      status: "TODO",
+    });
     expect(requests[1].body).toEqual({ taskId: "t1", personId: "p1" });
   });
 
@@ -75,9 +81,27 @@ describe("Twenty connector", () => {
       "GET https://crm.example.com/rest/metadata/objects": () => ({
         data: {
           objects: [
-            { nameSingular: "person", namePlural: "people", labelSingular: "Person", labelPlural: "People", isCustom: false },
-            { nameSingular: "quote", namePlural: "quotes", labelSingular: "Quote", labelPlural: "Quotes", isCustom: true },
-            { nameSingular: "blocklist", namePlural: "blocklists", labelSingular: "B", labelPlural: "Bs", isSystem: true },
+            {
+              nameSingular: "person",
+              namePlural: "people",
+              labelSingular: "Person",
+              labelPlural: "People",
+              isCustom: false,
+            },
+            {
+              nameSingular: "quote",
+              namePlural: "quotes",
+              labelSingular: "Quote",
+              labelPlural: "Quotes",
+              isCustom: true,
+            },
+            {
+              nameSingular: "blocklist",
+              namePlural: "blocklists",
+              labelSingular: "B",
+              labelPlural: "Bs",
+              isSystem: true,
+            },
           ],
         },
       }),
@@ -93,7 +117,9 @@ describe("Twenty connector", () => {
     const { fetch } = mockFetch({
       "GET https://crm.example.com/rest/people": () => new Response("nope", { status: 401 }),
     });
-    await expect(createTwentyClient(creds, { fetch })["crm.search_people"]({})).rejects.toMatchObject({ status: 401 });
+    await expect(createTwentyClient(creds, { fetch })["crm.search_people"]({})).rejects.toMatchObject({
+      status: 401,
+    });
   });
 });
 
@@ -112,7 +138,13 @@ describe("Twenty webhook signature", () => {
     expect(verifyTwentyWebhook({ secret, rawBody: `${body} `, signature, timestamp, now })).toBe(false);
     expect(verifyTwentyWebhook({ secret, rawBody: body, signature: null, timestamp, now })).toBe(false);
     expect(
-      verifyTwentyWebhook({ secret, rawBody: body, signature, timestamp, now: new Date(now.getTime() + 3_600_000) }),
+      verifyTwentyWebhook({
+        secret,
+        rawBody: body,
+        signature,
+        timestamp,
+        now: new Date(now.getTime() + 3_600_000),
+      }),
     ).toBe(false);
   });
 });

@@ -54,7 +54,14 @@ describe("parseTabularFile", () => {
   it("reads CSV with BOM", async () => {
     const csv = "﻿Nombre,Importe\nA,10\nB,20\n";
     const [sheet] = await parseTabularFile(Buffer.from(csv), "precios.csv");
-    expect(sheet).toEqual({ name: "precios", headers: ["Nombre", "Importe"], rows: [["A", "10"], ["B", "20"]] });
+    expect(sheet).toEqual({
+      name: "precios",
+      headers: ["Nombre", "Importe"],
+      rows: [
+        ["A", "10"],
+        ["B", "20"],
+      ],
+    });
   });
 
   it("reads every sheet of an XLSX workbook, including formulas and dates", async () => {

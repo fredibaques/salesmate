@@ -42,7 +42,11 @@ export type Capabilities = {
     dueAt?: string;
     personExternalId?: string;
   }) => Promise<{ id: string }>;
-  "crm.log_note": (input: { title: string; body: string; personExternalId?: string }) => Promise<{ id: string }>;
+  "crm.log_note": (input: {
+    title: string;
+    body: string;
+    personExternalId?: string;
+  }) => Promise<{ id: string }>;
   "email.send": (input: OutgoingEmail) => Promise<{ messageId: string; threadId: string | null }>;
   "email.create_draft": (input: OutgoingEmail) => Promise<{ draftId: string }>;
   "calendar.free_busy": (input: {

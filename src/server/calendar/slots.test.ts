@@ -44,7 +44,11 @@ describe("computeSlots", () => {
 
   it("follows wall-clock time across DST changes", () => {
     // Sunday 25 Oct 2026 Spain switches from UTC+2 to UTC+1.
-    const monday = { ...rules, weeklyHours: { mon: [["09:00", "09:30"]] as [string, string][] }, horizonDays: 7 };
+    const monday = {
+      ...rules,
+      weeklyHours: { mon: [["09:00", "09:30"]] as [string, string][] },
+      horizonDays: 7,
+    };
     const slots = computeSlots(monday, [], new Date("2026-10-20T00:00:00Z"));
     expect(iso(slots)).toEqual(["2026-10-26T08:00:00.000Z"]);
   });
@@ -53,7 +57,13 @@ describe("computeSlots", () => {
 describe("mergeIntervals", () => {
   it("merges overlapping and adjacent intervals", () => {
     const d = (h: number) => new Date(Date.UTC(2026, 9, 7, h));
-    expect(mergeIntervals([{ start: d(9), end: d(10) }, { start: d(10), end: d(11) }, { start: d(13), end: d(14) }])).toEqual([
+    expect(
+      mergeIntervals([
+        { start: d(9), end: d(10) },
+        { start: d(10), end: d(11) },
+        { start: d(13), end: d(14) },
+      ]),
+    ).toEqual([
       { start: d(9), end: d(11) },
       { start: d(13), end: d(14) },
     ]);

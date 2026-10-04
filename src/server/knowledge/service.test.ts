@@ -16,7 +16,7 @@ let tableId: string;
 const CSV = [
   "Servicio,Segmento,Precio,Plazo (días)",
   "Alta básica,b2b,49,3",
-  "Alta urgente,b2b,\"89,50\",1",
+  'Alta urgente,b2b,"89,50",1',
   "Plan particulares,b2c,19,5",
   "Revisión anual,b2c,120,10",
 ].join("\n");
@@ -28,7 +28,10 @@ beforeAll(async () => {
   [projectId, otherProjectId] = await withTenant(db, tenant, async (tx) => {
     const rows = await tx
       .insert(projects)
-      .values([{ orgId, name: "Uno" }, { orgId, name: "Dos" }])
+      .values([
+        { orgId, name: "Uno" },
+        { orgId, name: "Dos" },
+      ])
       .returning();
     return rows.map((r) => r.id);
   });
@@ -51,14 +54,24 @@ describe("queryTable", () => {
       filters: [{ column: "precio", op: "lte", value: 90 }],
       orderBy: { column: "precio", direction: "desc" },
     });
-    expect(result.rows.map((r) => r.data.servicio)).toEqual(["Alta urgente", "Alta básica", "Plan particulares"]);
+    expect(result.rows.map((r) => r.data.servicio)).toEqual([
+      "Alta urgente",
+      "Alta básica",
+      "Plan particulares",
+    ]);
     expect(result.source.reliability).toBe("truth");
   });
 
   it("matches text case-insensitively and supports contains/in", async () => {
-    const eq = await queryTable(db, tenant, { tableId, filters: [{ column: "segmento", op: "eq", value: "B2C" }] });
+    const eq = await queryTable(db, tenant, {
+      tableId,
+      filters: [{ column: "segmento", op: "eq", value: "B2C" }],
+    });
     expect(eq.rows).toHaveLength(2);
-    const contains = await queryTable(db, tenant, { tableId, filters: [{ column: "servicio", op: "contains", value: "alta" }] });
+    const contains = await queryTable(db, tenant, {
+      tableId,
+      filters: [{ column: "servicio", op: "contains", value: "alta" }],
+    });
     expect(contains.rows).toHaveLength(2);
     const inList = await queryTable(db, tenant, {
       tableId,
@@ -121,7 +134,13 @@ describe("knowledge backs figures in outbound messages", () => {
         .returning();
       const [identity] = await tx
         .insert(identities)
-        .values({ orgId: tenant.orgId, kind: "email", provider: "google", address: "ventas@uno.com", connectionId: conn.id })
+        .values({
+          orgId: tenant.orgId,
+          kind: "email",
+          provider: "google",
+          address: "ventas@uno.com",
+          connectionId: conn.id,
+        })
         .returning();
       await tx.insert(projectIdentities).values({ orgId: tenant.orgId, projectId, identityId: identity.id });
       await tx

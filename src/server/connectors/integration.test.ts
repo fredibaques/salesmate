@@ -47,7 +47,9 @@ describe("connections end to end", () => {
   it("validates a Twenty key, stores it encrypted and executes CRM actions through it", async () => {
     const { fetch, requests } = mockFetch({
       "GET https://crm.example.com/rest/metadata/objects": () => ({
-        data: { objects: [{ nameSingular: "person", namePlural: "people", labelSingular: "P", labelPlural: "P" }] },
+        data: {
+          objects: [{ nameSingular: "person", namePlural: "people", labelSingular: "P", labelPlural: "P" }],
+        },
       }),
       "POST https://crm.example.com/rest/tasks": () => ({ data: { createTask: { id: "t-9" } } }),
     });
@@ -173,24 +175,41 @@ describe("connections end to end", () => {
 
   it("sends email through the identity assigned to the project", async () => {
     const { fetch, requests } = mockFetch({
-      "POST https://gmail.googleapis.com/gmail/v1/users/me/messages/send": () => ({ id: "m1", threadId: "t1" }),
+      "POST https://gmail.googleapis.com/gmail/v1/users/me/messages/send": () => ({
+        id: "m1",
+        threadId: "t1",
+      }),
     });
     const projectId = await withTenant(db, tenant, async (tx) => {
       const [project] = await tx.insert(projects).values({ orgId: tenant.orgId, name: "Mail" }).returning();
       return project.id;
     });
-    const emailIdentity = await withTenant(db, tenant, async (tx) =>
-      (await tx.select().from(identities).where(eq(identities.address, "yo@acme.com"))).find((i) => i.kind === "email")!,
+    const emailIdentity = await withTenant(
+      db,
+      tenant,
+      async (tx) =>
+        (await tx.select().from(identities).where(eq(identities.address, "yo@acme.com"))).find(
+          (i) => i.kind === "email",
+        )!,
     );
     await setProjectIdentity({ db }, tenant, { projectId, identityId: emailIdentity.id, assigned: true });
 
     const result = await proposeAction(
-      { db, executor: new ConnectorExecutor({ db, fetch, providers }), now: () => new Date("2026-10-07T09:00:00Z") },
+      {
+        db,
+        executor: new ConnectorExecutor({ db, fetch, providers }),
+        now: () => new Date("2026-10-07T09:00:00Z"),
+      },
       tenant,
       {
         projectId,
         type: "email.send",
-        payload: { identityId: emailIdentity.id, to: ["ana@cliente.com"], subject: "Hola", body: "¿Hablamos?" },
+        payload: {
+          identityId: emailIdentity.id,
+          to: ["ana@cliente.com"],
+          subject: "Hola",
+          body: "¿Hablamos?",
+        },
       },
     );
     expect(result.outcome).toBe("executed");
@@ -200,7 +219,8 @@ describe("connections end to end", () => {
 
   it("disables a connection after an authentication failure", async () => {
     const { fetch } = mockFetch({
-      "POST https://gmail.googleapis.com/gmail/v1/users/me/messages/send": () => new Response("{}", { status: 401 }),
+      "POST https://gmail.googleapis.com/gmail/v1/users/me/messages/send": () =>
+        new Response("{}", { status: 401 }),
     });
     const [conn] = await withTenant(db, tenant, (tx) =>
       tx.select().from(connections).where(eq(connections.accountRef, "yo@acme.com")),
@@ -209,12 +229,21 @@ describe("connections end to end", () => {
       const [p] = await tx.insert(projects).values({ orgId: tenant.orgId, name: "Fail" }).returning();
       return p.id;
     });
-    const emailIdentity = await withTenant(db, tenant, async (tx) =>
-      (await tx.select().from(identities).where(eq(identities.address, "yo@acme.com"))).find((i) => i.kind === "email")!,
+    const emailIdentity = await withTenant(
+      db,
+      tenant,
+      async (tx) =>
+        (await tx.select().from(identities).where(eq(identities.address, "yo@acme.com"))).find(
+          (i) => i.kind === "email",
+        )!,
     );
     await setProjectIdentity({ db }, tenant, { projectId, identityId: emailIdentity.id, assigned: true });
     const result = await proposeAction(
-      { db, executor: new ConnectorExecutor({ db, fetch, providers }), now: () => new Date("2026-10-07T09:00:00Z") },
+      {
+        db,
+        executor: new ConnectorExecutor({ db, fetch, providers }),
+        now: () => new Date("2026-10-07T09:00:00Z"),
+      },
       tenant,
       {
         projectId,
@@ -223,7 +252,9 @@ describe("connections end to end", () => {
       },
     );
     expect(result.outcome).toBe("failed");
-    const [after] = await withTenant(db, tenant, (tx) => tx.select().from(connections).where(eq(connections.id, conn.id)));
+    const [after] = await withTenant(db, tenant, (tx) =>
+      tx.select().from(connections).where(eq(connections.id, conn.id)),
+    );
     expect(after.status).toBe("error");
   });
 });

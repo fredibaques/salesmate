@@ -177,7 +177,11 @@ async function buildPolicyContext(
   const [project] = await tx.select().from(projects).where(eq(projects.id, input.projectId));
   if (!project) throw new GatewayError("Proyecto no encontrado.", "not_found");
   const rules = await tx
-    .select({ kind: complianceRules.kind, description: complianceRules.description, spec: complianceRules.spec })
+    .select({
+      kind: complianceRules.kind,
+      description: complianceRules.description,
+      spec: complianceRules.spec,
+    })
     .from(complianceRules)
     .where(and(eq(complianceRules.projectId, input.projectId), eq(complianceRules.active, true)));
   return {
@@ -237,10 +241,7 @@ export async function proposeAction(
   const idempotencyKey = input.idempotencyKey ?? defaultIdempotencyKey({ ...input, payload });
 
   const recorded = await withTenant(deps.db, tenant, async (tx) => {
-    const [existing] = await tx
-      .select()
-      .from(actions)
-      .where(eq(actions.idempotencyKey, idempotencyKey));
+    const [existing] = await tx.select().from(actions).where(eq(actions.idempotencyKey, idempotencyKey));
     if (existing) return { action: existing, duplicate: true };
 
     const { level, limits } = await resolveAutonomy(
@@ -325,11 +326,7 @@ export async function decideAction(
 ): Promise<GatewayResult> {
   const now = deps.now?.() ?? new Date();
   const decided = await withTenant(deps.db, tenant, async (tx) => {
-    const [action] = await tx
-      .select()
-      .from(actions)
-      .where(eq(actions.id, input.actionId))
-      .for("update");
+    const [action] = await tx.select().from(actions).where(eq(actions.id, input.actionId)).for("update");
     if (!action) throw new GatewayError("Acción no encontrada.", "not_found");
     if (action.status !== "pending_approval") {
       throw new GatewayError("La acción ya no está pendiente de aprobación.", "invalid_state");
@@ -397,7 +394,9 @@ export async function decideAction(
       decidedBy: tenant.actorId,
     });
 
-    const { until, results: window } = blocked ? { until: undefined, results: [] } : await deferralUntil(policyCtx);
+    const { until, results: window } = blocked
+      ? { until: undefined, results: [] }
+      : await deferralUntil(policyCtx);
 
     const status: ActionStatus = blocked ? "blocked" : until ? "deferred" : "approved";
     const [updated] = await tx
@@ -531,10 +530,7 @@ export async function cancelAction(
  * Moves deferred actions whose time has come back through the gateway,
  * re-checking send window and daily limits. Called by the scheduler.
  */
-export async function releaseDueActions(
-  deps: GatewayDeps,
-  tenant: TenantContext,
-): Promise<GatewayResult[]> {
+export async function releaseDueActions(deps: GatewayDeps, tenant: TenantContext): Promise<GatewayResult[]> {
   const now = deps.now?.() ?? new Date();
   const ready = await withTenant(deps.db, tenant, async (tx) => {
     const due = await tx
@@ -563,10 +559,16 @@ export async function releaseDueActions(
       );
       const { until } = await deferralUntil(ctx);
       if (until) {
-        await tx.update(actions).set({ scheduledFor: new Date(until) }).where(eq(actions.id, action.id));
+        await tx
+          .update(actions)
+          .set({ scheduledFor: new Date(until) })
+          .where(eq(actions.id, action.id));
         continue;
       }
-      await tx.update(actions).set({ status: "approved", scheduledFor: null }).where(eq(actions.id, action.id));
+      await tx
+        .update(actions)
+        .set({ status: "approved", scheduledFor: null })
+        .where(eq(actions.id, action.id));
       releasable.push(action.id);
     }
     return releasable;

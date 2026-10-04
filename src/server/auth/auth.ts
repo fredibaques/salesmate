@@ -13,28 +13,38 @@ import { env } from "../env";
  * Google here is only for login. Connecting a Google account as a
  * mailbox/calendar for a project is a separate OAuth flow (connectors/google).
  */
-export const auth = betterAuth({
-  appName: "SalesMate",
-  baseURL: env().APP_URL,
-  secret: env().BETTER_AUTH_SECRET,
-  database: drizzleAdapter(getDb(), { provider: "pg", schema }),
-  emailAndPassword: { enabled: true, minPasswordLength: 10 },
-  socialProviders:
-    env().GOOGLE_CLIENT_ID && env().GOOGLE_CLIENT_SECRET
-      ? {
-          google: {
-            clientId: env().GOOGLE_CLIENT_ID!,
-            clientSecret: env().GOOGLE_CLIENT_SECRET!,
-          },
-        }
-      : undefined,
-  plugins: [
-    organization({
-      allowUserToCreateOrganization: true,
-      creatorRole: "owner",
-    }),
-    nextCookies(),
-  ],
-});
+function createAuth() {
+  return betterAuth({
+    appName: "SalesMate",
+    baseURL: env().APP_URL,
+    secret: env().BETTER_AUTH_SECRET,
+    database: drizzleAdapter(getDb(), { provider: "pg", schema }),
+    emailAndPassword: { enabled: true, minPasswordLength: 10 },
+    socialProviders:
+      env().GOOGLE_CLIENT_ID && env().GOOGLE_CLIENT_SECRET
+        ? {
+            google: {
+              clientId: env().GOOGLE_CLIENT_ID!,
+              clientSecret: env().GOOGLE_CLIENT_SECRET!,
+            },
+          }
+        : undefined,
+    plugins: [
+      organization({
+        allowUserToCreateOrganization: true,
+        creatorRole: "owner",
+      }),
+      nextCookies(),
+    ],
+  });
+}
 
-export type Auth = typeof auth;
+export type Auth = ReturnType<typeof createAuth>;
+
+const globalForAuth = globalThis as unknown as { __salesmateAuth?: Auth };
+
+/** Lazily created so builds and scripts do not open the database on import. */
+export function getAuth(): Auth {
+  globalForAuth.__salesmateAuth ??= createAuth();
+  return globalForAuth.__salesmateAuth;
+}

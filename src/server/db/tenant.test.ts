@@ -46,17 +46,13 @@ describe("tenant isolation (RLS)", () => {
 
   it("rejects writes into another organization", async () => {
     await expectDbError(
-      withTenant(db, { orgId: orgA }, (tx) =>
-        tx.insert(projects).values({ orgId: orgB, name: "Sneaky" }),
-      ),
+      withTenant(db, { orgId: orgA }, (tx) => tx.insert(projects).values({ orgId: orgB, name: "Sneaky" })),
       /row-level security/,
     );
   });
 
   it("cannot update or delete rows of another organization", async () => {
-    const [b] = await withSystem(db, (tx) =>
-      tx.select().from(projects).where(eq(projects.orgId, orgB)),
-    );
+    const [b] = await withSystem(db, (tx) => tx.select().from(projects).where(eq(projects.orgId, orgB)));
     const updated = await withTenant(db, { orgId: orgA }, (tx) =>
       tx.update(projects).set({ name: "Hacked" }).where(eq(projects.id, b.id)).returning(),
     );

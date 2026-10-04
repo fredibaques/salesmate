@@ -38,7 +38,8 @@ type TwentyPerson = {
 /** Twenty wraps results as { data: { <key>: value } }; return that value. */
 function unwrap<T>(body: unknown): T {
   const data = (body as { data?: Record<string, unknown> } | null)?.data;
-  if (!data || typeof data !== "object") throw new ConnectorError("Unexpected Twenty response", undefined, body);
+  if (!data || typeof data !== "object")
+    throw new ConnectorError("Unexpected Twenty response", undefined, body);
   const [value] = Object.values(data);
   return value as T;
 }
@@ -91,13 +92,26 @@ export function createTwentyClient(creds: TwentyCredentials, ctx: ConnectorConte
     return created.id;
   }
 
-  async function linkTarget(kind: "taskTargets" | "noteTargets", key: "taskId" | "noteId", id: string, personId?: string) {
+  async function linkTarget(
+    kind: "taskTargets" | "noteTargets",
+    key: "taskId" | "noteId",
+    id: string,
+    personId?: string,
+  ) {
     if (!personId) return;
     await call("POST", `/rest/${kind}`, { [key]: id, personId });
   }
 
   return {
-    async "crm.search_people"({ query, email, limit = 10 }: { query?: string; email?: string; limit?: number }) {
+    async "crm.search_people"({
+      query,
+      email,
+      limit = 10,
+    }: {
+      query?: string;
+      email?: string;
+      limit?: number;
+    }) {
       let filter: string | undefined;
       if (email) filter = `emails.primaryEmail[eq]:${quote(email.toLowerCase())}`;
       else if (query) {
@@ -165,7 +179,12 @@ export function createTwentyClient(creds: TwentyCredentials, ctx: ConnectorConte
       return { id: created.id, created: true };
     },
 
-    async "crm.create_task"(input: { title: string; body: string; dueAt?: string; personExternalId?: string }) {
+    async "crm.create_task"(input: {
+      title: string;
+      body: string;
+      dueAt?: string;
+      personExternalId?: string;
+    }) {
       const task = unwrap<{ id: string }>(
         await call("POST", "/rest/tasks", {
           title: input.title,

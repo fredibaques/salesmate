@@ -1,0 +1,144 @@
+import { ActionForm } from "@/components/action-form";
+import { Badge, Button, Card, EmptyState, Field, Input, Select } from "@/components/ui";
+import { requireTenant } from "@/server/auth/session";
+import { getDb } from "@/server/db/client";
+import { getProject, getProjectChannels, listMeetingTypes } from "@/server/services/projects";
+import { addMeetingType, previewAvailability, removeMeetingType } from "../actions";
+
+const KINDS = {
+  demo: "Demo",
+  discovery: "Reunión de descubrimiento",
+  closing_call: "Llamada de cierre",
+  callback: "Franja de llamada (callback)",
+  custom: "Otra",
+} as const;
+const DAYS = [
+  ["mon", "L"],
+  ["tue", "M"],
+  ["wed", "X"],
+  ["thu", "J"],
+  ["fri", "V"],
+  ["sat", "S"],
+  ["sun", "D"],
+] as const;
+
+export default async function MeetingsPage({ params }: PageProps<"/app/projects/[projectId]/meetings">) {
+  const { projectId } = await params;
+  const tenant = await requireTenant();
+  const db = getDb();
+  const [project, types, channels] = await Promise.all([
+    getProject(db, tenant, projectId),
+    listMeetingTypes(db, tenant, projectId),
+    getProjectChannels(db, tenant, projectId),
+  ]);
+  const calendars = channels.identities.filter((i) => i.kind === "calendar" && i.assigned);
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <Card
+        title="Tipos de reunión"
+        description="Solo los usan los playbooks cuyo siguiente paso es una reunión o una llamada agendada (habitual en B2B). Los huecos se calculan con la disponibilidad de todos tus calendarios, de todos tus proyectos."
+      >
+        {types.length === 0 ? (
+          <EmptyState>Este proyecto no agenda reuniones todavía.</EmptyState>
+        ) : (
+          <ul className="space-y-3">
+            {types.map((t) => (
+              <li key={t.id} className="rounded-lg border border-border p-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{t.name}</span>
+                  <Badge>{KINDS[t.kind]}</Badge>
+                </div>
+                <p className="mt-1 text-xs text-muted">
+                  {t.durationMinutes} min ·{" "}
+                  {Object.entries(t.weeklyHours)
+                    .map(([d, ranges]) => `${d} ${ranges?.map((r) => r.join("–")).join(", ")}`)
+                    .join(" · ")}
+                </p>
+                <div className="mt-2 flex flex-wrap items-start gap-2">
+                  <ActionForm
+                    action={previewAvailability.bind(null, t.id, t.timezone ?? project!.timezone)}
+                    submitLabel="Ver próximos huecos"
+                    submitVariant="secondary"
+                  />
+                  <form action={removeMeetingType.bind(null, projectId, t.id)}>
+                    <Button variant="ghost" className="text-danger">
+                      Eliminar
+                    </Button>
+                  </form>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card title="Nuevo tipo de reunión">
+        <ActionForm action={addMeetingType.bind(null, projectId)} submitLabel="Crear" className="space-y-4">
+          <Field label="Nombre">
+            <Input name="name" required placeholder="Demo de 30 minutos" />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Tipo">
+              <Select name="kind" defaultValue="demo">
+                {Object.entries(KINDS).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Duración (min)">
+              <Input name="duration" type="number" defaultValue={30} min={5} />
+            </Field>
+          </div>
+          <Field label="Días">
+            <div className="flex gap-3 pt-1">
+              {DAYS.map(([k, l]) => (
+                <label key={k} className="flex items-center gap-1 text-sm">
+                  <input type="checkbox" name="days" value={k} defaultChecked={!["sat", "sun"].includes(k)} />{" "}
+                  {l}
+                </label>
+              ))}
+            </div>
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Desde">
+              <Input name="from" type="time" defaultValue="09:00" />
+            </Field>
+            <Field label="Hasta">
+              <Input name="to" type="time" defaultValue="14:00" />
+            </Field>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Margen después (min)">
+              <Input name="bufferAfter" type="number" defaultValue={10} min={0} />
+            </Field>
+            <Field label="Antelación mínima (h)">
+              <Input name="minNoticeHours" type="number" defaultValue={4} min={0} />
+            </Field>
+            <Field label="Horizonte (días)">
+              <Input name="horizonDays" type="number" defaultValue={14} min={1} />
+            </Field>
+          </div>
+          <Field
+            label="Calendario donde se crean las reuniones"
+            hint="Calendarios asignados al proyecto en «Canales»."
+          >
+            <Select name="calendarIdentityId" defaultValue={calendars[0]?.id ?? ""}>
+              <option value="">— Elegir más tarde —</option>
+              {calendars.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.address}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Lugar o enlace de videollamada">
+            <Input name="location" placeholder="https://meet.google.com/…" />
+          </Field>
+        </ActionForm>
+      </Card>
+    </div>
+  );
+}

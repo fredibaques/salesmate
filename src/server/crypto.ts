@@ -21,7 +21,9 @@ export function encryptJson(value: unknown, key: Buffer = keyFromEnv()): string 
   const cipher = createCipheriv("aes-256-gcm", key, iv);
   const ciphertext = Buffer.concat([cipher.update(JSON.stringify(value), "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
-  return ["v1", iv, tag, ciphertext].map((p) => (typeof p === "string" ? p : p.toString("base64url"))).join(".");
+  return ["v1", iv, tag, ciphertext]
+    .map((p) => (typeof p === "string" ? p : p.toString("base64url")))
+    .join(".");
 }
 
 export function decryptJson<T>(payload: string, key: Buffer = keyFromEnv()): T {
@@ -29,10 +31,7 @@ export function decryptJson<T>(payload: string, key: Buffer = keyFromEnv()): T {
   if (version !== "v1" || !iv || !tag || !ciphertext) throw new Error("Unsupported ciphertext format");
   const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "base64url"));
   decipher.setAuthTag(Buffer.from(tag, "base64url"));
-  const plaintext = Buffer.concat([
-    decipher.update(Buffer.from(ciphertext, "base64url")),
-    decipher.final(),
-  ]);
+  const plaintext = Buffer.concat([decipher.update(Buffer.from(ciphertext, "base64url")), decipher.final()]);
   return JSON.parse(plaintext.toString("utf8")) as T;
 }
 

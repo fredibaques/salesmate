@@ -7,3 +7,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+# SalesMate conventions
+
+- Read `docs/ARCHITECTURE.md` before changing server code.
+- Every domain table has `org_id` and an RLS policy; access it only inside `withTenant()` (`src/server/db/tenant.ts`).
+- Every external effect goes through `proposeAction()` in `src/server/gateway/gateway.ts`; never call a connector directly from UI or agents.
+- Schema changes: edit `src/server/db/schema/*`, then `pnpm db:generate` and review the SQL.
+- Before committing: `pnpm lint && pnpm typecheck && pnpm test`.
+- UI copy is in Spanish; code, identifiers and comments in English.

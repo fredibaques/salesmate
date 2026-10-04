@@ -34,7 +34,12 @@ export type GoogleCredentials = z.infer<typeof googleCredentials>;
 
 export type GoogleOAuthClient = { clientId: string; clientSecret: string; redirectUri: string };
 
-export function googleAuthUrl(client: GoogleOAuthClient, sets: GoogleScopeSet[], state: string, loginHint?: string) {
+export function googleAuthUrl(
+  client: GoogleOAuthClient,
+  sets: GoogleScopeSet[],
+  state: string,
+  loginHint?: string,
+) {
   const scopes = [...BASE_SCOPES, ...sets.flatMap((s) => GOOGLE_SCOPE_SETS[s])];
   const params = new URLSearchParams({
     client_id: client.clientId,
@@ -110,7 +115,9 @@ export function grantedScopeSets(scope: string): GoogleScopeSet[] {
 
 function encodeHeader(value: string): string {
   // RFC 2047 for non-ASCII header values.
-  return /^[\x20-\x7e]*$/.test(value) ? value : `=?UTF-8?B?${Buffer.from(value, "utf8").toString("base64")}?=`;
+  return /^[\x20-\x7e]*$/.test(value)
+    ? value
+    : `=?UTF-8?B?${Buffer.from(value, "utf8").toString("base64")}?=`;
 }
 
 function formatAddress(address: string, name?: string | null): string {

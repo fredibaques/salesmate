@@ -7,7 +7,11 @@ const oauth = { clientId: "cid", clientSecret: "secret" };
 describe("Google connector", () => {
   it("builds the consent URL with offline access and the chosen scopes", () => {
     const url = new URL(
-      googleAuthUrl({ ...oauth, redirectUri: "http://localhost:3000/cb" }, ["calendar_read", "gmail_write"], "st"),
+      googleAuthUrl(
+        { ...oauth, redirectUri: "http://localhost:3000/cb" },
+        ["calendar_read", "gmail_write"],
+        "st",
+      ),
     );
     expect(url.searchParams.get("access_type")).toBe("offline");
     expect(url.searchParams.get("scope")).toContain("https://www.googleapis.com/auth/calendar.freebusy");
@@ -38,8 +42,15 @@ describe("Google connector", () => {
 
   it("refreshes expired tokens, persists them and sends mail", async () => {
     const { fetch, requests } = mockFetch({
-      "POST https://oauth2.googleapis.com/token": () => ({ access_token: "new-token", expires_in: 3600, scope: "x" }),
-      "POST https://gmail.googleapis.com/gmail/v1/users/me/messages/send": () => ({ id: "m1", threadId: "t1" }),
+      "POST https://oauth2.googleapis.com/token": () => ({
+        access_token: "new-token",
+        expires_in: 3600,
+        scope: "x",
+      }),
+      "POST https://gmail.googleapis.com/gmail/v1/users/me/messages/send": () => ({
+        id: "m1",
+        threadId: "t1",
+      }),
     });
     const persisted: unknown[] = [];
     const client = createGoogleClient(

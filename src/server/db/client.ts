@@ -1,3 +1,4 @@
+import { mkdirSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
@@ -18,6 +19,7 @@ export type Db = PgDatabase<PgQueryResultHKT, Schema>;
 export function createDb(url: string): { db: Db; close: () => Promise<void> } {
   if (url.startsWith("pglite:")) {
     const target = url.slice("pglite:".length);
+    if (target !== "memory") mkdirSync(target, { recursive: true });
     const client = new PGlite(target === "memory" ? undefined : target);
     return {
       db: drizzlePglite(client, { schema }) as unknown as Db,
