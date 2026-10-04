@@ -77,7 +77,7 @@ resuelve con la configuración genérica descrita aquí.
 | **Katie**: agente outbound; busca prospectos, detecta señales, outreach multicanal | **Agente Outbound** | Por proyecto y por *playbook*; válido para empresas (B2B) y, donde la ley lo permita, personas (B2C). |
 | **Alex**: agente inbound; cualifica por llamada/chat con contexto CRM, puntúa y enruta | **Agente Inbound** | El destino no es siempre una reunión: depende del modelo de venta (ver §4). |
 | **Luna**: agente de crecimiento; señales, lookalikes, mejora continua | **Agente de Inteligencia** | Señales configurables por proyecto, lookalikes y optimización de playbooks. |
-| — | **Agente de Cartera** | Clientes existentes: renovaciones, vencimientos, recompra, venta cruzada, reactivación. |
+| — | **Agente Account Manager** | Clientes existentes, con enfoque comercial: renovaciones, vencimientos, recompra, venta cruzada, reactivación y referencias. |
 | — | **Copiloto** | Chat transversal: "¿qué tengo hoy?", "prepárame la llamada con X", "¿qué está parado?". |
 
 Diferencia de fondo: Alta sirve a un equipo comercial B2B de una empresa.
@@ -102,7 +102,7 @@ flowchart LR
     subgraph AG[Agentes]
         A1[Outbound]
         A2[Inbound]
-        A3[Cartera]
+        A3[Account Manager]
         A4[Inteligencia]
     end
     subgraph HACER[Capa de ejecución · HACER]
@@ -401,13 +401,27 @@ flowchart LR
     F & G & H & I --> L[Registro en CRM + aviso]
 ```
 
-### 8.3 Agente de Cartera
-Trabaja sobre clientes existentes, con eventos configurables por proyecto:
+### 8.3 Agente Account Manager
+Hace crecer y retiene a los **clientes existentes** con un enfoque comercial
+(no es *Customer Success*: no cubre puesta en marcha ni soporte). Actúa sobre
+eventos configurables por proyecto:
 - **Vencimientos y renovaciones** (contratos, suscripciones, servicios periódicos).
 - **Propuestas o presupuestos a punto de caducar**.
 - **Venta cruzada y *upsell*** a partir de lo que el cliente ya tiene.
 - **Reactivación** de clientes con caída de actividad.
 - **Peticiones de reseñas y referencias** tras una venta satisfactoria.
+
+Usa **señales de satisfacción** para decidir cuándo y cómo actuar:
+
+| Señal | Ejemplos | Comportamiento |
+|---|---|---|
+| Positiva | Buena valoración, actividad creciente, mensajes de agradecimiento | Propone venta cruzada, *upsell* o petición de referencia |
+| Neutra | Sin cambios relevantes | Solo actúa ante eventos (renovación, vencimiento) |
+| De riesgo | Quejas, caída de actividad, falta de respuesta, incidencias abiertas | No vende; avisa a una persona con el contexto y propone un contacto de retención |
+
+La puesta en marcha, el seguimiento del uso y el soporte quedan fuera de
+alcance; si se necesitan, se añadirían como un agente de *Customer Success*
+sobre la misma infraestructura.
 
 ### 8.4 Agente de Inteligencia
 - Investigación de cuentas bajo demanda.
@@ -564,7 +578,7 @@ flowchart TB
     end
     subgraph Engine[Motor de agentes]
         Orch[Orquestador de workflows durables]
-        Agents[Outbound · Inbound · Cartera · Inteligencia · Copiloto]
+        Agents[Outbound · Inbound · Account Manager · Inteligencia · Copiloto]
         LLM[Capa LLM · Claude<br/>tool use · prompt caching]
         GW[Action Gateway]
     end
@@ -763,8 +777,8 @@ Estimaciones para 1 desarrollador apoyado por IA.
 - Dominios, calentamiento y límites.
 - **Hito:** al menos un playbook outbound B2B generando conversiones semanales.
 
-### Fase 3 — Cartera y multicanal (4–6 semanas)
-- Agente de Cartera (vencimientos, renovaciones, venta cruzada, reactivación).
+### Fase 3 — Account Manager y multicanal (4–6 semanas)
+- Agente Account Manager (vencimientos, renovaciones, venta cruzada, reactivación) con señales de satisfacción.
 - WhatsApp Business, chat web por proyecto, click-to-call con grabación y resumen.
 - Enlaces de pago y generación de propuestas/presupuestos en documento.
 - Fuentes vivas adicionales (bases de datos externas, API REST) y cliente MCP genérico.
@@ -792,7 +806,7 @@ Estimaciones para 1 desarrollador apoyado por IA.
 | **Negocio** (por proyecto/playbook) | Conversiones por tipo (reuniones, presupuestos, pagos, altas), oportunidades, ventas ganadas, ingresos atribuidos, coste por conversión. |
 | **Inbound** | Tiempo hasta la primera respuesta, % cualificados, % que alcanza el siguiente paso. |
 | **Outbound** | Respuesta, respuesta positiva, rebotes, bajas, quejas de spam. |
-| **Cartera** | Renovaciones a tiempo, retención, venta cruzada, reactivaciones. |
+| **Account Manager** | Renovaciones a tiempo, retención, venta cruzada, reactivaciones, clientes en riesgo detectados a tiempo. |
 | **Calidad del agente** | % aprobado sin edición, motivos de rechazo, afirmaciones sin cita. |
 | **Conocimiento** | Fuentes desactualizadas, contradicciones, preguntas sin respuesta. |
 | **Operación** | Coste de LLM y datos por proyecto, salud de conexiones, minutos al día aprobando. |

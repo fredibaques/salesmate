@@ -7,7 +7,7 @@ calendario, teléfono, WhatsApp…) vía API, MCP o navegador.
 
 - **Agente Outbound**: prospección, investigación, outreach personalizado y seguimientos.
 - **Agente Inbound**: respuesta inmediata, cualificación y conversión según el modelo de venta (reunión, presupuesto, pago, llamada…) con registro en el CRM.
-- **Agente de Cartera**: renovaciones, venta cruzada y reactivación.
+- **Agente Account Manager**: clientes existentes; renovaciones, venta cruzada, reactivación y retención.
 - **Agente de Inteligencia**: señales de compra, cuentas calientes y optimización.
 
 Agnóstica de sector y de modelo de venta (B2B consultivo, B2B transaccional,
