@@ -294,16 +294,16 @@ export const backedFigures: Policy = {
     if (!FIGURE_PATTERN.test(ctx.definition.textOf(ctx.payload))) return allow;
     const sourceIds = [...new Set(ctx.citations.map((c) => c.sourceId))];
     if (sourceIds.length > 0) {
-      const [truth] = await ctx.tx
+      const [backing] = await ctx.tx
         .select({ id: knowledgeSources.id })
         .from(knowledgeSources)
-        .where(and(inArray(knowledgeSources.id, sourceIds), eq(knowledgeSources.reliability, "truth")))
+        .where(and(inArray(knowledgeSources.id, sourceIds), eq(knowledgeSources.projectId, ctx.project.id)))
         .limit(1);
-      if (truth) return allow;
+      if (backing) return allow;
     }
     return {
       outcome: "require_approval",
-      reason: "El mensaje contiene cifras que no están respaldadas por una fuente de verdad.",
+      reason: "El mensaje contiene cifras que no salen del conocimiento del proyecto.",
     };
   },
 };

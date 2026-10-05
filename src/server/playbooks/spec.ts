@@ -141,7 +141,7 @@ const base = {
   requiredData: [],
   objections: [],
   handoff: [
-    "Piden un precio o condición que no está en las fuentes de verdad",
+    "Piden un precio o condición que no está en el conocimiento del proyecto",
     "Muestran enfado o hablan de temas legales",
   ],
   signature: "",

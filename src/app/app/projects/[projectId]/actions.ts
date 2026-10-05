@@ -1,19 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import type { FormState } from "@/components/action-form";
 import { requireRole, requireTenant } from "@/server/auth/session";
 import { getAvailability } from "@/server/calendar/availability";
 import { getDb } from "@/server/db/client";
 import { list, num, runForm, str } from "@/server/form";
+import { answerFromKnowledge } from "@/server/agents/knowledge-answer";
 import {
   deleteSource,
   ingestDocumentFile,
   ingestDocumentText,
   ingestTableFile,
-  searchKnowledge,
-  updateSource,
 } from "@/server/knowledge/service";
+import { getLlm, isLlmConfigured } from "@/server/llm/client";
 import {
   addComplianceRule,
   addSuppression,
@@ -119,76 +120,70 @@ function fileFrom(form: FormData): File {
 export async function uploadKnowledge(projectId: string, _: FormState, form: FormData): Promise<FormState> {
   return runForm(async () => {
     const tenant = await admin();
-    const reliability = str(form, "reliability") === "truth" ? "truth" : "reference";
     const kind = str(form, "kind");
     const text = str(form, "text");
     const name = str(form, "name");
     if (kind === "text") {
       if (!text || !name) throw new Error("Escribe un nombre y el texto.");
-      const { chunks } = await ingestDocumentText(getDb(), tenant, { projectId, name, reliability, text });
+      await ingestDocumentText(getDb(), tenant, { projectId, name, text });
       refresh(projectId);
-      return `Texto añadido (${chunks} fragmentos).`;
+      return `«${name}» añadido.`;
     }
     const file = fileFrom(form);
     const data = Buffer.from(await file.arrayBuffer());
-    const isTable = /\.(csv|tsv|xlsx)$/i.test(file.name);
-    if (isTable) {
+    const title = name ?? file.name.replace(/\.[^.]+$/, "");
+    if (/\.(csv|tsv|xlsx)$/i.test(file.name)) {
       const { tables } = await ingestTableFile(getDb(), tenant, {
         projectId,
-        name: name ?? file.name,
-        reliability,
+        name: title,
         filename: file.name,
         data,
       });
       refresh(projectId);
-      return `Tabla importada: ${tables.map((t) => `${t.name} (${t.rowCount} filas)`).join(", ")}.`;
+      return `«${title}» añadido: ${tables.length === 1 ? "1 tabla" : `${tables.length} tablas`}.`;
     }
-    const { chunks } = await ingestDocumentFile(getDb(), tenant, {
+    await ingestDocumentFile(getDb(), tenant, {
       projectId,
-      name: name ?? file.name,
-      reliability,
+      name: title,
       kind: kind === "examples" ? "examples" : "document",
       filename: file.name,
       data,
     });
     refresh(projectId);
-    return `Documento añadido (${chunks} fragmentos).`;
+    return `«${title}» añadido.`;
   });
-}
-
-export async function setSourceReliability(
-  projectId: string,
-  sourceId: string,
-  reliability: "truth" | "reference",
-) {
-  const tenant = await admin();
-  await updateSource(getDb(), tenant, sourceId, { reliability });
-  refresh(projectId);
-}
-
-export async function validateSource(projectId: string, sourceId: string, validated: boolean) {
-  const tenant = await admin();
-  await updateSource(getDb(), tenant, sourceId, { validated });
-  refresh(projectId);
 }
 
 export async function removeSource(projectId: string, sourceId: string) {
   const tenant = await admin();
   await deleteSource(getDb(), tenant, sourceId);
   refresh(projectId);
+  redirect(`/app/projects/${projectId}/knowledge`);
 }
 
-export type SearchState = { query: string; hits: Awaited<ReturnType<typeof searchKnowledge>> } | null;
+export type AskState =
+  | { question: string; answer: string; sources: { id: string; name: string; kind: string }[] }
+  | { question: string; error: string }
+  | null;
 
-export async function searchProjectKnowledge(
-  projectId: string,
-  _: SearchState,
-  form: FormData,
-): Promise<SearchState> {
-  const tenant = await requireTenant();
-  const query = str(form, "q") ?? "";
-  const hits = query ? await searchKnowledge(getDb(), tenant, { projectId, query, limit: 6 }) : [];
-  return { query, hits };
+export async function askKnowledge(projectId: string, _: AskState, form: FormData): Promise<AskState> {
+  const question = str(form, "q") ?? "";
+  if (!question) return null;
+  try {
+    const tenant = await requireTenant();
+    if (!isLlmConfigured()) {
+      return { question, error: "La IA no está configurada todavía (falta ANTHROPIC_API_KEY)." };
+    }
+    const result = await answerFromKnowledge(
+      { db: getDb(), llm: getLlm() },
+      { orgId: tenant.orgId, userId: tenant.userId },
+      { projectId, question },
+    );
+    return { question, answer: result.answer, sources: result.sources };
+  } catch (err) {
+    console.error(err);
+    return { question, error: "No he podido responder ahora mismo. Inténtalo de nuevo en un momento." };
+  }
 }
 
 // Rules ---------------------------------------------------------------------

@@ -2,7 +2,7 @@ import { Plus, Scale, ShieldBan, Trash2 } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
 import { SUPPRESSION_TYPE_LABELS, SuppressionFields } from "@/components/suppression-fields";
-import { Badge, Button, Card, EmptyState, Field, Input, Select } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Field, Input, Select, PageHeader } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { ACTION_DEFINITIONS } from "@/server/gateway/definitions";
@@ -101,8 +101,13 @@ export default async function RulesPage({ params }: PageProps<"/app/projects/[pr
   const rules = await getProjectRules(getDb(), tenant, projectId);
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-2">
+    <>
+      <PageHeader
+        level="section"
+        title="Reglas"
+        description="Lo que el sistema comprueba antes de cada acción de los agentes de este proyecto, sea cual sea su nivel de autonomía."
+      />
+      <div className="grid items-start gap-6 lg:grid-cols-2">
         <Card
           title="Reglas de cumplimiento"
           description="Normas propias de este negocio que el sistema aplica a cada acción, sin que el núcleo conozca tu sector."
@@ -170,6 +175,6 @@ export default async function RulesPage({ params }: PageProps<"/app/projects/[pr
           )}
         </Card>
       </div>
-    </div>
+    </>
   );
 }

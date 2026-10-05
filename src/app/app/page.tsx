@@ -1,11 +1,20 @@
-import { Activity, CheckCircle2, Circle, FolderKanban, Inbox } from "lucide-react";
+import { Activity, Bot, CheckCircle2, Circle, FolderKanban, Inbox } from "lucide-react";
 import Link from "next/link";
-import { Badge, Card, EmptyState, LinkButton, PageHeader, RowLink } from "@/components/ui";
+import {
+  Badge,
+  Card,
+  CardGrid,
+  EmptyState,
+  EntityCard,
+  LinkButton,
+  PageHeader,
+  RowLink,
+} from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getActionDefinition } from "@/server/gateway/definitions";
 import { listActions, listAudit, listOrgConnections, listProjects } from "@/server/services/projects";
-import { formatDateTime } from "@/lib/format";
+import { describeEvent, formatDateTime } from "@/lib/format";
 import { NewProjectButton } from "./projects/new-project";
 
 export const metadata = { title: "Panel" };
@@ -59,35 +68,49 @@ export default async function DashboardPage() {
         </Card>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Proyectos">
-          {projects.length === 0 ? (
-            <EmptyState
-              compact
-              icon={<FolderKanban />}
-              title="Aún no hay proyectos"
-              description="Crea uno por cada empresa, marca o actividad que vendas."
-              action={<NewProjectButton />}
-            />
-          ) : (
-            <ul className="divide-y divide-border">
-              {projects.map((p) => (
-                <li key={p.id}>
-                  <RowLink href={`/app/projects/${p.id}`}>
-                    <span className="font-medium">{p.name}</span>
-                    <span className="flex gap-2">
-                      {p.agentsPaused ? <Badge tone="warning">Agentes pausados</Badge> : null}
+      <section className="mb-8">
+        <h2 className="mb-3 text-base font-semibold">Proyectos</h2>
+        {projects.length === 0 ? (
+          <EmptyState
+            icon={<FolderKanban />}
+            title="Aún no hay proyectos"
+            description="Crea uno por cada empresa, marca o actividad que vendas. Dentro añadirás sus agentes y lo que necesitan saber."
+            action={<NewProjectButton />}
+          />
+        ) : (
+          <CardGrid>
+            {projects.map((p) => {
+              const active = p.agents.filter((a) => a.enabled).length;
+              return (
+                <EntityCard
+                  key={p.id}
+                  href={`/app/projects/${p.id}`}
+                  icon={<FolderKanban />}
+                  title={p.name}
+                  meta={p.website?.replace(/^https?:\/\//, "") || null}
+                  badge={p.agentsPaused ? <Badge tone="warning">En pausa</Badge> : null}
+                  description={p.description ?? undefined}
+                  footer={
+                    <>
+                      <span className="flex items-center gap-1.5 text-xs text-muted">
+                        <Bot className="size-3.5" />
+                        {p.agents.length === 0
+                          ? "Sin agentes"
+                          : `${active} de ${p.agents.length} ${p.agents.length === 1 ? "agente activo" : "agentes activos"}`}
+                      </span>
                       {p.pendingApprovals > 0 ? (
-                        <Badge tone="accent">{p.pendingApprovals} pendientes</Badge>
+                        <Badge tone="accent">{p.pendingApprovals} por aprobar</Badge>
                       ) : null}
-                    </span>
-                  </RowLink>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
+                    </>
+                  }
+                />
+              );
+            })}
+          </CardGrid>
+        )}
+      </section>
 
+      <div className="grid items-start gap-6 lg:grid-cols-2">
         <Card title="Pendiente de aprobación">
           {pending.length === 0 ? (
             <EmptyState
@@ -116,7 +139,6 @@ export default async function DashboardPage() {
 
         <Card
           title="Actividad reciente"
-          className="lg:col-span-2"
           actions={
             events.length > 0 ? (
               <LinkButton href="/app/audit" variant="ghost">
@@ -137,8 +159,7 @@ export default async function DashboardPage() {
               {events.map((e) => (
                 <li key={e.id} className="flex justify-between gap-4 py-2">
                   <span>
-                    <code className="text-xs">{e.event}</code>{" "}
-                    <span className="text-muted">{summarize(e.data)}</span>
+                    {describeEvent(e.event)} <span className="text-muted">{summarize(e.data)}</span>
                   </span>
                   <span className="shrink-0 text-xs text-muted">{formatDateTime(e.createdAt)}</span>
                 </li>

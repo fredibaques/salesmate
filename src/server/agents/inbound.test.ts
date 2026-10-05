@@ -97,7 +97,6 @@ beforeAll(async () => {
   const ingested = await ingestTableFile(db, tenant, {
     projectId,
     name: "Tarifas",
-    reliability: "truth",
     filename: "tarifas.csv",
     data: Buffer.from("Servicio,Precio\nTrámite estándar,49\nTrámite urgente,89\n"),
   });
@@ -216,7 +215,7 @@ describe("inbound agent", () => {
       customerType: "b2b",
       subjectRef: `conversation:${outcome.conversationId}`,
     });
-    // Figures are backed by the cited truth table, so no extra warning for them.
+    // Figures are backed by the cited table, so no extra warning for them.
     expect(state.action.policyResults.find((p) => p.policy === "backed_figures")?.outcome).toBe("allow");
     expect(state.event.status).toBe("processed");
 

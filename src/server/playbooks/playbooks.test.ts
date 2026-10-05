@@ -70,7 +70,6 @@ describe("playbooks", () => {
     await ingestDocumentText(db, tenant, {
       projectId,
       name: "Presentación",
-      reliability: "reference",
       text: "Ayudamos a pymes a ordenar su proceso de venta. Objeción habitual: ya tenemos consultor.",
     });
     const { llm, requests } = scriptedLlm([

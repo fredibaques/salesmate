@@ -1,8 +1,7 @@
-import { ArrowLeft, Check } from "lucide-react";
-import Link from "next/link";
+import { Check } from "lucide-react";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
-import { Avatar, Button, Card, Field, Input } from "@/components/ui";
+import { Avatar, Button, Card, Field, Input, PageHeader } from "@/components/ui";
 import { getIntegration } from "@/lib/integrations";
 import { requireTenant } from "@/server/auth/session";
 import { env } from "@/server/env";
@@ -46,21 +45,12 @@ export default async function ConnectProviderPage({ params }: PageProps<"/app/co
 
   return (
     <>
-      <Link
-        href="/app/connections/new"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-muted transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />
-        Todas las herramientas
-      </Link>
-
-      <div className="mb-6 flex items-center gap-4">
-        <Avatar label={integration.name} color={integration.color} className="size-12 text-lg" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Conectar {integration.name}</h1>
-          <p className="text-sm text-muted">{integration.tagline}</p>
-        </div>
-      </div>
+      <PageHeader
+        back={{ href: "/app/connections/new", label: "Todas las herramientas" }}
+        media={<Avatar label={integration.name} color={integration.color} className="size-11 text-lg" />}
+        title={`Conectar ${integration.name}`}
+        description={integration.tagline}
+      />
 
       <div className="grid items-start gap-6 lg:grid-cols-[1fr_2fr]">
         <Card title="Qué podrán hacer los agentes">

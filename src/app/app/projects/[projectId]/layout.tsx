@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { TabLink } from "@/components/nav-link";
-import { Badge, Button } from "@/components/ui";
+import { FolderKanban, OctagonPause, Play } from "lucide-react";
+import { Badge, Button, PageHeader } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getProject } from "@/server/services/projects";
@@ -15,26 +16,24 @@ export default async function ProjectLayout({ children, params }: LayoutProps<"/
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{project.name}</h1>
-          {project.description ? (
-            <p className="mt-1 max-w-3xl text-sm text-muted">{project.description}</p>
-          ) : null}
-        </div>
-        <form
-          action={toggleAgents.bind(null, project.id, !project.agentsPaused)}
-          className="flex items-center gap-3"
-        >
-          {project.agentsPaused ? <Badge tone="warning">Proyecto en pausa: ningún agente actúa</Badge> : null}
-          <Button
-            variant={project.agentsPaused ? "primary" : "ghost"}
-            title="Freno de emergencia: detiene a la vez todos los agentes del proyecto"
-          >
-            {project.agentsPaused ? "Reanudar el proyecto" : "Pausar todo el proyecto"}
-          </Button>
-        </form>
-      </div>
+      <PageHeader
+        className="mb-4"
+        icon={<FolderKanban />}
+        title={project.name}
+        badge={project.agentsPaused ? <Badge tone="warning">En pausa: ningún agente actúa</Badge> : null}
+        description={project.description}
+        actions={
+          <form action={toggleAgents.bind(null, project.id, !project.agentsPaused)}>
+            <Button
+              variant={project.agentsPaused ? "primary" : "ghost"}
+              title="Freno de emergencia: detiene a la vez todos los agentes del proyecto"
+            >
+              {project.agentsPaused ? <Play className="size-4" /> : <OctagonPause className="size-4" />}
+              {project.agentsPaused ? "Reanudar el proyecto" : "Pausar todo el proyecto"}
+            </Button>
+          </form>
+        }
+      />
       <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-border">
         <TabLink href={base} exact>
           Resumen
@@ -44,6 +43,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps<"/
         <TabLink href={`${base}/knowledge`}>Conocimiento</TabLink>
         <TabLink href={`${base}/conversations`}>Conversaciones</TabLink>
         <TabLink href={`${base}/rules`}>Reglas</TabLink>
+        <TabLink href={`${base}/settings`}>Ajustes</TabLink>
       </nav>
       {children}
     </>

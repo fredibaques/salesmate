@@ -1,8 +1,9 @@
-import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { audit } from "../audit";
 import type { Db } from "../db/client";
 import {
+  kbFiles,
   actions,
   AGENT_TYPES,
   agentConfigs,
@@ -66,7 +67,19 @@ export async function listProjects(db: Db, tenant: Pick<TenantContext, "orgId">)
       .where(eq(actions.status, "pending_approval"))
       .groupBy(actions.projectId);
     const byProject = new Map(pending.map((p) => [p.projectId, p.n]));
-    return rows.map((p) => ({ ...p, pendingApprovals: byProject.get(p.id) ?? 0 }));
+    const agents = await tx
+      .select({
+        projectId: agentConfigs.projectId,
+        agentType: agentConfigs.agentType,
+        enabled: agentConfigs.enabled,
+      })
+      .from(agentConfigs)
+      .where(isNotNull(agentConfigs.addedAt));
+    return rows.map((p) => ({
+      ...p,
+      pendingApprovals: byProject.get(p.id) ?? 0,
+      agents: agents.filter((a) => a.projectId === p.id),
+    }));
   });
 }
 
@@ -488,7 +501,22 @@ export async function listKnowledge(db: Db, tenant: Pick<TenantContext, "orgId">
             ),
           )
       : [];
-    return sources.map((s) => ({ ...s, tables: tables.filter((t) => t.sourceId === s.id) }));
+    const files = sources.length
+      ? await tx
+          .select({ sourceId: kbFiles.sourceId, filename: kbFiles.filename, size: kbFiles.size })
+          .from(kbFiles)
+          .where(
+            inArray(
+              kbFiles.sourceId,
+              sources.map((s) => s.id),
+            ),
+          )
+      : [];
+    return sources.map((s) => ({
+      ...s,
+      tables: tables.filter((t) => t.sourceId === s.id),
+      file: files.find((f) => f.sourceId === s.id) ?? null,
+    }));
   });
 }
 

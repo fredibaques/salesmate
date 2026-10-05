@@ -50,6 +50,13 @@
       "when": 1791201819921,
       "tag": "0006_agents_first",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791209017804,
+      "tag": "0007_knowledge_files",
+      "breakpoints": true
     }
   ]
 }

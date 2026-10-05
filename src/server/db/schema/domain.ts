@@ -55,6 +55,11 @@ const tsvector = customType<{ data: string }>({
   dataType: () => "tsvector",
 });
 
+const bytea = customType<{ data: Buffer; driverData: Buffer | Uint8Array }>({
+  dataType: () => "bytea",
+  fromDriver: (value) => (Buffer.isBuffer(value) ? value : Buffer.from(value)),
+});
+
 // ---------------------------------------------------------------------------
 // Projects
 // ---------------------------------------------------------------------------
@@ -365,18 +370,12 @@ export const knowledgeSources = pgTable(
       .notNull()
       .default("snapshot"),
     schedule: text("schedule"),
-    /** truth = may back prices/commitments; reference = context only. */
-    reliability: text("reliability", { enum: ["truth", "reference"] })
-      .notNull()
-      .default("reference"),
     exposedObjects: jsonb("exposed_objects").$type<Record<string, unknown>>().notNull().default({}),
     status: text("status", { enum: ["pending", "ready", "error"] })
       .notNull()
       .default("pending"),
     error: text("error"),
     lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
-    validatedAt: timestamp("validated_at", { withTimezone: true }),
-    validatedBy: text("validated_by"),
     createdBy: text("created_by"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -397,9 +396,30 @@ export const kbDocuments = pgTable(
     mimeType: text("mime_type"),
     checksum: text("checksum").notNull(),
     charCount: integer("char_count").notNull().default(0),
+    /** Full extracted text, shown when the original file can't be previewed. */
+    content: text("content"),
     createdAt: createdAt(),
   },
   (t) => [tenantPolicy("kb_documents")],
+);
+
+/** The original uploaded file, kept so people can open what they uploaded. */
+export const kbFiles = pgTable(
+  "kb_files",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: orgId(),
+    sourceId: uuid("source_id")
+      .notNull()
+      .unique()
+      .references(() => knowledgeSources.id, { onDelete: "cascade" }),
+    filename: text("filename").notNull(),
+    mimeType: text("mime_type").notNull(),
+    size: integer("size").notNull(),
+    data: bytea("data").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [tenantPolicy("kb_files")],
 );
 
 export const kbChunks = pgTable(
@@ -444,6 +464,8 @@ export const knowledgeTables = pgTable(
       .notNull()
       .references(() => knowledgeSources.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    /** Notes printed above the table in the sheet (e.g. «precios sin IVA»). */
+    description: text("description"),
     columns: jsonb("columns").$type<TableColumn[]>().notNull(),
     rowCount: integer("row_count").notNull().default(0),
     createdAt: createdAt(),
