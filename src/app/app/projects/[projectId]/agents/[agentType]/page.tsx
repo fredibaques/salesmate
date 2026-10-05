@@ -20,6 +20,7 @@ import { getAgent, isProjectAgentType, listChannelOptions } from "@/server/servi
 import { getProject, listMeetingTypes } from "@/server/services/projects";
 import { MeetingTypesCard } from "../../meeting-types";
 import { draftProcess, saveProcess } from "../actions";
+import { OutboundHome } from "./outbound-home";
 
 const join = (items: string[]) => items.join("\n");
 
@@ -35,11 +36,13 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   );
 }
 
-export default async function AgentProcessPage({
+export default async function AgentHomePage({
   params,
 }: PageProps<"/app/projects/[projectId]/agents/[agentType]">) {
   const { projectId, agentType } = await params;
   if (!isProjectAgentType(agentType)) notFound();
+  // Agents without a conversation process start on their instructions.
+  if (agentType === "outbound") return <OutboundHome projectId={projectId} />;
   const tenant = await requireTenant();
   const db = getDb();
   const [agent, meetingTypes, options, project] = await Promise.all([

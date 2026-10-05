@@ -1,10 +1,12 @@
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { audit } from "../audit";
+import { mcpToolsOf } from "../connectors/mcp";
 import { connectionCapabilities } from "../connectors/service";
 import type { Db } from "../db/client";
 import {
   agentConfigs,
+  agentRuns,
   connections,
   identities,
   playbooks,
@@ -13,6 +15,9 @@ import {
   projectIdentities,
   projects,
   type AgentChannels,
+  type AgentSchedule,
+  type AgentSettings,
+  type AgentTools,
   type AgentType,
   type SalesMotion,
 } from "../db/schema";
@@ -38,7 +43,29 @@ export const PROJECT_AGENT_TYPES = ["inbound", "outbound", "account_manager"] as
 export type ProjectAgentType = (typeof PROJECT_AGENT_TYPES)[number];
 
 /** Agents whose runtime exists today; the rest can't be added yet. */
-export const AVAILABLE_AGENT_TYPES: readonly ProjectAgentType[] = ["inbound"];
+export const AVAILABLE_AGENT_TYPES: readonly ProjectAgentType[] = ["inbound", "outbound"];
+
+/** Agents that work on a schedule (the rest react to what arrives). */
+export const SCHEDULED_AGENT_TYPES: readonly ProjectAgentType[] = ["outbound"];
+
+/** Starting configuration of each template; the user edits all of it. */
+export const AGENT_DEFAULTS: Record<
+  ProjectAgentType,
+  { instructions: string; tools: AgentTools; schedule: AgentSchedule | null; settings: AgentSettings }
+> = {
+  inbound: { instructions: "", tools: {}, schedule: null, settings: {} },
+  outbound: {
+    instructions: [
+      "Busca en fuentes públicas (webs de empresas, directorios, asociaciones del sector, noticias) empresas que encajen con nuestro cliente ideal.",
+      "Para cada una, recoge el nombre, la web, la ciudad, un teléfono y un email de contacto públicos si los hay, y explica en una frase por qué encaja.",
+      "No incluyas empresas que ya sean clientes ni las que estén fuera de nuestra zona.",
+    ].join("\n"),
+    tools: { web: true },
+    schedule: { time: "08:00", days: [1, 2, 3, 4, 5] },
+    settings: { prospectsPerRun: 10 },
+  },
+  account_manager: { instructions: "", tools: {}, schedule: null, settings: {} },
+};
 
 export function isProjectAgentType(value: string): value is ProjectAgentType {
   return (PROJECT_AGENT_TYPES as readonly string[]).includes(value);
@@ -120,12 +147,32 @@ export async function addAgent(
   return withTenant(db, tenant, async (tx) => {
     const [config] = await tx
       .insert(agentConfigs)
-      .values({ orgId: tenant.orgId, projectId, agentType, addedAt: new Date(), enabled: false })
+      .values({
+        orgId: tenant.orgId,
+        projectId,
+        agentType,
+        addedAt: new Date(),
+        enabled: false,
+        ...AGENT_DEFAULTS[agentType],
+      })
       .onConflictDoUpdate({
         target: [agentConfigs.projectId, agentConfigs.agentType],
         set: { addedAt: new Date() },
       })
       .returning();
+    // Every project creates its agent rows up front: give a never-configured one its template defaults.
+    if (!config.instructions && !config.schedule && Object.keys(config.tools).length === 0) {
+      const defaults = AGENT_DEFAULTS[agentType];
+      await tx
+        .update(agentConfigs)
+        .set({
+          instructions: defaults.instructions || null,
+          tools: defaults.tools,
+          schedule: defaults.schedule,
+          settings: defaults.settings,
+        })
+        .where(eq(agentConfigs.id, config.id));
+    }
     const [existing] = await tx.select().from(playbooks).where(eq(playbooks.agentConfigId, config.id));
     if (!existing) {
       const [playbook] = await tx
@@ -427,6 +474,100 @@ export async function listChannelOptions(db: Db, tenant: Pick<TenantContext, "or
 }
 
 // ---------------------------------------------------------------------------
+// Instructions, schedule and tools (every agent)
+// ---------------------------------------------------------------------------
+
+const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+export const instructionsInput = z.object({
+  instructions: z.string().max(10_000).default(""),
+  schedule: z
+    .object({
+      time: z.string().regex(TIME, "Hora no válida (HH:MM)."),
+      days: z.array(z.number().int().min(1).max(7)).min(1, "Elige al menos un día."),
+    })
+    .nullable()
+    .default(null),
+  settings: z.object({ prospectsPerRun: z.number().int().min(1).max(50).optional() }).default({}),
+});
+
+export async function saveAgentInstructions(
+  db: Db,
+  tenant: TenantContext,
+  projectId: string,
+  agentType: ProjectAgentType,
+  raw: z.input<typeof instructionsInput>,
+) {
+  const input = instructionsInput.parse(raw);
+  return withTenant(db, tenant, async (tx) => {
+    const [config] = await tx
+      .update(agentConfigs)
+      .set({
+        instructions: input.instructions.trim() || null,
+        schedule: input.schedule,
+        settings: input.settings,
+      })
+      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.agentType, agentType)))
+      .returning();
+    if (!config) throw new Error("Agente no encontrado.");
+    await audit(tx, tenant, {
+      event: "agent.instructions_updated",
+      projectId,
+      entityType: "agent_config",
+      entityId: config.id,
+      data: { agentType, schedule: input.schedule, settings: input.settings },
+    });
+  });
+}
+
+/** MCP servers of the organization, with the tools each one offers. */
+export async function listMcpServers(db: Db, tenant: Pick<TenantContext, "orgId">) {
+  return withTenant(db, tenant, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(connections)
+      .where(eq(connections.provider, "mcp"))
+      .orderBy(desc(connections.createdAt));
+    return rows.map((c) => ({ id: c.id, label: c.label, status: c.status, tools: mcpToolsOf(c) }));
+  });
+}
+
+export async function saveAgentTools(
+  db: Db,
+  tenant: TenantContext,
+  projectId: string,
+  agentType: ProjectAgentType,
+  input: AgentTools,
+) {
+  const servers = await listMcpServers(db, tenant);
+  // Keep only servers and tools that exist in this organization.
+  const mcp = (input.mcp ?? [])
+    .map((m) => {
+      const server = servers.find((s) => s.id === m.connectionId);
+      if (!server) return null;
+      const names = new Set(server.tools.map((t) => t.name));
+      return { connectionId: server.id, tools: m.tools.filter((t) => names.has(t)) };
+    })
+    .filter((m): m is { connectionId: string; tools: string[] } => Boolean(m && m.tools.length));
+  const tools: AgentTools = { web: Boolean(input.web), mcp };
+  return withTenant(db, tenant, async (tx) => {
+    const [config] = await tx
+      .update(agentConfigs)
+      .set({ tools })
+      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.agentType, agentType)))
+      .returning();
+    if (!config) throw new Error("Agente no encontrado.");
+    await audit(tx, tenant, {
+      event: "agent.tools_updated",
+      projectId,
+      entityType: "agent_config",
+      entityId: config.id,
+      data: { agentType, ...tools },
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Sales profile: what the project sells and to whom (shared by its agents)
 // ---------------------------------------------------------------------------
 
@@ -458,4 +599,31 @@ export async function saveSalesProfile(db: Db, tenant: TenantContext, projectId:
     });
     return profile;
   });
+}
+
+/** Latest runs of an agent, newest first (what it did and what it cost). */
+export async function listAgentRuns(
+  db: Db,
+  tenant: Pick<TenantContext, "orgId">,
+  projectId: string,
+  agentType: ProjectAgentType,
+  limit = 5,
+) {
+  return withTenant(db, tenant, (tx) =>
+    tx
+      .select({
+        id: agentRuns.id,
+        trigger: agentRuns.trigger,
+        status: agentRuns.status,
+        summary: agentRuns.summary,
+        error: agentRuns.error,
+        costUsd: agentRuns.costUsd,
+        startedAt: agentRuns.startedAt,
+        finishedAt: agentRuns.finishedAt,
+      })
+      .from(agentRuns)
+      .where(and(eq(agentRuns.projectId, projectId), eq(agentRuns.agentType, agentType)))
+      .orderBy(desc(agentRuns.startedAt))
+      .limit(limit),
+  );
 }

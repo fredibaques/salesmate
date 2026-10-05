@@ -30,7 +30,11 @@ function AddAgentButton({ projectId, type }: { projectId: string; type: ProjectA
       label="Añadir"
       icon={<Plus className="size-4" />}
       title={`Añadir el ${info.name.toLowerCase()}`}
-      description="Empezará con un proceso de venta de partida que podrás ajustar. No actuará hasta que lo actives."
+      description={
+        type === "outbound"
+          ? "No contactará con nadie: busca empresas y las guarda para que las revises. No trabajará hasta que lo actives."
+          : "Empezará con un proceso de venta de partida que podrás ajustar. No actuará hasta que lo actives."
+      }
       variant="secondary"
     >
       <ActionForm
@@ -39,21 +43,40 @@ function AddAgentButton({ projectId, type }: { projectId: string; type: ProjectA
         className="space-y-4"
       >
         <input type="hidden" name="agentType" value={type} />
-        <Field
-          label="Modelo de venta"
-          hint="En B2B la conversación suele acabar en una reunión; en B2C, en un presupuesto o una contratación directa. Podrás cambiarlo después."
-        >
-          <Select name="salesMotion" defaultValue="b2b_consultative">
-            {SALES_MOTIONS.map((m) => (
-              <option key={m} value={m}>
-                {SALES_MOTION_LABELS[m]}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        {type === "outbound" ? (
+          <>
+            <input type="hidden" name="salesMotion" value="b2b_consultative" />
+            <p className="text-sm text-muted">
+              Empezará con unas instrucciones de búsqueda de ejemplo, búsqueda en internet y un horario de
+              lunes a viernes a las 8:00. Lo ajustas todo en su ficha.
+            </p>
+          </>
+        ) : (
+          <Field
+            label="Modelo de venta"
+            hint="En B2B la conversación suele acabar en una reunión; en B2C, en un presupuesto o una contratación directa. Podrás cambiarlo después."
+          >
+            <Select name="salesMotion" defaultValue="b2b_consultative">
+              {SALES_MOTIONS.map((m) => (
+                <option key={m} value={m}>
+                  {SALES_MOTION_LABELS[m]}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
       </ActionForm>
     </ModalButton>
   );
+}
+
+const DAY_NAMES = ["", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
+
+function scheduleDays(days: number[]) {
+  const sorted = [...days].sort();
+  if (sorted.join() === "1,2,3,4,5") return "día laborable";
+  if (sorted.length === 7) return "día";
+  return sorted.map((d) => DAY_NAMES[d]).join(", ");
 }
 
 function missingSetup(type: ProjectAgentType, channels: { mailboxId?: string | null }) {
@@ -75,6 +98,7 @@ export function AgentCards({ projectId, agents }: { projectId: string; agents: A
           const href = `/app/projects/${projectId}/agents/${type}`;
           const warning = missingSetup(type, agent.config.channels);
           const steps = agent.spec?.nextSteps ?? [];
+          const schedule = agent.config.schedule;
           return (
             <EntityCard
               key={type}
@@ -82,18 +106,28 @@ export function AgentCards({ projectId, agents }: { projectId: string; agents: A
               icon={AGENT_ICONS[type]}
               iconTone={agent.config.enabled ? "success" : "neutral"}
               title={info.name}
-              meta={agent.playbook ? SALES_MOTION_LABELS[agent.playbook.salesMotion] : null}
+              meta={
+                type === "outbound"
+                  ? schedule
+                    ? `Cada ${scheduleDays(schedule.days)} a las ${schedule.time}`
+                    : "Sin horario"
+                  : agent.playbook
+                    ? SALES_MOTION_LABELS[agent.playbook.salesMotion]
+                    : null
+              }
               description={
-                steps.length > 0
-                  ? `Objetivo: ${NEXT_STEP_LABELS[steps[0]].toLowerCase()}${
-                      steps.length > 1
-                        ? ` (o ${steps
-                            .slice(1)
-                            .map((s) => NEXT_STEP_LABELS[s].toLowerCase())
-                            .join(", ")})`
-                        : ""
-                    }.`
-                  : info.description
+                type === "outbound"
+                  ? `Busca ${agent.config.settings.prospectsPerRun ?? 10} prospectos nuevos en cada ejecución.`
+                  : steps.length > 0
+                    ? `Objetivo: ${NEXT_STEP_LABELS[steps[0]].toLowerCase()}${
+                        steps.length > 1
+                          ? ` (o ${steps
+                              .slice(1)
+                              .map((s) => NEXT_STEP_LABELS[s].toLowerCase())
+                              .join(", ")})`
+                          : ""
+                      }.`
+                    : info.description
               }
               footer={
                 <>

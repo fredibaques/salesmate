@@ -4,6 +4,7 @@ import type {
   BetaTextBlockParam,
   BetaTool,
   BetaToolResultBlockParam,
+  BetaToolUnion,
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { z } from "zod";
 import type { AgentRunStep } from "../db/schema";
@@ -14,6 +15,8 @@ export type AgentTool = {
   name: string;
   description: string;
   input: z.ZodType;
+  /** JSON Schema sent to the model instead of the one derived from `input` (external tools). */
+  jsonSchema?: Record<string, unknown>;
   run(input: unknown): Promise<unknown>;
 };
 
@@ -30,16 +33,21 @@ export type AgentLoopResult = {
   status: "completed" | "refused" | "max_turns" | "truncated";
   finalText: string;
   steps: AgentRunStep[];
-  usage: { input: number; output: number; cacheRead: number; cacheWrite: number };
+  usage: { input: number; output: number; cacheRead: number; cacheWrite: number; webSearches: number };
   costUsd: number;
   model: string;
 };
 
+/** Web search is billed per request on top of tokens (USD 10 per 1,000). */
+const WEB_SEARCH_USD = 0.01;
+
+/** Server tools run on Anthropic's side (web search, web fetch): no `run`, just the definition. */
+export type ServerTool = Extract<BetaToolUnion, { type: `web_search_${string}` | `web_fetch_${string}` }>;
+
 function toApiTool(tool: AgentTool): BetaTool {
-  const schema = z.toJSONSchema(tool.input, { io: "input", unrepresentable: "any" }) as Record<
-    string,
-    unknown
-  >;
+  const schema = tool.jsonSchema
+    ? { ...tool.jsonSchema }
+    : (z.toJSONSchema(tool.input, { io: "input", unrepresentable: "any" }) as Record<string, unknown>);
   delete schema.$schema;
   return {
     name: tool.name,
@@ -64,15 +72,17 @@ export async function runAgentLoop(input: {
   system: string;
   messages: BetaMessageParam[];
   tools: AgentTool[];
+  serverTools?: ServerTool[];
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
   maxTurns?: number;
   maxTokens?: number;
 }): Promise<AgentLoopResult> {
   const messages = [...input.messages];
   const steps: AgentRunStep[] = [];
-  const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+  const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, webSearches: 0 };
   const byName = new Map(input.tools.map((t) => [t.name, t]));
-  const apiTools = input.tools.map(toApiTool);
+  const apiTools: BetaToolUnion[] = [...input.tools.map(toApiTool), ...(input.serverTools ?? [])];
+  const cost = () => estimateCostUsd(model, usage) + usage.webSearches * WEB_SEARCH_USD;
   const system: BetaTextBlockParam[] = [{ type: "text", text: input.system }];
   let model = input.llm.model;
   let finalText = "";
@@ -92,6 +102,13 @@ export async function runAgentLoop(input: {
     usage.output += response.usage.output_tokens;
     usage.cacheRead += response.usage.cache_read_input_tokens ?? 0;
     usage.cacheWrite += response.usage.cache_creation_input_tokens ?? 0;
+    usage.webSearches += response.usage.server_tool_use?.web_search_requests ?? 0;
+
+    // Searches and fetches Claude ran on the server side, for the trace.
+    for (const block of response.content) {
+      if (block.type === "server_tool_use")
+        steps.push({ type: "tool_call", name: block.name, input: block.input });
+    }
 
     const text = response.content
       .filter((b): b is Extract<BetaContentBlock, { type: "text" }> => b.type === "text")
@@ -108,7 +125,7 @@ export async function runAgentLoop(input: {
       finalText,
       steps,
       usage,
-      costUsd: estimateCostUsd(model, usage),
+      costUsd: cost(),
       model,
     });
 
@@ -161,7 +178,7 @@ export async function runAgentLoop(input: {
     finalText,
     steps,
     usage,
-    costUsd: estimateCostUsd(model, usage),
+    costUsd: cost(),
     model,
   };
 }

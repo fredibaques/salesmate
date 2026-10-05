@@ -1,7 +1,8 @@
 name: Scheduled jobs
 
 # 1) Reads new email and runs the inbound agent on pending leads.
-# 2) Executes actions that were waiting for their send window or daily limit.
+# 2) Runs the agents whose daily schedule has come (prospecting).
+# 3) Executes actions that were waiting for their send window or daily limit.
 # Runs every 30 minutes on weekdays during European working hours only, so the
 # serverless database (Neon) can suspend the rest of the time.
 # Requires repository secrets APP_URL and CRON_SECRET; skipped otherwise.
@@ -24,7 +25,7 @@ jobs:
             echo "APP_URL or CRON_SECRET not configured; skipping."
             exit 0
           fi
-          for path in inbound release-deferred; do
+          for path in inbound agents release-deferred; do
             curl --fail --silent --show-error --max-time 300 \
               -H "Authorization: Bearer $CRON_SECRET" \
               "$APP_URL/api/cron/$path"

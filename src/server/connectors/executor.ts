@@ -7,8 +7,10 @@ import type {
   CrmTaskPayload,
   CrmUpsertContactPayload,
   EmailPayload,
+  McpCallPayload,
 } from "../gateway/definitions";
 import type { ActionExecutor, ActionRow } from "../gateway/gateway";
+import { callStoredMcpTool, type McpDeps } from "./mcp";
 import { markConnectionError, openConnection, type ConnectorDeps } from "./service";
 import { ConnectorError, type Capabilities, type Capability, type ConnectorClient } from "./types";
 
@@ -20,11 +22,20 @@ function require<C extends Capability>(client: ConnectorClient, capability: C): 
 
 /** Executes gateway actions through the stored connections. */
 export class ConnectorExecutor implements ActionExecutor {
-  constructor(private readonly deps: ConnectorDeps) {}
+  constructor(private readonly deps: ConnectorDeps & { mcp?: McpDeps }) {}
 
   async execute({ orgId, action }: { orgId: string; action: ActionRow }): Promise<Record<string, unknown>> {
     if (!action.connectionId) throw new Error("La acción no tiene conexión asignada.");
     const tenant = { orgId };
+    if (action.type === "mcp.call_tool") {
+      const p = action.payload as McpCallPayload;
+      const result = await callStoredMcpTool({ db: this.deps.db, ...this.deps.mcp }, tenant, {
+        connectionId: action.connectionId,
+        tool: p.tool,
+        arguments: p.arguments,
+      });
+      return { result };
+    }
     const { client } = await openConnection(this.deps, tenant, action.connectionId);
 
     try {

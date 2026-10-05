@@ -10,7 +10,7 @@ export const AGENT_INFO = {
     name: "Agente outbound",
     short: "Outbound",
     description:
-      "Busca empresas o personas que encajan con tu cliente ideal y les escribe para abrir conversación.",
+      "Busca cada día en fuentes públicas empresas que encajan con tu cliente ideal y las va guardando en tu base de prospectos, sin repetir.",
   },
   account_manager: {
     name: "Account Manager",

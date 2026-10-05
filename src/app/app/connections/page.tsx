@@ -16,6 +16,7 @@ import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { env } from "@/server/env";
 import { listOrgConnections, listOrgIdentities } from "@/server/services/projects";
+import { mcpToolsOf } from "@/server/connectors/mcp";
 import { testConnection } from "./actions";
 
 export const metadata = { title: "Conexiones" };
@@ -140,6 +141,26 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/app/
                           </li>
                         );
                       })}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {c.provider === "mcp" ? (
+                  <div className="mt-4">
+                    <p className="text-xs font-medium tracking-wide text-muted uppercase">
+                      Herramientas ({mcpToolsOf(c).length})
+                    </p>
+                    <ul className="mt-2 space-y-1.5 text-sm">
+                      {mcpToolsOf(c).map((t) => (
+                        <li key={t.name} className="flex flex-wrap items-center gap-2">
+                          <code className="text-xs">{t.name}</code>
+                          {t.readOnly ? (
+                            <Badge>Solo lectura</Badge>
+                          ) : (
+                            <Badge tone="warning">Modifica datos</Badge>
+                          )}
+                        </li>
+                      ))}
                     </ul>
                   </div>
                 ) : null}

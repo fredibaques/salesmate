@@ -85,8 +85,13 @@ export const INTEGRATIONS: Integration[] = [
     name: "Servidor MCP",
     tagline: "Cualquier herramienta que ofrezca MCP",
     category: "data",
-    status: "soon",
+    status: "available",
     color: "#6E56CF",
+    abilities: [
+      "Usar las herramientas que el servidor ofrezca: buscar, consultar o crear datos en esa aplicación.",
+      "Tú eliges en cada agente qué herramientas puede usar.",
+      "Las que solo leen se usan directamente; las que cambian algo pasan por las reglas del proyecto y, si así lo decides, por tu aprobación.",
+    ],
   },
   {
     id: "database",

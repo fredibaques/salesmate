@@ -119,6 +119,9 @@ src/server/
   agents/leads.ts      Normalización de formularios y emails (alias en español e inglés)
   agents/gmail-poller.ts  Lectura de buzones con permiso de lectura → inbound_events
   agents/copilot.ts    Chat sobre un proyecto, con las mismas herramientas
+  agents/prospector.ts Ejecución de prospección (web + MCP → prospects)
+  agents/scheduler.ts  Agentes con horario: cuáles tocan y ejecución única por franja
+  connectors/mcp.ts    Servidores MCP: alta, herramientas y llamadas
   playbooks/           Especificación, plantillas, versiones y borrador con IA (salida estructurada)
   services/agents.ts   Agentes de un proyecto: añadir, proceso, canales, autonomía y perfil de venta
 ```
@@ -156,9 +159,42 @@ src/server/
 - **Tests sin red.** `tests/helpers/fake-llm.ts` reproduce turnos guionizados
   del modelo para probar agentes de forma determinista.
 
+## Agentes genéricos: instrucciones, herramientas y horario
+
+Cada agente es la misma pieza configurada de forma distinta; inbound y
+prospección son plantillas (`AGENT_DEFAULTS` en `services/agents.ts`):
+
+- **Instrucciones** (`agent_configs.instructions`): qué tiene que hacer y cómo,
+  en palabras del usuario. Se suman al prompt junto a «Oferta y cliente».
+- **Herramientas** (`agent_configs.tools`): el conocimiento siempre; la
+  búsqueda y lectura web de la API (`web_search` / `web_fetch`, herramientas
+  del servidor, con tope de usos y coste por búsqueda en `agent_runs`); y las
+  herramientas de los servidores MCP de la organización que el usuario marque.
+- **Horario** (`agent_configs.schedule`, hora y días en la zona del proyecto):
+  `GET /api/cron/agents` ejecuta los que tocan (`agents/scheduler.ts`). Cada
+  franja se reclama con un `UPDATE` condicional sobre `last_scheduled_run_at`,
+  así que dos llamadas solapadas no la ejecutan dos veces.
+
+**MCP** (`connectors/mcp.ts`). La organización añade un servidor (URL y token
+cifrado); se listan sus herramientas y se guardan en `connections.metadata`.
+Las que el servidor marca como de solo lectura (`readOnlyHint`) las llama el
+agente directamente; el resto se proponen al gateway como `mcp.call_tool`
+(conexión indicada en el contenido), de modo que autonomía, aprobación y
+auditoría se aplican igual que a un email. La plataforma hace de cliente MCP a
+propósito: con el conector MCP de la API las llamadas no pasarían por el gateway.
+
+**Prospección** (`agents/prospector.ts`, `prospects/service.ts`). El agente
+outbound busca empresas que encajan con el cliente ideal y las guarda con
+`save_prospects` en `prospects`, sin duplicados por proyecto (dominio de la
+web, o nombre y ciudad). Cada prospecto guarda las URLs de donde salen sus
+datos. No contacta con nadie. Se revisan, descartan y exportan a CSV desde la
+pestaña «Prospectos» del agente.
+
 ## Pendiente
 
-- Agente outbound (fase 2) y Account Manager (fase 3).
+- Varios agentes de la misma plantilla en un proyecto (hoy uno por tipo).
+- Enviar prospectos al CRM o a una secuencia de emails (con aprobación).
+- Account Manager (fase 3).
 - Gmail push (Pub/Sub) para responder en segundos también por email.
 - Worker de workflows durables (Inngest/Trigger.dev) en lugar del cron simple.
 - Embeddings (pgvector) para complementar la búsqueda de texto completo.

@@ -140,6 +140,9 @@ async function resolveConnectionId(
   definition: ActionDefinition<Record<string, unknown>>,
   payload: Record<string, unknown>,
 ): Promise<string | null> {
+  if (definition.connectionVia === "payload") {
+    return typeof payload.connectionId === "string" ? payload.connectionId : null;
+  }
   if (definition.connectionVia === "identity") {
     if (typeof payload.identityId !== "string") return null;
     const [identity] = await tx

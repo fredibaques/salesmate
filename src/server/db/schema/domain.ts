@@ -294,6 +294,28 @@ export type AgentChannels = {
   crmConnectionId?: string | null;
 };
 
+/** Tools an agent may use beyond the project's knowledge (always available). */
+export type AgentTools = {
+  /** Search and read public web pages. */
+  web?: boolean;
+  /** MCP servers connected to the organization and the tools allowed from each. */
+  mcp?: { connectionId: string; tools: string[] }[];
+};
+
+/** When the agent works on its own, in the project's time zone. */
+export type AgentSchedule = {
+  /** "HH:MM" */
+  time: string;
+  /** 1 = Monday … 7 = Sunday */
+  days: number[];
+};
+
+/** Settings that only make sense for some templates. */
+export type AgentSettings = {
+  /** Prospecting: new prospects to look for in each run. */
+  prospectsPerRun?: number;
+};
+
 export type AutonomyConfig = {
   /** 0 suggest · 1 draft (approval) · 2 autonomous within limits · 3 autonomous */
   default: number;
@@ -320,6 +342,14 @@ export const agentConfigs = pgTable(
     limits: jsonb("limits").$type<LimitsConfig>().notNull().default({}),
     /** Mailbox, calendar and CRM this agent works with. */
     channels: jsonb("channels").$type<AgentChannels>().notNull().default({}),
+    /** What the agent must achieve and how, in the user's words. */
+    instructions: text("instructions"),
+    tools: jsonb("tools").$type<AgentTools>().notNull().default({}),
+    /** Null = works only when something arrives or when asked. */
+    schedule: jsonb("schedule").$type<AgentSchedule | null>(),
+    settings: jsonb("settings").$type<AgentSettings>().notNull().default({}),
+    /** Last scheduled run started (prevents running the same slot twice). */
+    lastScheduledRunAt: timestamp("last_scheduled_run_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -700,6 +730,55 @@ export const playbookVersions = pgTable(
     createdAt: createdAt(),
   },
   (t) => [unique("playbook_versions_uq").on(t.playbookId, t.version), tenantPolicy("playbook_versions")],
+);
+
+// ---------------------------------------------------------------------------
+// Prospects: what a prospecting agent finds, before anyone contacts them
+// ---------------------------------------------------------------------------
+
+export const PROSPECT_STATUSES = ["new", "accepted", "discarded", "exported"] as const;
+
+export const prospects = pgTable(
+  "prospects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: orgId(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    agentConfigId: uuid("agent_config_id").references(() => agentConfigs.id, { onDelete: "set null" }),
+    runId: uuid("run_id"),
+    /** Normalized domain, or folded name + city when there is no website. */
+    dedupeKey: text("dedupe_key").notNull(),
+    companyName: text("company_name").notNull(),
+    website: text("website"),
+    sector: text("sector"),
+    city: text("city"),
+    region: text("region"),
+    country: text("country"),
+    phone: text("phone"),
+    email: text("email"),
+    contactName: text("contact_name"),
+    contactRole: text("contact_role"),
+    linkedinUrl: text("linkedin_url"),
+    /** 0-100: how well it matches the ideal customer. */
+    fitScore: integer("fit_score"),
+    fitReason: text("fit_reason"),
+    /** Public pages the data comes from. */
+    sources: text("sources")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    data: jsonb("data").$type<Record<string, unknown>>().notNull().default({}),
+    status: text("status", { enum: PROSPECT_STATUSES }).notNull().default("new"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique("prospects_project_key_uq").on(t.projectId, t.dedupeKey),
+    index("prospects_project_created_idx").on(t.projectId, t.createdAt),
+    tenantPolicy("prospects"),
+  ],
 );
 
 export const CONTACT_STATUSES = [
