@@ -108,7 +108,24 @@ src/server/
   agents/gmail-poller.ts  Lectura de buzones con permiso de lectura → inbound_events
   agents/copilot.ts    Chat sobre un proyecto, con las mismas herramientas
   playbooks/           Especificación, plantillas, versiones y borrador con IA (salida estructurada)
+  services/agents.ts   Agentes de un proyecto: añadir, proceso, canales, autonomía y perfil de venta
 ```
+
+- **El agente es la unidad de configuración.** El usuario añade un agente a
+  un proyecto (`agent_configs.added_at`) y lo configura en su ficha: su
+  **proceso** (un playbook propio, versionado, enlazado por
+  `playbooks.agent_config_id`), sus **canales** (`agent_configs.channels`:
+  buzón, calendario y CRM elegidos entre las conexiones de la organización) y
+  su **autonomía**. Lo común a todos los agentes del proyecto (oferta, cliente
+  ideal, objeciones, tono, firma) vive en `projects.sales_profile` y se
+  combina con el proceso al montar el prompt.
+- **Canales derivados.** `project_identities` y `project_connections` (lo que
+  el gateway y las herramientas comprueban) se recalculan a partir de los
+  canales de los agentes del proyecto (`syncProjectChannels`); el usuario no
+  los toca. Leer correo entrante solo se habilita si el agente lo pide.
+- **Solo trabajan los agentes activos.** La cola de entradas solo procesa
+  proyectos con el agente inbound añadido y activado; el resto espera. El
+  lead simulado lo atiende igualmente para poder probar antes de activar.
 
 - **Los agentes nunca actúan directamente.** Su única herramienta con efecto
   externo es `propose_action`, que entra en el Action Gateway con

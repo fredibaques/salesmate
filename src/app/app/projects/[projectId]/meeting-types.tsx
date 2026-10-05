@@ -2,10 +2,8 @@ import { CalendarPlus, Clock, Plus, Trash2 } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
 import { Badge, Button, Card, EmptyState, Field, Input, Select } from "@/components/ui";
-import { requireTenant } from "@/server/auth/session";
-import { getDb } from "@/server/db/client";
-import { getProject, getProjectChannels, listMeetingTypes } from "@/server/services/projects";
-import { addMeetingType, previewAvailability, removeMeetingType } from "../actions";
+import type { listMeetingTypes } from "@/server/services/projects";
+import { addMeetingType, previewAvailability, removeMeetingType } from "./actions";
 
 const KINDS = {
   demo: "Demo",
@@ -97,7 +95,7 @@ function NewMeetingTypeButton({
         </div>
         <Field
           label="Calendario donde se crean las reuniones"
-          hint="Calendarios asignados al proyecto en «Canales»."
+          hint="Si lo dejas vacío, se usa el calendario elegido en los canales del agente."
         >
           <Select name="calendarIdentityId" defaultValue={calendars[0]?.id ?? ""}>
             <option value="">— Elegir más tarde —</option>
@@ -116,28 +114,30 @@ function NewMeetingTypeButton({
   );
 }
 
-export default async function MeetingsPage({ params }: PageProps<"/app/projects/[projectId]/meetings">) {
-  const { projectId } = await params;
-  const tenant = await requireTenant();
-  const db = getDb();
-  const [project, types, channels] = await Promise.all([
-    getProject(db, tenant, projectId),
-    listMeetingTypes(db, tenant, projectId),
-    getProjectChannels(db, tenant, projectId),
-  ]);
-  const calendars = channels.identities.filter((i) => i.kind === "calendar" && i.assigned);
-
+/** Meeting types of a project: what agents offer when the next step is a meeting or a call. */
+export function MeetingTypesCard({
+  projectId,
+  timezone,
+  types,
+  calendars,
+}: {
+  projectId: string;
+  timezone: string;
+  types: Awaited<ReturnType<typeof listMeetingTypes>>;
+  calendars: { id: string; address: string }[];
+}) {
   return (
     <Card
-      title="Tipos de reunión"
-      description="Solo los usan los playbooks cuyo siguiente paso es una reunión o una llamada agendada (habitual en B2B). Los huecos se calculan con la disponibilidad de todos tus calendarios, de todos tus proyectos."
+      title="Reuniones que puede agendar"
+      description="Duración y horario de las reuniones o llamadas que ofrece. Los huecos se calculan con la disponibilidad de todos tus calendarios, de todos tus proyectos."
       actions={types.length > 0 ? <NewMeetingTypeButton projectId={projectId} calendars={calendars} /> : null}
     >
       {types.length === 0 ? (
         <EmptyState
+          compact
           icon={<CalendarPlus />}
-          title="Este proyecto no agenda reuniones todavía"
-          description="Si tu siguiente paso con un cliente es una demo o una llamada, crea aquí el tipo de reunión y los agentes ofrecerán huecos reales de tu calendario. Si vendes sin reunión (por ejemplo, B2C con presupuesto directo), no lo necesitas."
+          title="Sin tipos de reunión"
+          description="Crea al menos uno para que el agente pueda ofrecer huecos reales de tu calendario."
           action={<NewMeetingTypeButton projectId={projectId} calendars={calendars} />}
         />
       ) : (
@@ -164,7 +164,7 @@ export default async function MeetingsPage({ params }: PageProps<"/app/projects/
               </p>
               <div className="mt-3">
                 <ActionForm
-                  action={previewAvailability.bind(null, t.id, t.timezone ?? project!.timezone)}
+                  action={previewAvailability.bind(null, t.id, t.timezone ?? timezone)}
                   submitLabel="Ver próximos huecos"
                   submitVariant="secondary"
                 />

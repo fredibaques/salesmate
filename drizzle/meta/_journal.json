@@ -43,6 +43,13 @@
       "when": 1791135268098,
       "tag": "0005_sales_process",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791201819921,
+      "tag": "0006_agents_first",
+      "breakpoints": true
     }
   ]
 }

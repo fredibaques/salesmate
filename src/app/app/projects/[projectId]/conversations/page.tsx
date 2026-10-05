@@ -1,27 +1,15 @@
-import { FlaskConical, MessagesSquare, RefreshCw, Webhook } from "lucide-react";
+import { FlaskConical, MessagesSquare, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
-import {
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  Field,
-  Input,
-  LinkButton,
-  Table,
-  Td,
-  Textarea,
-} from "@/components/ui";
+import { Badge, Card, EmptyState, Field, Input, LinkButton, Table, Td, Textarea } from "@/components/ui";
 import { CONVERSATION_STATUS, formatDateTime } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
-import { env } from "@/server/env";
 import { isLlmConfigured } from "@/server/llm/client";
-import { getProject } from "@/server/services/projects";
+import { getAgent } from "@/server/services/agents";
 import { listConversations, listRecentEvents } from "@/server/services/sales";
-import { processNow, rotateKey, simulateLead } from "./actions";
+import { processNow, simulateLead } from "./actions";
 
 const EVENT_STATUS: Record<string, "neutral" | "success" | "warning" | "danger"> = {
   pending: "warning",
@@ -43,7 +31,7 @@ function SimulateLeadButton({
       label="Simular un lead"
       icon={<FlaskConical className="size-4" />}
       title="Probar con un lead simulado"
-      description="Entra como si viniera del formulario de la web y lo atiende el agente inbound con el playbook activo. Las acciones que proponga pasan por la bandeja."
+      description="Entra como si viniera del formulario de la web y lo atiende el agente inbound con su proceso, aunque todavía no esté activado. Lo que proponga pasa por la Bandeja."
       variant={variant}
       size="lg"
     >
@@ -84,16 +72,25 @@ export default async function ConversationsPage({
   const { projectId } = await params;
   const tenant = await requireTenant();
   const db = getDb();
-  const [project, rows, events] = await Promise.all([
-    getProject(db, tenant, projectId),
+  const [inbound, rows, events] = await Promise.all([
+    getAgent(db, tenant, projectId, "inbound"),
     listConversations(db, tenant, projectId),
     listRecentEvents(db, tenant, projectId),
   ]);
-  const endpoint = `${env().APP_URL}/api/inbound/form/${projectId}`;
   const llm = isLlmConfigured();
+  const agentsUrl = `/app/projects/${projectId}/agents`;
 
   return (
     <div className="space-y-6">
+      {inbound && !inbound.config.enabled ? (
+        <p className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
+          El agente inbound no está activado: los contactos que lleguen se guardan y los atenderá cuando lo
+          actives.{" "}
+          <Link href={`${agentsUrl}/inbound`} className="font-medium underline">
+            Ir al agente
+          </Link>
+        </p>
+      ) : null}
       {!llm ? (
         <p className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
           Los agentes están desactivados: falta ANTHROPIC_API_KEY. Los mensajes se guardan y se procesarán
@@ -104,20 +101,33 @@ export default async function ConversationsPage({
       <Card
         title="Conversaciones"
         description="Cada contacto entrante, lo que ha dicho, cómo lo ha valorado el agente y qué ha propuesto."
-        actions={rows.length > 0 ? <SimulateLeadButton projectId={projectId} /> : null}
+        actions={rows.length > 0 && inbound ? <SimulateLeadButton projectId={projectId} /> : null}
       >
         {rows.length === 0 ? (
-          <EmptyState
-            icon={<MessagesSquare />}
-            title="Todavía no hay conversaciones"
-            description="Llegarán cuando conectes el formulario de tu web o un buzón. Mientras, prueba cómo respondería el agente con un lead simulado."
-            action={
-              <>
-                <SimulateLeadButton projectId={projectId} variant="primary" />
-                <LinkButton href={`/app/projects/${projectId}/channels`}>Conectar un buzón</LinkButton>
-              </>
-            }
-          />
+          inbound ? (
+            <EmptyState
+              icon={<MessagesSquare />}
+              title="Todavía no hay conversaciones"
+              description="Llegarán cuando conectes el formulario de tu web o un buzón en los canales del agente inbound. Mientras, prueba cómo respondería con un lead simulado."
+              action={
+                <>
+                  <SimulateLeadButton projectId={projectId} variant="primary" />
+                  <LinkButton href={`${agentsUrl}/inbound/channels`}>Configurar canales</LinkButton>
+                </>
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={<MessagesSquare />}
+              title="Todavía no hay conversaciones"
+              description="Las conversaciones las abren los agentes. Añade el agente inbound para atender a quien te contacta por tu web o por email."
+              action={
+                <LinkButton href={agentsUrl} variant="primary">
+                  Añadir un agente
+                </LinkButton>
+              }
+            />
+          )
         ) : (
           <Table head={["Contacto", "Canal", "Estado", "Valoración", "Resumen", "Último mensaje"]}>
             {rows.map(({ conversation: c, contact }) => (
@@ -155,56 +165,7 @@ export default async function ConversationsPage({
         )}
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card
-          title="Formulario de la web"
-          description="Envía los formularios de tu web a esta dirección (POST, JSON o formulario normal). El agente responde en segundos."
-        >
-          {project?.inboundFormKey ? (
-            <div className="space-y-2 text-sm">
-              <div>
-                Dirección: <code className="break-all text-xs">{endpoint}</code>
-              </div>
-              <div>
-                Clave: <code className="break-all text-xs">{project.inboundFormKey}</code>
-              </div>
-              <details>
-                <summary className="text-accent hover:underline">Ejemplo de formulario HTML</summary>
-                <pre className="mt-2 overflow-x-auto rounded-lg bg-background p-3 text-xs">{`<form action="${endpoint}" method="POST">
-  <input type="hidden" name="_key" value="${project.inboundFormKey}">
-  <input type="hidden" name="_redirect" value="https://tu-web.com/gracias">
-  <input type="text" name="_gotcha" style="display:none">
-  <input name="nombre" placeholder="Nombre">
-  <input name="email" type="email" required>
-  <input name="empresa" placeholder="Empresa">
-  <textarea name="mensaje"></textarea>
-  <label><input type="checkbox" name="acepto" required> Acepto la política de privacidad</label>
-  <button>Enviar</button>
-</form>`}</pre>
-              </details>
-              <form action={rotateKey.bind(null, projectId)}>
-                <Button variant="secondary">Cambiar la clave</Button>
-              </form>
-            </div>
-          ) : (
-            <EmptyState
-              compact
-              icon={<Webhook />}
-              title="Formulario sin activar"
-              description="Actívalo para obtener la dirección y la clave que pondrás en el formulario de tu web."
-              action={
-                <form action={rotateKey.bind(null, projectId)}>
-                  <Button>Activar el formulario</Button>
-                </form>
-              }
-            />
-          )}
-          <p className="mt-3 text-xs text-muted">
-            Los emails llegan solos si conectas un buzón de Google con permiso de lectura y lo asignas a este
-            proyecto en «Canales».
-          </p>
-        </Card>
-
+      <div>
         <Card title="Entradas recientes">
           {events.length === 0 ? (
             <EmptyState

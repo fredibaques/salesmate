@@ -5,7 +5,7 @@ import type { Db } from "../db/client";
 import { connections, identities, projectConnections, projectIdentities } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
 import type { GoogleCredentials } from "./google";
-import { grantedScopeSets } from "./google";
+import { googleProvider, grantedScopeSets } from "./google";
 import { getProvider } from "./registry";
 import { createTwentyClient, twentyCredentials } from "./twenty";
 import type { Capability, ConnectorClient } from "./types";
@@ -19,12 +19,19 @@ export type ConnectorDeps = {
   providers?: (id: string) => ReturnType<typeof getProvider>;
 };
 
-/** Capabilities a stored connection grants, from its read/write scopes. */
+/**
+ * Capabilities a stored connection grants, from its read/write scopes. Only
+ * the scope mapping is needed, so Google works without its OAuth client.
+ */
 export function connectionCapabilities(
   conn: Pick<ConnectionRow, "provider" | "readScopes" | "writeScopes">,
   deps?: Pick<ConnectorDeps, "providers">,
 ): Capability[] {
-  const provider = (deps?.providers ?? getProvider)(conn.provider);
+  const provider = deps?.providers
+    ? deps.providers(conn.provider)
+    : conn.provider === "google"
+      ? googleProvider({ clientId: "", clientSecret: "" })
+      : getProvider(conn.provider);
   return provider.capabilitiesFor({ read: conn.readScopes, write: conn.writeScopes });
 }
 

@@ -1,14 +1,13 @@
-import { ChevronDown, Plus, Scale, ShieldBan, Trash2 } from "lucide-react";
+import { Plus, Scale, ShieldBan, Trash2 } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
 import { SUPPRESSION_TYPE_LABELS, SuppressionFields } from "@/components/suppression-fields";
 import { Badge, Button, Card, EmptyState, Field, Input, Select } from "@/components/ui";
-import { AGENT_LABELS, AUTONOMY_LABELS } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { ACTION_DEFINITIONS } from "@/server/gateway/definitions";
 import { getProjectRules } from "@/server/services/projects";
-import { addProjectSuppression, addRule, deleteRule, deleteSuppression, saveAgent } from "../actions";
+import { addProjectSuppression, addRule, deleteRule, deleteSuppression } from "../actions";
 
 const RULE_LABELS = {
   human_only: "Reservada a personas",
@@ -100,79 +99,9 @@ export default async function RulesPage({ params }: PageProps<"/app/projects/[pr
   const { projectId } = await params;
   const tenant = await requireTenant();
   const rules = await getProjectRules(getDb(), tenant, projectId);
-  const agents = [...rules.agents].sort(
-    (a, b) => Object.keys(AGENT_LABELS).indexOf(a.agentType) - Object.keys(AGENT_LABELS).indexOf(b.agentType),
-  );
 
   return (
     <div className="space-y-6">
-      <Card
-        title="Autonomía de los agentes"
-        description="Por defecto todo queda en borrador para tu aprobación (nivel 1). Sube el nivel solo donde la tasa de aprobación sin cambios lo justifique."
-      >
-        <div className="grid gap-4 lg:grid-cols-2">
-          {agents.map((a) => (
-            <details key={a.id} className="group rounded-xl border border-border">
-              <summary className="flex list-none items-center justify-between gap-2 rounded-xl p-3 text-sm transition-colors hover:bg-background [&::-webkit-details-marker]:hidden">
-                <span className="font-medium">{AGENT_LABELS[a.agentType]}</span>
-                <span className="flex items-center gap-2">
-                  <Badge tone={a.enabled ? "success" : "neutral"}>{a.enabled ? "Activo" : "Inactivo"}</Badge>
-                  <Badge>{AUTONOMY_LABELS[a.autonomy.default]}</Badge>
-                  <ChevronDown className="size-4 text-muted transition-transform group-open:rotate-180" />
-                </span>
-              </summary>
-              <div className="border-t border-border p-3">
-                <ActionForm
-                  action={saveAgent.bind(null, projectId, a.agentType)}
-                  submitLabel="Guardar"
-                  className="space-y-3"
-                >
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" name="enabled" defaultChecked={a.enabled} /> Agente activo
-                  </label>
-                  <Field label="Nivel por defecto">
-                    <Select name="defaultLevel" defaultValue={a.autonomy.default}>
-                      {AUTONOMY_LABELS.map((l, i) => (
-                        <option key={i} value={i}>
-                          {l}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <div className="space-y-2 text-sm">
-                    {actionTypes.map((def) => (
-                      <div key={def.type} className="grid grid-cols-[1fr_auto_auto] items-center gap-2">
-                        <span>{def.label}</span>
-                        <select
-                          name={`level:${def.type}`}
-                          defaultValue={a.autonomy.actions?.[def.type] ?? "default"}
-                          className="rounded border border-border bg-surface px-2 py-1 text-xs"
-                        >
-                          <option value="default">Por defecto</option>
-                          {AUTONOMY_LABELS.map((l, i) => (
-                            <option key={i} value={i} disabled={i > def.maxAutonomy}>
-                              {l}
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          name={`limit:${def.type}`}
-                          type="number"
-                          min={0}
-                          placeholder="límite/día"
-                          defaultValue={a.limits.daily?.[def.type]}
-                          className="w-24 rounded border border-border bg-surface px-2 py-1 text-xs"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </ActionForm>
-              </div>
-            </details>
-          ))}
-        </div>
-      </Card>
-
       <div className="grid gap-6 lg:grid-cols-2">
         <Card
           title="Reglas de cumplimiento"

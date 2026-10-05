@@ -9,7 +9,7 @@ import type { GatewayDeps } from "../gateway/gateway";
 import { defineTool, runAgentLoop } from "../llm/agent-loop";
 import type { LlmClient } from "../llm/client";
 import { activePlaybookFor } from "../playbooks/service";
-import { renderPlaybook } from "../playbooks/spec";
+import { parseSalesProfile, renderPlaybook } from "../playbooks/spec";
 import {
   actionTools,
   calendarTools,
@@ -129,7 +129,12 @@ export async function askCopilot(
       ? `## Identidades del proyecto\n${identitiesHint.map((i) => `- ${i.kind} ${i.address} (id ${i.id})`).join("\n")}`
       : "",
     playbook
-      ? renderPlaybook({ name: playbook.name, motion: playbook.salesMotion, spec: playbook.spec })
+      ? renderPlaybook({
+          name: playbook.name,
+          motion: playbook.salesMotion,
+          spec: playbook.spec,
+          profile: parseSalesProfile(project.salesProfile),
+        })
       : "",
   ]
     .filter(Boolean)

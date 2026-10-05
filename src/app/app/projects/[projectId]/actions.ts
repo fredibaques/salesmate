@@ -4,15 +4,8 @@ import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/action-form";
 import { requireRole, requireTenant } from "@/server/auth/session";
 import { getAvailability } from "@/server/calendar/availability";
-import {
-  linkConnectionToProject,
-  setProjectIdentity,
-  unlinkConnectionFromProject,
-} from "@/server/connectors/service";
 import { getDb } from "@/server/db/client";
-import { AGENT_TYPES, type AgentType } from "@/server/db/schema";
-import { bool, list, num, runForm, str } from "@/server/form";
-import { ACTION_DEFINITIONS } from "@/server/gateway/definitions";
+import { list, num, runForm, str } from "@/server/form";
 import {
   deleteSource,
   ingestDocumentFile,
@@ -29,7 +22,6 @@ import {
   removeComplianceRule,
   removeSuppression,
   setProjectState,
-  updateAgentConfig,
   updateProject,
 } from "@/server/services/projects";
 import { formatSlot } from "@/lib/format";
@@ -67,50 +59,6 @@ export async function toggleAgents(projectId: string, paused: boolean) {
   const tenant = await admin();
   await setProjectState(getDb(), tenant, projectId, { agentsPaused: paused });
   refresh(projectId);
-}
-
-// Channels ------------------------------------------------------------------
-
-export async function saveIdentities(projectId: string, _: FormState, form: FormData): Promise<FormState> {
-  return runForm(async () => {
-    const tenant = await admin();
-    const all = list(form, "all");
-    const selected = new Set(list(form, "identity"));
-    const defaults = new Set(list(form, "default"));
-    for (const identityId of all) {
-      await setProjectIdentity({ db: getDb() }, tenant, {
-        projectId,
-        identityId,
-        assigned: selected.has(identityId),
-        isDefault: defaults.has(identityId),
-      });
-    }
-    refresh(projectId);
-  });
-}
-
-export async function saveConnectionLink(
-  projectId: string,
-  connectionId: string,
-  _: FormState,
-  form: FormData,
-): Promise<FormState> {
-  return runForm(async () => {
-    const tenant = await admin();
-    const capabilities = list(form, "capability");
-    if (capabilities.length === 0) {
-      await unlinkConnectionFromProject({ db: getDb() }, tenant, { projectId, connectionId });
-      refresh(projectId);
-      return "Conexión desvinculada del proyecto.";
-    }
-    const granted = await linkConnectionToProject({ db: getDb() }, tenant, {
-      projectId,
-      connectionId,
-      capabilities,
-    });
-    refresh(projectId);
-    return `Capacidades activas: ${granted.join(", ") || "ninguna"}.`;
-  });
 }
 
 // Meetings ------------------------------------------------------------------
@@ -244,33 +192,6 @@ export async function searchProjectKnowledge(
 }
 
 // Rules ---------------------------------------------------------------------
-
-export async function saveAgent(
-  projectId: string,
-  agentType: AgentType,
-  _: FormState,
-  form: FormData,
-): Promise<FormState> {
-  return runForm(async () => {
-    if (!AGENT_TYPES.includes(agentType)) throw new Error("Agente desconocido.");
-    const tenant = await admin();
-    const actionLevels: Record<string, number> = {};
-    const dailyLimits: Record<string, number> = {};
-    for (const type of Object.keys(ACTION_DEFINITIONS)) {
-      const level = str(form, `level:${type}`);
-      if (level !== undefined && level !== "default") actionLevels[type] = Number(level);
-      const limit = num(form, `limit:${type}`);
-      if (limit !== undefined) dailyLimits[type] = limit;
-    }
-    await updateAgentConfig(getDb(), tenant, projectId, agentType, {
-      enabled: bool(form, "enabled"),
-      defaultLevel: num(form, "defaultLevel") ?? 1,
-      actionLevels,
-      dailyLimits,
-    });
-    refresh(projectId);
-  });
-}
 
 export async function addRule(projectId: string, _: FormState, form: FormData): Promise<FormState> {
   return runForm(async () => {
