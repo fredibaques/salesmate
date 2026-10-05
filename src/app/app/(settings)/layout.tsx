@@ -5,11 +5,7 @@ import { PageHeader } from "@/components/ui";
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <PageHeader
-        className="mb-4"
-        title="Configuración"
-        description="Lo que comparten todos tus proyectos: las herramientas conectadas, a quién no se contacta nunca y el registro de todo lo que ocurre."
-      />
+      <PageHeader className="mb-4" title="Configuración" />
       <Tabs>
         <TabLink href="/app/connections">Conexiones</TabLink>
         <TabLink href="/app/exclusions">Exclusiones</TabLink>

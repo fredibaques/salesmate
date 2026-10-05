@@ -1,8 +1,18 @@
 "use client";
 
+import { ArrowRight, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { buttonClass, cx } from "@/components/ui";
+import {
+  ChatComposer,
+  ChatMessage,
+  ChatMessages,
+  ChatPanel,
+  ChatWelcome,
+  TypingIndicator,
+} from "@/components/chat";
+import { RichText } from "@/components/rich-text";
+import { Button, InfoTip, Select } from "@/components/ui";
 import { ask } from "./actions";
 
 type Turn = { role: "user" | "assistant"; content: string; actions?: number };
@@ -36,98 +46,88 @@ export function CopilotChat({ projects }: { projects: { id: string; name: string
   }
 
   return (
-    <div className="flex h-[calc(100vh-15rem)] min-h-96 flex-col rounded-xl border border-border bg-surface">
-      <div className="flex items-center gap-3 border-b border-border p-3 text-sm">
-        <span className="text-muted">Proyecto</span>
-        <select
-          value={projectId}
-          onChange={(e) => {
-            setProjectId(e.target.value);
-            setTurns([]);
-          }}
-          className="rounded-lg border border-border bg-surface px-2 py-1"
-        >
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-        {turns.length ? (
-          <button
-            onClick={() => setTurns([])}
-            className={cx(buttonClass({ variant: "ghost", size: "sm" }), "ml-auto")}
+    <ChatPanel
+      className="h-[calc(100vh-12rem)] min-h-96"
+      toolbar={
+        <>
+          <span className="text-muted">Proyecto</span>
+          <Select
+            size="sm"
+            value={projectId}
+            onChange={(e) => {
+              setProjectId(e.target.value);
+              setTurns([]);
+            }}
+            className="w-56"
+            aria-label="Proyecto"
           >
-            Nueva conversación
-          </button>
-        ) : null}
-      </div>
-
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
-        {turns.length === 0 ? (
-          <div className="mx-auto mt-10 max-w-xl text-center">
-            <p className="text-sm text-muted">
-              Pregunta sobre tu oferta, tus tarifas, tus contactos o pide que prepare un email o una tarea.
-              Responde con el conocimiento del proyecto y cita sus fuentes; lo que proponga hacer espera tu
-              aprobación en «Por aprobar».
-            </p>
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => send(s)}
-                  className="rounded-full border border-border px-3 py-1 text-xs transition-colors hover:border-accent/50 hover:bg-accent/5 hover:text-accent"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-        {turns.map((t, i) => (
-          <div key={i} className={t.role === "user" ? "ml-auto max-w-2xl" : "max-w-3xl"}>
-            <div
-              className={`whitespace-pre-wrap rounded-xl px-4 py-2 text-sm ${
-                t.role === "user" ? "bg-accent text-accent-foreground" : "bg-background"
-              }`}
-            >
-              {t.content}
-            </div>
-            {t.actions ? (
-              <Link href="/app/inbox" className="mt-1 block text-xs text-accent hover:underline">
-                {t.actions} acción(es) propuesta(s) → revisar en «Por aprobar»
-              </Link>
-            ) : null}
-          </div>
-        ))}
-        {pending ? <div className="text-sm text-muted">Pensando…</div> : null}
-        {error ? <div className="text-sm text-danger">{error}</div> : null}
-      </div>
-
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          send(draft);
-        }}
-        className="flex gap-2 border-t border-border p-3"
-      >
-        <textarea
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </Select>
+          <InfoTip>
+            Responde con el conocimiento del proyecto y cita sus fuentes. Lo que proponga hacer (un email, una
+            tarea…) espera tu aprobación en «Por aprobar».
+          </InfoTip>
+          {turns.length ? (
+            <Button variant="ghost" size="sm" onClick={() => setTurns([])} className="ml-auto">
+              <RotateCcw />
+              Nueva conversación
+            </Button>
+          ) : null}
+        </>
+      }
+      composer={
+        <ChatComposer
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              send(draft);
-            }
-          }}
-          rows={2}
-          placeholder="Escribe tu pregunta…"
-          className="flex-1 resize-none rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+          onChange={setDraft}
+          onSend={send}
+          pending={pending}
+          placeholder="Pregunta sobre tu oferta, tus tarifas o tus contactos…"
         />
-        <button disabled={pending || !draft.trim()} className={buttonClass({ variant: "primary" })}>
-          Enviar
-        </button>
-      </form>
-    </div>
+      }
+    >
+      <ChatMessages count={turns.length + (pending ? 1 : 0) + (error ? 1 : 0)}>
+        {turns.length === 0 ? (
+          <ChatWelcome title="¿En qué te ayudo?" suggestions={SUGGESTIONS} onPick={send}>
+            Pregunta sobre tu oferta, tus tarifas o tus contactos, o pide que prepare un email o una tarea.
+          </ChatWelcome>
+        ) : null}
+        {turns.map((t, i) =>
+          t.role === "user" ? (
+            <ChatMessage key={i} from="user">
+              {t.content}
+            </ChatMessage>
+          ) : (
+            <ChatMessage
+              key={i}
+              from="assistant"
+              footer={
+                t.actions ? (
+                  <Link
+                    href="/app/inbox"
+                    className="inline-flex items-center gap-1 font-medium text-accent hover:underline"
+                  >
+                    {t.actions === 1 ? "1 acción propuesta" : `${t.actions} acciones propuestas`}: revisar en
+                    «Por aprobar»
+                    <ArrowRight className="size-3.5" />
+                  </Link>
+                ) : null
+              }
+            >
+              <RichText text={t.content} />
+            </ChatMessage>
+          ),
+        )}
+        {pending ? <TypingIndicator /> : null}
+        {error ? (
+          <ChatMessage from="assistant" tone="danger">
+            {error}
+          </ChatMessage>
+        ) : null}
+      </ChatMessages>
+    </ChatPanel>
   );
 }

@@ -1,10 +1,10 @@
 "use client";
 
-import { ArrowUp, FileText, Sparkles } from "lucide-react";
+import { ArrowUp, FileText, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useActionState } from "react";
 import { RichText } from "@/components/rich-text";
-import { buttonClass } from "@/components/ui";
+import { buttonClass, Input } from "@/components/ui";
 import type { AskState } from "../actions";
 
 const EXAMPLES = ["¿Cuánto cuesta el servicio principal?", "¿Qué condiciones de pago hay?"];
@@ -21,14 +21,15 @@ export function AskBox({
   return (
     <div>
       <form action={formAction} className="flex gap-2">
-        <input
+        <Input
           name="q"
+          icon={<Search />}
           required
           autoComplete="off"
           placeholder="Pregunta lo que le preguntaría un cliente, p. ej. ¿cuánto cuesta…?"
           defaultValue={state?.question}
           key={state?.question}
-          className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
+          className="flex-1"
         />
         <button
           type="submit"

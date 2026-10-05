@@ -1,5 +1,5 @@
 import { ActionForm } from "@/components/action-form";
-import { Card, Field, Input, PageHeader, Textarea } from "@/components/ui";
+import { Card, Chip, Field, Input, PageHeader, Textarea } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getProject } from "@/server/services/projects";
@@ -30,11 +30,7 @@ export default async function ProjectSettingsPage({
   return (
     <>
       <SettingsNav projectId={projectId} />
-      <PageHeader
-        level="section"
-        title="Datos del proyecto"
-        description="Datos básicos del proyecto y cuándo pueden los agentes contactar con terceros."
-      />
+      <PageHeader level="section" title="Datos del proyecto" />
       <div className="max-w-3xl">
         <Card>
           <ActionForm action={saveProject.bind(null, project.id)} submitLabel="Guardar" className="space-y-4">
@@ -68,25 +64,19 @@ export default async function ProjectSettingsPage({
               <Field label="Hasta">
                 <Input name="sendTo" type="time" defaultValue={s.sendWindow?.[1] ?? "20:00"} />
               </Field>
-              <Field label="Días">
-                <div className="flex flex-wrap gap-x-3 gap-y-1 pt-2">
+              <Field label="Días" group>
+                <div className="flex flex-wrap gap-1.5">
                   {DAYS.map(([n, label]) => (
-                    <label key={n} className="flex items-center gap-1 text-sm">
-                      <input
-                        type="checkbox"
-                        name="sendDays"
-                        value={n}
-                        defaultChecked={sendDays.includes(n)}
-                      />
+                    <Chip key={n} name="sendDays" value={n} defaultChecked={sendDays.includes(n)}>
                       {label}
-                    </label>
+                    </Chip>
                   ))}
                 </div>
               </Field>
             </div>
             <Field
               label="Enfriamiento entre proyectos (días)"
-              hint="Si otro de tus proyectos contactó con la misma persona en este plazo, la acción pedirá tu aprobación."
+              tip="Si otro de tus proyectos contactó con la misma persona en este plazo, la acción pedirá tu aprobación."
             >
               <Input
                 name="cooldown"

@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { buttonClass, cx } from "@/components/ui";
+import { Mail, User } from "lucide-react";
+import { PasswordInput } from "@/components/password-input";
+import { buttonClass, cx, Field, Input } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
 
 export function AuthForm({ mode, googleEnabled }: { mode: "sign-in" | "sign-up"; googleEnabled: boolean }) {
@@ -30,40 +32,35 @@ export function AuthForm({ mode, googleEnabled }: { mode: "sign-in" | "sign-up";
     router.refresh();
   }
 
-  const input =
-    "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20";
-
   return (
-    <div className="mx-auto mt-24 w-full max-w-sm rounded-xl border border-border bg-surface p-6">
+    <div className="mx-auto mt-24 w-full max-w-sm rounded-xl border border-border bg-surface p-6 shadow-sm">
       <h1 className="text-xl font-semibold">{mode === "sign-in" ? "Entrar en SalesMate" : "Crear cuenta"}</h1>
-      <form action={onSubmit} className="mt-6 space-y-3">
-        {mode === "sign-up" ? <input name="name" required placeholder="Nombre" className={input} /> : null}
-        <input
-          name="email"
-          type="email"
-          required
-          placeholder="Email"
-          autoComplete="email"
-          className={input}
-        />
-        <input
-          name="password"
-          type="password"
-          required
-          minLength={10}
-          placeholder="Contraseña (mín. 10 caracteres)"
-          autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
-          className={input}
-        />
+      <form action={onSubmit} className="mt-6 space-y-4">
+        {mode === "sign-up" ? (
+          <Field label="Nombre">
+            <Input name="name" required autoComplete="name" icon={<User />} />
+          </Field>
+        ) : null}
+        <Field label="Email">
+          <Input name="email" type="email" required autoComplete="email" icon={<Mail />} />
+        </Field>
+        <Field label="Contraseña" hint={mode === "sign-up" ? "Al menos 10 caracteres." : undefined}>
+          <PasswordInput
+            name="password"
+            required
+            minLength={10}
+            autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
+          />
+        </Field>
         {error ? <p className="text-sm text-danger">{error}</p> : null}
-        <button disabled={pending} className={buttonClass({ variant: "primary", block: true })}>
-          {pending ? "…" : mode === "sign-in" ? "Entrar" : "Crear cuenta"}
+        <button disabled={pending} className={buttonClass({ variant: "primary", size: "lg", block: true })}>
+          {pending ? "Un momento…" : mode === "sign-in" ? "Entrar" : "Crear cuenta"}
         </button>
       </form>
       {googleEnabled ? (
         <button
           onClick={() => authClient.signIn.social({ provider: "google", callbackURL: next })}
-          className={cx(buttonClass({ variant: "secondary", block: true }), "mt-3")}
+          className={cx(buttonClass({ variant: "secondary", size: "lg", block: true }), "mt-3")}
         >
           Continuar con Google
         </button>

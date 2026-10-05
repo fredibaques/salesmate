@@ -37,7 +37,11 @@ export default async function SourcePage({
         back={{ href: `/app/projects/${projectId}/knowledge`, label: "Conocimiento" }}
         icon={kind.icon}
         title={source.name}
-        description={<Meta items={[kind.label, kind.detail, `añadido el ${formatDate(source.createdAt)}`]} />}
+        badge={
+          <span className="text-sm text-muted">
+            <Meta items={[kind.label, kind.detail, `añadido el ${formatDate(source.createdAt)}`]} />
+          </span>
+        }
         actions={
           <>
             <ConfirmForm
@@ -79,7 +83,7 @@ export default async function SourcePage({
         {tables.map((table, i) => {
           const result = tableRows[i];
           return (
-            <Card key={table.id} title={table.name} description={table.description}>
+            <Card key={table.id} title={table.name} tip={table.description}>
               <Table head={table.columns.map((c) => c.label)}>
                 {result.rows.map((r) => (
                   <tr key={r.id}>
@@ -108,7 +112,7 @@ export default async function SourcePage({
         {notes.length > 0 ? (
           <Card
             title="Notas de la hoja"
-            description="Texto que acompaña a las tablas; los agentes también lo tienen en cuenta."
+            tip="Texto que acompaña a las tablas; los agentes también lo tienen en cuenta."
           >
             <ul className="list-disc space-y-1 pl-5 text-sm">
               {notes.map((n, i) => (

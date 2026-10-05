@@ -2,7 +2,7 @@ import { Plug, Plus, Webhook } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
-import { Button, Card, EmptyState, Field, LinkButton, Select } from "@/components/ui";
+import { Button, Card, Choice, EmptyState, Field, LinkButton, Select } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { env } from "@/server/env";
@@ -46,10 +46,7 @@ export default async function AgentChannelsPage({
   return (
     <div className="grid items-start gap-6 lg:grid-cols-2">
       <div className="space-y-6">
-        <Card
-          title="Con qué trabaja"
-          description="Elige, entre las cuentas que tu organización ha conectado, desde qué buzón escribe este agente, en qué calendario agenda y qué CRM consulta."
-        >
+        <Card title="Con qué trabaja">
           {nothingConnected ? (
             <EmptyState
               compact
@@ -92,21 +89,12 @@ export default async function AgentChannelsPage({
                 </Select>
               </Field>
               {agentType === "inbound" ? (
-                <label className="flex items-start gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    name="readMailbox"
-                    defaultChecked={channels.readMailbox ?? false}
-                    className="mt-1"
-                  />
-                  <span>
-                    Atender también los emails que llegan a este buzón
-                    <span className="block text-muted">
-                      Cada email nuevo se trata como un contacto entrante. Necesita que la cuenta tenga
-                      permiso de lectura.
-                    </span>
-                  </span>
-                </label>
+                <Choice
+                  name="readMailbox"
+                  defaultChecked={channels.readMailbox ?? false}
+                  label="Atender también los emails que llegan a este buzón"
+                  description="Cada email nuevo se trata como un contacto entrante. Necesita que la cuenta tenga permiso de lectura."
+                />
               ) : null}
               <Field
                 label="Calendario donde agenda"
@@ -161,7 +149,7 @@ export default async function AgentChannelsPage({
       {agentType === "inbound" ? (
         <Card
           title="Formulario de tu web"
-          description="Envía aquí los formularios de tu web (POST, en JSON o formulario normal) y el agente atiende cada envío en segundos."
+          tip="Envía aquí los formularios de tu web (POST, en JSON o formulario normal) y el agente atiende cada envío en segundos."
         >
           {project.inboundFormKey ? (
             <div className="space-y-3 text-sm">

@@ -21,7 +21,7 @@ export default async function AuditPage() {
       <PageHeader
         level="section"
         title="Auditoría"
-        description="Registro inmutable de todo lo que hacen las personas y los agentes."
+        tip="Registro inmutable de todo lo que hacen las personas y los agentes."
       />
       <Card>
         {events.length === 0 ? (

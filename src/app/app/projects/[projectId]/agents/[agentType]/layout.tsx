@@ -30,7 +30,6 @@ export default async function AgentLayout({
         back={{ href: `/app/projects/${projectId}`, label: "Agentes" }}
         icon={AGENT_ICONS[agentType]}
         title={info.name}
-        description={info.description}
         actions={
           <>
             <ConfirmForm

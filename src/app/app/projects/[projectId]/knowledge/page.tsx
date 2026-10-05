@@ -35,7 +35,6 @@ function UploadButton({
       label="Subir fichero"
       icon={<Upload className="size-4" />}
       title="Subir fichero"
-      description="Excel y CSV se leen como tablas (tarifas, catálogos…); PDF, Word, Markdown y HTML como documentos. Los agentes lo usarán desde ese momento."
       variant={variant}
     >
       <ActionForm action={uploadKnowledge.bind(null, projectId)} submitLabel="Subir" className="space-y-4">
@@ -49,7 +48,7 @@ function UploadButton({
             className="file:mr-3 file:rounded-md file:border-0 file:bg-accent/10 file:px-2 file:py-1 file:text-accent hover:file:bg-accent/20"
           />
         </Field>
-        <Field label="Nombre (opcional)" hint="Si lo dejas vacío, se usa el nombre del fichero.">
+        <Field label="Nombre" optional hint="Si lo dejas vacío, se usa el nombre del fichero.">
           <Input name="name" />
         </Field>
       </ActionForm>
@@ -63,7 +62,6 @@ function PasteButton({ projectId }: { projectId: string }) {
       label="Pegar texto"
       icon={<ClipboardType className="size-4" />}
       title="Pegar texto"
-      description="Objeciones, guiones, preguntas frecuentes o ejemplos de emails escritos directamente."
       variant="secondary"
       width="lg"
     >
@@ -91,7 +89,7 @@ export default async function KnowledgePage({ params }: PageProps<"/app/projects
       <PageHeader
         level="section"
         title="Documentos y tablas"
-        description="Todo lo que subas aquí lo usan los agentes para responder con datos reales y decir de dónde los sacan. Si algo cambia, sube la versión nueva y borra la antigua."
+        tip="Todo lo que subas aquí lo usan los agentes para responder con datos reales y decir de dónde los sacan. Si algo cambia, sube la versión nueva y borra la antigua."
         actions={
           sources.length > 0 ? (
             <>
@@ -118,7 +116,7 @@ export default async function KnowledgePage({ params }: PageProps<"/app/projects
         <div className="space-y-6">
           <Card
             title="Pregúntale al conocimiento"
-            description="Comprueba qué respondería un agente: contesta solo con lo que has subido y te dice de dónde sale."
+            tip="Comprueba qué respondería un agente: contesta solo con lo que has subido y te dice de dónde sale."
           >
             <AskBox projectId={projectId} action={askKnowledge.bind(null, projectId)} />
           </Card>

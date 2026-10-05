@@ -1,7 +1,7 @@
 import { CalendarPlus, Clock, Plus, Trash2 } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
-import { Badge, Button, Card, EmptyState, Field, Input, Select } from "@/components/ui";
+import { Badge, Button, Card, Chip, EmptyState, Field, Input, Select } from "@/components/ui";
 import type { listMeetingTypes } from "@/server/services/projects";
 import { addMeetingType, previewAvailability, removeMeetingType } from "./actions";
 
@@ -43,7 +43,6 @@ function NewMeetingTypeButton({
       label="Nuevo tipo de reunión"
       icon={<Plus className="size-4" />}
       title="Nuevo tipo de reunión"
-      description="Define cuándo y cuánto duran las reuniones que pueden ofrecer los agentes."
       width="lg"
     >
       <ActionForm action={addMeetingType.bind(null, projectId)} submitLabel="Crear" className="space-y-4">
@@ -64,13 +63,12 @@ function NewMeetingTypeButton({
             <Input name="duration" type="number" defaultValue={30} min={5} />
           </Field>
         </div>
-        <Field label="Días">
-          <div className="flex gap-3 pt-1">
+        <Field label="Días" group>
+          <div className="flex flex-wrap gap-1.5">
             {DAYS.map(([k, l]) => (
-              <label key={k} className="flex items-center gap-1 text-sm">
-                <input type="checkbox" name="days" value={k} defaultChecked={!["sat", "sun"].includes(k)} />{" "}
+              <Chip key={k} name="days" value={k} defaultChecked={!["sat", "sun"].includes(k)}>
                 {l}
-              </label>
+              </Chip>
             ))}
           </div>
         </Field>
@@ -95,7 +93,7 @@ function NewMeetingTypeButton({
         </div>
         <Field
           label="Calendario donde se crean las reuniones"
-          hint="Si lo dejas vacío, se usa el calendario elegido en los canales del agente."
+          tip="Si lo dejas vacío, se usa el calendario elegido en los canales del agente."
         >
           <Select name="calendarIdentityId" defaultValue={calendars[0]?.id ?? ""}>
             <option value="">— Elegir más tarde —</option>
@@ -129,7 +127,7 @@ export function MeetingTypesCard({
   return (
     <Card
       title="Reuniones que puede agendar"
-      description="Duración y horario de las reuniones o llamadas que ofrece. Los huecos se calculan con la disponibilidad de todos tus calendarios, de todos tus proyectos."
+      tip="Duración y horario de las reuniones o llamadas que ofrece. Los huecos se calculan con la disponibilidad de todos tus calendarios, de todos tus proyectos."
       actions={types.length > 0 ? <NewMeetingTypeButton projectId={projectId} calendars={calendars} /> : null}
     >
       {types.length === 0 ? (

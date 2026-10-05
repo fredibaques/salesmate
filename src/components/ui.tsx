@@ -2,18 +2,22 @@ import { ArrowLeft, CircleAlert, CircleCheck, Info, TriangleAlert } from "lucide
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 
-export function cx(...classes: (string | false | null | undefined)[]) {
-  return classes.filter(Boolean).join(" ");
-}
+import { cx } from "./cx";
+import { InfoTip } from "./tooltip";
+
+export { cx } from "./cx";
+export * from "./form-controls";
+export * from "./tooltip";
 
 /**
  * Top of a page (or of a nested page such as an agent inside a project):
- * optional back link, title with its status, one line of context and the
- * page's actions on the right. Use `level="section"` below another header.
+ * optional back link, title with its status and the page's actions on the
+ * right. No paragraph under the title: when the page needs explaining, `tip`
+ * puts a «?» next to it. Use `level="section"` below another header.
  */
 export function PageHeader({
   title,
-  description,
+  tip,
   actions,
   badge,
   back,
@@ -23,7 +27,7 @@ export function PageHeader({
   className,
 }: {
   title: ReactNode;
-  description?: ReactNode;
+  tip?: ReactNode;
   actions?: ReactNode;
   badge?: ReactNode;
   back?: { href: string; label: string };
@@ -37,8 +41,8 @@ export function PageHeader({
   return (
     <header className={cx(level === "page" ? "mb-6" : "mb-5", className)}>
       {back ? <BackLink href={back.href}>{back.label}</BackLink> : null}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-1 basis-72 items-start gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex min-w-0 flex-1 basis-72 items-center gap-3">
           {media ?? (icon ? <IconTile size="lg">{icon}</IconTile> : null)}
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -47,9 +51,9 @@ export function PageHeader({
               >
                 {title}
               </Heading>
+              {tip ? <InfoTip>{tip}</InfoTip> : null}
               {badge}
             </div>
-            {description ? <p className="mt-1 max-w-3xl text-sm text-muted">{description}</p> : null}
           </div>
         </div>
         {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
@@ -199,27 +203,32 @@ export function Meta({ items }: { items: (ReactNode | null | undefined | false)[
 
 export function Card({
   title,
-  description,
+  tip,
   actions,
   children,
   className,
 }: {
   title?: string;
-  description?: ReactNode;
+  /** How this section works, behind a «?» next to the title. */
+  tip?: ReactNode;
   /** Buttons shown at the top right of the card (e.g. «Añadir…»). */
   actions?: ReactNode;
   children: ReactNode;
   className?: string;
 }) {
-  const hasHeader = title || description || actions;
+  const hasHeader = title || actions;
   return (
     <section className={cx("rounded-xl border border-border bg-surface p-5", className)}>
       {hasHeader ? (
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            {title ? <h2 className="text-base font-semibold">{title}</h2> : null}
-            {description ? <p className="mt-1 max-w-2xl text-sm text-muted">{description}</p> : null}
-          </div>
+        <div className="flex min-h-8 flex-wrap items-center justify-between gap-3">
+          {title ? (
+            <h2 className="flex min-w-0 items-center gap-1 text-base font-semibold">
+              {title}
+              {tip ? <InfoTip>{tip}</InfoTip> : null}
+            </h2>
+          ) : (
+            <span />
+          )}
           {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
         </div>
       ) : null}
@@ -260,7 +269,12 @@ export type ButtonSize = keyof typeof buttonSizes;
 export type ButtonLook = { variant?: ButtonVariant; size?: ButtonSize; iconOnly?: boolean; block?: boolean };
 
 /** Classes for anything that looks like a button: <button>, <Link>, <a>, <summary>… */
-export function buttonClass({ variant = "primary", size = "md", iconOnly = false, block = false }: ButtonLook = {}) {
+export function buttonClass({
+  variant = "primary",
+  size = "md",
+  iconOnly = false,
+  block = false,
+}: ButtonLook = {}) {
   return cx(
     "inline-flex shrink-0 items-center justify-center rounded-lg font-medium whitespace-nowrap transition-colors",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
@@ -295,31 +309,6 @@ export function LinkButton({
   return (
     <Link href={href} className={cx(buttonClass({ variant, size, iconOnly, block }), className)} {...props} />
   );
-}
-
-export function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
-  return (
-    <label className="block text-sm">
-      <span className="font-medium">{label}</span>
-      <div className="mt-1">{children}</div>
-      {hint ? <span className="mt-1 block text-xs text-muted">{hint}</span> : null}
-    </label>
-  );
-}
-
-const control =
-  "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20";
-
-export function Input(props: ComponentProps<"input">) {
-  return <input {...props} className={cx(control, props.className)} />;
-}
-
-export function Textarea(props: ComponentProps<"textarea">) {
-  return <textarea {...props} className={cx(control, "min-h-24", props.className)} />;
-}
-
-export function Select(props: ComponentProps<"select">) {
-  return <select {...props} className={cx(control, props.className)} />;
 }
 
 const badgeStyles = {

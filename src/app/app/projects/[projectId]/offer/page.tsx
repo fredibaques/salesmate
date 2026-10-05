@@ -1,7 +1,7 @@
 import { Sparkles } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
-import { Card, Field, Textarea, PageHeader } from "@/components/ui";
+import { Card, Field, Notice, PageHeader, Textarea } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { isLlmConfigured } from "@/server/llm/client";
@@ -36,7 +36,7 @@ export default async function OfferPage({ params }: PageProps<"/app/projects/[pr
       <PageHeader
         level="section"
         title="Oferta y cliente"
-        description="Lo que todos los agentes de este proyecto necesitan saber de tu venta: qué ofreces, a quién y cómo hablarle. Lo propio de cada agente (cómo termina la conversación, cualificación, límites) se configura en su ficha."
+        tip="Lo que todos los agentes de este proyecto necesitan saber de tu venta: qué ofreces, a quién y cómo hablarle. Lo propio de cada agente se configura en su ficha."
       />
       <div className="grid items-start gap-6 xl:grid-cols-[2fr_1fr]">
         <Card>
@@ -102,14 +102,13 @@ export default async function OfferPage({ params }: PageProps<"/app/projects/[pr
 
         <Card
           title="Proponer con IA"
-          description="Lee la descripción y el conocimiento del proyecto y rellena cliente ideal, problemas, objeciones y tono. Después revisa y guarda."
+          tip="Lee la descripción y el conocimiento del proyecto y rellena cliente ideal, problemas, objeciones y tono. Después revisa y guarda."
         >
           {isLlmConfigured() ? (
             <ModalButton
               label="Generar propuesta"
               icon={<Sparkles className="size-4" />}
               title="Proponer oferta y cliente con IA"
-              description="Tarda unos segundos y sustituye lo que haya en esos apartados. La oferta y la firma no se tocan."
               variant="secondary"
             >
               <ActionForm
@@ -117,7 +116,11 @@ export default async function OfferPage({ params }: PageProps<"/app/projects/[pr
                 submitLabel="Generar"
                 className="space-y-4"
               >
-                <Field label="Indicaciones (opcional)">
+                <Notice tone="warning">
+                  Sustituye lo que haya en cliente ideal, problemas, objeciones y tono. La oferta y la firma
+                  no se tocan.
+                </Notice>
+                <Field label="Indicaciones" optional>
                   <Textarea
                     name="instructions"
                     placeholder="p. ej. Vendemos sobre todo a concesionarios multimarca"

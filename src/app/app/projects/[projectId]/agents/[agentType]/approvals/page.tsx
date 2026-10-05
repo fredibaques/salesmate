@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
-import { Card, Field, Select } from "@/components/ui";
+import { Card, Field, Input, Select } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { ACTION_DEFINITIONS } from "@/server/gateway/definitions";
@@ -15,8 +15,6 @@ const LEVELS = [
   { value: 0, label: "Solo sugiere (lo hago yo)" },
 ];
 
-const control = "w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm";
-
 export default async function AgentApprovalsPage({
   params,
 }: PageProps<"/app/projects/[projectId]/agents/[agentType]/approvals">) {
@@ -30,7 +28,7 @@ export default async function AgentApprovalsPage({
   return (
     <Card
       title="Qué puede hacer sin preguntarte"
-      description="Por defecto el agente prepara todo y espera tu aprobación en Copilot → Por aprobar. Deja hacer solo las acciones que apruebas casi siempre sin cambios. Las reglas del proyecto (horario, exclusiones, cumplimiento) se aplican siempre."
+      tip="Por defecto el agente prepara todo y espera tu aprobación en Copilot → Por aprobar. Deja hacer solo las acciones que apruebas casi siempre sin cambios. Las reglas del proyecto (horario, exclusiones, cumplimiento) se aplican siempre."
       className="max-w-4xl"
     >
       <ActionForm
@@ -61,10 +59,10 @@ export default async function AgentApprovalsPage({
                 <tr key={def.type} className="transition-colors hover:bg-background">
                   <td className="py-2 pr-3">{def.label}</td>
                   <td className="py-2 pr-3">
-                    <select
+                    <Select
+                      size="sm"
                       name={`level:${def.type}`}
                       defaultValue={autonomy.actions?.[def.type] ?? "default"}
-                      className={control}
                     >
                       <option value="default">Como por defecto</option>
                       {LEVELS.map((l) => (
@@ -72,16 +70,16 @@ export default async function AgentApprovalsPage({
                           {l.label}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </td>
                   <td className="py-2">
-                    <input
+                    <Input
+                      size="sm"
                       name={`limit:${def.type}`}
                       type="number"
                       min={0}
                       placeholder="Sin límite"
                       defaultValue={limits.daily?.[def.type]}
-                      className={control}
                     />
                   </td>
                 </tr>

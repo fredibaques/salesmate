@@ -1,6 +1,6 @@
 import { Plug, Plus } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
-import { Badge, Card, EmptyState, LinkButton } from "@/components/ui";
+import { Badge, Card, Choice, EmptyState, LinkButton } from "@/components/ui";
 import type { AgentTools } from "@/server/db/schema";
 import type { listMcpServers, ProjectAgentType } from "@/server/services/agents";
 import { saveTools } from "../actions";
@@ -23,7 +23,7 @@ export function ToolsCard({
   return (
     <Card
       title="Herramientas"
-      description="Además del conocimiento del proyecto, que siempre puede consultar. Lo que solo lee se usa directamente; lo que cambia algo fuera pasa por las reglas del proyecto y por tu aprobación según su autonomía."
+      tip="Además del conocimiento del proyecto, que siempre puede consultar. Lo que solo lee se usa directamente; lo que cambia algo fuera pasa por las reglas del proyecto y por tu aprobación según su autonomía."
     >
       <ActionForm
         key={JSON.stringify(tools)}
@@ -31,16 +31,13 @@ export function ToolsCard({
         submitLabel="Guardar herramientas"
         className="space-y-5"
       >
-        <label className="flex items-start gap-3 rounded-xl border border-border p-4 transition-colors hover:bg-background has-[:checked]:border-accent has-[:checked]:bg-accent/5">
-          <input type="checkbox" name="web" defaultChecked={Boolean(tools.web)} className="mt-1" />
-          <span>
-            <span className="block text-sm font-medium">Búsqueda en internet</span>
-            <span className="block text-sm text-muted">
-              Busca y lee páginas públicas (webs de empresas, directorios, noticias). Cada búsqueda cuesta
-              alrededor de un céntimo.
-            </span>
-          </span>
-        </label>
+        <Choice
+          card
+          name="web"
+          defaultChecked={Boolean(tools.web)}
+          label="Búsqueda en internet"
+          description="Busca y lee páginas públicas (webs de empresas, directorios, noticias). Cada búsqueda cuesta alrededor de un céntimo."
+        />
 
         <div className="space-y-3">
           <h3 className="text-sm font-semibold">Herramientas conectadas (MCP)</h3>
@@ -76,15 +73,11 @@ export function ToolsCard({
                       const value = `${server.id}::${t.name}`;
                       return (
                         <li key={t.name}>
-                          <label className="flex items-start gap-2 text-sm">
-                            <input
-                              type="checkbox"
-                              name="mcp"
-                              value={value}
-                              defaultChecked={allowed.has(value)}
-                              className="mt-1"
-                            />
-                            <span className="min-w-0">
+                          <Choice
+                            name="mcp"
+                            value={value}
+                            defaultChecked={allowed.has(value)}
+                            label={
                               <span className="flex flex-wrap items-center gap-2">
                                 <code className="text-xs">{t.name}</code>
                                 {t.readOnly ? (
@@ -93,11 +86,9 @@ export function ToolsCard({
                                   <Badge tone="warning">Cambia datos · pasa por aprobación</Badge>
                                 )}
                               </span>
-                              {t.description ? (
-                                <span className="mt-0.5 block text-xs text-muted">{t.description}</span>
-                              ) : null}
-                            </span>
-                          </label>
+                            }
+                            description={t.description}
+                          />
                         </li>
                       );
                     })}
