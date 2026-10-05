@@ -20,13 +20,16 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
   return (
     <ToastProvider>
       <div className="flex min-h-screen">
-        <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-surface p-4">
-          <Link href="/app" className="px-3 text-lg font-semibold tracking-tight">
-            SalesMate
-          </Link>
-          <p className="px-3 text-xs text-muted">{tenant.organization.name}</p>
+        {/* The sidebar is always exactly one screen tall: only the project list scrolls. */}
+        <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-border bg-surface">
+          <div className="px-7 pb-2 pt-5">
+            <Link href="/app" className="text-lg font-semibold tracking-tight">
+              SalesMate
+            </Link>
+            <p className="truncate text-xs text-muted">{tenant.organization.name}</p>
+          </div>
 
-          <nav className="mt-6 space-y-1">
+          <nav className="mt-3 space-y-1 px-4">
             <NavLink href="/app" exact icon={<LayoutDashboard />}>
               Panel
             </NavLink>
@@ -57,8 +60,10 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
             </NavLink>
           </nav>
 
-          <div className="mt-6 px-3 text-xs font-medium uppercase tracking-wide text-muted">Proyectos</div>
-          <nav className="mt-2 space-y-1">
+          <div className="mt-6 flex items-center justify-between px-7 text-xs font-medium uppercase tracking-wide text-muted">
+            Proyectos
+          </div>
+          <nav className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto px-4 pb-2">
             {projects.map((p) => (
               <NavLink
                 key={p.id}
@@ -76,7 +81,7 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
             />
           </nav>
 
-          <div className="mt-auto space-y-2 border-t border-border pt-4 text-sm">
+          <div className="space-y-1 border-t border-border p-4 text-sm">
             {memberships.length > 1 ? (
               <details>
                 <summary className="rounded-lg px-3 py-1 text-muted transition-colors hover:bg-background hover:text-foreground">
@@ -105,7 +110,9 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
             </form>
           </div>
         </aside>
-        <main className="min-w-0 flex-1 p-8">{children}</main>
+        <main className="min-w-0 flex-1">
+          <div className="mx-auto max-w-6xl px-8 py-8">{children}</div>
+        </main>
       </div>
     </ToastProvider>
   );

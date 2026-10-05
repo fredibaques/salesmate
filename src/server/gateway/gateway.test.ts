@@ -350,7 +350,7 @@ describe("policies", () => {
     expect(second.outcome).toBe("deferred");
   });
 
-  it("requires approval for figures without a source of truth", async () => {
+  it("requires approval for figures not backed by project knowledge", async () => {
     const f = await createProject("figures");
     await setAutonomy(f.projectId, 3);
     const body = "El servicio cuesta 49 € al mes.";
@@ -360,7 +360,7 @@ describe("policies", () => {
     const [source] = await withTenant(db, { orgId }, (tx) =>
       tx
         .insert(knowledgeSources)
-        .values({ orgId, projectId: f.projectId, kind: "table", name: "Tarifas", reliability: "truth" })
+        .values({ orgId, projectId: f.projectId, kind: "table", name: "Tarifas" })
         .returning(),
     );
     const backed = await proposeAction(deps(), agent, {

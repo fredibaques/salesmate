@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
-import { inferTable, parseDate, parseNumber, parseTabularFile } from "./tabular";
+import { inferTable, parseDate, parseNumber, parseTabularFile, segmentSheet, tableToChunks } from "./tabular";
 
 describe("number and date parsing", () => {
   it("understands Spanish and English formats", () => {
@@ -56,8 +56,8 @@ describe("parseTabularFile", () => {
     const [sheet] = await parseTabularFile(Buffer.from(csv), "precios.csv");
     expect(sheet).toEqual({
       name: "precios",
-      headers: ["Nombre", "Importe"],
       rows: [
+        ["Nombre", "Importe"],
         ["A", "10"],
         ["B", "20"],
       ],
@@ -73,7 +73,70 @@ describe("parseTabularFile", () => {
     const buffer = await wb.xlsx.writeBuffer();
     const sheets = await parseTabularFile(buffer as ArrayBuffer, "libro.xlsx");
     expect(sheets).toHaveLength(1);
-    const table = inferTable(sheets[0]);
+    const table = inferTable(segmentSheet(sheets[0]).tables[0]);
     expect(table.rows).toEqual([{ plan: "Básico", precio: 10, total: 20, alta: "2026-01-02" }]);
+  });
+});
+
+describe("segmentSheet", () => {
+  // A price sheet laid out for people: merged titles, a note, two tables and conditions.
+  const P = "Precios base";
+  const D = "Descuentos por volumen";
+  const sheet = {
+    name: "Hoja1",
+    rows: [
+      [P, P, P, P],
+      [
+        "Precios por trámite, sin compromiso.",
+        "Precios por trámite, sin compromiso.",
+        "Precios por trámite, sin compromiso.",
+        "Precios por trámite, sin compromiso.",
+      ],
+      ["Trámite", "Honorarios", "Tasas DGT", "Total con IVA"],
+      ["↪ Transferencia", 30, 55.7, 98.59450000000001],
+      ["↪ Informe de vehículo", 3, 8.67, 12.3],
+      [D, D, D, D],
+      ["Trámite", "Precio base", "Compromiso anual", "Compromiso anual"],
+      ["Trámite", "Precio base", 100, 200],
+      ["↪ Transferencia", 30, 26, 24],
+      ["CONDICIONES", "CONDICIONES", "CONDICIONES", "CONDICIONES"],
+      ["› Los precios no incluyen IVA", null, null, null],
+    ],
+  };
+
+  it("finds each table with its title, note and merged headers", () => {
+    const { tables, notes } = segmentSheet(sheet);
+    expect(tables.map((t) => [t.name, t.description, t.headers])).toEqual([
+      [P, "Precios por trámite, sin compromiso.", ["Trámite", "Honorarios", "Tasas DGT", "Total con IVA"]],
+      [D, undefined, ["Trámite", "Precio base", "Compromiso anual 100", "Compromiso anual 200"]],
+    ]);
+    expect(notes).toEqual(["CONDICIONES", "Los precios no incluyen IVA"]);
+
+    const prices = inferTable(tables[0]);
+    expect(prices.rows[0]).toEqual({
+      tramite: "Transferencia",
+      honorarios: 30,
+      tasas_dgt: 55.7,
+      total_con_iva: 98.5945,
+    });
+    expect(inferTable(tables[1]).columns.map((c) => c.key)).toEqual([
+      "tramite",
+      "precio_base",
+      "compromiso_anual_100",
+      "compromiso_anual_200",
+    ]);
+  });
+
+  it("renders rows as searchable text with their column names", () => {
+    const [chunk] = tableToChunks(inferTable(segmentSheet(sheet).tables[0]));
+    expect(chunk).toContain("Tabla «Precios base»");
+    expect(chunk).toContain(
+      "- Trámite: Transferencia · Honorarios: 30 · Tasas DGT: 55,7 · Total con IVA: 98,5945",
+    );
+  });
+
+  it("keeps a plain one-column list as a table", () => {
+    const { tables } = segmentSheet({ name: "Lista", rows: [["Ciudad"], ["Madrid"], ["Bilbao"]] });
+    expect(tables).toEqual([{ name: "Lista", headers: ["Ciudad"], rows: [["Madrid"], ["Bilbao"]] }]);
   });
 });

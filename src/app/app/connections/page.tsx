@@ -1,6 +1,15 @@
 import { CalendarDays, Mail, Phone, Plug, Plus } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
-import { Avatar, Badge, Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
+import {
+  Avatar,
+  Badge,
+  CardGrid,
+  EmptyState,
+  EntityCard,
+  LinkButton,
+  Notice,
+  PageHeader,
+} from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import { describeScopes, getIntegration } from "@/lib/integrations";
 import { requireTenant } from "@/server/auth/session";
@@ -55,54 +64,57 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/app/
         }
       />
 
-      {query.connected ? (
-        <p className="mb-6 rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
-          Conectado: {String(query.connected)}
-        </p>
-      ) : null}
-      {query.error ? (
-        <p className="mb-6 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
-          No se ha podido conectar: {ERRORS[String(query.error)] ?? String(query.error)}
-        </p>
+      {query.connected || query.error ? (
+        <div className="mb-6">
+          {query.connected ? (
+            <Notice tone="success">Conectado: {String(query.connected)}</Notice>
+          ) : (
+            <Notice tone="danger">
+              No se ha podido conectar: {ERRORS[String(query.error)] ?? String(query.error)}
+            </Notice>
+          )}
+        </div>
       ) : null}
 
       {connections.length === 0 ? (
-        <Card>
-          <EmptyState
-            icon={<Plug />}
-            title="Todavía no has conectado ninguna herramienta"
-            description="Conecta tu CRM, tu correo y tu calendario para que los agentes puedan consultar tu información y actuar por ti, siempre con tu aprobación."
-            action={
-              <LinkButton href="/app/connections/new" variant="primary">
-                <Plus className="size-4" />
-                Conectar una herramienta
-              </LinkButton>
-            }
-          />
-        </Card>
+        <EmptyState
+          icon={<Plug />}
+          title="Todavía no has conectado ninguna herramienta"
+          description="Conecta tu CRM, tu correo y tu calendario para que los agentes puedan consultar tu información y actuar por ti, siempre con tu aprobación."
+          action={
+            <LinkButton href="/app/connections/new" variant="primary">
+              <Plus className="size-4" />
+              Conectar una herramienta
+            </LinkButton>
+          }
+        />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <CardGrid className="xl:grid-cols-2">
           {connections.map((c) => {
             const integration = getIntegration(c.provider);
             const own = identities.filter((i) => i.connectionId === c.id);
             const scopes = describeScopes(c.readScopes, c.writeScopes);
             return (
-              <Card key={c.id}>
-                <div className="flex items-start gap-3">
-                  <Avatar label={integration?.name ?? c.provider} color={integration?.color} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-medium">{c.label}</span>
-                      <Badge tone={STATUS[c.status].tone}>{STATUS[c.status].label}</Badge>
-                    </div>
-                    <p className="truncate text-sm text-muted">
-                      {integration?.name ?? c.provider} · {c.accountRef}
-                    </p>
-                  </div>
-                </div>
-
+              <EntityCard
+                key={c.id}
+                media={<Avatar label={integration?.name ?? c.provider} color={integration?.color} />}
+                title={c.label}
+                meta={`${integration?.name ?? c.provider} · ${c.accountRef}`}
+                badge={<Badge tone={STATUS[c.status].tone}>{STATUS[c.status].label}</Badge>}
+                footer={
+                  <>
+                    <span className="text-xs text-muted">Conectada el {formatDateTime(c.createdAt)}</span>
+                    <ActionForm
+                      action={testConnection.bind(null, c.id)}
+                      submitLabel="Probar conexión"
+                      submitVariant="secondary"
+                      className="flex flex-wrap items-center gap-3"
+                    />
+                  </>
+                }
+              >
                 {scopes.length > 0 ? (
-                  <div className="mt-4">
+                  <div>
                     <p className="text-xs font-medium tracking-wide text-muted uppercase">Permisos</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {scopes.map((s) => (
@@ -140,20 +152,10 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/app/
                 ) : null}
 
                 {c.lastError ? <p className="mt-3 text-xs text-danger">{c.lastError}</p> : null}
-
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-                  <span className="text-xs text-muted">Conectada el {formatDateTime(c.createdAt)}</span>
-                  <ActionForm
-                    action={testConnection.bind(null, c.id)}
-                    submitLabel="Probar conexión"
-                    submitVariant="secondary"
-                    className="flex flex-wrap items-center gap-3"
-                  />
-                </div>
-              </Card>
+              </EntityCard>
             );
           })}
-        </div>
+        </CardGrid>
       )}
     </>
   );

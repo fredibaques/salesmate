@@ -1,6 +1,6 @@
 import { ScrollText } from "lucide-react";
 import { Card, EmptyState, PageHeader, Table, Td } from "@/components/ui";
-import { formatDateTime } from "@/lib/format";
+import { describeEvent, formatDateTime } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { listAudit, listProjects } from "@/server/services/projects";
@@ -35,7 +35,8 @@ export default async function AuditPage() {
               <tr key={e.id} className="transition-colors hover:bg-background">
                 <Td className="whitespace-nowrap text-xs text-muted">{formatDateTime(e.createdAt)}</Td>
                 <Td>
-                  <code className="text-xs">{e.event}</code>
+                  {describeEvent(e.event)}
+                  <code className="block text-xs text-muted">{e.event}</code>
                 </Td>
                 <Td>{e.projectId ? (projectName.get(e.projectId) ?? "—") : "—"}</Td>
                 <Td className="text-xs">

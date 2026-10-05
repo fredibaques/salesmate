@@ -1,14 +1,15 @@
-import { ArrowLeft, Pause, Play, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { Trash2 } from "lucide-react";
 import { notFound } from "next/navigation";
 import { ConfirmForm } from "@/components/confirm-form";
 import { TabLink } from "@/components/nav-link";
-import { Badge, Button } from "@/components/ui";
+import { SwitchButton } from "@/components/switch";
+import { Button, PageHeader } from "@/components/ui";
 import { AGENT_INFO } from "@/lib/agents";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getAgent, isProjectAgentType } from "@/server/services/agents";
 import { removeAgentAction, toggleAgent } from "../actions";
+import { AGENT_ICONS } from "../agent-cards";
 
 export default async function AgentLayout({
   children,
@@ -24,50 +25,40 @@ export default async function AgentLayout({
 
   return (
     <>
-      <Link
-        href={`/app/projects/${projectId}/agents`}
-        className="mb-3 inline-flex items-center gap-1 text-sm text-muted transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />
-        Agentes
-      </Link>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-semibold">{info.name}</h2>
-            {agent.config.enabled ? (
-              <Badge tone="success">Activo</Badge>
-            ) : (
-              <Badge tone="warning">Sin activar</Badge>
-            )}
-          </div>
-          <p className="mt-1 max-w-2xl text-sm text-muted">{info.description}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <ConfirmForm
-            action={removeAgentAction.bind(null, projectId, agentType)}
-            message={`¿Quitar el ${info.name.toLowerCase()} de este proyecto? Dejará de atender contactos. Su proceso se conserva por si lo vuelves a añadir.`}
-          >
-            <Button variant="dangerGhost">
-              <Trash2 className="size-4" />
-              Quitar
-            </Button>
-          </ConfirmForm>
-          <form action={toggleAgent.bind(null, projectId, agentType, !agent.config.enabled)}>
-            {agent.config.enabled ? (
-              <Button variant="secondary">
-                <Pause className="size-4" />
-                Pausar
+      <PageHeader
+        level="section"
+        back={{ href: `/app/projects/${projectId}/agents`, label: "Agentes" }}
+        icon={AGENT_ICONS[agentType]}
+        title={info.name}
+        description={info.description}
+        actions={
+          <>
+            <ConfirmForm
+              action={removeAgentAction.bind(null, projectId, agentType)}
+              message={`¿Quitar el ${info.name.toLowerCase()} de este proyecto? Dejará de atender contactos. Su proceso se conserva por si lo vuelves a añadir.`}
+            >
+              <Button variant="dangerGhost">
+                <Trash2 className="size-4" />
+                Quitar
               </Button>
-            ) : (
-              <Button>
-                <Play className="size-4" />
-                Activar
-              </Button>
-            )}
-          </form>
-        </div>
-      </div>
+            </ConfirmForm>
+            <form
+              action={toggleAgent.bind(null, projectId, agentType, !agent.config.enabled)}
+              className="rounded-lg border border-border bg-surface px-3 py-1"
+            >
+              <SwitchButton
+                on={agent.config.enabled}
+                offLabel="En pausa"
+                label={
+                  agent.config.enabled
+                    ? `Pausar el ${info.name.toLowerCase()}`
+                    : `Activar el ${info.name.toLowerCase()}`
+                }
+              />
+            </form>
+          </>
+        }
+      />
       <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-border">
         <TabLink href={base} exact>
           Proceso de venta

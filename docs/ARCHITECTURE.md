@@ -89,12 +89,24 @@ cifradas; si un proveedor devuelve 401/403 la conexión pasa a `error`.
 
 ## Conocimiento
 
-- **Tablas** (CSV/XLSX): tipado automático (números en formato español o
-  inglés, fechas, booleanos) y consulta estructurada con parámetros (`queryTable`).
+- Todo lo que se sube cuenta: no hay fuentes «orientativas» ni validación
+  aparte. Si algo cambia, se sube la versión nueva y se borra la antigua.
+- **Tablas** (CSV/XLSX): las hojas pensadas para personas (títulos
+  combinados, notas, varias tablas una debajo de otra, condiciones al pie)
+  se separan en tablas con su título, su nota y cabeceras de varias filas
+  (`segmentSheet`). Tipado automático (números en formato español o inglés,
+  fechas, booleanos) y consulta estructurada con parámetros (`queryTable`).
+  Sus filas también se indexan como texto («Trámite: Transferencia ·
+  Honorarios: 30…») para que la búsqueda normal las encuentre.
 - **Documentos** (PDF, DOCX, Markdown, HTML, texto): fragmentos por párrafo y
   búsqueda de texto completo sin acentos con citas (`searchKnowledge`).
-- Cada fuente es *fuente de verdad* u *orientativa*; el gateway solo acepta
-  cifras en mensajes salientes si citan una fuente de verdad.
+- Se guarda el fichero original (`kb_files`) para verlo o descargarlo, y el
+  texto completo extraído (`kb_documents.content`).
+- «Pregúntale al conocimiento» (`agents/knowledge-answer.ts`) responde con la
+  IA usando solo el conocimiento: las tablas pequeñas van enteras en el
+  prompt, los documentos se buscan, y devuelve las fuentes usadas.
+- El gateway solo acepta cifras en mensajes salientes si citan una fuente del
+  conocimiento del proyecto.
 
 ## Agentes (fase 1)
 

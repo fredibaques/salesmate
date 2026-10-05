@@ -1,41 +1,26 @@
-import { BookOpen, ClipboardType, ShieldCheck, Table2, Trash2, Upload } from "lucide-react";
-import Link from "next/link";
+import { BookOpen, ClipboardType, Upload } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
-import { Badge, Button, Card, EmptyState, Field, Input, Select, Textarea } from "@/components/ui";
-import { formatDateTime } from "@/lib/format";
+import {
+  Card,
+  CardGrid,
+  EmptyState,
+  EntityCard,
+  Field,
+  Input,
+  Meta,
+  PageHeader,
+  Textarea,
+} from "@/components/ui";
+import { formatDate } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { listKnowledge } from "@/server/services/projects";
-import {
-  removeSource,
-  searchProjectKnowledge,
-  setSourceReliability,
-  uploadKnowledge,
-  validateSource,
-} from "../actions";
-import { SearchBox } from "./search-box";
+import { askKnowledge, uploadKnowledge } from "../actions";
+import { AskBox } from "./ask-box";
+import { describeSource } from "./sources";
 
-const KIND_LABEL = {
-  document: "Documento",
-  table: "Tabla",
-  live: "Fuente viva",
-  examples: "Ejemplos",
-} as const;
-
-function ReliabilityField() {
-  return (
-    <Field
-      label="Fiabilidad"
-      hint="Solo las fuentes de verdad pueden respaldar precios, plazos o condiciones en un mensaje."
-    >
-      <Select name="reliability" defaultValue="reference">
-        <option value="reference">Orientativa (contexto)</option>
-        <option value="truth">Fuente de verdad (precios, condiciones)</option>
-      </Select>
-    </Field>
-  );
-}
+export const metadata = { title: "Conocimiento" };
 
 function UploadButton({
   projectId,
@@ -49,12 +34,12 @@ function UploadButton({
       label="Subir fichero"
       icon={<Upload className="size-4" />}
       title="Subir fichero"
-      description="Excel y CSV se convierten en tablas consultables (tarifas, catálogos…). PDF, Word, Markdown y HTML se indexan como documentos."
+      description="Excel y CSV se leen como tablas (tarifas, catálogos…); PDF, Word, Markdown y HTML como documentos. Los agentes lo usarán desde ese momento."
       variant={variant}
     >
       <ActionForm action={uploadKnowledge.bind(null, projectId)} submitLabel="Subir" className="space-y-4">
         <input type="hidden" name="kind" value="document" />
-        <Field label="Fichero">
+        <Field label="Fichero" hint="Hasta 4 MB.">
           <Input
             name="file"
             type="file"
@@ -66,7 +51,6 @@ function UploadButton({
         <Field label="Nombre (opcional)" hint="Si lo dejas vacío, se usa el nombre del fichero.">
           <Input name="name" />
         </Field>
-        <ReliabilityField />
       </ActionForm>
     </ModalButton>
   );
@@ -90,7 +74,6 @@ function PasteButton({ projectId }: { projectId: string }) {
         <Field label="Texto">
           <Textarea name="text" required className="min-h-56" />
         </Field>
-        <ReliabilityField />
       </ActionForm>
     </ModalButton>
   );
@@ -102,10 +85,11 @@ export default async function KnowledgePage({ params }: PageProps<"/app/projects
   const sources = await listKnowledge(getDb(), tenant, projectId);
 
   return (
-    <div className="space-y-6">
-      <Card
-        title="Qué sabe el agente"
-        description="Las fuentes de verdad son las únicas que pueden respaldar precios, plazos o condiciones en un mensaje. El resto sirve de contexto."
+    <>
+      <PageHeader
+        level="section"
+        title="Conocimiento"
+        description="Todo lo que subas aquí lo usan los agentes para responder con datos reales y decir de dónde los sacan. Si algo cambia, sube la versión nueva y borra la antigua."
         actions={
           sources.length > 0 ? (
             <>
@@ -114,97 +98,61 @@ export default async function KnowledgePage({ params }: PageProps<"/app/projects
             </>
           ) : null
         }
-      >
-        {sources.length === 0 ? (
-          <EmptyState
-            icon={<BookOpen />}
-            title="El agente todavía no sabe nada de este proyecto"
-            description="Sube tus tarifas, presentaciones, condiciones o ejemplos de emails. Con eso responde con datos reales y cita de dónde los saca."
-            action={
-              <>
-                <UploadButton projectId={projectId} />
-                <PasteButton projectId={projectId} />
-              </>
-            }
-          />
-        ) : (
-          <ul className="divide-y divide-border">
-            {sources.map((s) => (
-              <li key={s.id} className="py-4 text-sm first:pt-0 last:pb-0">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{s.name}</span>
-                      <Badge>{KIND_LABEL[s.kind]}</Badge>
-                      <Badge tone={s.reliability === "truth" ? "success" : "neutral"}>
-                        {s.reliability === "truth" ? "Fuente de verdad" : "Orientativa"}
-                      </Badge>
-                      {s.validatedAt ? (
-                        <Badge tone="accent">Validada</Badge>
-                      ) : (
-                        <Badge tone="warning">Sin validar</Badge>
-                      )}
-                    </div>
-                    <div className="mt-1 text-xs text-muted">
-                      Actualizada {formatDateTime(s.lastSyncedAt)}
-                    </div>
-                    {s.tables.length > 0 ? (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {s.tables.map((t) => (
-                          <Link
-                            key={t.id}
-                            href={`/app/projects/${projectId}/knowledge/tables/${t.id}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-xs transition-colors hover:border-accent/50 hover:bg-accent/5 hover:text-accent"
-                          >
-                            <Table2 className="size-3.5" />
-                            {t.name} · {t.rowCount} filas
-                          </Link>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    <form
-                      action={setSourceReliability.bind(
-                        null,
-                        projectId,
-                        s.id,
-                        s.reliability === "truth" ? "reference" : "truth",
-                      )}
-                    >
-                      <Button variant="ghost">
-                        {s.reliability === "truth"
-                          ? "Marcar como orientativa"
-                          : "Marcar como fuente de verdad"}
-                      </Button>
-                    </form>
-                    <form action={validateSource.bind(null, projectId, s.id, !s.validatedAt)}>
-                      <Button variant="ghost">
-                        <ShieldCheck className="size-4" />
-                        {s.validatedAt ? "Quitar validación" : "Validar"}
-                      </Button>
-                    </form>
-                    <form action={removeSource.bind(null, projectId, s.id)}>
-                      <Button variant="dangerGhost" aria-label={`Eliminar ${s.name}`}>
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </form>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+      />
 
-      {sources.length > 0 ? (
-        <Card
-          title="Pregúntale al conocimiento"
-          description="Búsqueda en los documentos del proyecto, con la cita de cada fragmento."
-        >
-          <SearchBox action={searchProjectKnowledge.bind(null, projectId)} />
-        </Card>
-      ) : null}
-    </div>
+      {sources.length === 0 ? (
+        <EmptyState
+          icon={<BookOpen />}
+          title="Los agentes todavía no saben nada de este proyecto"
+          description="Sube tus tarifas, presentaciones, condiciones o ejemplos de emails. Con eso responden con datos reales y citan de dónde los sacan."
+          action={
+            <>
+              <UploadButton projectId={projectId} />
+              <PasteButton projectId={projectId} />
+            </>
+          }
+        />
+      ) : (
+        <div className="space-y-6">
+          <Card
+            title="Pregúntale al conocimiento"
+            description="Comprueba qué respondería un agente: contesta solo con lo que has subido y te dice de dónde sale."
+          >
+            <AskBox projectId={projectId} action={askKnowledge.bind(null, projectId)} />
+          </Card>
+
+          <CardGrid>
+            {sources.map((s) => {
+              const kind = describeSource(s);
+              const rows = s.tables.reduce((n, t) => n + t.rowCount, 0);
+              return (
+                <EntityCard
+                  key={s.id}
+                  href={`/app/projects/${projectId}/knowledge/${s.id}`}
+                  icon={kind.icon}
+                  title={s.name}
+                  meta={
+                    <Meta
+                      items={[
+                        kind.label,
+                        s.tables.length > 0
+                          ? `${s.tables.length === 1 ? "1 tabla" : `${s.tables.length} tablas`}, ${rows} filas`
+                          : kind.detail,
+                      ]}
+                    />
+                  }
+                  description={
+                    s.tables.length > 0
+                      ? s.tables.map((t) => t.name).join(" · ")
+                      : (s.description ?? undefined)
+                  }
+                  footer={<span className="text-xs text-muted">Añadido el {formatDate(s.createdAt)}</span>}
+                />
+              );
+            })}
+          </CardGrid>
+        </div>
+      )}
+    </>
   );
 }

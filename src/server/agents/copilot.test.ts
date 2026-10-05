@@ -35,7 +35,6 @@ beforeAll(async () => {
   await ingestDocumentText(db, tenant, {
     projectId,
     name: "Objeciones",
-    reliability: "reference",
     text: "Si dicen que es caro: compara con el coste de hacerlo internamente.",
   });
 });

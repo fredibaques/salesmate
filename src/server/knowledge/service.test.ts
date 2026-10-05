@@ -4,7 +4,15 @@ import type { Db } from "../db/client";
 import { agentConfigs, connections, identities, projectIdentities, projects } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
 import { proposeAction } from "../gateway/gateway";
-import { ingestDocumentText, ingestTableFile, queryTable, searchKnowledge } from "./service";
+import {
+  getSourceDetail,
+  getSourceFile,
+  ingestDocumentText,
+  ingestTableFile,
+  queryTable,
+  reprocessTableSource,
+  searchKnowledge,
+} from "./service";
 
 let db: Db;
 let close: () => Promise<void>;
@@ -38,7 +46,6 @@ beforeAll(async () => {
   const { tables } = await ingestTableFile(db, tenant, {
     projectId,
     name: "Tarifas 2026",
-    reliability: "truth",
     filename: "tarifas.csv",
     data: Buffer.from(CSV),
   });
@@ -59,7 +66,7 @@ describe("queryTable", () => {
       "Alta básica",
       "Plan particulares",
     ]);
-    expect(result.source.reliability).toBe("truth");
+    expect(result.source.name).toBe("Tarifas 2026");
   });
 
   it("matches text case-insensitively and supports contains/in", async () => {
@@ -97,13 +104,11 @@ describe("searchKnowledge", () => {
     await ingestDocumentText(db, tenant, {
       projectId,
       name: "Objeciones",
-      reliability: "reference",
       text: "Si el cliente dice que ya tiene gestoría, recuerda que la reunión inicial es gratuita.\n\nSobre el precio: comparamos el coste total, no la tarifa.",
     });
     await ingestDocumentText(db, tenant, {
       projectId: otherProjectId,
       name: "Otro proyecto",
-      reliability: "reference",
       text: "La reunión de este otro proyecto no debe aparecer.",
     });
   });
@@ -119,6 +124,12 @@ describe("searchKnowledge", () => {
     expect(hits.map((h) => h.sourceName)).toEqual(["Objeciones"]);
   });
 
+  it("also finds table rows, with their column names", async () => {
+    const hits = await searchKnowledge(db, tenant, { projectId, query: "alta urgente precio" });
+    expect(hits[0].sourceName).toBe("Tarifas 2026");
+    expect(hits[0].content).toContain("Servicio: Alta urgente · Segmento: b2b · Precio: 89,5");
+  });
+
   it("stays within the project", async () => {
     const hits = await searchKnowledge(db, tenant, { projectId: otherProjectId, query: "gratuita" });
     expect(hits).toEqual([]);
@@ -126,7 +137,7 @@ describe("searchKnowledge", () => {
 });
 
 describe("knowledge backs figures in outbound messages", () => {
-  it("lets a cited truth table support a price in an email", async () => {
+  it("lets a cited table support a price in an email", async () => {
     const identityId = await withTenant(db, tenant, async (tx) => {
       const [conn] = await tx
         .insert(connections)
@@ -181,5 +192,52 @@ describe("knowledge backs figures in outbound messages", () => {
       citations: [{ sourceId: table.sourceId, ref: rows[0].id }],
     });
     expect(cited.outcome).toBe("executed");
+  });
+});
+
+describe("original files and source detail", () => {
+  it("keeps the uploaded file and the full text", async () => {
+    const { source } = await ingestDocumentText(db, tenant, {
+      projectId,
+      name: "Guion",
+      text: "Primer párrafo.\n\nSegundo párrafo.",
+      file: { filename: "guion.md", data: Buffer.from("# Guion") },
+    });
+    const file = await getSourceFile(db, tenant, source.id);
+    expect(file).toMatchObject({ filename: "guion.md", mimeType: "text/markdown", size: 7 });
+    expect(file!.data.toString("utf8")).toBe("# Guion");
+    const detail = await getSourceDetail(db, tenant, source.id);
+    expect(detail?.text).toBe("Primer párrafo.\n\nSegundo párrafo.");
+    expect(detail?.file?.filename).toBe("guion.md");
+  });
+});
+
+describe("reprocessTableSource", () => {
+  it("rebuilds a sheet imported with a merged title as its header", async () => {
+    // How the old parser stored a sheet whose first row was a merged title.
+    const csv = [
+      "Precios base,Precios base,Precios base",
+      "Precios sin compromiso.,Precios sin compromiso.,Precios sin compromiso.",
+      "Trámite,Honorarios,Total con IVA",
+      "↪ Transferencia,30,98.5945",
+      "↪ Matriculación,40,154.7645",
+      "› Los precios no incluyen IVA,,",
+    ].join("\n");
+    const { source } = await ingestTableFile(db, tenant, {
+      projectId: otherProjectId,
+      name: "Precios",
+      filename: "precios.csv",
+      data: Buffer.from(csv),
+    });
+    const tables = await reprocessTableSource(db, tenant, source.id);
+    expect(tables.map((t) => t.name)).toEqual(["Precios base"]);
+    const result = await queryTable(db, tenant, { tableId: tables[0].id });
+    expect(result.rows.map((r) => r.data)).toEqual([
+      { tramite: "Transferencia", honorarios: 30, total_con_iva: 98.5945 },
+      { tramite: "Matriculación", honorarios: 40, total_con_iva: 154.7645 },
+    ]);
+    const detail = await getSourceDetail(db, tenant, source.id);
+    expect(detail?.tables[0].description).toBe("Precios sin compromiso.");
+    expect(detail?.source.exposedObjects.notes).toEqual(["Los precios no incluyen IVA"]);
   });
 });

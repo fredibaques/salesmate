@@ -39,13 +39,13 @@ const citationSchema = z.object({
 });
 
 /** Read-only tools: the "see" layer. */
-export function knowledgeTools(ctx: AgentToolContext): AgentTool[] {
+export function knowledgeTools(ctx: Pick<AgentToolContext, "db" | "orgId" | "projectId">): AgentTool[] {
   const tenant = { orgId: ctx.orgId };
   return [
     defineTool({
       name: "search_knowledge",
       description:
-        "Busca en los documentos del proyecto (presentaciones, FAQs, objeciones, condiciones). Devuelve fragmentos con sourceId y chunkId para citarlos. Úsalo antes de afirmar cualquier hecho sobre la oferta.",
+        "Busca en todo el conocimiento del proyecto: documentos (presentaciones, FAQs, objeciones, condiciones) y el contenido de sus tablas (tarifas, catálogos). Devuelve fragmentos con sourceId y chunkId para citarlos. Úsalo antes de afirmar cualquier hecho sobre la oferta.",
       input: z.object({ query: z.string().min(2).describe("Qué buscas, en lenguaje natural") }),
       run: async ({ query }) => {
         const hits = await searchKnowledge(ctx.db, tenant, { projectId: ctx.projectId, query, limit: 6 });
@@ -53,7 +53,6 @@ export function knowledgeTools(ctx: AgentToolContext): AgentTool[] {
           sourceId: h.sourceId,
           chunkId: h.chunkId,
           source: h.sourceName,
-          reliability: h.reliability,
           content: h.content,
         }));
       },
@@ -61,7 +60,7 @@ export function knowledgeTools(ctx: AgentToolContext): AgentTool[] {
     defineTool({
       name: "list_tables",
       description:
-        "Lista las tablas de datos del proyecto (tarifas, catálogos…) con sus columnas. Las de fiabilidad 'truth' son las únicas válidas para dar precios o condiciones.",
+        "Lista las tablas de datos del proyecto (tarifas, catálogos…) con su nota y sus columnas. Cualquier precio o condición que des debe salir de aquí o de los documentos.",
       input: z.object({}),
       run: async () =>
         withTenant(ctx.db, tenant, async (tx) => {
@@ -69,11 +68,11 @@ export function knowledgeTools(ctx: AgentToolContext): AgentTool[] {
             .select({
               tableId: knowledgeTables.id,
               name: knowledgeTables.name,
+              description: knowledgeTables.description,
               columns: knowledgeTables.columns,
               rowCount: knowledgeTables.rowCount,
               sourceId: knowledgeSources.id,
               source: knowledgeSources.name,
-              reliability: knowledgeSources.reliability,
             })
             .from(knowledgeTables)
             .innerJoin(knowledgeSources, eq(knowledgeSources.id, knowledgeTables.sourceId))
@@ -90,7 +89,6 @@ export function knowledgeTools(ctx: AgentToolContext): AgentTool[] {
         const result = await queryTable(ctx.db, tenant, query);
         return {
           sourceId: result.source.id,
-          reliability: result.source.reliability,
           columns: result.table.columns,
           rows: result.rows.map((r) => ({ rowId: r.id, ...r.data })),
         };
