@@ -4,6 +4,7 @@ import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getProject } from "@/server/services/projects";
 import { saveProject } from "../actions";
+import { SettingsNav } from "../section-navs";
 
 export const metadata = { title: "Ajustes del proyecto" };
 
@@ -28,9 +29,10 @@ export default async function ProjectSettingsPage({
 
   return (
     <>
+      <SettingsNav projectId={projectId} />
       <PageHeader
         level="section"
-        title="Ajustes"
+        title="Datos del proyecto"
         description="Datos básicos del proyecto y cuándo pueden los agentes contactar con terceros."
       />
       <div className="max-w-3xl">

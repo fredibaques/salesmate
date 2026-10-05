@@ -3,7 +3,7 @@
 import { X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { buttonBase, buttonStyles, cx, type ButtonVariant } from "./ui";
+import { buttonClass, cx, type ButtonSize, type ButtonVariant } from "./ui";
 
 type ModalApi = { close: () => void };
 
@@ -27,6 +27,7 @@ export function ModalButton({
   children,
   variant = "primary",
   size = "md",
+  width = "md",
   className,
 }: {
   label: ReactNode;
@@ -35,7 +36,10 @@ export function ModalButton({
   description?: ReactNode;
   children: ReactNode;
   variant?: ButtonVariant;
-  size?: "md" | "lg";
+  /** Size of the button that opens the modal. */
+  size?: ButtonSize;
+  /** Width of the modal. */
+  width?: "md" | "lg";
   className?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -55,7 +59,7 @@ export function ModalButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={cx(buttonBase, buttonStyles[variant], className)}
+        className={cx(buttonClass({ variant, size }), className)}
       >
         {icon}
         {label}
@@ -69,7 +73,7 @@ export function ModalButton({
         }}
         className={cx(
           "m-auto max-h-[90vh] w-[calc(100%-2rem)] overflow-hidden rounded-2xl border border-border bg-surface p-0 text-left font-normal text-foreground shadow-2xl",
-          size === "lg" ? "max-w-2xl" : "max-w-lg",
+          width === "lg" ? "max-w-2xl" : "max-w-lg",
         )}
       >
         {open ? (
@@ -83,7 +87,7 @@ export function ModalButton({
                 type="button"
                 onClick={close}
                 aria-label="Cerrar"
-                className="-mr-2 rounded-lg p-1.5 text-muted transition-colors hover:bg-background hover:text-foreground"
+                className={cx(buttonClass({ variant: "ghost", size: "sm", iconOnly: true }), "-mr-2 text-muted")}
               >
                 <X className="size-4" />
               </button>

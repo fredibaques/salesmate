@@ -5,8 +5,7 @@ import { ActionForm } from "@/components/action-form";
 import {
   Badge,
   Button,
-  buttonBase,
-  buttonStyles,
+  buttonClass,
   Card,
   cx,
   EmptyState,
@@ -90,7 +89,7 @@ export default async function ProspectsPage({
               <RunNowButton projectId={projectId} />
               <a
                 href={`${exportUrl}?include=pending`}
-                className={cx(buttonBase, pendingExport > 0 ? buttonStyles.primary : buttonStyles.secondary)}
+                className={buttonClass({ variant: pendingExport > 0 ? "primary" : "secondary" })}
               >
                 <Download className="size-4" />
                 Exportar nuevos ({pendingExport})
@@ -215,7 +214,7 @@ export default async function ProspectsPage({
                         )}
                       >
                         {p.status === "discarded" ? (
-                          <Button variant="ghost" aria-label={`Recuperar ${p.companyName}`} title="Recuperar">
+                          <Button variant="ghost" size="sm" iconOnly aria-label={`Recuperar ${p.companyName}`} title="Recuperar">
                             <Undo2 className="size-4" />
                           </Button>
                         ) : (

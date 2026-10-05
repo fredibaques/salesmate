@@ -7,6 +7,7 @@ import { getDb } from "@/server/db/client";
 import { isLlmConfigured } from "@/server/llm/client";
 import { getSalesProfile } from "@/server/services/agents";
 import { draftOffer, saveOffer } from "./actions";
+import { KnowledgeNav } from "../section-navs";
 
 export const metadata = { title: "Oferta y cliente" };
 
@@ -31,6 +32,7 @@ export default async function OfferPage({ params }: PageProps<"/app/projects/[pr
 
   return (
     <>
+      <KnowledgeNav projectId={projectId} />
       <PageHeader
         level="section"
         title="Oferta y cliente"

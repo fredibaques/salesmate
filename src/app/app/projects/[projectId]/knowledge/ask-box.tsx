@@ -4,7 +4,7 @@ import { ArrowUp, FileText, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useActionState } from "react";
 import { RichText } from "@/components/rich-text";
-import { buttonBase, buttonStyles, cx } from "@/components/ui";
+import { buttonClass } from "@/components/ui";
 import type { AskState } from "../actions";
 
 const EXAMPLES = ["¿Cuánto cuesta el servicio principal?", "¿Qué condiciones de pago hay?"];
@@ -33,7 +33,7 @@ export function AskBox({
         <button
           type="submit"
           disabled={pending}
-          className={cx(buttonBase, buttonStyles.primary, "shrink-0")}
+          className={buttonClass({ variant: "primary" })}
           aria-label="Preguntar"
         >
           <ArrowUp className="size-4" />

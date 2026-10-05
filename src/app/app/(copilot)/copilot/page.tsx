@@ -1,29 +1,25 @@
 import { Bot, FolderKanban } from "lucide-react";
-import { Card, EmptyState, PageHeader } from "@/components/ui";
+import { Card, EmptyState } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { isLlmConfigured } from "@/server/llm/client";
 import { listProjects } from "@/server/services/projects";
-import { NewProjectButton } from "../projects/new-project";
+import { NewProjectButton } from "../../projects/new-project";
 import { CopilotChat } from "./chat";
 
-export const metadata = { title: "Copiloto" };
+export const metadata = { title: "Copilot" };
 
 export default async function CopilotPage() {
   const tenant = await requireTenant();
   const projects = await listProjects(getDb(), tenant);
   return (
     <>
-      <PageHeader
-        title="Copiloto"
-        description="Tu asistente comercial sobre la información de cada proyecto."
-      />
       {!isLlmConfigured() ? (
         <Card>
           <EmptyState
             icon={<Bot />}
             title="La IA no está configurada"
-            description="Añade ANTHROPIC_API_KEY en las variables de entorno del servidor y vuelve a desplegar para usar el copiloto."
+            description="Añade ANTHROPIC_API_KEY en las variables de entorno del servidor y vuelve a desplegar para usar Copilot."
           />
         </Card>
       ) : projects.length === 0 ? (
@@ -31,7 +27,7 @@ export default async function CopilotPage() {
           <EmptyState
             icon={<FolderKanban />}
             title="Crea un proyecto primero"
-            description="El copiloto responde con la información de cada proyecto: sus documentos, tarifas y conversaciones."
+            description="Copilot responde con la información de cada proyecto: sus documentos, tarifas y conversaciones."
             action={<NewProjectButton />}
           />
         </Card>

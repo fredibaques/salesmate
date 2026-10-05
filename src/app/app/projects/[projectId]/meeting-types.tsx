@@ -44,7 +44,7 @@ function NewMeetingTypeButton({
       icon={<Plus className="size-4" />}
       title="Nuevo tipo de reunión"
       description="Define cuándo y cuánto duran las reuniones que pueden ofrecer los agentes."
-      size="lg"
+      width="lg"
     >
       <ActionForm action={addMeetingType.bind(null, projectId)} submitLabel="Crear" className="space-y-4">
         <Field label="Nombre">
@@ -149,7 +149,7 @@ export function MeetingTypesCard({
                 <span className="flex items-center gap-2">
                   <Badge>{KINDS[t.kind]}</Badge>
                   <form action={removeMeetingType.bind(null, projectId, t.id)}>
-                    <Button variant="dangerGhost" aria-label={`Eliminar ${t.name}`}>
+                    <Button variant="dangerGhost" size="sm" iconOnly aria-label={`Eliminar ${t.name}`}>
                       <Trash2 className="size-4" />
                     </Button>
                   </form>

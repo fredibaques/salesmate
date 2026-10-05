@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
+import { buttonClass, cx } from "@/components/ui";
 import { ask } from "./actions";
 
 type Turn = { role: "user" | "assistant"; content: string; actions?: number };
@@ -35,7 +36,7 @@ export function CopilotChat({ projects }: { projects: { id: string; name: string
   }
 
   return (
-    <div className="flex h-[calc(100vh-12rem)] flex-col rounded-xl border border-border bg-surface">
+    <div className="flex h-[calc(100vh-15rem)] min-h-96 flex-col rounded-xl border border-border bg-surface">
       <div className="flex items-center gap-3 border-b border-border p-3 text-sm">
         <span className="text-muted">Proyecto</span>
         <select
@@ -55,7 +56,7 @@ export function CopilotChat({ projects }: { projects: { id: string; name: string
         {turns.length ? (
           <button
             onClick={() => setTurns([])}
-            className="ml-auto rounded-lg px-2 py-1 text-muted transition-colors hover:bg-background hover:text-foreground"
+            className={cx(buttonClass({ variant: "ghost", size: "sm" }), "ml-auto")}
           >
             Nueva conversación
           </button>
@@ -67,8 +68,8 @@ export function CopilotChat({ projects }: { projects: { id: string; name: string
           <div className="mx-auto mt-10 max-w-xl text-center">
             <p className="text-sm text-muted">
               Pregunta sobre tu oferta, tus tarifas, tus contactos o pide que prepare un email o una tarea.
-              Responde con el conocimiento del proyecto y cita sus fuentes; lo que proponga hacer pasa por tu
-              bandeja.
+              Responde con el conocimiento del proyecto y cita sus fuentes; lo que proponga hacer espera tu
+              aprobación en «Por aprobar».
             </p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
               {SUGGESTIONS.map((s) => (
@@ -94,7 +95,7 @@ export function CopilotChat({ projects }: { projects: { id: string; name: string
             </div>
             {t.actions ? (
               <Link href="/app/inbox" className="mt-1 block text-xs text-accent hover:underline">
-                {t.actions} acción(es) propuesta(s) → revisar en la bandeja
+                {t.actions} acción(es) propuesta(s) → revisar en «Por aprobar»
               </Link>
             ) : null}
           </div>
@@ -123,10 +124,7 @@ export function CopilotChat({ projects }: { projects: { id: string; name: string
           placeholder="Escribe tu pregunta…"
           className="flex-1 resize-none rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
         />
-        <button
-          disabled={pending || !draft.trim()}
-          className="rounded-lg bg-accent px-4 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent/90 disabled:opacity-50"
-        >
+        <button disabled={pending || !draft.trim()} className={buttonClass({ variant: "primary" })}>
           Enviar
         </button>
       </form>

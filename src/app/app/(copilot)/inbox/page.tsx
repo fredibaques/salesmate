@@ -9,7 +9,7 @@ import { getActionDefinition } from "@/server/gateway/definitions";
 import { listActions, listOrgIdentities, listProjects } from "@/server/services/projects";
 import { approve, cancel, reject, simulateAgentProposal } from "./actions";
 
-export const metadata = { title: "Bandeja" };
+export const metadata = { title: "Por aprobar" };
 
 type Row = Awaited<ReturnType<typeof listActions>>[number];
 
@@ -122,17 +122,18 @@ export default async function InboxPage() {
   return (
     <>
       <PageHeader
-        title="Bandeja"
-        description="Todo lo que los agentes quieren hacer y necesita tu decisión, de todos tus proyectos. Puedes editar antes de aprobar."
+        level="section"
+        title="Por aprobar"
+        description="Lo que los agentes quieren hacer y necesita tu decisión, de todos tus proyectos. Puedes editarlo antes de aprobar."
         actions={
           projects.length > 0 ? (
             <ModalButton
               label="Probar el flujo de aprobación"
               icon={<FlaskConical className="size-4" />}
               title="Probar el flujo de aprobación"
-              description="Propone una acción como si la hubiera preparado un agente. Pasa por las mismas reglas que una real y aparecerá en la bandeja."
+              description="Propone una acción como si la hubiera preparado un agente. Pasa por las mismas reglas que una real y aparecerá aquí."
               variant="secondary"
-              size="lg"
+              width="lg"
             >
               <SimulateProposal projects={projects} emailIdentityId={emailIdentity?.id} />
             </ModalButton>

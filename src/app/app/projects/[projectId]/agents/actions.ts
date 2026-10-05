@@ -71,7 +71,7 @@ export async function removeAgentAction(projectId: string, type: string) {
   const tenant = await admin();
   await removeAgent(getDb(), tenant, projectId, agentType(type));
   refresh(projectId);
-  redirect(`/app/projects/${projectId}/agents`);
+  redirect(`/app/projects/${projectId}`);
 }
 
 export async function toggleAgent(projectId: string, type: string, enabled: boolean) {
