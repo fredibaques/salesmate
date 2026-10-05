@@ -9,10 +9,9 @@ export type FormState = { ok: boolean; message: string } | null;
 export type FormAction = (state: FormState, formData: FormData) => Promise<FormState>;
 
 /**
- * Form bound to a server action that returns a status message.
- * Inside a modal it adds «Cancelar», and on success closes the modal and
- * shows the message as a toast; elsewhere the message appears next to the
- * button.
+ * Form bound to a server action that returns a status message. Success
+ * shows as a toast (and closes the enclosing modal); errors appear next to
+ * the button. Inside a modal it adds «Cancelar».
  */
 export function ActionForm({
   action,
@@ -31,16 +30,17 @@ export function ActionForm({
 }) {
   const modal = useModal();
   const toast = useToast();
-  // In a modal, react as soon as the server answers: the refreshed page may
-  // move or remove the button that opened it (e.g. the first item replaces
-  // an empty state), unmounting this form before an effect could run.
+  // Success is confirmed with a toast as soon as the server answers: the
+  // refreshed page may remount this form (new version) or, in a modal, move
+  // or remove the button that opened it, so an inline message or an effect
+  // would be lost. Errors stay next to the button.
   const [state, formAction, pending] = useActionState<FormState, FormData>(
-    modal
+    toast
       ? async (prev, formData) => {
           const result = await action(prev, formData);
           if (result?.ok) {
-            toast?.({ ok: true, message: result.message });
-            modal.close();
+            toast({ ok: true, message: result.message });
+            modal?.close();
           }
           return result;
         }
@@ -48,7 +48,7 @@ export function ActionForm({
     null,
   );
 
-  const inlineStatus = state && !(modal && state.ok);
+  const inlineStatus = state && !(toast && state.ok);
 
   return (
     <form

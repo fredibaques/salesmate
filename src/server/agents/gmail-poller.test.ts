@@ -2,10 +2,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, seedOrg } from "../../../tests/helpers/db";
 import { mockFetch } from "../../../tests/helpers/fetch";
 import { googleProvider } from "../connectors/google";
-import { saveGoogleConnection, setProjectIdentity } from "../connectors/service";
+import { saveGoogleConnection } from "../connectors/service";
 import type { Db } from "../db/client";
 import { identities, inboundEvents, projects } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
+import { addAgent, saveAgentChannels } from "../services/agents";
 import { pollMailboxes } from "./gmail-poller";
 import { leadFromEmail } from "./leads";
 
@@ -54,12 +55,9 @@ beforeAll(async () => {
   const mailbox = await withTenant(db, tenant, async (tx) =>
     (await tx.select().from(identities)).find((i) => i.kind === "email")!,
   );
-  await setProjectIdentity({ db }, tenant, {
-    projectId: project.id,
-    identityId: mailbox.id,
-    assigned: true,
-    isDefault: true,
-  });
+  // The inbound agent is told to read this mailbox.
+  await addAgent(db, tenant, project.id, "inbound", "b2b_consultative");
+  await saveAgentChannels(db, tenant, project.id, "inbound", { mailboxId: mailbox.id, readMailbox: true });
 });
 
 afterAll(async () => close());

@@ -26,26 +26,24 @@ export default async function ProjectLayout({ children, params }: LayoutProps<"/
           action={toggleAgents.bind(null, project.id, !project.agentsPaused)}
           className="flex items-center gap-3"
         >
-          {project.agentsPaused ? (
-            <Badge tone="warning">Agentes pausados</Badge>
-          ) : (
-            <Badge tone="success">Agentes activos</Badge>
-          )}
-          <Button variant={project.agentsPaused ? "primary" : "danger"}>
-            {project.agentsPaused ? "Reanudar agentes" : "Pausar todos los agentes"}
+          {project.agentsPaused ? <Badge tone="warning">Proyecto en pausa: ningún agente actúa</Badge> : null}
+          <Button
+            variant={project.agentsPaused ? "primary" : "ghost"}
+            title="Freno de emergencia: detiene a la vez todos los agentes del proyecto"
+          >
+            {project.agentsPaused ? "Reanudar el proyecto" : "Pausar todo el proyecto"}
           </Button>
         </form>
       </div>
       <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-border">
         <TabLink href={base} exact>
-          General
+          Resumen
         </TabLink>
-        <TabLink href={`${base}/conversations`}>Conversaciones</TabLink>
-        <TabLink href={`${base}/playbooks`}>Playbooks</TabLink>
-        <TabLink href={`${base}/channels`}>Canales</TabLink>
+        <TabLink href={`${base}/agents`}>Agentes</TabLink>
+        <TabLink href={`${base}/offer`}>Oferta y cliente</TabLink>
         <TabLink href={`${base}/knowledge`}>Conocimiento</TabLink>
-        <TabLink href={`${base}/meetings`}>Reuniones</TabLink>
-        <TabLink href={`${base}/rules`}>Agentes y reglas</TabLink>
+        <TabLink href={`${base}/conversations`}>Conversaciones</TabLink>
+        <TabLink href={`${base}/rules`}>Reglas</TabLink>
       </nav>
       {children}
     </>

@@ -15,7 +15,7 @@ const admin = () => requireRole(["owner", "admin"]);
 export async function rotateKey(projectId: string) {
   const tenant = await admin();
   await rotateFormKey(getDb(), tenant, projectId);
-  revalidatePath(`/app/projects/${projectId}/conversations`);
+  revalidatePath(`/app/projects/${projectId}`, "layout");
 }
 
 export async function simulateLead(projectId: string, _: FormState, form: FormData): Promise<FormState> {

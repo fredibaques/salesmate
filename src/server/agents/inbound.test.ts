@@ -18,7 +18,7 @@ import {
 import { withTenant, type TenantContext } from "../db/tenant";
 import { decideAction, type GatewayDeps } from "../gateway/gateway";
 import { ingestTableFile } from "../knowledge/service";
-import { createPlaybook, setPlaybookStatus } from "../playbooks/service";
+import { addAgent, saveAgentChannels, setAgentEnabled } from "../services/agents";
 import { recordActionInConversation } from "./conversations";
 import { processInboundEvent, processPendingInbound } from "./inbound";
 
@@ -91,12 +91,9 @@ beforeAll(async () => {
       .values({ orgId: tenant.orgId, projectId: project.id, identityId: mailbox.id, isDefault: true });
     return { projectId: project.id, mailboxId: mailbox.id };
   }));
-  const playbook = await createPlaybook(db, tenant, {
-    projectId,
-    name: "Inbound empresas",
-    salesMotion: "b2b_consultative",
-  });
-  await setPlaybookStatus(db, tenant, playbook.id, "active");
+  await addAgent(db, tenant, projectId, "inbound", "b2b_consultative");
+  await saveAgentChannels(db, tenant, projectId, "inbound", { mailboxId });
+  await setAgentEnabled(db, tenant, projectId, "inbound", true);
   const ingested = await ingestTableFile(db, tenant, {
     projectId,
     name: "Tarifas",

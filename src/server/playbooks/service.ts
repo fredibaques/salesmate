@@ -1,7 +1,7 @@
-import { and, arrayContains, asc, desc, eq } from "drizzle-orm";
+import { and, arrayContains, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { audit } from "../audit";
 import type { Db } from "../db/client";
-import { playbooks, playbookVersions, type AgentType, type SalesMotion } from "../db/schema";
+import { agentConfigs, playbooks, playbookVersions, type AgentType, type SalesMotion } from "../db/schema";
 import { withTenant, type TenantContext, type Tx } from "../db/tenant";
 import { PLAYBOOK_TEMPLATES, playbookSpecSchema, type PlaybookSpec } from "./spec";
 
@@ -47,12 +47,28 @@ export async function getPlaybook(db: Db, tenant: Pick<TenantContext, "orgId">, 
   });
 }
 
-/** The active playbook an agent follows in a project (most recently updated wins). */
+/**
+ * The process an agent follows in a project: the playbook owned by the added
+ * agent, or (for data from before agents owned their process) the most
+ * recently updated active playbook for its type.
+ */
 export async function activePlaybookFor(
   tx: Tx,
   projectId: string,
   agentType: AgentType,
 ): Promise<PlaybookWithSpec | null> {
+  const [owned] = await tx
+    .select({ playbook: playbooks })
+    .from(playbooks)
+    .innerJoin(agentConfigs, eq(agentConfigs.id, playbooks.agentConfigId))
+    .where(
+      and(
+        eq(agentConfigs.projectId, projectId),
+        eq(agentConfigs.agentType, agentType),
+        isNotNull(agentConfigs.addedAt),
+      ),
+    );
+  if (owned) return loadCurrent(tx, owned.playbook);
   const [row] = await tx
     .select()
     .from(playbooks)
@@ -60,6 +76,7 @@ export async function activePlaybookFor(
       and(
         eq(playbooks.projectId, projectId),
         eq(playbooks.status, "active"),
+        isNull(playbooks.agentConfigId),
         arrayContains(playbooks.agentTypes, [agentType]),
       ),
     )
@@ -116,7 +133,13 @@ export async function savePlaybookVersion(
   db: Db,
   tenant: TenantContext,
   playbookId: string,
-  input: { spec: unknown; notes?: string; name?: string; agentTypes?: AgentType[] },
+  input: {
+    spec: unknown;
+    notes?: string;
+    name?: string;
+    agentTypes?: AgentType[];
+    salesMotion?: SalesMotion;
+  },
 ) {
   const spec = playbookSpecSchema.parse(input.spec);
   return withTenant(db, tenant, async (tx) => {
@@ -137,6 +160,7 @@ export async function savePlaybookVersion(
         currentVersion: version,
         ...(input.name ? { name: input.name } : {}),
         ...(input.agentTypes ? { agentTypes: input.agentTypes } : {}),
+        ...(input.salesMotion ? { salesMotion: input.salesMotion } : {}),
       })
       .where(eq(playbooks.id, playbookId))
       .returning();

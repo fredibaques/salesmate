@@ -1,8 +1,9 @@
-import { and, asc, eq, inArray, lt, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { ConnectorDeps } from "../connectors/service";
 import type { Db } from "../db/client";
 import {
+  agentConfigs,
   agentRuns,
   CONTACT_STATUSES,
   contacts,
@@ -17,7 +18,7 @@ import type { GatewayDeps } from "../gateway/gateway";
 import { runAgentLoop, defineTool, type AgentTool } from "../llm/agent-loop";
 import type { LlmClient } from "../llm/client";
 import { activePlaybookFor, type PlaybookWithSpec } from "../playbooks/service";
-import { renderPlaybook } from "../playbooks/spec";
+import { parseSalesProfile, renderPlaybook } from "../playbooks/spec";
 import { conversationRef, findOrCreateConversation, upsertContact, type Lead } from "./conversations";
 import { leadFromEmail, leadFromForm, looksAutomated, type GmailInboundPayload } from "./leads";
 import {
@@ -90,7 +91,12 @@ function systemPrompt(input: {
         : "- Ninguna asignada: no puedes enviar emails ni reservar reuniones; propone una tarea en el CRM o deriva."
     }${calendars.length ? "" : "\n(No hay calendario asignado: no reserves reuniones directamente; ofrece huecos solo si get_availability los devuelve.)"}`,
     playbook
-      ? renderPlaybook({ name: playbook.name, motion: playbook.salesMotion, spec: playbook.spec })
+      ? renderPlaybook({
+          name: playbook.name,
+          motion: playbook.salesMotion,
+          spec: playbook.spec,
+          profile: parseSalesProfile(project.salesProfile),
+        })
       : "## Playbook\nEste proyecto aún no tiene un playbook inbound activo. Limítate a un acuse de recibo cordial que confirme que alguien del equipo responderá pronto, y crea una tarea para que una persona lo atienda.",
   ].join("\n\n");
 }
@@ -417,11 +423,24 @@ export async function processInboundEvent(
 }
 
 /** Processes pending events of an organization (oldest first). */
+/**
+ * Processes queued leads of projects whose inbound agent is added and active.
+ * Leads of other projects stay queued until the agent is activated.
+ */
 export async function processPendingInbound(deps: InboundDeps, orgId: string, limit = 20) {
   const pending = await withTenant(deps.db, { orgId }, (tx) =>
     tx
       .select({ id: inboundEvents.id })
       .from(inboundEvents)
+      .innerJoin(
+        agentConfigs,
+        and(
+          eq(agentConfigs.projectId, inboundEvents.projectId),
+          eq(agentConfigs.agentType, "inbound"),
+          eq(agentConfigs.enabled, true),
+          isNotNull(agentConfigs.addedAt),
+        ),
+      )
       .where(
         or(
           eq(inboundEvents.status, "pending"),

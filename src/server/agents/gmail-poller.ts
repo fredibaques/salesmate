@@ -1,7 +1,7 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { openConnection, type ConnectorDeps } from "../connectors/service";
 import type { Db } from "../db/client";
-import { connections, identities, inboundEvents, projectIdentities } from "../db/schema";
+import { connections, identities, inboundEvents, projectConnections, projectIdentities } from "../db/schema";
 import { withTenant } from "../db/tenant";
 
 /**
@@ -34,8 +34,17 @@ export async function pollMailboxes(
           readable.map((r) => r.identity.id),
         ),
       );
+    // Only mailboxes an agent was told to read: their project link carries the read capability.
+    const readers = await tx
+      .select({ projectId: projectConnections.projectId, connectionId: projectConnections.connectionId })
+      .from(projectConnections)
+      .where(sql`'email.list_messages' = any(${projectConnections.capabilities})`);
     return readable.flatMap((r) => {
-      const assigned = links.filter((l) => l.identityId === r.identity.id);
+      const assigned = links.filter(
+        (l) =>
+          l.identityId === r.identity.id &&
+          readers.some((x) => x.projectId === l.projectId && x.connectionId === r.connection.id),
+      );
       // A mailbox shared by several projects feeds its default project.
       const project = assigned.find((l) => l.isDefault) ?? assigned[0];
       return project ? [{ ...r, projectId: project.projectId }] : [];

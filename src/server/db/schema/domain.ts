@@ -80,6 +80,8 @@ export const projects = pgTable(
     settings: jsonb("settings").$type<ProjectSettings>().notNull().default({}),
     /** Secret used by the project's web forms to post leads (POST /api/inbound/form/:projectId). */
     inboundFormKey: text("inbound_form_key"),
+    /** What the project sells and to whom, shared by every agent (see playbooks/spec.ts). */
+    salesProfile: jsonb("sales_profile").$type<Record<string, unknown>>().notNull().default({}),
     createdBy: text("created_by"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -276,6 +278,17 @@ export const complianceRules = pgTable(
 export const AGENT_TYPES = ["outbound", "inbound", "account_manager", "intelligence", "copilot"] as const;
 export type AgentType = (typeof AGENT_TYPES)[number];
 
+export type AgentChannels = {
+  /** Identity (email) the agent writes from. */
+  mailboxId?: string | null;
+  /** Read the mailbox for incoming leads (inbound). */
+  readMailbox?: boolean;
+  /** Identity (calendar) where meetings are booked. */
+  calendarId?: string | null;
+  /** CRM connection used to look up and record contacts. */
+  crmConnectionId?: string | null;
+};
+
 export type AutonomyConfig = {
   /** 0 suggest · 1 draft (approval) · 2 autonomous within limits · 3 autonomous */
   default: number;
@@ -295,9 +308,13 @@ export const agentConfigs = pgTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     agentType: text("agent_type", { enum: AGENT_TYPES }).notNull(),
+    /** When the user added this agent to the project; null = not part of the project. */
+    addedAt: timestamp("added_at", { withTimezone: true }),
     enabled: boolean("enabled").notNull().default(false),
     autonomy: jsonb("autonomy").$type<AutonomyConfig>().notNull().default({ default: 1 }),
     limits: jsonb("limits").$type<LimitsConfig>().notNull().default({}),
+    /** Mailbox, calendar and CRM this agent works with. */
+    channels: jsonb("channels").$type<AgentChannels>().notNull().default({}),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -624,6 +641,10 @@ export const playbooks = pgTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    /** The agent whose sales process this is (one process per agent). */
+    agentConfigId: uuid("agent_config_id")
+      .unique()
+      .references(() => agentConfigs.id, { onDelete: "cascade" }),
     salesMotion: text("sales_motion", { enum: SALES_MOTIONS }).notNull(),
     /** Agents that follow this playbook. */
     agentTypes: text("agent_types")

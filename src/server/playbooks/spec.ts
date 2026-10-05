@@ -28,6 +28,20 @@ export const NEXT_STEP_LABELS: Record<NextStep, string> = {
   nurture: "Nutrir hasta que muestre intención",
 };
 
+/** What each outcome means for the person configuring the agent. */
+export const NEXT_STEP_DESCRIPTIONS: Record<NextStep, string> = {
+  meeting: "Ofrece huecos libres de tu calendario y reserva la reunión con invitación.",
+  callback: "Propone una franja para que alguien del equipo le llame.",
+  send_quote: "Prepara un presupuesto o propuesta con los precios de tus tablas de tarifas.",
+  payment_link: "Envía el enlace para contratar o pagar online.",
+  collect_data: "Pide los datos o documentos que necesitas antes de seguir.",
+  handoff: "Pasa el contacto a una persona de tu equipo con un resumen.",
+  nurture: "Sigue en contacto con información útil hasta que muestre interés.",
+};
+
+/** Steps that need a meeting type (and a calendar). */
+export const CALENDAR_STEPS: readonly NextStep[] = ["meeting", "callback"];
+
 export const SALES_MOTION_LABELS: Record<SalesMotion, string> = {
   b2b_consultative: "B2B consultivo",
   b2b_transactional: "B2B transaccional",
@@ -76,6 +90,47 @@ export const playbookSpecSchema = z.object({
   responseTimeMinutes: z.number().int().min(1).max(10_080).default(15),
 });
 export type PlaybookSpec = z.infer<typeof playbookSpecSchema>;
+
+/**
+ * What the project sells and to whom. Shared by every agent of the project;
+ * each agent's process (its playbook) adds its own goal, next steps and rules.
+ */
+export const salesProfileSchema = z.object({
+  /** What we sell, in one or two sentences. */
+  offer: z.string().trim().default(""),
+  valueProposition: z.string().trim().default(""),
+  segment: z
+    .object({ include: lines, exclude: lines, geography: lines })
+    .default({ include: [], exclude: [], geography: [] }),
+  decisionMakers: lines,
+  pains: lines,
+  objections: z
+    .array(z.object({ objection: z.string().trim().min(1), response: z.string().trim().min(1) }))
+    .default([]),
+  tone: z.string().trim().default(""),
+  signature: z.string().trim().default(""),
+});
+export type SalesProfile = z.infer<typeof salesProfileSchema>;
+
+/** Parses a stored profile, tolerating old or partial data. */
+export function parseSalesProfile(raw: unknown): SalesProfile {
+  const parsed = salesProfileSchema.safeParse(raw ?? {});
+  return parsed.success ? parsed.data : salesProfileSchema.parse({});
+}
+
+/** Fields of a playbook spec that belong to the agent rather than the project. */
+export const AGENT_PROCESS_FIELDS = [
+  "objective",
+  "customerType",
+  "nextSteps",
+  "qualification",
+  "disqualifiers",
+  "requiredData",
+  "rules",
+  "handoff",
+  "meetingTypeId",
+  "responseTimeMinutes",
+] as const;
 
 const base = {
   segment: { include: [], exclude: [], geography: [] },
@@ -157,16 +212,47 @@ function bullet(items: string[]) {
   return items.map((i) => `- ${i}`).join("\n");
 }
 
-/** Renders a playbook as instructions for an agent's system prompt. */
-export function renderPlaybook(input: { name: string; motion: SalesMotion; spec: PlaybookSpec }): string {
-  const { spec } = input;
+/**
+ * The project's sales profile wins over the same fields left in older
+ * playbook specs, which kept everything in one place.
+ */
+function withProfile(spec: PlaybookSpec, profile?: SalesProfile): PlaybookSpec {
+  if (!profile) return spec;
+  const pick = <T>(own: T, fallback: T, empty: (v: T) => boolean) => (empty(own) ? fallback : own);
+  const noText = (v: string) => !v;
+  const noList = (v: unknown[]) => v.length === 0;
+  return {
+    ...spec,
+    valueProposition: pick(profile.valueProposition, spec.valueProposition, noText),
+    segment: {
+      include: pick(profile.segment.include, spec.segment.include, noList),
+      exclude: pick(profile.segment.exclude, spec.segment.exclude, noList),
+      geography: pick(profile.segment.geography, spec.segment.geography, noList),
+    },
+    decisionMakers: pick(profile.decisionMakers, spec.decisionMakers, noList),
+    pains: pick(profile.pains, spec.pains, noList),
+    objections: pick(profile.objections, spec.objections, noList),
+    tone: pick(profile.tone, spec.tone, noText),
+    signature: pick(profile.signature, spec.signature, noText),
+  };
+}
+
+/** Renders a playbook (plus the project's sales profile) as instructions for an agent's system prompt. */
+export function renderPlaybook(input: {
+  name: string;
+  motion: SalesMotion;
+  spec: PlaybookSpec;
+  profile?: SalesProfile;
+}): string {
+  const spec = withProfile(input.spec, input.profile);
   const parts: string[] = [
     `## Playbook: ${input.name}`,
     `Modelo de venta: ${SALES_MOTION_LABELS[input.motion]} (cliente ${spec.customerType.toUpperCase()}).`,
   ];
+  if (input.profile?.offer) parts.push(`Qué vendemos: ${input.profile.offer}`);
   if (spec.objective) parts.push(`Objetivo: ${spec.objective}`);
   parts.push(
-    `Siguientes pasos permitidos, por orden de preferencia:\n${bullet(spec.nextSteps.map((s) => `${s}: ${NEXT_STEP_LABELS[s]}`))}`,
+    `Cómo debe terminar la conversación, por orden de preferencia (usa el siguiente solo si el anterior no es posible):\n${bullet(spec.nextSteps.map((s) => `${s}: ${NEXT_STEP_LABELS[s]}. ${NEXT_STEP_DESCRIPTIONS[s]}`))}`,
   );
   if (spec.segment.include.length) parts.push(`A quién nos dirigimos:\n${bullet(spec.segment.include)}`);
   if (spec.segment.exclude.length) parts.push(`A quién NO:\n${bullet(spec.segment.exclude)}`);
