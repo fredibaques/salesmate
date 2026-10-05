@@ -22,6 +22,10 @@ describe("credential encryption", () => {
   it("signs and verifies short values", () => {
     const token = sign("org-1:user-1");
     expect(verifySigned(token)).toBe("org-1:user-1");
-    expect(verifySigned(token.replace(/.$/, (c) => (c === "A" ? "B" : "A")))).toBeNull();
+    // Tamper with the first character of the MAC: the last one carries base64 padding bits
+    // and swapping it does not always change the decoded bytes.
+    const [value, mac] = token.split(".");
+    const tampered = `${value}.${mac[0] === "A" ? "B" : "A"}${mac.slice(1)}`;
+    expect(verifySigned(tampered)).toBeNull();
   });
 });

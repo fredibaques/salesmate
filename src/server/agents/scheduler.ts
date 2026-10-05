@@ -1,5 +1,5 @@
-import { and, eq, isNotNull, isNull } from "drizzle-orm";
-import { agentConfigs, projects, type AgentSchedule } from "../db/schema";
+import { and, eq, isNotNull, isNull, lt } from "drizzle-orm";
+import { agentConfigs, agentRuns, projects, type AgentSchedule } from "../db/schema";
 import { withSystem, withTenant } from "../db/tenant";
 import { runProspecting, type AgentRunDeps, type ProspectingResult } from "./prospector";
 
@@ -36,6 +36,27 @@ export function isDue(schedule: AgentSchedule, lastRunAt: Date | null, now: Date
   return !lastRunAt || localClock(lastRunAt, timeZone).date < today.date;
 }
 
+/** A run still "running" after this long was cut off by the platform. */
+const STALE_RUN_MS = 10 * 60_000;
+
+/** Closes runs the platform cut off before they could finish, so nobody waits for them. */
+export async function closeStaleRuns(db: AgentRunDeps["db"], now: Date): Promise<number> {
+  const rows = await withSystem(db, (tx) =>
+    tx
+      .update(agentRuns)
+      .set({
+        status: "failed",
+        error: "Interrumpida: el servidor la cortó antes de terminar. Lo que ya había guardado se conserva.",
+        finishedAt: now,
+      })
+      .where(
+        and(eq(agentRuns.status, "running"), lt(agentRuns.startedAt, new Date(now.getTime() - STALE_RUN_MS))),
+      )
+      .returning({ id: agentRuns.id }),
+  );
+  return rows.length;
+}
+
 /**
  * Runs the scheduled agents whose time has come. Each slot is claimed with a
  * conditional update first, so two overlapping cron calls never run it twice.
@@ -45,6 +66,7 @@ export async function runDueAgents(
   options: { limit?: number } = {},
 ): Promise<{ projectId: string; result: ProspectingResult | { error: string } }[]> {
   const now = deps.now?.() ?? new Date();
+  await closeStaleRuns(deps.db, now);
   const candidates = await withSystem(deps.db, (tx) =>
     tx
       .select({ agent: agentConfigs, project: projects })
@@ -62,7 +84,7 @@ export async function runDueAgents(
   );
   const due = candidates
     .filter(({ agent, project }) => isDue(agent.schedule!, agent.lastScheduledRunAt, now, project.timezone))
-    .slice(0, options.limit ?? 3);
+    .slice(0, options.limit ?? 1);
 
   const report = [];
   for (const { agent, project } of due) {

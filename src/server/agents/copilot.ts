@@ -6,7 +6,7 @@ import type { Db } from "../db/client";
 import { agentRuns, contacts, conversations, projects } from "../db/schema";
 import { withTenant } from "../db/tenant";
 import type { GatewayDeps } from "../gateway/gateway";
-import { defineTool, runAgentLoop } from "../llm/agent-loop";
+import { defineTool, runAgentLoop, type AgentLoopResult } from "../llm/agent-loop";
 import type { LlmClient } from "../llm/client";
 import { activePlaybookFor } from "../playbooks/service";
 import { parseSalesProfile, renderPlaybook } from "../playbooks/spec";
@@ -23,7 +23,7 @@ export type CopilotTurn = { role: "user" | "assistant"; content: string };
 
 export type CopilotAnswer = {
   answer: string;
-  status: "completed" | "refused" | "max_turns" | "truncated";
+  status: AgentLoopResult["status"];
   runId: string;
   proposedActions: { actionId: string; outcome: string }[];
   costUsd: number;

@@ -22,14 +22,12 @@ beforeAll(async () => {
       .insert(connections)
       .values({ orgId: tenant.orgId, provider: "twenty", label: "CRM", accountRef: "https://crm.test" })
       .returning();
-    await tx
-      .insert(projectConnections)
-      .values({
-        orgId: tenant.orgId,
-        projectId: p.id,
-        connectionId: crm.id,
-        capabilities: ["crm.create_task"],
-      });
+    await tx.insert(projectConnections).values({
+      orgId: tenant.orgId,
+      projectId: p.id,
+      connectionId: crm.id,
+      capabilities: ["crm.create_task"],
+    });
     return p.id;
   });
   await ingestDocumentText(db, tenant, {

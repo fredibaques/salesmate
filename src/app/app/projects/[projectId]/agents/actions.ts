@@ -13,6 +13,7 @@ import { getLlm } from "@/server/llm/client";
 import { draftPlaybook } from "@/server/playbooks/draft";
 import { AGENT_PROCESS_FIELDS, NEXT_STEPS, type NextStep, type PlaybookSpec } from "@/server/playbooks/spec";
 import { runProspecting } from "@/server/agents/prospector";
+import { closeStaleRuns } from "@/server/agents/scheduler";
 import { agentRunDeps } from "@/server/agents/runtime";
 import { isLlmConfigured } from "@/server/llm/client";
 import { setProspectStatus } from "@/server/prospects/service";
@@ -20,6 +21,7 @@ import {
   addAgent,
   getAgent,
   isProjectAgentType,
+  listAgentRuns,
   removeAgent,
   saveAgentChannels,
   saveAgentInstructions,
@@ -249,6 +251,10 @@ export async function runProspectingNow(projectId: string, _: FormState): Promis
   return runForm(async () => {
     const tenant = await admin();
     if (!isLlmConfigured()) throw new Error("La IA no está configurada todavía (falta ANTHROPIC_API_KEY).");
+    const db = getDb();
+    await closeStaleRuns(db, new Date());
+    const [last] = await listAgentRuns(db, tenant, projectId, "outbound", 1);
+    if (last?.status === "running") throw new Error("Ya está buscando. Espera a que termine (unos minutos).");
     after(async () => {
       try {
         await runProspecting(agentRunDeps(), tenant, {

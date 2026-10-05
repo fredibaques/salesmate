@@ -8,7 +8,8 @@ import { withTenant, type TenantContext } from "../db/tenant";
 import type { GatewayDeps } from "../gateway/gateway";
 import { listProspects } from "../prospects/service";
 import { addAgent, saveAgentInstructions, setAgentEnabled } from "../services/agents";
-import { isDue, localClock, runDueAgents } from "./scheduler";
+import { runProspecting } from "./prospector";
+import { closeStaleRuns, isDue, localClock, runDueAgents } from "./scheduler";
 
 let db: Db;
 let close: () => Promise<void>;
@@ -129,5 +130,54 @@ describe("runDueAgents", () => {
       tx.select().from(agentConfigs).where(eq(agentConfigs.projectId, projectId)),
     );
     expect(config.lastScheduledRunAt).toEqual(now());
+  });
+});
+
+describe("time limits", () => {
+  it("ends a run that runs out of time as completed, keeping what it saved", async () => {
+    const { llm } = scriptedLlm([
+      {
+        blocks: [
+          {
+            type: "tool_use",
+            name: "save_prospects",
+            input: { prospects: [{ companyName: "Motos Levante", website: "motoslevante.es" }] },
+          },
+        ],
+      },
+    ]);
+    const result = await runProspecting({ db, llm, gateway: gateway(), timeBudgetMs: 0 }, tenant, {
+      projectId,
+      trigger: "manual",
+    });
+    expect(result).toMatchObject({ status: "deadline", added: 1 });
+    const [run] = await withTenant(db, tenant, (tx) =>
+      tx.select().from(agentRuns).where(eq(agentRuns.id, result.runId)),
+    );
+    expect(run.status).toBe("completed");
+    expect(run.summary).toContain("Se acabó el tiempo");
+  });
+
+  it("closes runs the platform cut off", async () => {
+    const [stuck] = await withTenant(db, tenant, (tx) =>
+      tx
+        .insert(agentRuns)
+        .values({
+          orgId: tenant.orgId,
+          projectId,
+          agentType: "outbound",
+          trigger: "manual",
+          model: "claude-opus-5-5",
+          startedAt: new Date("2026-10-07T06:00:00Z"),
+        })
+        .returning(),
+    );
+    expect(await closeStaleRuns(db, new Date("2026-10-07T06:05:00Z"))).toBe(0);
+    expect(await closeStaleRuns(db, new Date("2026-10-07T06:20:00Z"))).toBe(1);
+    const [run] = await withTenant(db, tenant, (tx) =>
+      tx.select().from(agentRuns).where(eq(agentRuns.id, stuck.id)),
+    );
+    expect(run).toMatchObject({ status: "failed" });
+    expect(run.error).toContain("Interrumpida");
   });
 });
