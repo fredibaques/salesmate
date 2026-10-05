@@ -33,7 +33,7 @@ describe("runAgentLoop", () => {
     expect(result.status).toBe("completed");
     expect(result.finalText).toBe("El resultado es 42.");
     expect(result.steps.map((s) => s.type)).toEqual(["text", "tool_call", "tool_result", "text"]);
-    expect(result.usage).toEqual({ input: 2000, output: 400, cacheRead: 0, cacheWrite: 0 });
+    expect(result.usage).toEqual({ input: 2000, output: 400, cacheRead: 0, cacheWrite: 0, webSearches: 0 });
     expect(result.costUsd).toBeCloseTo((2000 * 4 + 400 * 20) / 1e6);
     // Tool schema is derived from zod; effort and caching are set explicitly.
     expect(requests[0].tools?.[0]).toMatchObject({ name: "echo", input_schema: { type: "object" } });

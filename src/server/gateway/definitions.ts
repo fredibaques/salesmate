@@ -14,8 +14,11 @@ export type ActionDefinition<P = Record<string, unknown>> = {
   maxAutonomy: 0 | 1 | 2 | 3;
   /** Reaches a person outside the organization (send windows, cooldowns, notices apply). */
   outbound: boolean;
-  /** How the connection is chosen: through the identity in the payload or the project's connections. */
-  connectionVia: "identity" | "project";
+  /**
+   * How the connection is chosen: through the identity in the payload, the
+   * project's connections, or a `connectionId` in the payload (MCP servers).
+   */
+  connectionVia: "identity" | "project" | "payload";
   payloadSchema: z.ZodType<P>;
   targetKeys(payload: P): string[];
   /** Free text that content policies inspect (figures, mandatory notices). */
@@ -70,6 +73,15 @@ const crmNotePayload = z.object({
   personExternalId: z.string().optional(),
 });
 export type CrmNotePayload = z.infer<typeof crmNotePayload>;
+
+const mcpCallPayload = z.object({
+  connectionId: z.string().uuid(),
+  /** Server name, for people reading the approval. */
+  server: z.string().default(""),
+  tool: z.string().min(1),
+  arguments: z.record(z.string(), z.unknown()).default({}),
+});
+export type McpCallPayload = z.infer<typeof mcpCallPayload>;
 
 function define<P>(def: ActionDefinition<P>): ActionDefinition<P> {
   return def;
@@ -147,6 +159,18 @@ export const ACTION_DEFINITIONS = {
     targetKeys: () => [],
     textOf: (p) => `${p.title}\n${p.body}`,
     summary: (p) => `Nota «${p.title}»`,
+  }),
+  "mcp.call_tool": define<McpCallPayload>({
+    type: "mcp.call_tool",
+    capability: "mcp.call_tool",
+    label: "Usar una herramienta conectada (MCP)",
+    maxAutonomy: 3,
+    outbound: false,
+    connectionVia: "payload",
+    payloadSchema: mcpCallPayload,
+    targetKeys: () => [],
+    textOf: (p) => JSON.stringify(p.arguments),
+    summary: (p) => `«${p.tool}» en ${p.server || "un servidor MCP"}`,
   }),
 } as const;
 

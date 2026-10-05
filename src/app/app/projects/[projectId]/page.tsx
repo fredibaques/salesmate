@@ -38,8 +38,11 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/app/pr
       href: `${base}/agents`,
     },
     {
-      done: agents.some((a) => a.config.channels.mailboxId),
-      label: "Dile con qué buzón, calendario y CRM trabaja",
+      // Only agents that write to people need a mailbox.
+      done:
+        agents.length > 0 &&
+        agents.every((a) => a.config.agentType === "outbound" || a.config.channels.mailboxId),
+      label: "Dile con qué cuentas y herramientas trabaja",
       hint: "Usa las cuentas que tu organización ya ha conectado.",
       href: firstAgent ? `${base}/agents/${firstAgent}/channels` : `${base}/agents`,
     },

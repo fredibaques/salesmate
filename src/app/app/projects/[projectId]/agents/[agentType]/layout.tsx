@@ -60,10 +60,23 @@ export default async function AgentLayout({
         }
       />
       <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-border">
-        <TabLink href={base} exact>
-          Proceso de venta
-        </TabLink>
-        <TabLink href={`${base}/channels`}>Canales</TabLink>
+        {agentType === "outbound" ? (
+          <>
+            <TabLink href={base} exact>
+              Instrucciones
+            </TabLink>
+            <TabLink href={`${base}/prospects`}>Prospectos</TabLink>
+            <TabLink href={`${base}/channels`}>Herramientas</TabLink>
+          </>
+        ) : (
+          <>
+            <TabLink href={base} exact>
+              Proceso de venta
+            </TabLink>
+            <TabLink href={`${base}/instructions`}>Instrucciones</TabLink>
+            <TabLink href={`${base}/channels`}>Canales y herramientas</TabLink>
+          </>
+        )}
         <TabLink href={`${base}/approvals`}>Aprobaciones</TabLink>
       </nav>
       {children}

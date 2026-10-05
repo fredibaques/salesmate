@@ -279,3 +279,19 @@ export function renderPlaybook(input: {
   parts.push(`Tiempo objetivo de respuesta: ${spec.responseTimeMinutes} minutos.`);
   return parts.join("\n\n");
 }
+
+/** What the project sells and to whom, for agents that don't follow a sales process (e.g. prospecting). */
+export function renderSalesProfile(profile: SalesProfile): string {
+  const parts: string[] = [];
+  if (profile.offer) parts.push(`Qué vendemos: ${profile.offer}`);
+  if (profile.valueProposition) parts.push(`Por qué nos eligen: ${profile.valueProposition}`);
+  if (profile.segment.include.length)
+    parts.push(`A quién nos dirigimos:\n${bullet(profile.segment.include)}`);
+  if (profile.segment.exclude.length) parts.push(`A quién NO:\n${bullet(profile.segment.exclude)}`);
+  if (profile.segment.geography.length) parts.push(`Zona: ${profile.segment.geography.join(", ")}`);
+  if (profile.decisionMakers.length) parts.push(`Quién decide la compra:\n${bullet(profile.decisionMakers)}`);
+  if (profile.pains.length) parts.push(`Problemas que resolvemos:\n${bullet(profile.pains)}`);
+  return parts.length
+    ? parts.join("\n\n")
+    : "(El proyecto todavía no ha descrito su oferta ni su cliente ideal.)";
+}

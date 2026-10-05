@@ -1,3 +1,4 @@
+import { createProject } from "./projects";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, seedOrg } from "../../../tests/helpers/db";
@@ -70,8 +71,21 @@ describe("agents", () => {
     expect(active?.id).toBe(agent.playbook?.id);
   });
 
+  it("gives the prospecting agent its template defaults even when its row already exists", async () => {
+    // createProject inserts every agent row up front, disabled and not added.
+    const project = await createProject(db, tenant, { name: "Con filas previas" });
+    await addAgent(db, tenant, project.id, "outbound", "b2b_consultative");
+    const agent = await getAgent(db, tenant, project.id, "outbound");
+    expect(agent?.config).toMatchObject({
+      tools: { web: true },
+      schedule: { time: "08:00", days: [1, 2, 3, 4, 5] },
+      settings: { prospectsPerRun: 10 },
+    });
+    expect(agent?.config.instructions).toContain("fuentes públicas");
+  });
+
   it("refuses agents that are not available yet", async () => {
-    await expect(addAgent(db, tenant, projectId, "outbound", "b2b_consultative")).rejects.toThrow(
+    await expect(addAgent(db, tenant, projectId, "account_manager", "b2b_consultative")).rejects.toThrow(
       /todavía no está disponible/,
     );
   });

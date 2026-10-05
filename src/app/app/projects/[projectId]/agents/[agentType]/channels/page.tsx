@@ -6,10 +6,11 @@ import { Button, Card, EmptyState, Field, LinkButton, Select } from "@/component
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { env } from "@/server/env";
-import { getAgent, isProjectAgentType, listChannelOptions } from "@/server/services/agents";
+import { getAgent, isProjectAgentType, listChannelOptions, listMcpServers } from "@/server/services/agents";
 import { getProject } from "@/server/services/projects";
 import { rotateKey } from "../../../conversations/actions";
 import { saveChannels } from "../../actions";
+import { ToolsCard } from "../tools-card";
 
 function ConnectLink({ children }: { children: React.ReactNode }) {
   return (
@@ -26,127 +27,136 @@ export default async function AgentChannelsPage({
   if (!isProjectAgentType(agentType)) notFound();
   const tenant = await requireTenant();
   const db = getDb();
-  const [agent, options, project] = await Promise.all([
+  const [agent, options, project, servers] = await Promise.all([
     getAgent(db, tenant, projectId, agentType),
     listChannelOptions(db, tenant),
     getProject(db, tenant, projectId),
+    listMcpServers(db, tenant),
   ]);
   if (!agent || !project) notFound();
+  const toolsCard = (
+    <ToolsCard projectId={projectId} agentType={agentType} tools={agent.config.tools} servers={servers} />
+  );
+  // The prospecting agent doesn't write to anyone: it only needs its tools.
+  if (agentType === "outbound") return <div className="max-w-3xl">{toolsCard}</div>;
   const channels = agent.config.channels;
   const nothingConnected = options.mailboxes.length + options.calendars.length + options.crms.length === 0;
   const endpoint = `${env().APP_URL}/api/inbound/form/${projectId}`;
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-2">
-      <Card
-        title="Con qué trabaja"
-        description="Elige, entre las cuentas que tu organización ha conectado, desde qué buzón escribe este agente, en qué calendario agenda y qué CRM consulta."
-      >
-        {nothingConnected ? (
-          <EmptyState
-            compact
-            icon={<Plug />}
-            title="Tu organización no ha conectado ninguna cuenta"
-            description="Conecta primero tu correo y calendario (por ejemplo Google Workspace) o tu CRM. Solo se hace una vez y sirve para todos tus proyectos."
-            action={
-              <LinkButton href="/app/connections/new" variant="primary">
-                <Plus className="size-4" />
-                Conectar una cuenta
-              </LinkButton>
-            }
-          />
-        ) : (
-          <ActionForm
-            action={saveChannels.bind(null, projectId, agentType)}
-            submitLabel="Guardar canales"
-            className="space-y-4"
-          >
-            <Field
-              label="Buzón desde el que escribe"
-              hint={
-                options.mailboxes.length === 0 ? (
-                  <>
-                    No hay buzones conectados. <ConnectLink>Conecta uno</ConnectLink>.
-                  </>
-                ) : (
-                  "Las respuestas salen desde aquí, siempre después de tu aprobación salvo que subas su autonomía."
-                )
+      <div className="space-y-6">
+        <Card
+          title="Con qué trabaja"
+          description="Elige, entre las cuentas que tu organización ha conectado, desde qué buzón escribe este agente, en qué calendario agenda y qué CRM consulta."
+        >
+          {nothingConnected ? (
+            <EmptyState
+              compact
+              icon={<Plug />}
+              title="Tu organización no ha conectado ninguna cuenta"
+              description="Conecta primero tu correo y calendario (por ejemplo Google Workspace) o tu CRM. Solo se hace una vez y sirve para todos tus proyectos."
+              action={
+                <LinkButton href="/app/connections/new" variant="primary">
+                  <Plus className="size-4" />
+                  Conectar una cuenta
+                </LinkButton>
               }
+            />
+          ) : (
+            <ActionForm
+              action={saveChannels.bind(null, projectId, agentType)}
+              submitLabel="Guardar canales"
+              className="space-y-4"
             >
-              <Select name="mailboxId" defaultValue={channels.mailboxId ?? ""}>
-                <option value="">— Ninguno —</option>
-                {options.mailboxes.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.address}
-                    {m.canSend ? "" : " (sin permiso para enviar)"}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            {agentType === "inbound" ? (
-              <label className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  name="readMailbox"
-                  defaultChecked={channels.readMailbox ?? false}
-                  className="mt-1"
-                />
-                <span>
-                  Atender también los emails que llegan a este buzón
-                  <span className="block text-muted">
-                    Cada email nuevo se trata como un contacto entrante. Necesita que la cuenta tenga permiso
-                    de lectura.
+              <Field
+                label="Buzón desde el que escribe"
+                hint={
+                  options.mailboxes.length === 0 ? (
+                    <>
+                      No hay buzones conectados. <ConnectLink>Conecta uno</ConnectLink>.
+                    </>
+                  ) : (
+                    "Las respuestas salen desde aquí, siempre después de tu aprobación salvo que subas su autonomía."
+                  )
+                }
+              >
+                <Select name="mailboxId" defaultValue={channels.mailboxId ?? ""}>
+                  <option value="">— Ninguno —</option>
+                  {options.mailboxes.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.address}
+                      {m.canSend ? "" : " (sin permiso para enviar)"}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              {agentType === "inbound" ? (
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    name="readMailbox"
+                    defaultChecked={channels.readMailbox ?? false}
+                    className="mt-1"
+                  />
+                  <span>
+                    Atender también los emails que llegan a este buzón
+                    <span className="block text-muted">
+                      Cada email nuevo se trata como un contacto entrante. Necesita que la cuenta tenga
+                      permiso de lectura.
+                    </span>
                   </span>
-                </span>
-              </label>
-            ) : null}
-            <Field
-              label="Calendario donde agenda"
-              hint={
-                options.calendars.length === 0 ? (
-                  <>
-                    No hay calendarios conectados. <ConnectLink>Conecta uno</ConnectLink>.
-                  </>
-                ) : (
-                  "Solo hace falta si el proceso termina en una reunión o una llamada."
-                )
-              }
-            >
-              <Select name="calendarId" defaultValue={channels.calendarId ?? ""}>
-                <option value="">— Ninguno —</option>
-                {options.calendars.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.address}
-                    {c.canBook ? "" : " (solo disponibilidad)"}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field
-              label="CRM"
-              hint={
-                options.crms.length === 0 ? (
-                  <>
-                    No hay CRM conectado. <ConnectLink>Conecta uno</ConnectLink>.
-                  </>
-                ) : (
-                  "Para buscar al contacto antes de responder y registrar lo que pasa."
-                )
-              }
-            >
-              <Select name="crmConnectionId" defaultValue={channels.crmConnectionId ?? ""}>
-                <option value="">— Ninguno —</option>
-                {options.crms.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.label}
-                    {c.canWrite ? "" : " (solo lectura)"}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </ActionForm>
-        )}
-      </Card>
+                </label>
+              ) : null}
+              <Field
+                label="Calendario donde agenda"
+                hint={
+                  options.calendars.length === 0 ? (
+                    <>
+                      No hay calendarios conectados. <ConnectLink>Conecta uno</ConnectLink>.
+                    </>
+                  ) : (
+                    "Solo hace falta si el proceso termina en una reunión o una llamada."
+                  )
+                }
+              >
+                <Select name="calendarId" defaultValue={channels.calendarId ?? ""}>
+                  <option value="">— Ninguno —</option>
+                  {options.calendars.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.address}
+                      {c.canBook ? "" : " (solo disponibilidad)"}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field
+                label="CRM"
+                hint={
+                  options.crms.length === 0 ? (
+                    <>
+                      No hay CRM conectado. <ConnectLink>Conecta uno</ConnectLink>.
+                    </>
+                  ) : (
+                    "Para buscar al contacto antes de responder y registrar lo que pasa."
+                  )
+                }
+              >
+                <Select name="crmConnectionId" defaultValue={channels.crmConnectionId ?? ""}>
+                  <option value="">— Ninguno —</option>
+                  {options.crms.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                      {c.canWrite ? "" : " (solo lectura)"}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </ActionForm>
+          )}
+        </Card>
+        {toolsCard}
+      </div>
 
       {agentType === "inbound" ? (
         <Card

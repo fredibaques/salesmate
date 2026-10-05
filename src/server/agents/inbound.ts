@@ -26,7 +26,9 @@ import {
   calendarTools,
   crmTools,
   knowledgeTools,
+  mcpTools,
   projectIdentityHints,
+  webTools,
   type AgentToolContext,
 } from "./tools";
 
@@ -65,6 +67,7 @@ function systemPrompt(input: {
   project: typeof projects.$inferSelect;
   playbook: PlaybookWithSpec | null;
   identities: { id: string; kind: string; address: string; isDefault: boolean }[];
+  instructions?: string | null;
 }): string {
   const { project, playbook } = input;
   const mailboxes = input.identities.filter((i) => i.kind === "email");
@@ -98,7 +101,10 @@ function systemPrompt(input: {
           profile: parseSalesProfile(project.salesProfile),
         })
       : "## Playbook\nEste proyecto aún no tiene un playbook inbound activo. Limítate a un acuse de recibo cordial que confirme que alguien del equipo responderá pronto, y crea una tarea para que una persona lo atienda.",
-  ].join("\n\n");
+    input.instructions ? `## Instrucciones de la persona responsable\n${input.instructions}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 function leadMessage(input: {
@@ -284,6 +290,10 @@ export async function processInboundEvent(
         if (own.length) return { ownMessage: true as const };
       }
       const playbook = await activePlaybookFor(tx, project.id, "inbound");
+      const [agentConfig] = await tx
+        .select()
+        .from(agentConfigs)
+        .where(and(eq(agentConfigs.projectId, project.id), eq(agentConfigs.agentType, "inbound")));
       const contact = await upsertContact(tx, orgId, project.id, lead, playbook?.spec.customerType ?? null);
       const conversation = await findOrCreateConversation(tx, {
         orgId,
@@ -329,14 +339,23 @@ export async function processInboundEvent(
           model: deps.llm.model,
         })
         .returning();
-      return { ownMessage: false as const, project, playbook, contact, conversation, history, run };
+      return {
+        ownMessage: false as const,
+        project,
+        playbook,
+        agentConfig: agentConfig ?? null,
+        contact,
+        conversation,
+        history,
+        run,
+      };
     });
 
     if (prepared.ownMessage) {
       await finish("ignored", "Mensaje enviado desde una identidad propia.");
       return { status: "ignored", reason: "own_message" };
     }
-    const { project, playbook, contact, conversation, history, run } = prepared;
+    const { project, playbook, agentConfig, contact, conversation, history, run } = prepared;
 
     const toolCtx: AgentToolContext = {
       db: deps.db,
@@ -367,11 +386,17 @@ export async function processInboundEvent(
         "crm.log_note",
         "calendar.book",
       ]),
+      ...(await mcpTools(toolCtx, agentConfig?.tools.mcp ?? [])),
     ];
 
     const result = await runAgentLoop({
       llm: deps.llm,
-      system: systemPrompt({ project, playbook, identities: await projectIdentityHints(toolCtx) }),
+      system: systemPrompt({
+        project,
+        playbook,
+        identities: await projectIdentityHints(toolCtx),
+        instructions: agentConfig?.instructions,
+      }),
       messages: [
         {
           role: "user",
@@ -385,6 +410,7 @@ export async function processInboundEvent(
         },
       ],
       tools,
+      serverTools: agentConfig?.tools.web ? webTools(5) : [],
       effort: "medium",
     });
 

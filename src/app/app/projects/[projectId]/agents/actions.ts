@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import type { FormState } from "@/components/action-form";
 import { requireRole } from "@/server/auth/session";
@@ -11,13 +12,20 @@ import { ACTION_DEFINITIONS } from "@/server/gateway/definitions";
 import { getLlm } from "@/server/llm/client";
 import { draftPlaybook } from "@/server/playbooks/draft";
 import { AGENT_PROCESS_FIELDS, NEXT_STEPS, type NextStep, type PlaybookSpec } from "@/server/playbooks/spec";
+import { runProspecting } from "@/server/agents/prospector";
+import { agentRunDeps } from "@/server/agents/runtime";
+import { isLlmConfigured } from "@/server/llm/client";
+import { setProspectStatus } from "@/server/prospects/service";
 import {
   addAgent,
   getAgent,
   isProjectAgentType,
   removeAgent,
   saveAgentChannels,
+  saveAgentInstructions,
   saveAgentProcess,
+  saveAgentTools,
+  SCHEDULED_AGENT_TYPES,
   setAgentEnabled,
   updateAgentAutonomy,
   type ProjectAgentType,
@@ -187,4 +195,77 @@ export async function saveAutonomy(
   });
   refresh(projectId);
   return result;
+}
+
+export async function saveInstructions(
+  projectId: string,
+  type: string,
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const result = await runForm(async () => {
+    const tenant = await admin();
+    const kind = agentType(type);
+    const scheduled = SCHEDULED_AGENT_TYPES.includes(kind);
+    await saveAgentInstructions(getDb(), tenant, projectId, kind, {
+      instructions: str(form, "instructions") ?? "",
+      schedule: scheduled
+        ? { time: str(form, "time") ?? "08:00", days: list(form, "days").map(Number) }
+        : null,
+      settings: scheduled ? { prospectsPerRun: num(form, "prospectsPerRun") ?? 10 } : {},
+    });
+  }, "Instrucciones guardadas.");
+  refresh(projectId);
+  return result;
+}
+
+export async function saveTools(
+  projectId: string,
+  type: string,
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const result = await runForm(async () => {
+    const tenant = await admin();
+    // Each checked MCP tool arrives as "<connectionId>::<tool name>".
+    const byServer = new Map<string, string[]>();
+    for (const value of list(form, "mcp")) {
+      const [connectionId, ...rest] = value.split("::");
+      const tool = rest.join("::");
+      if (!connectionId || !tool) continue;
+      byServer.set(connectionId, [...(byServer.get(connectionId) ?? []), tool]);
+    }
+    await saveAgentTools(getDb(), tenant, projectId, agentType(type), {
+      web: bool(form, "web"),
+      mcp: [...byServer].map(([connectionId, tools]) => ({ connectionId, tools })),
+    });
+  }, "Herramientas guardadas.");
+  refresh(projectId);
+  return result;
+}
+
+/** Starts a prospecting run now; it keeps going after the response (results appear as they are saved). */
+export async function runProspectingNow(projectId: string, _: FormState): Promise<FormState> {
+  return runForm(async () => {
+    const tenant = await admin();
+    if (!isLlmConfigured()) throw new Error("La IA no está configurada todavía (falta ANTHROPIC_API_KEY).");
+    after(async () => {
+      try {
+        await runProspecting(agentRunDeps(), tenant, {
+          projectId,
+          trigger: "manual",
+          triggerRef: tenant.userId,
+        });
+      } catch (err) {
+        console.error("prospecting run failed", err);
+      }
+    });
+    return "En marcha. Los prospectos irán apareciendo aquí en unos minutos; recarga la página para verlos.";
+  });
+}
+
+export async function changeProspects(projectId: string, ids: string[], status: "new" | "discarded") {
+  const tenant = await admin();
+  await setProspectStatus(getDb(), tenant, projectId, ids, status);
+  refresh(projectId);
 }

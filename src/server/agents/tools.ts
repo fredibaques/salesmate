@@ -16,8 +16,10 @@ import {
 import { withTenant } from "../db/tenant";
 import { ACTION_DEFINITIONS } from "../gateway/definitions";
 import { GatewayError, proposeAction, type GatewayDeps } from "../gateway/gateway";
+import { callStoredMcpTool, mcpToolsOf, type McpDeps } from "../connectors/mcp";
+import { connections } from "../db/schema";
 import { queryTable, searchKnowledge, tableQuerySchema } from "../knowledge/service";
-import { defineTool, type AgentTool } from "../llm/agent-loop";
+import { defineTool, type AgentTool, type ServerTool } from "../llm/agent-loop";
 
 export type AgentToolContext = {
   db: Db;
@@ -27,6 +29,7 @@ export type AgentToolContext = {
   runId: string;
   gateway: GatewayDeps;
   connectors?: Omit<ConnectorDeps, "db">;
+  mcp?: McpDeps;
   /** Facts attached to every action this run proposes (customer type, conversation…). */
   actionContext?: () => ActionContext;
   timezone: string;
@@ -171,13 +174,11 @@ export function calendarTools(ctx: AgentToolContext): AgentTool[] {
           timeZone: ctx.timezone,
         });
         return {
-          slots: slots
-            .slice(0, 10)
-            .map((s) => ({
-              start: s.start.toISOString(),
-              end: s.end.toISOString(),
-              local: fmt.format(s.start),
-            })),
+          slots: slots.slice(0, 10).map((s) => ({
+            start: s.start.toISOString(),
+            end: s.end.toISOString(),
+            local: fmt.format(s.start),
+          })),
           warnings,
         };
       },
@@ -252,4 +253,95 @@ export function actionTools(ctx: AgentToolContext, allowed: (keyof typeof ACTION
       }
     },
   });
+}
+
+/** Tool names the API accepts: letters, digits, _ and -, up to 64 characters. */
+function toolName(server: string, tool: string): string {
+  const clean = (v: string) => v.replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
+  return `${clean(server).slice(0, 20) || "mcp"}__${clean(tool)}`.slice(0, 64);
+}
+
+/**
+ * Tools of the MCP servers this agent may use. Read-only tools answer
+ * directly; the rest are proposed to the gateway as `mcp.call_tool`.
+ */
+export async function mcpTools(
+  ctx: AgentToolContext,
+  allowed: { connectionId: string; tools: string[] }[],
+): Promise<AgentTool[]> {
+  if (allowed.length === 0) return [];
+  const tenant = { orgId: ctx.orgId };
+  const servers = await withTenant(ctx.db, tenant, (tx) =>
+    tx
+      .select()
+      .from(connections)
+      .where(
+        inArray(
+          connections.id,
+          allowed.map((a) => a.connectionId),
+        ),
+      ),
+  );
+  const out: AgentTool[] = [];
+  for (const server of servers) {
+    if (server.provider !== "mcp" || server.status !== "active") continue;
+    const names = new Set(allowed.find((a) => a.connectionId === server.id)?.tools ?? []);
+    for (const tool of mcpToolsOf(server).filter((t) => names.has(t.name))) {
+      const readOnly = tool.readOnly;
+      out.push({
+        name: toolName(server.label, tool.name),
+        description: [
+          `[${server.label}] ${tool.description ?? tool.title ?? tool.name}`,
+          readOnly
+            ? "Solo lectura."
+            : "Modifica datos fuera: se propone como acción y puede quedar pendiente de aprobación.",
+        ].join(" "),
+        input: z.record(z.string(), z.unknown()),
+        jsonSchema: { type: "object", ...tool.inputSchema },
+        run: async (args) => {
+          const input = args as Record<string, unknown>;
+          if (readOnly) {
+            return callStoredMcpTool({ db: ctx.db, ...ctx.mcp }, tenant, {
+              connectionId: server.id,
+              tool: tool.name,
+              arguments: input,
+            });
+          }
+          try {
+            const result = await proposeAction(
+              ctx.gateway,
+              { orgId: ctx.orgId, actorType: "agent", actorId: ctx.runId },
+              {
+                projectId: ctx.projectId,
+                type: "mcp.call_tool",
+                payload: { connectionId: server.id, server: server.label, tool: tool.name, arguments: input },
+                reason: `Herramienta «${tool.name}» de ${server.label}`,
+                agentType: ctx.agentType,
+                runId: ctx.runId,
+                context: ctx.actionContext?.() ?? {},
+              },
+            );
+            return {
+              actionId: result.action.id,
+              outcome: result.outcome,
+              result: result.action.result ?? undefined,
+              error: result.action.error ?? undefined,
+            };
+          } catch (err) {
+            if (err instanceof GatewayError) return { error: err.message, details: err.details };
+            throw err;
+          }
+        },
+      });
+    }
+  }
+  return out;
+}
+
+/** Web tools of the API (searched and read on Anthropic's side), capped per run. */
+export function webTools(maxSearches: number): ServerTool[] {
+  return [
+    { type: "web_search_20260209", name: "web_search", max_uses: maxSearches },
+    { type: "web_fetch_20260209", name: "web_fetch", max_uses: maxSearches * 2 },
+  ];
 }

@@ -5,7 +5,7 @@ import { Avatar, Button, Card, Field, Input, PageHeader } from "@/components/ui"
 import { getIntegration } from "@/lib/integrations";
 import { requireTenant } from "@/server/auth/session";
 import { env } from "@/server/env";
-import { addTwenty } from "../../actions";
+import { addMcp, addTwenty } from "../../actions";
 
 export async function generateMetadata({ params }: PageProps<"/app/connections/new/[provider]">) {
   const { provider } = await params;
@@ -111,6 +111,28 @@ export default async function ConnectProviderPage({ params }: PageProps<"/app/co
               </code>
             </Card>
           )
+        ) : null}
+
+        {provider === "mcp" ? (
+          <Card
+            title="Datos del servidor"
+            description="La dirección del servidor MCP (transporte HTTP) y, si lo pide, su token de acceso. Comprobaremos que responde y leeremos qué herramientas ofrece."
+          >
+            <ActionForm action={addMcp} submitLabel="Conectar servidor" className="space-y-4">
+              <Field label="Nombre" hint="Para reconocerlo en los agentes, p. ej. «Directorio de empresas».">
+                <Input name="label" placeholder="Mi herramienta" required />
+              </Field>
+              <Field label="URL del servidor MCP" hint="Suele acabar en /mcp.">
+                <Input name="url" type="url" placeholder="https://…/mcp" required />
+              </Field>
+              <Field
+                label="Token (opcional)"
+                hint="Se envía como «Authorization: Bearer …». Se guarda cifrado."
+              >
+                <Input name="token" type="password" autoComplete="off" />
+              </Field>
+            </ActionForm>
+          </Card>
         ) : null}
 
         {provider === "twenty" ? (
