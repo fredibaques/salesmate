@@ -23,21 +23,22 @@ export function ModalButton({
   label,
   icon,
   title,
-  description,
   children,
   variant = "primary",
   size = "md",
+  iconOnly = false,
   width = "md",
   className,
 }: {
   label: ReactNode;
   icon?: ReactNode;
   title: string;
-  description?: ReactNode;
   children: ReactNode;
   variant?: ButtonVariant;
   /** Size of the button that opens the modal. */
   size?: ButtonSize;
+  /** Show only the icon; `label` (a string) becomes its accessible name. */
+  iconOnly?: boolean;
   /** Width of the modal. */
   width?: "md" | "lg";
   className?: string;
@@ -59,10 +60,11 @@ export function ModalButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={cx(buttonClass({ variant, size }), className)}
+        aria-label={iconOnly && typeof label === "string" ? label : undefined}
+        className={cx(buttonClass({ variant, size, iconOnly }), className)}
       >
         {icon}
-        {label}
+        {iconOnly ? null : label}
       </button>
       <dialog
         ref={dialog}
@@ -78,16 +80,16 @@ export function ModalButton({
       >
         {open ? (
           <div className="flex max-h-[90vh] flex-col">
-            <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
-              <div>
-                <h2 className="text-base font-semibold">{title}</h2>
-                {description ? <p className="mt-1 text-sm text-muted">{description}</p> : null}
-              </div>
+            <div className="flex items-center justify-between gap-4 border-b border-border px-6 py-4">
+              <h2 className="text-base font-semibold">{title}</h2>
               <button
                 type="button"
                 onClick={close}
                 aria-label="Cerrar"
-                className={cx(buttonClass({ variant: "ghost", size: "sm", iconOnly: true }), "-mr-2 text-muted")}
+                className={cx(
+                  buttonClass({ variant: "ghost", size: "sm", iconOnly: true }),
+                  "-mr-2 text-muted",
+                )}
               >
                 <X className="size-4" />
               </button>

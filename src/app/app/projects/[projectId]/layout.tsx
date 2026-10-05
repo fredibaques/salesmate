@@ -21,7 +21,6 @@ export default async function ProjectLayout({ children, params }: LayoutProps<"/
         icon={<FolderKanban />}
         title={project.name}
         badge={project.agentsPaused ? <Badge tone="warning">En pausa: ningún agente actúa</Badge> : null}
-        description={project.description}
         actions={
           <form action={toggleAgents.bind(null, project.id, !project.agentsPaused)}>
             <Button

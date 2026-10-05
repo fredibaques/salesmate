@@ -29,7 +29,11 @@ export default async function ConversationPage({
         title={
           [contact?.firstName, contact?.lastName].filter(Boolean).join(" ") || contact?.email || "Contacto"
         }
-        description={<Meta items={[contact?.email, contact?.phone, contact?.companyName]} />}
+        badge={
+          <span className="text-sm text-muted">
+            <Meta items={[contact?.email, contact?.phone, contact?.companyName]} />
+          </span>
+        }
       />
       <div className="grid items-start gap-6 xl:grid-cols-[2fr_1fr]">
         <div className="space-y-6">

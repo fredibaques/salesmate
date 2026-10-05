@@ -52,13 +52,77 @@ function salesMotion(form: FormData): SalesMotion {
   return motion;
 }
 
-export async function addAgentAction(projectId: string, _: FormState, form: FormData): Promise<FormState> {
+function instructionsFromForm(form: FormData, scheduled: boolean) {
+  return {
+    instructions: str(form, "instructions") ?? "",
+    schedule: scheduled ? { time: str(form, "time") ?? "08:00", days: list(form, "days").map(Number) } : null,
+    settings: scheduled ? { prospectsPerRun: num(form, "prospectsPerRun") ?? 10 } : {},
+  };
+}
+
+function toolsFromForm(form: FormData) {
+  // Each checked MCP tool arrives as "<connectionId>::<tool name>".
+  const byServer = new Map<string, string[]>();
+  for (const value of list(form, "mcp")) {
+    const [connectionId, ...rest] = value.split("::");
+    const tool = rest.join("::");
+    if (!connectionId || !tool) continue;
+    byServer.set(connectionId, [...(byServer.get(connectionId) ?? []), tool]);
+  }
+  return {
+    web: bool(form, "web"),
+    mcp: [...byServer].map(([connectionId, tools]) => ({ connectionId, tools })),
+  };
+}
+
+function channelsFromForm(form: FormData) {
+  return {
+    mailboxId: str(form, "mailboxId") ?? null,
+    readMailbox: bool(form, "readMailbox"),
+    calendarId: str(form, "calendarId") ?? null,
+    crmConnectionId: str(form, "crmConnectionId") ?? null,
+  };
+}
+
+/**
+ * Adds an agent with the first configuration chosen in the setup wizard
+ * and opens it. Everything can be changed later on the agent's page.
+ */
+export async function setupAgentAction(
+  projectId: string,
+  type: string,
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
   let added: ProjectAgentType | undefined;
   const result = await runForm(async () => {
     const tenant = await admin();
-    const type = agentType(str(form, "agentType") ?? "");
-    await addAgent(getDb(), tenant, projectId, type, salesMotion(form));
-    added = type;
+    const db = getDb();
+    const kind = agentType(type);
+    if (kind === "outbound") {
+      await addAgent(db, tenant, projectId, kind, "b2b_consultative");
+      await saveAgentInstructions(db, tenant, projectId, kind, instructionsFromForm(form, true));
+      await saveAgentTools(db, tenant, projectId, kind, toolsFromForm(form));
+    } else {
+      const motion = salesMotion(form);
+      const nextSteps = nextStepsFromForm(form);
+      await addAgent(db, tenant, projectId, kind, motion);
+      await saveAgentProcess(db, tenant, projectId, kind, {
+        salesMotion: motion,
+        process: {
+          customerType: str(form, "customerType") === "b2c" ? "b2c" : "b2b",
+          objective: str(form, "objective") ?? "",
+          nextSteps,
+        },
+        notes: "Configuración inicial",
+      });
+      await saveAgentChannels(db, tenant, projectId, kind, channelsFromForm(form));
+      await updateAgentAutonomy(db, tenant, projectId, kind, {
+        defaultLevel: num(form, "defaultLevel") ?? 1,
+      });
+    }
+    if (bool(form, "activate")) await setAgentEnabled(db, tenant, projectId, kind, true);
+    added = kind;
   });
   if (added) {
     refresh(projectId);
@@ -80,15 +144,20 @@ export async function toggleAgent(projectId: string, type: string, enabled: bool
   refresh(projectId);
 }
 
-/** Reads the process form: one main outcome, then alternatives in catalog order. */
-function processFromForm(form: FormData): Partial<PlaybookSpec> {
+/** One main outcome, then the chosen alternatives in catalog order. */
+function nextStepsFromForm(form: FormData): NextStep[] {
   const primary = str(form, "primaryStep") as NextStep | undefined;
   if (!primary || !NEXT_STEPS.includes(primary)) throw new Error("Elige cómo debe terminar la conversación.");
   const alternatives = NEXT_STEPS.filter((s) => s !== primary && list(form, "alternativeSteps").includes(s));
+  return [primary, ...alternatives];
+}
+
+/** Reads the process form. */
+function processFromForm(form: FormData): Partial<PlaybookSpec> {
   return {
     customerType: str(form, "customerType") === "b2c" ? "b2c" : "b2b",
     objective: str(form, "objective") ?? "",
-    nextSteps: [primary, ...alternatives],
+    nextSteps: nextStepsFromForm(form),
     meetingTypeId: str(form, "meetingTypeId"),
     qualification: lines(form, "qualification").map((l) => ({
       criterion: l.replace(/^\*\s*/, ""),
@@ -162,12 +231,7 @@ export async function saveChannels(
 ): Promise<FormState> {
   const result = await runForm(async () => {
     const tenant = await admin();
-    await saveAgentChannels(getDb(), tenant, projectId, agentType(type), {
-      mailboxId: str(form, "mailboxId") ?? null,
-      readMailbox: bool(form, "readMailbox"),
-      calendarId: str(form, "calendarId") ?? null,
-      crmConnectionId: str(form, "crmConnectionId") ?? null,
-    });
+    await saveAgentChannels(getDb(), tenant, projectId, agentType(type), channelsFromForm(form));
   }, "Canales guardados.");
   refresh(projectId);
   return result;
@@ -209,13 +273,7 @@ export async function saveInstructions(
     const tenant = await admin();
     const kind = agentType(type);
     const scheduled = SCHEDULED_AGENT_TYPES.includes(kind);
-    await saveAgentInstructions(getDb(), tenant, projectId, kind, {
-      instructions: str(form, "instructions") ?? "",
-      schedule: scheduled
-        ? { time: str(form, "time") ?? "08:00", days: list(form, "days").map(Number) }
-        : null,
-      settings: scheduled ? { prospectsPerRun: num(form, "prospectsPerRun") ?? 10 } : {},
-    });
+    await saveAgentInstructions(getDb(), tenant, projectId, kind, instructionsFromForm(form, scheduled));
   }, "Instrucciones guardadas.");
   refresh(projectId);
   return result;
@@ -229,18 +287,7 @@ export async function saveTools(
 ): Promise<FormState> {
   const result = await runForm(async () => {
     const tenant = await admin();
-    // Each checked MCP tool arrives as "<connectionId>::<tool name>".
-    const byServer = new Map<string, string[]>();
-    for (const value of list(form, "mcp")) {
-      const [connectionId, ...rest] = value.split("::");
-      const tool = rest.join("::");
-      if (!connectionId || !tool) continue;
-      byServer.set(connectionId, [...(byServer.get(connectionId) ?? []), tool]);
-    }
-    await saveAgentTools(getDb(), tenant, projectId, agentType(type), {
-      web: bool(form, "web"),
-      mcp: [...byServer].map(([connectionId, tools]) => ({ connectionId, tools })),
-    });
+    await saveAgentTools(getDb(), tenant, projectId, agentType(type), toolsFromForm(form));
   }, "Herramientas guardadas.");
   refresh(projectId);
   return result;

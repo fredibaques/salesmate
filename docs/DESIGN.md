@@ -6,8 +6,13 @@ screen needs something new, add it here and as a component, not inline.
 
 ## 1. Shell
 
-- The sidebar is exactly one screen tall and never scrolls with the page.
-  Only its project list scrolls inside it when there are many projects.
+- The sidebar (`Sidebar`, `SidebarBrand`, `SidebarSection`, `SidebarItem`,
+  `UserMenu` in `src/components/sidebar.tsx`) is exactly one screen tall and
+  never scrolls with the page. Only its project list (`grow`) scrolls inside
+  it. Counts use `CountBadge`; projects show a `SidebarDot` with their
+  initial. The person's own settings live in the `UserMenu` at the bottom:
+  **Mi cuenta** (Perfil, Seguridad, Organización), switching organization and
+  «Salir».
 - Content sits in a centred column (`max-w-6xl`, `px-8 py-8`).
 - The sidebar has three sections and the projects:
   - **Panel**: overview.
@@ -23,9 +28,10 @@ screen needs something new, add it here and as a component, not inline.
 
 Every page reads top to bottom the same way:
 
-1. **`PageHeader`**: optional back link, title (with its status badge),
-   one line saying what the page is for, and the page's actions on the
-   right. Top-level pages use the default `level="page"` (h1); pages inside
+1. **`PageHeader`**: optional back link, title (with its status badge)
+   and the page's actions on the right. **No paragraph under titles**: when
+   a page or a card needs explaining, pass `tip` and it shows as a «?» with
+   a tooltip next to the title. Top-level pages use the default `level="page"` (h1); pages inside
    a project or an agent use `level="section"` (h2) under the project
    header.
 2. **Tabs** (`Tabs` + `TabLink`) when an entity has several facets (project,
@@ -33,7 +39,7 @@ Every page reads top to bottom the same way:
    sub-pages (`also`). Inside a tab, related pages use pill sub-tabs
    (`SubTabs` + `SubTabLink`), e.g. Conocimiento → Documentos · Oferta y cliente.
 3. **Content**: a grid of entity cards, or sections (`Card` with title,
-   description and actions), separated by `space-y-6`.
+   optional `tip` and actions), separated by `space-y-6`.
 
 ## 3. Buttons
 
@@ -55,7 +61,43 @@ fills the width (forms on their own, like sign-in).
 
 The live reference is at `/app/design`.
 
-## 4. Entities are cards
+## 4. Inputs
+
+Every field is a `Field` (label, `tip`, `hint`, `error`, `optional`) around a
+control from `src/components/form-controls.tsx`. Never style a control by
+hand.
+
+| Control | Use |
+|---|---|
+| `Input` | Text, numbers, dates, URLs. `icon` on the left (search, user), `suffix` on the right for units («min», «€»). |
+| `PasswordInput` | Passwords, with a button to show them. |
+| `Select`, `Textarea` | Choosing from a list; long text. |
+| `Choice` | A checkbox or radio with its label and an optional description. `card` for options that need explaining (how a conversation ends). |
+| `Chip` | Small toggles in a row, e.g. the days of the week. |
+| `Segmented` | Two to four exclusive options side by side (B2B · B2C). |
+| `FormSection` | Titled block inside a long form. |
+
+Sizes `sm` (tables, toolbars), `md` (default), `lg` (sign-in); `invalid` or
+`error` mark a wrong value. Use `group` on a `Field` that holds checkboxes,
+radios or chips. `hint` is a short line under the control for what is not
+obvious; anything about how the platform works goes in `tip`.
+
+## 5. Help
+
+Explanations live in tooltips, not on the page: `InfoTip` (the «?» next to a
+title or a label) or `Tooltip` around any element. One or two sentences.
+Empty states and notices still explain themselves in the page.
+
+## 6. Chat
+
+Conversations with an AI are built from `src/components/chat.tsx`:
+`ChatPanel` (optional toolbar, messages, composer), `ChatMessages` (follows
+the conversation), `ChatMessage` (assistant on the left with its avatar,
+person on the right, `footer` for sources or proposed actions, `tone="danger"`
+for errors), `TypingIndicator`, `ChatWelcome` with `SuggestionButton`s, and
+`ChatComposer` (Enter sends, Shift+Enter adds a line, grows with the text).
+
+## 7. Entities are cards
 
 Things the user creates or owns and opens to configure (projects, agents,
 connections, knowledge sources, tools in the catalog) are `EntityCard`s in a
@@ -80,7 +122,7 @@ Show the full set of possible entities when it is small and fixed (all
 agent types, all tools), so what is active, what can be added and what is
 coming are visible together.
 
-## 5. Records are rows
+## 8. Records are rows
 
 Things that happen (conversations, approvals, audit events, rules,
 exclusions) are rows in a list or `Table`. A row that opens a detail uses
@@ -88,7 +130,7 @@ exclusions) are rows in a list or `Table`. A row that opens a detail uses
 Remove actions on a row are a `dangerGhost` icon button with an
 `aria-label`.
 
-## 6. States
+## 9. States
 
 - **On/off** (an agent, a project): `SwitchButton` inside a form whose server
   action flips it. Green = acting; grey «En pausa» = not acting.
@@ -103,26 +145,30 @@ Remove actions on a row are a `dangerGhost` icon button with an
 - **Loading** inside a form: the submit button says «Un momento…»; a switch
   shows «…».
 
-## 7. Creating, editing, removing
+## 10. Creating, editing, removing
 
 - Creating opens a modal from a button (`ModalButton` + `ActionForm`): the
   modal closes and a toast confirms on success; errors stay next to the
-  button.
+  button. Modals have a title and no description.
+- Creating something that needs a first configuration (an agent) is a
+  `Wizard`: one step per decision, each checked before moving on, a
+  «Revisar» step that summarises the choices, and one server action at the
+  end. Afterwards it is edited on its own page.
 - Editing an entity's settings happens on its page, in sections, with one
   «Guardar» per form.
 - Removing asks first (`ConfirmForm`) and lives in the entity's header
   (`dangerGhost`), never as the most prominent action.
 
-## 8. Copy
+## 11. Copy
 
 - Spanish, sentence case, «tú». Buttons are verbs («Añadir agente», «Subir
   fichero»).
 - Explain what something does for the user, not how it is built. No
   internal terms (playbook, chunk, scope) in the UI.
-- One sentence under each title. Hints under fields only when the field
-  is not obvious.
+- Nothing under titles; how-to explanations go in tooltips. Hints under
+  fields only when the field is not obvious.
 
-## 9. Visual tokens
+## 12. Visual tokens
 
 - Colours come from the theme tokens (`accent`, `success`, `warning`,
   `danger`, `muted`, `border`, `surface`, `background`); never raw colours

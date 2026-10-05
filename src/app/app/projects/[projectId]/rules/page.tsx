@@ -2,7 +2,7 @@ import { Plus, Scale, ShieldBan, Trash2 } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
 import { SUPPRESSION_TYPE_LABELS, SuppressionFields } from "@/components/suppression-fields";
-import { Badge, Button, Card, EmptyState, Field, Input, Select, PageHeader } from "@/components/ui";
+import { Badge, Button, Card, Choice, EmptyState, Field, Input, PageHeader, Select } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { ACTION_DEFINITIONS } from "@/server/gateway/definitions";
@@ -25,7 +25,6 @@ function AddRuleButton({ projectId }: { projectId: string }) {
       label="Añadir regla"
       icon={<Plus className="size-4" />}
       title="Añadir regla de cumplimiento"
-      description="Se aplica a cada acción de los agentes de este proyecto antes de ejecutarse."
       variant="secondary"
       width="lg"
     >
@@ -46,26 +45,20 @@ function AddRuleButton({ projectId }: { projectId: string }) {
             placeholder="p. ej. Las propuestas las envía siempre una persona"
           />
         </Field>
-        <Field label="Acciones afectadas">
-          <div className="flex flex-wrap gap-3 text-sm">
+        <Field label="Acciones afectadas" group>
+          <div className="grid gap-2 sm:grid-cols-2">
             {actionTypes.map((d) => (
-              <label key={d.type} className="flex items-center gap-1">
-                <input type="checkbox" name="actionTypes" value={d.type} /> {d.label}
-              </label>
+              <Choice key={d.type} name="actionTypes" value={d.type} label={d.label} />
             ))}
           </div>
         </Field>
         <Field label="Texto obligatorio" hint="Solo para «Aviso obligatorio».">
           <Input name="text" />
         </Field>
-        <Field label="Tipo de destinatario restringido" hint="Solo para «Canal restringido».">
-          <div className="flex gap-3 text-sm">
-            <label className="flex items-center gap-1">
-              <input type="checkbox" name="customerTypes" value="b2b" /> Empresas (B2B)
-            </label>
-            <label className="flex items-center gap-1">
-              <input type="checkbox" name="customerTypes" value="b2c" /> Particulares (B2C)
-            </label>
+        <Field label="Tipo de destinatario restringido" hint="Solo para «Canal restringido»." group>
+          <div className="flex flex-wrap gap-4">
+            <Choice name="customerTypes" value="b2b" label="Empresas (B2B)" />
+            <Choice name="customerTypes" value="b2c" label="Particulares (B2C)" />
           </div>
         </Field>
         <Field label="Días de conservación" hint="Solo para «Conservación».">
@@ -82,7 +75,6 @@ function AddSuppressionButton({ projectId }: { projectId: string }) {
       label="Añadir exclusión"
       icon={<Plus className="size-4" />}
       title="Añadir exclusión"
-      description="El sistema bloquea cualquier acción dirigida a estos destinatarios."
       variant="secondary"
     >
       <ActionForm
@@ -107,12 +99,12 @@ export default async function RulesPage({ params }: PageProps<"/app/projects/[pr
       <PageHeader
         level="section"
         title="Reglas y exclusiones"
-        description="Lo que el sistema comprueba antes de cada acción de los agentes de este proyecto, sea cual sea su nivel de autonomía."
+        tip="Lo que el sistema comprueba antes de cada acción de los agentes de este proyecto, sea cual sea su nivel de autonomía."
       />
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <Card
           title="Reglas de cumplimiento"
-          description="Normas propias de este negocio que el sistema aplica a cada acción, sin que el núcleo conozca tu sector."
+          tip="Normas propias de este negocio que el sistema aplica a cada acción, sin que el núcleo conozca tu sector."
           actions={rules.compliance.length > 0 ? <AddRuleButton projectId={projectId} /> : null}
         >
           {rules.compliance.length === 0 ? (
@@ -144,7 +136,7 @@ export default async function RulesPage({ params }: PageProps<"/app/projects/[pr
 
         <Card
           title="Exclusiones"
-          description="Personas, dominios o teléfonos con los que este proyecto no debe contactar."
+          tip="Personas, dominios o teléfonos con los que este proyecto no debe contactar."
           actions={rules.suppressions.length > 0 ? <AddSuppressionButton projectId={projectId} /> : null}
         >
           {rules.suppressions.length === 0 ? (

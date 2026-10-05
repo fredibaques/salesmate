@@ -85,7 +85,7 @@ function PendingAction({ row }: { row: Row }) {
               />
             </Field>
           )}
-          <Field label="Nota (opcional)">
+          <Field label="Nota" optional>
             <Input name="reason" placeholder="Por qué lo apruebas o qué has cambiado" />
           </Field>
         </ActionForm>
@@ -124,14 +124,13 @@ export default async function InboxPage() {
       <PageHeader
         level="section"
         title="Por aprobar"
-        description="Lo que los agentes quieren hacer y necesita tu decisión, de todos tus proyectos. Puedes editarlo antes de aprobar."
+        tip="Lo que los agentes quieren hacer, de todos tus proyectos. Puedes editarlo antes de aprobar."
         actions={
           projects.length > 0 ? (
             <ModalButton
               label="Probar el flujo de aprobación"
               icon={<FlaskConical className="size-4" />}
               title="Probar el flujo de aprobación"
-              description="Propone una acción como si la hubiera preparado un agente. Pasa por las mismas reglas que una real y aparecerá aquí."
               variant="secondary"
               width="lg"
             >
@@ -160,7 +159,7 @@ export default async function InboxPage() {
       </section>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <Card title="Programadas" description="Aprobadas que esperan su franja horaria o límite diario.">
+        <Card title="Programadas" tip="Aprobadas que esperan su franja horaria o límite diario.">
           {scheduled.length === 0 ? (
             <EmptyState
               compact
@@ -274,7 +273,7 @@ function SimulateProposal({
       </Field>
       <Field
         label="Contenido (JSON)"
-        hint="Para emails y reuniones, identityId es el buzón/calendario asignado al proyecto."
+        tip="Para emails y reuniones, identityId es el buzón/calendario asignado al proyecto."
       >
         <Textarea
           name="payload"

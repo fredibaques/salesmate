@@ -40,11 +40,7 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <PageHeader
-        title={`Hola, ${tenant.user.name.split(" ")[0]}`}
-        description="Resumen de tus proyectos y de lo que espera tu decisión."
-        actions={<NewProjectButton />}
-      />
+      <PageHeader title={`Hola, ${tenant.user.name.split(" ")[0]}`} actions={<NewProjectButton />} />
 
       {steps.some((s) => !s.done) ? (
         <Card title="Primeros pasos" className="mb-6">

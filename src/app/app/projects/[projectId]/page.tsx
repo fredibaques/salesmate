@@ -1,6 +1,6 @@
 import { CheckCircle2, ChevronRight, Circle } from "lucide-react";
 import Link from "next/link";
-import { Card, PageHeader } from "@/components/ui";
+import { Badge, Card, PageHeader } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getSalesProfile, listProjectAgents } from "@/server/services/agents";
@@ -60,7 +60,7 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/app/pr
       {pending > 0 ? (
         <Card
           title="Puesta en marcha"
-          description={`Te ${pending === 1 ? "queda 1 paso" : `quedan ${pending} pasos`} para que este proyecto venda solo.`}
+          actions={<Badge tone="accent">{pending === 1 ? "Queda 1 paso" : `Quedan ${pending} pasos`}</Badge>}
         >
           <ol className="grid gap-x-6 gap-y-1 md:grid-cols-2">
             {steps.map((step, i) => (
@@ -92,7 +92,7 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/app/pr
         <PageHeader
           level="section"
           title="Agentes"
-          description="Actívalos o pausa cada uno desde aquí; entra en uno para ajustar su proceso, sus canales y qué necesita tu aprobación."
+          tip="Actívalos o pausa cada uno desde aquí; entra en uno para ajustar cómo trabaja y qué necesita tu aprobación."
         />
         <AgentCards projectId={projectId} agents={agents} />
       </section>

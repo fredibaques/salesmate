@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
-import { Field, Input, Textarea, type ButtonVariant } from "@/components/ui";
+import { Field, Input, Textarea, type ButtonSize, type ButtonVariant } from "@/components/ui";
 import { createProjectAction } from "./actions";
 
 export const PROJECT_HELP =
@@ -34,10 +34,14 @@ export function NewProjectFields() {
 /** «Nuevo proyecto» button that opens the creation form in a modal. */
 export function NewProjectButton({
   variant = "primary",
+  size,
+  iconOnly,
   className,
   label = "Nuevo proyecto",
 }: {
   variant?: ButtonVariant;
+  size?: ButtonSize;
+  iconOnly?: boolean;
   className?: string;
   label?: string;
 }) {
@@ -46,8 +50,9 @@ export function NewProjectButton({
       label={label}
       icon={<Plus className="size-4" />}
       title="Nuevo proyecto"
-      description={PROJECT_HELP}
       variant={variant}
+      size={size}
+      iconOnly={iconOnly}
       className={className}
     >
       <ActionForm action={createProjectAction} submitLabel="Crear proyecto" className="space-y-4">

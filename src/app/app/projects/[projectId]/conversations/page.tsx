@@ -43,7 +43,6 @@ function SimulateLeadButton({
       label="Simular un lead"
       icon={<FlaskConical className="size-4" />}
       title="Probar con un lead simulado"
-      description="Entra como si viniera del formulario de la web y lo atiende el agente inbound con su proceso, aunque todavía no esté activado. Lo que proponga espera tu aprobación en Copilot → Por aprobar."
       variant={variant}
       width="lg"
     >
@@ -97,7 +96,6 @@ export default async function ConversationsPage({
       <PageHeader
         level="section"
         title="Conversaciones"
-        description="Cada contacto entrante, lo que ha dicho, cómo lo ha valorado el agente y qué ha propuesto."
         actions={rows.length > 0 && inbound ? <SimulateLeadButton projectId={projectId} /> : null}
       />
       <div className="space-y-6">

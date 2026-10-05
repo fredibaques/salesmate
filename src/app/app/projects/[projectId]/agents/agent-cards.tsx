@@ -1,11 +1,8 @@
 import { ChevronRight, HeartHandshake, MessageSquareReply, Plus, Send, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
-import { ActionForm } from "@/components/action-form";
-import { ModalButton } from "@/components/modal";
 import { SwitchButton } from "@/components/switch";
-import { Badge, CardGrid, EntityCard, Field, Select } from "@/components/ui";
+import { Badge, CardGrid, EntityCard, LinkButton } from "@/components/ui";
 import { AGENT_INFO } from "@/lib/agents";
-import { SALES_MOTIONS } from "@/server/db/schema";
 import { NEXT_STEP_LABELS, SALES_MOTION_LABELS } from "@/server/playbooks/spec";
 import {
   AVAILABLE_AGENT_TYPES,
@@ -13,7 +10,7 @@ import {
   type listProjectAgents,
   type ProjectAgentType,
 } from "@/server/services/agents";
-import { addAgentAction, toggleAgent } from "./actions";
+import { toggleAgent } from "./actions";
 
 export const AGENT_ICONS: Record<ProjectAgentType, ReactNode> = {
   inbound: <MessageSquareReply />,
@@ -24,49 +21,11 @@ export const AGENT_ICONS: Record<ProjectAgentType, ReactNode> = {
 type Agents = Awaited<ReturnType<typeof listProjectAgents>>;
 
 function AddAgentButton({ projectId, type }: { projectId: string; type: ProjectAgentType }) {
-  const info = AGENT_INFO[type];
   return (
-    <ModalButton
-      label="Añadir"
-      icon={<Plus className="size-4" />}
-      title={`Añadir el ${info.name.toLowerCase()}`}
-      description={
-        type === "outbound"
-          ? "No contactará con nadie: busca empresas y las guarda para que las revises. No trabajará hasta que lo actives."
-          : "Empezará con un proceso de venta de partida que podrás ajustar. No actuará hasta que lo actives."
-      }
-      variant="secondary"
-    >
-      <ActionForm
-        action={addAgentAction.bind(null, projectId)}
-        submitLabel="Añadir agente"
-        className="space-y-4"
-      >
-        <input type="hidden" name="agentType" value={type} />
-        {type === "outbound" ? (
-          <>
-            <input type="hidden" name="salesMotion" value="b2b_consultative" />
-            <p className="text-sm text-muted">
-              Empezará con unas instrucciones de búsqueda de ejemplo, búsqueda en internet y un horario de
-              lunes a viernes a las 8:00. Lo ajustas todo en su ficha.
-            </p>
-          </>
-        ) : (
-          <Field
-            label="Modelo de venta"
-            hint="En B2B la conversación suele acabar en una reunión; en B2C, en un presupuesto o una contratación directa. Podrás cambiarlo después."
-          >
-            <Select name="salesMotion" defaultValue="b2b_consultative">
-              {SALES_MOTIONS.map((m) => (
-                <option key={m} value={m}>
-                  {SALES_MOTION_LABELS[m]}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        )}
-      </ActionForm>
-    </ModalButton>
+    <LinkButton href={`/app/projects/${projectId}/agents/new/${type}`} variant="secondary">
+      <Plus />
+      Añadir
+    </LinkButton>
   );
 }
 

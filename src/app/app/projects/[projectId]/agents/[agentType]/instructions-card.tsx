@@ -1,5 +1,5 @@
 import { ActionForm } from "@/components/action-form";
-import { Card, Field, Input, Textarea } from "@/components/ui";
+import { Card, Chip, Field, Input, Textarea } from "@/components/ui";
 import type { agentConfigs } from "@/server/db/schema";
 import { SCHEDULED_AGENT_TYPES, type ProjectAgentType } from "@/server/services/agents";
 import { saveInstructions } from "../actions";
@@ -37,7 +37,7 @@ export function InstructionsCard({
   return (
     <Card
       title="Instrucciones"
-      description="Lo que comparten todos los agentes (qué vendes, a quién, tono) ya lo saben por «Oferta y cliente». Aquí va lo propio de este agente."
+      tip="Lo que comparten todos los agentes (qué vendes, a quién, tono) ya lo saben por «Oferta y cliente». Aquí va lo propio de este agente."
     >
       <ActionForm
         key={`${config.instructions ?? ""}|${JSON.stringify(config.schedule)}|${JSON.stringify(config.settings)}`}
@@ -54,18 +54,12 @@ export function InstructionsCard({
               <Field label="Hora">
                 <Input name="time" type="time" defaultValue={schedule.time} required className="w-32" />
               </Field>
-              <Field label="Días">
-                <div className="flex flex-wrap gap-x-3 gap-y-1 pt-2">
+              <Field label="Días" group>
+                <div className="flex flex-wrap gap-1.5">
                   {DAYS.map(([n, label]) => (
-                    <label key={n} className="flex items-center gap-1 text-sm">
-                      <input
-                        type="checkbox"
-                        name="days"
-                        value={n}
-                        defaultChecked={schedule.days.includes(n)}
-                      />
+                    <Chip key={n} name="days" value={n} defaultChecked={schedule.days.includes(n)}>
                       {label}
-                    </label>
+                    </Chip>
                   ))}
                 </div>
               </Field>

@@ -1,7 +1,7 @@
 import { Check } from "lucide-react";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
-import { Avatar, Button, Card, Field, Input, PageHeader } from "@/components/ui";
+import { Avatar, Button, Card, Choice, Field, Input, PageHeader } from "@/components/ui";
 import { getIntegration } from "@/lib/integrations";
 import { requireTenant } from "@/server/auth/session";
 import { env } from "@/server/env";
@@ -50,7 +50,6 @@ export default async function ConnectProviderPage({ params }: PageProps<"/app/co
         back={{ href: "/app/connections/new", label: "Todas las herramientas" }}
         media={<Avatar label={integration.name} color={integration.color} className="size-11 text-lg" />}
         title={`Conectar ${integration.name}`}
-        description={integration.tagline}
       />
 
       <div className="grid items-start gap-6 lg:grid-cols-[1fr_2fr]">
@@ -73,27 +72,21 @@ export default async function ConnectProviderPage({ params }: PageProps<"/app/co
           GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET ? (
             <Card
               title="Permisos"
-              description="Te llevaremos a Google para que elijas la cuenta y aceptes. Conecta una vez cada cuenta que uses: su calendario cuenta para tu disponibilidad aunque lo compartan varios proyectos."
+              tip="Te llevaremos a Google para que elijas la cuenta y aceptes. Conecta una vez cada cuenta que uses: su calendario cuenta para tu disponibilidad aunque lo compartan varios proyectos."
             >
               <form action="/api/connections/google/start" method="get" className="space-y-3">
                 <input type="hidden" name="sets" value="calendar_read" />
                 {GOOGLE_PERMISSIONS.map((p) => (
-                  <label
+                  <Choice
                     key={p.value}
-                    className="flex gap-3 rounded-xl border border-border p-4 transition-colors hover:bg-background has-[:checked]:border-accent has-[:checked]:bg-accent/5"
-                  >
-                    <input
-                      type="radio"
-                      name="sets"
-                      value={p.value}
-                      defaultChecked={"recommended" in p}
-                      className="mt-1"
-                    />
-                    <span>
-                      <span className="block text-sm font-medium">{p.title}</span>
-                      <span className="block text-sm text-muted">{p.description}</span>
-                    </span>
-                  </label>
+                    card
+                    type="radio"
+                    name="sets"
+                    value={p.value}
+                    defaultChecked={"recommended" in p}
+                    label={p.title}
+                    description={p.description}
+                  />
                 ))}
                 <div className="pt-2">
                   <Button>Continuar con Google</Button>
@@ -117,7 +110,7 @@ export default async function ConnectProviderPage({ params }: PageProps<"/app/co
         {provider === "mcp" ? (
           <Card
             title="Datos del servidor"
-            description="La dirección del servidor MCP (transporte HTTP) y, si lo pide, su token de acceso. Comprobaremos que responde y leeremos qué herramientas ofrece."
+            tip="La dirección del servidor MCP (transporte HTTP) y, si lo pide, su token de acceso. Comprobaremos que responde y leeremos qué herramientas ofrece."
           >
             <ActionForm action={addMcp} submitLabel="Conectar servidor" className="space-y-4">
               <Field label="Nombre" hint="Para reconocerlo en los agentes, p. ej. «Directorio de empresas».">
@@ -127,7 +120,8 @@ export default async function ConnectProviderPage({ params }: PageProps<"/app/co
                 <Input name="url" type="url" placeholder="https://…/mcp" required />
               </Field>
               <Field
-                label="Token (opcional)"
+                label="Token"
+                optional
                 hint="Se envía como «Authorization: Bearer …». Se guarda cifrado."
               >
                 <Input name="token" type="password" autoComplete="off" />
@@ -139,7 +133,7 @@ export default async function ConnectProviderPage({ params }: PageProps<"/app/co
         {provider === "twenty" ? (
           <Card
             title="Datos de acceso"
-            description="Funciona con Twenty en la nube (https://api.twenty.com) o en tu propio servidor. Crea la clave en Twenty → Settings → APIs & Webhooks."
+            tip="Funciona con Twenty en la nube (https://api.twenty.com) o en tu propio servidor. Crea la clave en Twenty → Settings → APIs & Webhooks."
           >
             <ActionForm action={addTwenty} submitLabel="Conectar Twenty" className="space-y-4">
               <Field label="Nombre" hint="Para reconocerla, p. ej. «CRM de Protectio».">
@@ -152,18 +146,17 @@ export default async function ConnectProviderPage({ params }: PageProps<"/app/co
                 <Input name="apiKey" type="password" required autoComplete="off" />
               </Field>
               <Field
-                label="Secreto del webhook (opcional)"
-                hint="Para recibir avisos del CRM, p. ej. nuevas oportunidades. Lo creas en Twenty al dar de alta el webhook."
+                label="Secreto del webhook"
+                optional
+                tip="Para recibir avisos del CRM, p. ej. nuevas oportunidades. Lo creas en Twenty al dar de alta el webhook."
               >
                 <Input name="webhookSecret" type="password" autoComplete="off" />
               </Field>
-              <label className="flex items-start gap-2 text-sm">
-                <input type="checkbox" name="allowWrite" className="mt-1" />
-                <span>
-                  Permitir escritura
-                  <span className="block text-muted">Crear contactos, tareas y notas en el CRM.</span>
-                </span>
-              </label>
+              <Choice
+                name="allowWrite"
+                label="Permitir escritura"
+                description="Crear contactos, tareas y notas en el CRM."
+              />
             </ActionForm>
           </Card>
         ) : null}

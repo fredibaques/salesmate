@@ -2,17 +2,7 @@ import { Download, ExternalLink, Search, Undo2, X } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
-import {
-  Badge,
-  Button,
-  buttonClass,
-  Card,
-  cx,
-  EmptyState,
-  Notice,
-  Table,
-  Td,
-} from "@/components/ui";
+import { Badge, Button, buttonClass, Card, cx, EmptyState, Notice, Table, Td } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
@@ -82,7 +72,7 @@ export default async function ProspectsPage({
 
       <Card
         title="Prospectos"
-        description="Empresas que ha encontrado el agente, con los datos públicos y las páginas de donde salen. Revisa, descarta las que no te sirvan y exporta el resto."
+        tip="Empresas que ha encontrado el agente, con los datos públicos y las páginas de donde salen. Revisa, descarta las que no te sirvan y exporta el resto."
         actions={
           data.total > 0 ? (
             <>
@@ -214,7 +204,13 @@ export default async function ProspectsPage({
                         )}
                       >
                         {p.status === "discarded" ? (
-                          <Button variant="ghost" size="sm" iconOnly aria-label={`Recuperar ${p.companyName}`} title="Recuperar">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            iconOnly
+                            aria-label={`Recuperar ${p.companyName}`}
+                            title="Recuperar"
+                          >
                             <Undo2 className="size-4" />
                           </Button>
                         ) : (

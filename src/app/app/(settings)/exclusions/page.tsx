@@ -17,7 +17,6 @@ function AddExclusion({ variant = "primary" }: { variant?: "primary" | "secondar
       label="Añadir exclusión"
       icon={<Plus className="size-4" />}
       title="Añadir exclusión"
-      description="Nadie de la organización contactará con estos destinatarios desde ningún proyecto."
       variant={variant}
     >
       <ActionForm action={addGlobalSuppression} submitLabel="Añadir" className="space-y-4">
@@ -36,7 +35,7 @@ export default async function ExclusionsPage() {
       <PageHeader
         level="section"
         title="Exclusiones"
-        description="Personas, dominios o teléfonos con los que ningún proyecto debe contactar: bajas, clientes actuales, competidores… Cada proyecto puede tener además las suyas en «Agentes y reglas»."
+        tip="Personas, dominios o teléfonos con los que ningún proyecto debe contactar: bajas, clientes actuales, competidores… Cada proyecto puede tener además las suyas en «Agentes y reglas»."
         actions={suppressions.length > 0 ? <AddExclusion /> : null}
       />
       <Card>
