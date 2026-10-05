@@ -1,13 +1,18 @@
 "use client";
 
 import { useActionState, type ReactNode } from "react";
+import { useModal } from "./modal";
+import { useToast } from "./toast";
+import { buttonBase, buttonStyles, cx } from "./ui";
 
 export type FormState = { ok: boolean; message: string } | null;
 export type FormAction = (state: FormState, formData: FormData) => Promise<FormState>;
 
 /**
  * Form bound to a server action that returns a status message.
- * Keeps the page usable without client-side state management.
+ * Inside a modal it adds «Cancelar», and on success closes the modal and
+ * shows the message as a toast; elsewhere the message appears next to the
+ * button.
  */
 export function ActionForm({
   action,
@@ -24,12 +29,27 @@ export function ActionForm({
   className?: string;
   confirm?: string;
 }) {
-  const [state, formAction, pending] = useActionState(action, null);
-  const variants = {
-    primary: "bg-accent text-accent-foreground hover:opacity-90",
-    secondary: "border border-border bg-surface hover:bg-background",
-    danger: "bg-danger text-white hover:opacity-90",
-  };
+  const modal = useModal();
+  const toast = useToast();
+  // In a modal, react as soon as the server answers: the refreshed page may
+  // move or remove the button that opened it (e.g. the first item replaces
+  // an empty state), unmounting this form before an effect could run.
+  const [state, formAction, pending] = useActionState<FormState, FormData>(
+    modal
+      ? async (prev, formData) => {
+          const result = await action(prev, formData);
+          if (result?.ok) {
+            toast?.({ ok: true, message: result.message });
+            modal.close();
+          }
+          return result;
+        }
+      : action,
+    null,
+  );
+
+  const inlineStatus = state && !(modal && state.ok);
+
   return (
     <form
       action={formAction}
@@ -39,15 +59,18 @@ export function ActionForm({
       }}
     >
       {children}
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="submit"
-          disabled={pending}
-          className={`inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-medium transition disabled:opacity-50 ${variants[submitVariant]}`}
-        >
-          {pending ? "…" : submitLabel}
+      <div
+        className={cx("flex flex-wrap items-center gap-3", modal && "flex-row-reverse justify-start pt-2")}
+      >
+        <button type="submit" disabled={pending} className={cx(buttonBase, buttonStyles[submitVariant])}>
+          {pending ? "Un momento…" : submitLabel}
         </button>
-        {state ? (
+        {modal ? (
+          <button type="button" onClick={modal.close} className={cx(buttonBase, buttonStyles.ghost)}>
+            Cancelar
+          </button>
+        ) : null}
+        {inlineStatus ? (
           <span role="status" className={`text-sm ${state.ok ? "text-success" : "text-danger"}`}>
             {state.message}
           </span>

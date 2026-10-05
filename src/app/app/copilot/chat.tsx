@@ -53,7 +53,10 @@ export function CopilotChat({ projects }: { projects: { id: string; name: string
           ))}
         </select>
         {turns.length ? (
-          <button onClick={() => setTurns([])} className="ml-auto text-muted hover:text-foreground">
+          <button
+            onClick={() => setTurns([])}
+            className="ml-auto rounded-lg px-2 py-1 text-muted transition-colors hover:bg-background hover:text-foreground"
+          >
             Nueva conversación
           </button>
         ) : null}
@@ -72,7 +75,7 @@ export function CopilotChat({ projects }: { projects: { id: string; name: string
                 <button
                   key={s}
                   onClick={() => send(s)}
-                  className="rounded-full border border-border px-3 py-1 text-xs hover:bg-background"
+                  className="rounded-full border border-border px-3 py-1 text-xs transition-colors hover:border-accent/50 hover:bg-accent/5 hover:text-accent"
                 >
                   {s}
                 </button>
@@ -90,7 +93,7 @@ export function CopilotChat({ projects }: { projects: { id: string; name: string
               {t.content}
             </div>
             {t.actions ? (
-              <Link href="/app/inbox" className="mt-1 block text-xs text-accent">
+              <Link href="/app/inbox" className="mt-1 block text-xs text-accent hover:underline">
                 {t.actions} acción(es) propuesta(s) → revisar en la bandeja
               </Link>
             ) : null}
@@ -122,7 +125,7 @@ export function CopilotChat({ projects }: { projects: { id: string; name: string
         />
         <button
           disabled={pending || !draft.trim()}
-          className="rounded-lg bg-accent px-4 text-sm font-medium text-accent-foreground disabled:opacity-50"
+          className="rounded-lg bg-accent px-4 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent/90 disabled:opacity-50"
         >
           Enviar
         </button>

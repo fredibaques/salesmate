@@ -16,11 +16,11 @@ export function SearchBox({
           name="q"
           placeholder="p. ej. ¿qué respondemos si dicen que es caro?"
           defaultValue={state?.query}
-          className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+          className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
         />
         <button
           disabled={pending}
-          className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground"
+          className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent/90 disabled:opacity-50"
         >
           {pending ? "…" : "Buscar"}
         </button>

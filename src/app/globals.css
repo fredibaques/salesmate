@@ -46,3 +46,32 @@
 body {
   font-family: var(--font-sans);
 }
+
+@layer base {
+  /* Tailwind 4 leaves buttons with the default cursor: everything clickable shows the hand. */
+  button:not(:disabled),
+  [role="button"],
+  summary,
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="file"]:not(:disabled),
+  input[type="file"]::file-selector-button,
+  label:has(> input[type="checkbox"]:not(:disabled)),
+  label:has(> input[type="radio"]:not(:disabled)) {
+    cursor: pointer;
+  }
+
+  :disabled {
+    cursor: not-allowed;
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--accent);
+  }
+
+  dialog::backdrop {
+    background: rgb(0 0 0 / 0.45);
+  }
+}

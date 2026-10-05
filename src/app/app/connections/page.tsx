@@ -1,192 +1,160 @@
+import { CalendarDays, Mail, Phone, Plug, Plus } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
-import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select } from "@/components/ui";
+import { Avatar, Badge, Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
+import { describeScopes, getIntegration } from "@/lib/integrations";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { env } from "@/server/env";
-import { listGlobalSuppressions, listOrgConnections, listOrgIdentities } from "@/server/services/projects";
-import { addGlobalSuppression, addTwenty, deleteGlobalSuppression, testConnection } from "./actions";
+import { listOrgConnections, listOrgIdentities } from "@/server/services/projects";
+import { testConnection } from "./actions";
 
 export const metadata = { title: "Conexiones" };
+
+const IDENTITY = {
+  email: { label: "Buzón", icon: Mail },
+  calendar: { label: "Calendario", icon: CalendarDays },
+  phone: { label: "Teléfono", icon: Phone },
+  whatsapp: { label: "WhatsApp", icon: Phone },
+} as const;
+
+const STATUS = {
+  active: { label: "Conectada", tone: "success" },
+  error: { label: "Con errores", tone: "danger" },
+  revoked: { label: "Revocada", tone: "danger" },
+} as const;
+
+const ERRORS: Record<string, string> = {
+  google_not_configured:
+    "Google no está configurado en el servidor (faltan GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET).",
+  access_denied: "Has cancelado el permiso en Google.",
+};
 
 export default async function ConnectionsPage({ searchParams }: PageProps<"/app/connections">) {
   const tenant = await requireTenant();
   const db = getDb();
   const query = await searchParams;
-  const [connections, identities, suppressions] = await Promise.all([
+  const [connections, identities] = await Promise.all([
     listOrgConnections(db, tenant),
     listOrgIdentities(db, tenant),
-    listGlobalSuppressions(db, tenant),
   ]);
-  const googleEnabled = Boolean(env().GOOGLE_CLIENT_ID && env().GOOGLE_CLIENT_SECRET);
   const appUrl = env().APP_URL;
 
   return (
     <>
       <PageHeader
         title="Conexiones"
-        description="Herramientas de la organización. Después, en cada proyecto decides qué conexiones e identidades puede usar y con qué capacidades."
+        description="Las herramientas de tu organización que pueden usar los agentes. Después, en cada proyecto eliges cuáles usa y qué puede hacer con ellas."
+        actions={
+          connections.length > 0 ? (
+            <LinkButton href="/app/connections/new" variant="primary">
+              <Plus className="size-4" />
+              Añadir conexión
+            </LinkButton>
+          ) : null
+        }
       />
+
       {query.connected ? (
-        <p className="mb-4 text-sm text-success">Cuenta conectada: {String(query.connected)}</p>
+        <p className="mb-6 rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+          Conectado: {String(query.connected)}
+        </p>
       ) : null}
-      {query.error ? <p className="mb-4 text-sm text-danger">Error: {String(query.error)}</p> : null}
+      {query.error ? (
+        <p className="mb-6 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+          No se ha podido conectar: {ERRORS[String(query.error)] ?? String(query.error)}
+        </p>
+      ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Conexiones activas">
-          {connections.length === 0 ? (
-            <EmptyState>Todavía no hay conexiones.</EmptyState>
-          ) : (
-            <ul className="space-y-3">
-              {connections.map((c) => (
-                <li key={c.id} className="rounded-lg border border-border p-3 text-sm">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{c.label}</span>
-                    <Badge tone={c.status === "active" ? "success" : "danger"}>{c.status}</Badge>
-                  </div>
-                  <div className="mt-1 text-xs text-muted">
-                    {c.provider} · lectura: {c.readScopes.join(", ") || "—"} · escritura:{" "}
-                    {c.writeScopes.join(", ") || "—"} · {formatDateTime(c.createdAt)}
-                  </div>
-                  {c.lastError ? <div className="mt-1 text-xs text-danger">{c.lastError}</div> : null}
-                  {c.provider === "twenty" ? (
-                    <div className="mt-1 text-xs text-muted">
-                      Webhook: <code>{`${appUrl}/api/webhooks/twenty/${c.id}`}</code>
+      {connections.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={<Plug />}
+            title="Todavía no has conectado ninguna herramienta"
+            description="Conecta tu CRM, tu correo y tu calendario para que los agentes puedan consultar tu información y actuar por ti, siempre con tu aprobación."
+            action={
+              <LinkButton href="/app/connections/new" variant="primary">
+                <Plus className="size-4" />
+                Conectar una herramienta
+              </LinkButton>
+            }
+          />
+        </Card>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {connections.map((c) => {
+            const integration = getIntegration(c.provider);
+            const own = identities.filter((i) => i.connectionId === c.id);
+            const scopes = describeScopes(c.readScopes, c.writeScopes);
+            return (
+              <Card key={c.id}>
+                <div className="flex items-start gap-3">
+                  <Avatar label={integration?.name ?? c.provider} color={integration?.color} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium">{c.label}</span>
+                      <Badge tone={STATUS[c.status].tone}>{STATUS[c.status].label}</Badge>
                     </div>
-                  ) : null}
-                  <div className="mt-2">
-                    <ActionForm
-                      action={testConnection.bind(null, c.id)}
-                      submitLabel="Probar"
-                      submitVariant="secondary"
-                    />
+                    <p className="truncate text-sm text-muted">
+                      {integration?.name ?? c.provider} · {c.accountRef}
+                    </p>
                   </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
+                </div>
 
-        <div className="space-y-6">
-          <Card
-            title="Google (Gmail y Calendar)"
-            description="Conecta cada cuenta de Google que uses: su calendario cuenta para tu disponibilidad global aunque lo compartan varios proyectos."
-          >
-            {googleEnabled ? (
-              <form action="/api/connections/google/start" method="get" className="space-y-3 text-sm">
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" name="_cal_read" defaultChecked disabled /> Ver disponibilidad del
-                  calendario
-                </label>
-                <GoogleSets />
-                <Button>Conectar cuenta de Google</Button>
-              </form>
-            ) : (
-              <p className="text-sm text-muted">
-                Configura <code>GOOGLE_CLIENT_ID</code> y <code>GOOGLE_CLIENT_SECRET</code> para conectar
-                cuentas de Google.
-              </p>
-            )}
-          </Card>
+                {scopes.length > 0 ? (
+                  <div className="mt-4">
+                    <p className="text-xs font-medium tracking-wide text-muted uppercase">Permisos</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {scopes.map((s) => (
+                        <Badge key={s}>{s}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
 
-          <Card
-            title="Twenty CRM"
-            description="Cloud (https://api.twenty.com) o tu propia instancia. Crea la clave en Settings → APIs & Webhooks."
-          >
-            <ActionForm action={addTwenty} submitLabel="Conectar" className="space-y-3">
-              <Field label="Nombre">
-                <Input name="label" placeholder="CRM de mi empresa" required />
-              </Field>
-              <Field label="URL base">
-                <Input name="baseUrl" type="url" defaultValue="https://api.twenty.com" required />
-              </Field>
-              <Field label="API key">
-                <Input name="apiKey" type="password" required autoComplete="off" />
-              </Field>
-              <Field
-                label="Secreto del webhook (opcional)"
-                hint="Para recibir eventos del CRM (p. ej. nuevas oportunidades)."
-              >
-                <Input name="webhookSecret" type="password" autoComplete="off" />
-              </Field>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="allowWrite" /> Permitir escritura (crear contactos, tareas y
-                notas)
-              </label>
-            </ActionForm>
-          </Card>
+                {own.length > 0 ? (
+                  <div className="mt-4">
+                    <p className="text-xs font-medium tracking-wide text-muted uppercase">
+                      Buzones y calendarios
+                    </p>
+                    <ul className="mt-2 space-y-1.5 text-sm">
+                      {own.map((i) => {
+                        const { label, icon: Icon } = IDENTITY[i.kind];
+                        return (
+                          <li key={i.id} className="flex items-center gap-2">
+                            <Icon className="size-4 text-muted" />
+                            <span className="truncate">{i.address}</span>
+                            <span className="text-xs text-muted">{label}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {c.provider === "twenty" ? (
+                  <div className="mt-4">
+                    <p className="text-xs font-medium tracking-wide text-muted uppercase">Webhook</p>
+                    <code className="mt-1 block text-xs break-all text-muted">{`${appUrl}/api/webhooks/twenty/${c.id}`}</code>
+                  </div>
+                ) : null}
+
+                {c.lastError ? <p className="mt-3 text-xs text-danger">{c.lastError}</p> : null}
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+                  <span className="text-xs text-muted">Conectada el {formatDateTime(c.createdAt)}</span>
+                  <ActionForm
+                    action={testConnection.bind(null, c.id)}
+                    submitLabel="Probar conexión"
+                    submitVariant="secondary"
+                    className="flex flex-wrap items-center gap-3"
+                  />
+                </div>
+              </Card>
+            );
+          })}
         </div>
-
-        <Card title="Identidades" description="Buzones y calendarios disponibles para asignar a proyectos.">
-          {identities.length === 0 ? (
-            <EmptyState>Se crean al conectar cuentas.</EmptyState>
-          ) : (
-            <ul className="divide-y divide-border text-sm">
-              {identities.map((i) => (
-                <li key={i.id} className="flex items-center justify-between py-2">
-                  <span>{i.address}</span>
-                  <Badge>{i.kind}</Badge>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        <Card
-          title="Exclusiones globales"
-          description="Nadie de la organización contactará con estos destinatarios desde ningún proyecto."
-        >
-          {suppressions.length > 0 ? (
-            <ul className="mb-4 divide-y divide-border text-sm">
-              {suppressions.map((s) => (
-                <li key={s.id} className="flex items-center justify-between py-2">
-                  <span>
-                    <Badge>{s.type}</Badge> {s.value}{" "}
-                    {s.reason ? <span className="text-muted">· {s.reason}</span> : null}
-                  </span>
-                  <form action={deleteGlobalSuppression.bind(null, s.id)}>
-                    <Button variant="ghost" className="text-danger">
-                      Quitar
-                    </Button>
-                  </form>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <ActionForm action={addGlobalSuppression} submitLabel="Añadir" className="space-y-3">
-            <Field label="Tipo">
-              <Select name="type" defaultValue="email">
-                <option value="email">Email</option>
-                <option value="domain">Dominio</option>
-                <option value="phone">Teléfono</option>
-              </Select>
-            </Field>
-            <Field label="Valores">
-              <Input name="values" required />
-            </Field>
-            <Field label="Motivo">
-              <Input name="reason" />
-            </Field>
-          </ActionForm>
-        </Card>
-      </div>
-    </>
-  );
-}
-
-function GoogleSets() {
-  return (
-    <>
-      <input type="hidden" name="sets" value="calendar_read" />
-      <p className="text-xs text-muted">Permisos adicionales:</p>
-      <Select name="sets" defaultValue="calendar_write,gmail_write">
-        <option value="">Solo disponibilidad</option>
-        <option value="calendar_write">+ Crear reuniones</option>
-        <option value="calendar_write,gmail_write">+ Crear reuniones y enviar/borradores de email</option>
-        <option value="calendar_write,gmail_write,gmail_read">
-          + Lo anterior y leer el correo (para el agente inbound)
-        </option>
-      </Select>
+      )}
     </>
   );
 }

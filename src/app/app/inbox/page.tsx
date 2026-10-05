@@ -1,4 +1,6 @@
+import { CalendarClock, FlaskConical, History, Inbox, X } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
+import { ModalButton } from "@/components/modal";
 import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Textarea } from "@/components/ui";
 import { ACTION_STATUS_LABELS, AGENT_LABELS, AUTONOMY_LABELS, formatDateTime } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
@@ -122,21 +124,49 @@ export default async function InboxPage() {
       <PageHeader
         title="Bandeja"
         description="Todo lo que los agentes quieren hacer y necesita tu decisión, de todos tus proyectos. Puedes editar antes de aprobar."
+        actions={
+          projects.length > 0 ? (
+            <ModalButton
+              label="Probar el flujo de aprobación"
+              icon={<FlaskConical className="size-4" />}
+              title="Probar el flujo de aprobación"
+              description="Propone una acción como si la hubiera preparado un agente. Pasa por las mismas reglas que una real y aparecerá en la bandeja."
+              variant="secondary"
+              size="lg"
+            >
+              <SimulateProposal projects={projects} emailIdentityId={emailIdentity?.id} />
+            </ModalButton>
+          ) : null
+        }
       />
 
-      <section className="space-y-4">
-        {pending.length === 0 ? <EmptyState>Nada pendiente de aprobación.</EmptyState> : null}
-        <ul className="space-y-4">
-          {pending.map((row) => (
-            <PendingAction key={row.action.id} row={row} />
-          ))}
-        </ul>
+      <section>
+        {pending.length === 0 ? (
+          <Card>
+            <EmptyState
+              icon={<Inbox />}
+              title="Nada pendiente de aprobación"
+              description="Cuando un agente prepare un email, una reunión o un cambio en el CRM que necesite tu visto bueno, lo verás aquí para revisarlo, editarlo y aprobarlo o rechazarlo."
+            />
+          </Card>
+        ) : (
+          <ul className="space-y-4">
+            {pending.map((row) => (
+              <PendingAction key={row.action.id} row={row} />
+            ))}
+          </ul>
+        )}
       </section>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <Card title="Programadas" description="Aprobadas que esperan su franja horaria o límite diario.">
           {scheduled.length === 0 ? (
-            <EmptyState>Nada programado.</EmptyState>
+            <EmptyState
+              compact
+              icon={<CalendarClock />}
+              title="Nada programado"
+              description="Las acciones aprobadas fuera del horario de contacto esperan aquí a su franja."
+            />
           ) : (
             <ul className="divide-y divide-border text-sm">
               {scheduled.map((row) => (
@@ -151,7 +181,8 @@ export default async function InboxPage() {
                     </span>
                   </span>
                   <form action={cancel.bind(null, row.action.id)}>
-                    <Button variant="ghost" className="text-danger">
+                    <Button variant="dangerGhost">
+                      <X className="size-4" />
                       Cancelar
                     </Button>
                   </form>
@@ -163,7 +194,12 @@ export default async function InboxPage() {
 
         <Card title="Últimas resueltas">
           {recent.length === 0 ? (
-            <EmptyState>Sin historial todavía.</EmptyState>
+            <EmptyState
+              compact
+              icon={<History />}
+              title="Sin historial todavía"
+              description="Aquí quedan las acciones ya hechas, rechazadas o bloqueadas."
+            />
           ) : (
             <ul className="divide-y divide-border text-sm">
               {recent.map((row) => (
@@ -185,75 +221,75 @@ export default async function InboxPage() {
           )}
         </Card>
       </div>
-
-      <details className="mt-8">
-        <summary className="cursor-pointer text-sm font-medium text-accent">
-          Probar el flujo de aprobación
-        </summary>
-        <Card
-          className="mt-3 max-w-3xl"
-          description="Propone una acción como si la hubiera preparado un agente. Pasa por las mismas reglas que una real."
-        >
-          <ActionForm action={simulateAgentProposal} submitLabel="Proponer" className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Field label="Proyecto">
-                <Select name="projectId" required>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Agente">
-                <Select name="agentType" defaultValue="outbound">
-                  {Object.entries(AGENT_LABELS).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Destinatario">
-                <Select name="customerType" defaultValue="">
-                  <option value="">Sin indicar</option>
-                  <option value="b2b">Empresa (B2B)</option>
-                  <option value="b2c">Particular (B2C)</option>
-                </Select>
-              </Field>
-            </div>
-            <Field label="Acción">
-              <Select name="type" defaultValue="email.create_draft">
-                <option value="email.create_draft">Crear borrador de email</option>
-                <option value="email.send">Enviar email</option>
-                <option value="crm.create_task">Crear tarea en el CRM</option>
-                <option value="crm.log_note">Registrar nota en el CRM</option>
-                <option value="crm.upsert_contact">Crear/actualizar contacto</option>
-                <option value="calendar.book">Reservar reunión</option>
-              </Select>
-            </Field>
-            <Field
-              label="Contenido (JSON)"
-              hint="Para emails y reuniones, identityId es el buzón/calendario asignado al proyecto."
-            >
-              <Textarea
-                name="payload"
-                className="min-h-40 font-mono text-xs"
-                defaultValue={JSON.stringify(
-                  {
-                    identityId: emailIdentity?.id ?? "<id del buzón>",
-                    to: ["cliente@example.com"],
-                    subject: "Seguimiento de nuestra conversación",
-                    body: "Hola,\n\nTe escribo para…",
-                  },
-                  null,
-                  2,
-                )}
-              />
-            </Field>
-          </ActionForm>
-        </Card>
-      </details>
     </>
+  );
+}
+
+function SimulateProposal({
+  projects,
+  emailIdentityId,
+}: {
+  projects: { id: string; name: string }[];
+  emailIdentityId?: string;
+}) {
+  return (
+    <ActionForm action={simulateAgentProposal} submitLabel="Proponer" className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Field label="Proyecto">
+          <Select name="projectId" required>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Agente">
+          <Select name="agentType" defaultValue="outbound">
+            {Object.entries(AGENT_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Destinatario">
+          <Select name="customerType" defaultValue="">
+            <option value="">Sin indicar</option>
+            <option value="b2b">Empresa (B2B)</option>
+            <option value="b2c">Particular (B2C)</option>
+          </Select>
+        </Field>
+      </div>
+      <Field label="Acción">
+        <Select name="type" defaultValue="email.create_draft">
+          <option value="email.create_draft">Crear borrador de email</option>
+          <option value="email.send">Enviar email</option>
+          <option value="crm.create_task">Crear tarea en el CRM</option>
+          <option value="crm.log_note">Registrar nota en el CRM</option>
+          <option value="crm.upsert_contact">Crear/actualizar contacto</option>
+          <option value="calendar.book">Reservar reunión</option>
+        </Select>
+      </Field>
+      <Field
+        label="Contenido (JSON)"
+        hint="Para emails y reuniones, identityId es el buzón/calendario asignado al proyecto."
+      >
+        <Textarea
+          name="payload"
+          className="min-h-40 font-mono text-xs"
+          defaultValue={JSON.stringify(
+            {
+              identityId: emailIdentityId ?? "<id del buzón>",
+              to: ["cliente@example.com"],
+              subject: "Seguimiento de nuestra conversación",
+              body: "Hola,\n\nTe escribo para…",
+            },
+            null,
+            2,
+          )}
+        />
+      </Field>
+    </ActionForm>
   );
 }

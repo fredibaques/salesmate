@@ -16,3 +16,4 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Schema changes: edit `src/server/db/schema/*`, then `pnpm db:generate` and review the SQL.
 - Before committing: `pnpm lint && pnpm typecheck && pnpm test`.
 - UI copy is in Spanish; code, identifiers and comments in English.
+- UI patterns: forms that create something open from a button in a modal (`ModalButton` + `ActionForm`, which closes the modal and shows a toast on success); empty lists use `EmptyState` with a title, a short explanation and the action that fills them; clickable rows use `RowLink`. Everything clickable needs a hover state.

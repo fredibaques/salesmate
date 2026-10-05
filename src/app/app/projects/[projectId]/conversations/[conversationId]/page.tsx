@@ -1,6 +1,7 @@
+import { Bot, ListChecks } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Badge, Card, EmptyState } from "@/components/ui";
+import { Badge, Card, EmptyState, LinkButton } from "@/components/ui";
 import {
   ACTION_STATUS_LABELS,
   CONTACT_STATUS_LABELS,
@@ -32,7 +33,7 @@ export default async function ConversationPage({
             <>
               {contact?.email} {contact?.phone ? `· ${contact.phone}` : ""}{" "}
               {contact?.companyName ? `· ${contact.companyName}` : ""} ·{" "}
-              <Link href={`/app/projects/${projectId}/conversations`} className="text-accent">
+              <Link href={`/app/projects/${projectId}/conversations`} className="text-accent hover:underline">
                 volver
               </Link>
             </>
@@ -64,9 +65,23 @@ export default async function ConversationPage({
       </div>
 
       <div className="space-y-6">
-        <Card title="Acciones propuestas">
+        <Card
+          title="Acciones propuestas"
+          actions={
+            data.actions.length > 0 ? (
+              <LinkButton href="/app/inbox" variant="ghost">
+                Ir a la bandeja
+              </LinkButton>
+            ) : null
+          }
+        >
           {data.actions.length === 0 ? (
-            <EmptyState>Ninguna.</EmptyState>
+            <EmptyState
+              compact
+              icon={<ListChecks />}
+              title="Ninguna acción propuesta"
+              description="Si el agente quiere responder, agendar o anotar algo en el CRM, aparecerá aquí y en la bandeja."
+            />
           ) : (
             <ul className="divide-y divide-border text-sm">
               {data.actions.map((a) => {
@@ -83,18 +98,20 @@ export default async function ConversationPage({
               })}
             </ul>
           )}
-          <Link href="/app/inbox" className="mt-3 block text-sm text-accent">
-            Ir a la bandeja
-          </Link>
         </Card>
 
         <Card title="Qué ha hecho el agente">
           {data.runs.length === 0 ? (
-            <EmptyState>Sin ejecuciones.</EmptyState>
+            <EmptyState
+              compact
+              icon={<Bot />}
+              title="El agente aún no ha trabajado en esta conversación"
+              description="Cada vez que la procese verás aquí sus pasos, las herramientas que ha usado y el coste."
+            />
           ) : (
             data.runs.map((run) => (
               <details key={run.id} className="mb-3 text-sm">
-                <summary className="cursor-pointer">
+                <summary className="-mx-2 rounded-lg px-2 py-1 transition-colors hover:bg-background">
                   {formatDateTime(run.startedAt)} · {run.status} · ${run.costUsd.toFixed(3)}
                 </summary>
                 <ol className="mt-2 space-y-1 text-xs">

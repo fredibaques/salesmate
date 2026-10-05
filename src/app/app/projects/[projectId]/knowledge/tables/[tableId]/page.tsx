@@ -20,7 +20,7 @@ export default async function TablePreviewPage({
         <>
           De «{result.source.name}» ·{" "}
           {result.source.reliability === "truth" ? "fuente de verdad" : "orientativa"} ·{" "}
-          <Link href={`/app/projects/${projectId}/knowledge`} className="text-accent">
+          <Link href={`/app/projects/${projectId}/knowledge`} className="text-accent hover:underline">
             volver
           </Link>
         </>

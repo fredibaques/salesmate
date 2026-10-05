@@ -14,11 +14,14 @@ export default async function Home() {
       <div className="mt-8 flex gap-3">
         <Link
           href="/sign-in"
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground"
+          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent/90"
         >
           Entrar
         </Link>
-        <Link href="/sign-up" className="rounded-lg border border-border px-4 py-2 text-sm font-medium">
+        <Link
+          href="/sign-up"
+          className="rounded-lg border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-surface"
+        >
           Crear cuenta
         </Link>
       </div>

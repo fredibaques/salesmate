@@ -33,7 +33,7 @@ export default async function PlaybookPage({
         description={
           <>
             {SALES_MOTION_LABELS[playbook.salesMotion]} · versión {playbook.currentVersion} ·{" "}
-            <Link href={`/app/projects/${projectId}/playbooks`} className="text-accent">
+            <Link href={`/app/projects/${projectId}/playbooks`} className="text-accent hover:underline">
               volver
             </Link>
           </>

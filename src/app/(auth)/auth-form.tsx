@@ -57,7 +57,7 @@ export function AuthForm({ mode, googleEnabled }: { mode: "sign-in" | "sign-up";
         {error ? <p className="text-sm text-danger">{error}</p> : null}
         <button
           disabled={pending}
-          className="w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground disabled:opacity-50"
+          className="w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent/90 disabled:opacity-50"
         >
           {pending ? "…" : mode === "sign-in" ? "Entrar" : "Crear cuenta"}
         </button>
@@ -65,7 +65,7 @@ export function AuthForm({ mode, googleEnabled }: { mode: "sign-in" | "sign-up";
       {googleEnabled ? (
         <button
           onClick={() => authClient.signIn.social({ provider: "google", callbackURL: next })}
-          className="mt-3 w-full rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-background"
+          className="mt-3 w-full rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-background"
         >
           Continuar con Google
         </button>
@@ -74,14 +74,14 @@ export function AuthForm({ mode, googleEnabled }: { mode: "sign-in" | "sign-up";
         {mode === "sign-in" ? (
           <>
             ¿No tienes cuenta?{" "}
-            <Link href="/sign-up" className="text-accent">
+            <Link href="/sign-up" className="text-accent hover:underline">
               Regístrate
             </Link>
           </>
         ) : (
           <>
             ¿Ya tienes cuenta?{" "}
-            <Link href="/sign-in" className="text-accent">
+            <Link href="/sign-in" className="text-accent hover:underline">
               Entra
             </Link>
           </>
