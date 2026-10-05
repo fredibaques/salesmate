@@ -34,6 +34,11 @@ const STATUS: Record<ProspectStatus, { label: string; tone: "accent" | "success"
     discarded: { label: "Descartado", tone: "warning" },
   };
 
+/** A run cut off by the platform stays "running"; after 10 minutes it isn't really searching. */
+function isRecent(startedAt: Date) {
+  return Date.now() - new Date(startedAt).getTime() < 10 * 60_000;
+}
+
 function RunNowButton({ projectId }: { projectId: string }) {
   return (
     <ActionForm
@@ -63,7 +68,7 @@ export default async function ProspectsPage({
   if (!agent) notFound();
   const base = `/app/projects/${projectId}/agents/outbound/prospects`;
   const exportUrl = `/app/projects/${projectId}/prospects/export`;
-  const running = runs[0]?.status === "running";
+  const running = runs[0]?.status === "running" && isRecent(runs[0].startedAt);
   const pendingExport = (data.byStatus.new ?? 0) + (data.byStatus.accepted ?? 0);
 
   return (

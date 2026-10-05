@@ -30,7 +30,8 @@ export function defineTool<S extends z.ZodType>(tool: {
 }
 
 export type AgentLoopResult = {
-  status: "completed" | "refused" | "max_turns" | "truncated";
+  /** "deadline": stopped before a new turn because the time budget ran out. */
+  status: "completed" | "refused" | "max_turns" | "truncated" | "deadline";
   finalText: string;
   steps: AgentRunStep[];
   usage: { input: number; output: number; cacheRead: number; cacheWrite: number; webSearches: number };
@@ -76,6 +77,10 @@ export async function runAgentLoop(input: {
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
   maxTurns?: number;
   maxTokens?: number;
+  /** Epoch ms after which no new turn starts (serverless functions get cut off). */
+  deadline?: number;
+  /** Clock for the deadline (tests). */
+  now?: () => number;
 }): Promise<AgentLoopResult> {
   const messages = [...input.messages];
   const steps: AgentRunStep[] = [];
@@ -88,6 +93,9 @@ export async function runAgentLoop(input: {
   let finalText = "";
 
   for (let turn = 0; turn < (input.maxTurns ?? 12); turn++) {
+    if (input.deadline && turn > 0 && (input.now ?? Date.now)() > input.deadline) {
+      return { status: "deadline", finalText, steps, usage, costUsd: cost(), model };
+    }
     const response = await input.llm.create({
       max_tokens: input.maxTokens ?? 16_000,
       system,

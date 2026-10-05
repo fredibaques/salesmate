@@ -13,7 +13,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   if (!isLlmConfigured()) return NextResponse.json({ ok: true, skipped: "llm_not_configured" });
-  const report = await runDueAgents(agentRunDeps(), { limit: 2 });
+  // One run per call: a run takes up to ~3 minutes and the function gets 5.
+  const report = await runDueAgents(agentRunDeps(), { limit: 1 });
   return NextResponse.json({
     ok: true,
     runs: report.map((r) => ({

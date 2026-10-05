@@ -11,6 +11,33 @@ const echo = defineTool({
 });
 
 describe("runAgentLoop", () => {
+  it("stops before a new turn once its time budget is spent", async () => {
+    let clock = 0;
+    const { llm, requests } = scriptedLlm([
+      { blocks: [{ type: "tool_use", name: "echo", input: { value: 1 } }] },
+      { blocks: [{ type: "text", text: "no debería llegar" }] },
+    ]);
+    const result = await runAgentLoop({
+      llm,
+      system: "sys",
+      messages: [{ role: "user", content: "hola" }],
+      tools: [
+        defineTool({
+          ...echo,
+          run: async (input) => {
+            clock = 10_000; // the tool took long
+            return echo.run(input);
+          },
+        }),
+      ],
+      deadline: 5_000,
+      now: () => clock,
+    });
+    expect(result.status).toBe("deadline");
+    expect(requests).toHaveLength(1);
+    expect(result.steps.map((s) => s.type)).toEqual(["tool_call", "tool_result"]);
+  });
+
   it("runs tools, sends results back and returns the final text", async () => {
     const { llm, requests } = scriptedLlm([
       {

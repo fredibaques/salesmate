@@ -7,7 +7,7 @@ import type { Db } from "../db/client";
 import { agentConfigs, agentRuns, projects } from "../db/schema";
 import { withTenant } from "../db/tenant";
 import type { GatewayDeps } from "../gateway/gateway";
-import { defineTool, runAgentLoop } from "../llm/agent-loop";
+import { defineTool, runAgentLoop, type AgentLoopResult } from "../llm/agent-loop";
 import type { LlmClient } from "../llm/client";
 import { parseSalesProfile, renderSalesProfile } from "../playbooks/spec";
 import { knownProspects, prospectInput, recentProspectNames, saveProspects } from "../prospects/service";
@@ -20,11 +20,19 @@ export type AgentRunDeps = {
   connectors?: Omit<ConnectorDeps, "db">;
   mcp?: McpDeps;
   now?: () => Date;
+  /**
+   * Time the run may take before it stops starting new turns. Vercel cuts a
+   * function off at 300 s; the last turn (searches included) needs headroom.
+   */
+  timeBudgetMs?: number;
 };
+
+/** Default time budget of a run, well under the 300 s a serverless function gets. */
+export const RUN_TIME_BUDGET_MS = 170_000;
 
 export type ProspectingResult = {
   runId: string;
-  status: "completed" | "refused" | "max_turns" | "truncated" | "failed" | "skipped";
+  status: AgentLoopResult["status"] | "failed";
   added: number;
   summary: string;
   costUsd: number;
@@ -40,6 +48,7 @@ export async function runProspecting(
   tenant: { orgId: string },
   input: { projectId: string; trigger: "schedule" | "manual"; triggerRef?: string },
 ): Promise<ProspectingResult> {
+  const startedAt = Date.now();
   const { project, agent, run } = await withTenant(deps.db, tenant, async (tx) => {
     const [project] = await tx.select().from(projects).where(eq(projects.id, input.projectId));
     if (!project) throw new Error("Proyecto no encontrado.");
@@ -178,23 +187,32 @@ export async function runProspecting(
       serverTools: !agent.tools.web ? [] : webTools(Math.max(5, target * 2)),
       effort: "medium",
       maxTurns: 30,
+      deadline: startedAt + (deps.timeBudgetMs ?? RUN_TIME_BUDGET_MS),
     });
     status = result.status;
-    summary = result.finalText;
+    // Out of time is a normal end: what was found is already saved.
+    const outOfTime = result.status === "deadline";
+    summary = outOfTime
+      ? `Se acabó el tiempo de esta ejecución con ${added} prospectos guardados; la próxima seguirá buscando.`
+      : result.finalText;
     costUsd = result.costUsd;
     await withTenant(deps.db, tenant, (tx) =>
       tx
         .update(agentRuns)
         .set({
           status:
-            result.status === "refused" ? "refused" : result.status === "completed" ? "completed" : "failed",
+            result.status === "refused"
+              ? "refused"
+              : result.status === "completed" || outOfTime
+                ? "completed"
+                : "failed",
           model: result.model,
           inputTokens: result.usage.input,
           outputTokens: result.usage.output,
           cacheReadTokens: result.usage.cacheRead,
           costUsd: result.costUsd,
           steps: result.steps,
-          summary: result.finalText || `Prospectos guardados: ${added}.`,
+          summary: (outOfTime ? summary : result.finalText) || `Prospectos guardados: ${added}.`,
           finishedAt: new Date(),
         })
         .where(eq(agentRuns.id, run.id)),

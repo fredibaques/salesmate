@@ -3,14 +3,14 @@ import type { Db } from "../db/client";
 import { agentRuns, knowledgeRows, knowledgeSources, knowledgeTables, projects } from "../db/schema";
 import { withTenant } from "../db/tenant";
 import { rowToText } from "../knowledge/tabular";
-import { runAgentLoop } from "../llm/agent-loop";
+import { runAgentLoop, type AgentLoopResult } from "../llm/agent-loop";
 import type { LlmClient } from "../llm/client";
 import { knowledgeTools } from "./tools";
 
 export type KnowledgeAnswer = {
   answer: string;
   sources: { id: string; name: string; kind: string }[];
-  status: "completed" | "refused" | "max_turns" | "truncated";
+  status: AgentLoopResult["status"];
   costUsd: number;
 };
 
