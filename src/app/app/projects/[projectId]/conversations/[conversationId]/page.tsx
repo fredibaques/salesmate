@@ -65,7 +65,7 @@ export default async function ConversationPage({
             actions={
               data.actions.length > 0 ? (
                 <LinkButton href="/app/inbox" variant="ghost">
-                  Ir a la bandeja
+                  Ir a Por aprobar
                 </LinkButton>
               ) : null
             }
@@ -75,7 +75,7 @@ export default async function ConversationPage({
                 compact
                 icon={<ListChecks />}
                 title="Ninguna acción propuesta"
-                description="Si el agente quiere responder, agendar o anotar algo en el CRM, aparecerá aquí y en la bandeja."
+                description="Si el agente quiere responder, agendar o anotar algo en el CRM, aparecerá aquí y en Copilot → Por aprobar."
               />
             ) : (
               <ul className="divide-y divide-border text-sm">

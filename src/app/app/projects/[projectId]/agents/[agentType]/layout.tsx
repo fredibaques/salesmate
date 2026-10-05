@@ -1,7 +1,7 @@
 import { Trash2 } from "lucide-react";
 import { notFound } from "next/navigation";
 import { ConfirmForm } from "@/components/confirm-form";
-import { TabLink } from "@/components/nav-link";
+import { TabLink, Tabs } from "@/components/nav-link";
 import { SwitchButton } from "@/components/switch";
 import { Button, PageHeader } from "@/components/ui";
 import { AGENT_INFO } from "@/lib/agents";
@@ -27,7 +27,7 @@ export default async function AgentLayout({
     <>
       <PageHeader
         level="section"
-        back={{ href: `/app/projects/${projectId}/agents`, label: "Agentes" }}
+        back={{ href: `/app/projects/${projectId}`, label: "Agentes" }}
         icon={AGENT_ICONS[agentType]}
         title={info.name}
         description={info.description}
@@ -59,7 +59,7 @@ export default async function AgentLayout({
           </>
         }
       />
-      <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-border">
+      <Tabs>
         {agentType === "outbound" ? (
           <>
             <TabLink href={base} exact>
@@ -78,7 +78,7 @@ export default async function AgentLayout({
           </>
         )}
         <TabLink href={`${base}/approvals`}>Aprobaciones</TabLink>
-      </nav>
+      </Tabs>
       {children}
     </>
   );

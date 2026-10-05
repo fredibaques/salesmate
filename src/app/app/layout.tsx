@@ -1,4 +1,4 @@
-import { Bot, FolderKanban, Inbox, LayoutDashboard, Plug, ScrollText, ShieldBan } from "lucide-react";
+import { FolderKanban, LayoutDashboard, Settings, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { NavLink } from "@/components/nav-link";
 import { ToastProvider } from "@/components/toast";
@@ -34,8 +34,9 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
               Panel
             </NavLink>
             <NavLink
-              href="/app/inbox"
-              icon={<Inbox />}
+              href="/app/copilot"
+              also={["/app/inbox"]}
+              icon={<Sparkles />}
               badge={
                 pending.length > 0 ? (
                   <span className="rounded-full bg-accent px-2 text-xs text-accent-foreground">
@@ -44,19 +45,10 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
                 ) : null
               }
             >
-              Bandeja
+              Copilot
             </NavLink>
-            <NavLink href="/app/copilot" icon={<Bot />}>
-              Copiloto
-            </NavLink>
-            <NavLink href="/app/connections" icon={<Plug />}>
-              Conexiones
-            </NavLink>
-            <NavLink href="/app/exclusions" icon={<ShieldBan />}>
-              Exclusiones
-            </NavLink>
-            <NavLink href="/app/audit" icon={<ScrollText />}>
-              Auditoría
+            <NavLink href="/app/connections" also={["/app/exclusions", "/app/audit"]} icon={<Settings />}>
+              Configuración
             </NavLink>
           </nav>
 

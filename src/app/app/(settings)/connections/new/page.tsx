@@ -11,6 +11,7 @@ export default async function NewConnectionPage() {
   return (
     <>
       <PageHeader
+        level="section"
         back={{ href: "/app/connections", label: "Conexiones" }}
         title="Añadir conexión"
         description="Elige la herramienta que quieres conectar. Puedes conectar varias cuentas de la misma, por ejemplo un Google para cada empresa."

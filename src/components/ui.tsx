@@ -228,34 +228,73 @@ export function Card({
   );
 }
 
-export const buttonStyles = {
+// ---------------------------------------------------------------------------
+// Buttons: one recipe for every clickable action (see docs/DESIGN.md)
+// ---------------------------------------------------------------------------
+
+const buttonVariants = {
+  /** The main action of a view. One per view. */
   primary: "bg-accent text-accent-foreground shadow-sm hover:bg-accent/90 active:bg-accent/80",
-  secondary: "border border-border bg-surface hover:border-muted/40 hover:bg-background active:bg-border/60",
+  /** Other actions. */
+  secondary:
+    "border border-border bg-surface text-foreground shadow-sm hover:border-muted/40 hover:bg-background active:bg-border/60",
+  /** Low-emphasis actions: in toolbars, headers, rows and next to a primary. */
+  ghost: "text-foreground hover:bg-border/50 active:bg-border/80",
+  /** Destructive action that needs weight (confirming a removal). */
   danger: "bg-danger text-white shadow-sm hover:bg-danger/90 active:bg-danger/80",
-  ghost: "hover:bg-background active:bg-border/60",
+  /** Destructive action at rest («Quitar», trash icon in a row). */
   dangerGhost: "text-danger hover:bg-danger/10 active:bg-danger/15",
 };
 
-export type ButtonVariant = keyof typeof buttonStyles;
+const buttonSizes = {
+  sm: "h-8 gap-1 px-2.5 text-xs [&_svg]:size-3.5",
+  md: "h-9 gap-1.5 px-3.5 text-sm [&_svg]:size-4",
+  lg: "h-11 gap-2 px-5 text-base [&_svg]:size-5",
+};
 
-export const buttonBase =
-  "inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-50";
+/** Square buttons that only hold an icon (always with an aria-label). */
+const iconOnlySizes = { sm: "size-8 px-0", md: "size-9 px-0", lg: "size-11 px-0" };
+
+export type ButtonVariant = keyof typeof buttonVariants;
+export type ButtonSize = keyof typeof buttonSizes;
+export type ButtonLook = { variant?: ButtonVariant; size?: ButtonSize; iconOnly?: boolean; block?: boolean };
+
+/** Classes for anything that looks like a button: <button>, <Link>, <a>, <summary>… */
+export function buttonClass({ variant = "primary", size = "md", iconOnly = false, block = false }: ButtonLook = {}) {
+  return cx(
+    "inline-flex shrink-0 items-center justify-center rounded-lg font-medium whitespace-nowrap transition-colors",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40",
+    "disabled:pointer-events-none disabled:opacity-50 [&_svg]:shrink-0",
+    buttonVariants[variant],
+    buttonSizes[size],
+    iconOnly && iconOnlySizes[size],
+    block && "w-full",
+  );
+}
 
 export function Button({
-  variant = "primary",
+  variant,
+  size,
+  iconOnly,
+  block,
   className,
   ...props
-}: ComponentProps<"button"> & { variant?: ButtonVariant }) {
-  return <button className={cx(buttonBase, buttonStyles[variant], className)} {...props} />;
+}: ComponentProps<"button"> & ButtonLook) {
+  return <button className={cx(buttonClass({ variant, size, iconOnly, block }), className)} {...props} />;
 }
 
 export function LinkButton({
   variant = "secondary",
+  size,
+  iconOnly,
+  block,
   className,
   href,
   ...props
-}: Omit<ComponentProps<"a">, "href"> & { href: string; variant?: ButtonVariant }) {
-  return <Link href={href} className={cx(buttonBase, buttonStyles[variant], className)} {...props} />;
+}: Omit<ComponentProps<"a">, "href"> & { href: string } & ButtonLook) {
+  return (
+    <Link href={href} className={cx(buttonClass({ variant, size, iconOnly, block }), className)} {...props} />
+  );
 }
 
 export function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {

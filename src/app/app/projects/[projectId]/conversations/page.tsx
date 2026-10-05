@@ -43,9 +43,9 @@ function SimulateLeadButton({
       label="Simular un lead"
       icon={<FlaskConical className="size-4" />}
       title="Probar con un lead simulado"
-      description="Entra como si viniera del formulario de la web y lo atiende el agente inbound con su proceso, aunque todavía no esté activado. Lo que proponga pasa por la Bandeja."
+      description="Entra como si viniera del formulario de la web y lo atiende el agente inbound con su proceso, aunque todavía no esté activado. Lo que proponga espera tu aprobación en Copilot → Por aprobar."
       variant={variant}
-      size="lg"
+      width="lg"
     >
       <ActionForm
         action={simulateLead.bind(null, projectId)}

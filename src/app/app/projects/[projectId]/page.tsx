@@ -35,7 +35,7 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/app/pr
       done: agents.length > 0,
       label: "Añade un agente y define su proceso de venta",
       hint: "Por ejemplo, el inbound para atender a quien te contacta.",
-      href: `${base}/agents`,
+      href: `${base}#agentes`,
     },
     {
       // Only agents that write to people need a mailbox.
@@ -44,13 +44,13 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/app/pr
         agents.every((a) => a.config.agentType === "outbound" || a.config.channels.mailboxId),
       label: "Dile con qué cuentas y herramientas trabaja",
       hint: "Usa las cuentas que tu organización ya ha conectado.",
-      href: firstAgent ? `${base}/agents/${firstAgent}/channels` : `${base}/agents`,
+      href: firstAgent ? `${base}/agents/${firstAgent}/channels` : `${base}#agentes`,
     },
     {
       done: agents.some((a) => a.config.enabled),
       label: "Actívalo",
       hint: "Hasta entonces, los contactos se guardan pero nadie los atiende.",
-      href: firstAgent ? `${base}/agents/${firstAgent}` : `${base}/agents`,
+      href: firstAgent ? `${base}/agents/${firstAgent}` : `${base}#agentes`,
     },
   ];
   const pending = steps.filter((x) => !x.done).length;
@@ -88,7 +88,7 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/app/pr
         </Card>
       ) : null}
 
-      <section>
+      <section id="agentes" className="scroll-mt-6">
         <PageHeader
           level="section"
           title="Agentes"

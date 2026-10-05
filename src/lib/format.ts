@@ -47,7 +47,7 @@ export const AGENT_LABELS: Record<string, string> = {
   inbound: "Inbound",
   account_manager: "Account Manager",
   intelligence: "Inteligencia",
-  copilot: "Copiloto",
+  copilot: "Copilot",
 };
 
 export const CONVERSATION_STATUS: Record<

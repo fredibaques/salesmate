@@ -1,7 +1,7 @@
 import { Download, Info, Trash2 } from "lucide-react";
 import { notFound } from "next/navigation";
 import { ConfirmForm } from "@/components/confirm-form";
-import { Button, buttonBase, buttonStyles, Card, cx, Meta, PageHeader, Table, Td } from "@/components/ui";
+import { Button, buttonClass, Card, Meta, PageHeader, Table, Td } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
@@ -50,7 +50,7 @@ export default async function SourcePage({
               </Button>
             </ConfirmForm>
             {file ? (
-              <a href={`${fileUrl}?download`} className={cx(buttonBase, buttonStyles.secondary)}>
+              <a href={`${fileUrl}?download`} className={buttonClass({ variant: "secondary" })}>
                 <Download className="size-4" />
                 Descargar original
               </a>

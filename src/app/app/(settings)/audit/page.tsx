@@ -19,6 +19,7 @@ export default async function AuditPage() {
   return (
     <>
       <PageHeader
+        level="section"
         title="Auditoría"
         description="Registro inmutable de todo lo que hacen las personas y los agentes."
       />

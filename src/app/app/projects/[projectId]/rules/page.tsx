@@ -8,6 +8,7 @@ import { getDb } from "@/server/db/client";
 import { ACTION_DEFINITIONS } from "@/server/gateway/definitions";
 import { getProjectRules } from "@/server/services/projects";
 import { addProjectSuppression, addRule, deleteRule, deleteSuppression } from "../actions";
+import { SettingsNav } from "../section-navs";
 
 const RULE_LABELS = {
   human_only: "Reservada a personas",
@@ -26,7 +27,7 @@ function AddRuleButton({ projectId }: { projectId: string }) {
       title="Añadir regla de cumplimiento"
       description="Se aplica a cada acción de los agentes de este proyecto antes de ejecutarse."
       variant="secondary"
-      size="lg"
+      width="lg"
     >
       <ActionForm action={addRule.bind(null, projectId)} submitLabel="Añadir" className="space-y-4">
         <Field label="Tipo">
@@ -102,9 +103,10 @@ export default async function RulesPage({ params }: PageProps<"/app/projects/[pr
 
   return (
     <>
+      <SettingsNav projectId={projectId} />
       <PageHeader
         level="section"
-        title="Reglas"
+        title="Reglas y exclusiones"
         description="Lo que el sistema comprueba antes de cada acción de los agentes de este proyecto, sea cual sea su nivel de autonomía."
       />
       <div className="grid items-start gap-6 lg:grid-cols-2">
@@ -130,7 +132,7 @@ export default async function RulesPage({ params }: PageProps<"/app/projects/[pr
                     <code className="mt-1 block text-xs text-muted">{JSON.stringify(r.spec)}</code>
                   </span>
                   <form action={deleteRule.bind(null, projectId, r.id)}>
-                    <Button variant="dangerGhost" aria-label="Quitar regla">
+                    <Button variant="dangerGhost" size="sm" iconOnly aria-label="Quitar regla">
                       <Trash2 className="size-4" />
                     </Button>
                   </form>
@@ -150,7 +152,7 @@ export default async function RulesPage({ params }: PageProps<"/app/projects/[pr
               compact
               icon={<ShieldBan />}
               title="Sin exclusiones propias"
-              description="Bajas, clientes actuales o competidores a los que este proyecto no debe escribir. Las de toda la organización están en «Exclusiones»."
+              description="Bajas, clientes actuales o competidores a los que este proyecto no debe escribir. Las de toda la organización están en Configuración → Exclusiones."
               action={<AddSuppressionButton projectId={projectId} />}
             />
           ) : (
@@ -165,7 +167,7 @@ export default async function RulesPage({ params }: PageProps<"/app/projects/[pr
                     {s.reason ? <span className="text-muted">· {s.reason}</span> : null}
                   </span>
                   <form action={deleteSuppression.bind(null, projectId, s.id)}>
-                    <Button variant="dangerGhost" aria-label={`Quitar ${s.value}`}>
+                    <Button variant="dangerGhost" size="sm" iconOnly aria-label={`Quitar ${s.value}`}>
                       <Trash2 className="size-4" />
                     </Button>
                   </form>

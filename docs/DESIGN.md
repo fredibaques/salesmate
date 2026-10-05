@@ -9,9 +9,15 @@ screen needs something new, add it here and as a component, not inline.
 - The sidebar is exactly one screen tall and never scrolls with the page.
   Only its project list scrolls inside it when there are many projects.
 - Content sits in a centred column (`max-w-6xl`, `px-8 py-8`).
-- Global sections (Panel, Bandeja, Copiloto, Conexiones, Exclusiones,
-  Auditoría) live in the sidebar; everything about one project lives under
-  that project, in tabs.
+- The sidebar has three sections and the projects:
+  - **Panel**: overview.
+  - **Copilot**: the assistant and «Por aprobar» (what the agents want to do).
+  - **Configuración**: Conexiones, Exclusiones and Auditoría, shared by every
+    project.
+- A project has four tabs: **Agentes** (its home), **Conocimiento** (documents
+  and tables, and «Oferta y cliente»), **Conversaciones** and **Ajustes**
+  (general data, and rules and exclusions).
+- Light theme only.
 
 ## 2. Page anatomy
 
@@ -22,14 +28,34 @@ Every page reads top to bottom the same way:
    right. Top-level pages use the default `level="page"` (h1); pages inside
    a project or an agent use `level="section"` (h2) under the project
    header.
-2. **Tabs** (`TabLink`) when an entity has several facets (project, agent).
+2. **Tabs** (`Tabs` + `TabLink`) when an entity has several facets (project,
+   agent, Configuración). They wrap, never scroll. A tab stays active on its
+   sub-pages (`also`). Inside a tab, related pages use pill sub-tabs
+   (`SubTabs` + `SubTabLink`), e.g. Conocimiento → Documentos · Oferta y cliente.
 3. **Content**: a grid of entity cards, or sections (`Card` with title,
    description and actions), separated by `space-y-6`.
 
-One primary (filled) button per view: the main thing to do there. Others
-are `secondary` or `ghost`.
+## 3. Buttons
 
-## 3. Entities are cards
+Everything that acts is built with `buttonClass()` (or `Button`, `LinkButton`,
+`ModalButton`, `ActionForm`, which use it). Never style a button by hand.
+
+| Variant | Use |
+|---|---|
+| `primary` | The main action of the view. One per view. |
+| `secondary` | Other actions with weight. |
+| `ghost` | Discreet actions: headers, rows, next to a primary, «Cancelar». |
+| `danger` | Confirming something that can't be undone. |
+| `dangerGhost` | Remove/delete at rest. |
+
+Sizes: `sm` (rows, toolbars, dense cards), `md` (default), `lg` (empty states
+and landing actions). Icons go before the label and size with the button.
+`iconOnly` makes a square button and always needs an `aria-label`. `block`
+fills the width (forms on their own, like sign-in).
+
+The live reference is at `/app/design`.
+
+## 4. Entities are cards
 
 Things the user creates or owns and opens to configure (projects, agents,
 connections, knowledge sources, tools in the catalog) are `EntityCard`s in a
@@ -54,7 +80,7 @@ Show the full set of possible entities when it is small and fixed (all
 agent types, all tools), so what is active, what can be added and what is
 coming are visible together.
 
-## 4. Records are rows
+## 5. Records are rows
 
 Things that happen (conversations, approvals, audit events, rules,
 exclusions) are rows in a list or `Table`. A row that opens a detail uses
@@ -62,7 +88,7 @@ exclusions) are rows in a list or `Table`. A row that opens a detail uses
 Remove actions on a row are a `dangerGhost` icon button with an
 `aria-label`.
 
-## 5. States
+## 6. States
 
 - **On/off** (an agent, a project): `SwitchButton` inside a form whose server
   action flips it. Green = acting; grey «En pausa» = not acting.
@@ -77,7 +103,7 @@ Remove actions on a row are a `dangerGhost` icon button with an
 - **Loading** inside a form: the submit button says «Un momento…»; a switch
   shows «…».
 
-## 6. Creating, editing, removing
+## 7. Creating, editing, removing
 
 - Creating opens a modal from a button (`ModalButton` + `ActionForm`): the
   modal closes and a toast confirms on success; errors stay next to the
@@ -87,7 +113,7 @@ Remove actions on a row are a `dangerGhost` icon button with an
 - Removing asks first (`ConfirmForm`) and lives in the entity's header
   (`dangerGhost`), never as the most prominent action.
 
-## 7. Copy
+## 8. Copy
 
 - Spanish, sentence case, «tú». Buttons are verbs («Añadir agente», «Subir
   fichero»).
@@ -96,7 +122,7 @@ Remove actions on a row are a `dangerGhost` icon button with an
 - One sentence under each title. Hints under fields only when the field
   is not obvious.
 
-## 8. Visual tokens
+## 9. Visual tokens
 
 - Colours come from the theme tokens (`accent`, `success`, `warning`,
   `danger`, `muted`, `border`, `surface`, `background`); never raw colours

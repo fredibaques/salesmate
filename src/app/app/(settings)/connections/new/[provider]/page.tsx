@@ -46,6 +46,7 @@ export default async function ConnectProviderPage({ params }: PageProps<"/app/co
   return (
     <>
       <PageHeader
+        level="section"
         back={{ href: "/app/connections/new", label: "Todas las herramientas" }}
         media={<Avatar label={integration.name} color={integration.color} className="size-11 text-lg" />}
         title={`Conectar ${integration.name}`}

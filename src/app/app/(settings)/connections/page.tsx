@@ -53,6 +53,7 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/app/
   return (
     <>
       <PageHeader
+        level="section"
         title="Conexiones"
         description="Las herramientas de tu organización que pueden usar los agentes. Después, en cada proyecto eliges cuáles usa y qué puede hacer con ellas."
         actions={

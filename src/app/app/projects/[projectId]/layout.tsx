@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { TabLink } from "@/components/nav-link";
+import { TabLink, Tabs } from "@/components/nav-link";
 import { FolderKanban, OctagonPause, Play } from "lucide-react";
 import { Badge, Button, PageHeader } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
@@ -34,17 +34,18 @@ export default async function ProjectLayout({ children, params }: LayoutProps<"/
           </form>
         }
       />
-      <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-border">
-        <TabLink href={base} exact>
-          Resumen
+      <Tabs>
+        <TabLink href={base} exact also={[`${base}/agents`]}>
+          Agentes
         </TabLink>
-        <TabLink href={`${base}/agents`}>Agentes</TabLink>
-        <TabLink href={`${base}/offer`}>Oferta y cliente</TabLink>
-        <TabLink href={`${base}/knowledge`}>Conocimiento</TabLink>
+        <TabLink href={`${base}/knowledge`} also={[`${base}/offer`]}>
+          Conocimiento
+        </TabLink>
         <TabLink href={`${base}/conversations`}>Conversaciones</TabLink>
-        <TabLink href={`${base}/rules`}>Reglas</TabLink>
-        <TabLink href={`${base}/settings`}>Ajustes</TabLink>
-      </nav>
+        <TabLink href={`${base}/settings`} also={[`${base}/rules`]}>
+          Ajustes
+        </TabLink>
+      </Tabs>
       {children}
     </>
   );

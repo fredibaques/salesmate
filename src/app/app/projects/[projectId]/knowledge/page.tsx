@@ -19,6 +19,7 @@ import { listKnowledge } from "@/server/services/projects";
 import { askKnowledge, uploadKnowledge } from "../actions";
 import { AskBox } from "./ask-box";
 import { describeSource } from "./sources";
+import { KnowledgeNav } from "../section-navs";
 
 export const metadata = { title: "Conocimiento" };
 
@@ -64,7 +65,7 @@ function PasteButton({ projectId }: { projectId: string }) {
       title="Pegar texto"
       description="Objeciones, guiones, preguntas frecuentes o ejemplos de emails escritos directamente."
       variant="secondary"
-      size="lg"
+      width="lg"
     >
       <ActionForm action={uploadKnowledge.bind(null, projectId)} submitLabel="Añadir" className="space-y-4">
         <input type="hidden" name="kind" value="text" />
@@ -86,9 +87,10 @@ export default async function KnowledgePage({ params }: PageProps<"/app/projects
 
   return (
     <>
+      <KnowledgeNav projectId={projectId} />
       <PageHeader
         level="section"
-        title="Conocimiento"
+        title="Documentos y tablas"
         description="Todo lo que subas aquí lo usan los agentes para responder con datos reales y decir de dónde los sacan. Si algo cambia, sube la versión nueva y borra la antigua."
         actions={
           sources.length > 0 ? (

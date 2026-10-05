@@ -3,7 +3,7 @@
 import { useActionState, type ReactNode } from "react";
 import { useModal } from "./modal";
 import { useToast } from "./toast";
-import { buttonBase, buttonStyles, cx } from "./ui";
+import { buttonClass, cx, type ButtonVariant } from "./ui";
 
 export type FormState = { ok: boolean; message: string } | null;
 export type FormAction = (state: FormState, formData: FormData) => Promise<FormState>;
@@ -24,7 +24,7 @@ export function ActionForm({
   action: FormAction;
   children?: ReactNode;
   submitLabel: string;
-  submitVariant?: "primary" | "secondary" | "danger";
+  submitVariant?: ButtonVariant;
   className?: string;
   confirm?: string;
 }) {
@@ -62,11 +62,11 @@ export function ActionForm({
       <div
         className={cx("flex flex-wrap items-center gap-3", modal && "flex-row-reverse justify-start pt-2")}
       >
-        <button type="submit" disabled={pending} className={cx(buttonBase, buttonStyles[submitVariant])}>
+        <button type="submit" disabled={pending} className={buttonClass({ variant: submitVariant })}>
           {pending ? "Un momento…" : submitLabel}
         </button>
         {modal ? (
-          <button type="button" onClick={modal.close} className={cx(buttonBase, buttonStyles.ghost)}>
+          <button type="button" onClick={modal.close} className={buttonClass({ variant: "ghost" })}>
             Cancelar
           </button>
         ) : null}

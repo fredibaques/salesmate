@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 :root {
+  /* Light theme only. */
+  color-scheme: light;
   --background: #f7f7f8;
   --foreground: #18181b;
   --surface: #ffffff;
@@ -11,21 +13,6 @@
   --danger: #dc2626;
   --success: #16a34a;
   --warning: #d97706;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0b0b0e;
-    --foreground: #f4f4f5;
-    --surface: #16161a;
-    --muted: #a1a1aa;
-    --border: #2a2a31;
-    --accent: #818cf8;
-    --accent-foreground: #0b0b0e;
-    --danger: #f87171;
-    --success: #4ade80;
-    --warning: #fbbf24;
-  }
 }
 
 @theme inline {

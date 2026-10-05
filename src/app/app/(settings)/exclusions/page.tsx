@@ -34,6 +34,7 @@ export default async function ExclusionsPage() {
   return (
     <>
       <PageHeader
+        level="section"
         title="Exclusiones"
         description="Personas, dominios o teléfonos con los que ningún proyecto debe contactar: bajas, clientes actuales, competidores… Cada proyecto puede tener además las suyas en «Agentes y reglas»."
         actions={suppressions.length > 0 ? <AddExclusion /> : null}
@@ -58,7 +59,7 @@ export default async function ExclusionsPage() {
                 <span className="flex shrink-0 items-center gap-3">
                   <span className="hidden text-xs text-muted sm:inline">{formatDateTime(s.createdAt)}</span>
                   <form action={deleteGlobalSuppression.bind(null, s.id)}>
-                    <Button variant="dangerGhost" aria-label={`Quitar ${s.value}`}>
+                    <Button variant="dangerGhost" size="sm" iconOnly aria-label={`Quitar ${s.value}`}>
                       <Trash2 className="size-4" />
                       Quitar
                     </Button>

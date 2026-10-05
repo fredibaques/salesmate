@@ -124,7 +124,7 @@ export async function askCopilot(
     `## Cómo respondes
 - Responde a partir del conocimiento del proyecto (search_knowledge, list_tables, query_table), su CRM y sus conversaciones. Indica de qué fuente sale cada dato; si algo no está en las fuentes, dilo.
 - Respuestas breves y directas, en español, con listas cuando ayuden.
-- Si te piden preparar un email, una tarea o una reunión, propónlo con propose_action: quedará en la bandeja de aprobación. Dilo así, sin dar por hecho que se ha enviado.`,
+- Si te piden preparar un email, una tarea o una reunión, propónlo con propose_action: quedará en «Por aprobar» para que la persona la revise. Dilo así, sin dar por hecho que se ha enviado.`,
     identitiesHint.length
       ? `## Identidades del proyecto\n${identitiesHint.map((i) => `- ${i.kind} ${i.address} (id ${i.id})`).join("\n")}`
       : "",
