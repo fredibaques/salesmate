@@ -82,7 +82,7 @@ const TYPE: { label: string; className: string; spec: string }[] = [
 const SHADOWS: [string, string, string][] = [
   ["Reposo", "shadow-xs", "Sin sombra: separan los bordes"],
   ["sm", "shadow-sm", "Elementos sobre una tarjeta"],
-  ["md", "shadow-md", "Tarjeta al pasar el ratón (muy leve)"],
+  ["md", "shadow-md", "Reservada (las tarjetas solo oscurecen el borde)"],
   ["lg", "shadow-lg", "Menús, tooltips, avisos"],
   ["xl", "shadow-xl", "Ventanas modales"],
   ["brand", "shadow-brand bg-primary", "Botón principal (plano)"],
@@ -114,10 +114,11 @@ export function BrandSection() {
         <div className="flex flex-wrap items-center gap-8">
           <Logo size={48} withName />
           <Logo size={32} />
-          <div className="bg-ai h-12 w-48 rounded-xl shadow-brand" />
+          <Logo size={24} />
           <p className="max-w-sm text-sm text-muted">
-            Lima + minimalista + poco redondeado. El degradado (lima → verde → turquesa) solo aparece en el
-            logotipo y en el asistente; todo lo demás usa colores planos y bordes finos.
+            Lima + minimalista + poco redondeado. Logotipo «Mate»: dos círculos que se cruzan, tú y tu agente
+            trabajando juntos. Todo es plano: blanco, bordes finos y el lima solo en lo que actúa o está
+            seleccionado.
           </p>
         </div>
       </Card>

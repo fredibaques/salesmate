@@ -23,11 +23,11 @@ export function SidebarBrand({ href, title, subtitle }: { href: string; title: s
   return (
     <Link
       href={href}
-      className="mx-3 mt-3 flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-ink-200/60"
+      className="mx-3 mt-3 flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-ink-50"
     >
       <Logo size={32} />
       <span className="min-w-0">
-        <span className="block truncate font-display text-[15px] font-bold tracking-tight">{title}</span>
+        <span className="block truncate font-display text-[15px] font-semibold tracking-tight">{title}</span>
         {subtitle ? <span className="block truncate text-xs text-muted">{subtitle}</span> : null}
       </span>
     </Link>
@@ -107,8 +107,8 @@ export function SidebarItem({
       className={cx(
         "flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm transition-colors [&>svg]:size-4 [&>svg]:shrink-0",
         active
-          ? "bg-surface font-medium text-accent shadow-xs"
-          : "text-ink-700 hover:bg-ink-200/60 hover:text-foreground [&>svg]:text-muted hover:[&>svg]:text-foreground",
+          ? "bg-ink-100 font-medium text-foreground [&>svg]:text-accent"
+          : "text-ink-700 hover:bg-ink-50 hover:text-foreground [&>svg]:text-muted hover:[&>svg]:text-foreground",
       )}
     >
       {icon}
@@ -228,8 +228,8 @@ export function UserMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         className={cx(
-          "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-ink-200/60",
-          open && "bg-ink-200/60",
+          "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-ink-50",
+          open && "bg-ink-50",
         )}
       >
         <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
