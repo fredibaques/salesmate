@@ -16,8 +16,8 @@ screen needs something new, add it here and as a component, not inline.
 - Content takes the full width of the window (`px-8`); forms keep a reading
   width (`max-w-3xl`). The page reserves the scrollbar's space
   (`scrollbar-gutter: stable`) so nothing shifts when a page gets long.
-- The sidebar is light grey (`bg-sidebar`), the content area almost white
-  (`bg-background`); the active entry is a white pill.
+- Sidebar and content are white; a hairline separates them. The active
+  entry is a light grey row with its icon in the accent colour.
 - **One title per screen.** A section's header and tabs (a project,
   Configuración) show only on the section's own pages (`SectionChrome`);
   deeper pages (an agent, a document, a new connection) bring their own
@@ -195,19 +195,19 @@ The tokens live in `src/app/globals.css` (`@theme`); the live reference is
 `/app/design`. Components use the semantic names, so a change of brand is a
 change of tokens, not of components.
 
-**Personality.** Lima, minimalist, slightly rounded (chosen in October
-2026). White and neutral greys carry the page; the lime fills only what acts
+**Personality.** Lima, minimalist, slightly rounded, «Mate» logo (chosen in
+October 2026). Everything is white and flat: the sidebar is set apart by a
+hairline, the active entry is a light grey row. The lime fills only what acts
 or is selected, with dark text on top. Borders separate things; nothing casts
-a shadow at rest. The AI gradient is a signature, not a decoration.
+a shadow at rest. No gradients.
 
 ### Colour
 
 | Scale | Use |
 |---|---|
 | **Brand** (lime, `brand-50…950`) | `brand-500` (#84CC16) fills the primary button, selected chips and options, counters, the user's chat bubble and the logo, always with `brand-950` text. `brand-700` (#4D7C0F) is the readable shade: links, active tabs and navigation, borders of selected things, focus. Tints `brand-50/100` for soft backgrounds. |
-| **Ink** (neutral greys, `ink-0…950`) | Text (`ink-900`), secondary text (`ink-500`), content area (`ink-25`), sidebar (`ink-100`), surfaces (`ink-0`), borders (`ink-200`, `ink-300` on hover). |
+| **Ink** (neutral greys, `ink-0…950`) | Text (`ink-900`), secondary text (`ink-500`), page, sidebar and surfaces (`ink-0`), active and hover rows (`ink-100`, `ink-50`), borders (`ink-200`, `ink-300` on hover). |
 | **Leaf / Amber / Coral** (status) | Working · needs attention · error. Dot `500`, text `700`, tint `50` for notices. |
-| **AI gradient** (`bg-ai`: lime → green → teal) | Only the logo and the assistant (avatar, chat welcome). |
 
 Semantic names (use these in components): `background`, `surface`,
 `sidebar`, `foreground`, `muted`, `border`, `border-strong`, `accent` and
@@ -256,5 +256,5 @@ between fields; between sections `space-y-6`; page margins `px-8 py-8`;
   entities.
 - Everything clickable has `cursor-pointer` (global) and a visible hover
   state; focus is a 2px accent ring. Transitions are 150 ms.
-- Logo: `Logo` (two speech bubbles on the AI gradient, in `brand-950`); the
-  favicon is `src/app/icon.svg`. The final symbol is still being chosen.
+- Logo: `Logo`, «Mate»: two overlapping circles (you and your agent) in
+  `brand-950` on a flat `brand-500` tile; the favicon is `src/app/icon.svg`.

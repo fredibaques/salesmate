@@ -1,8 +1,9 @@
 import { cx } from "./cx";
 
 /**
- * The SalesMate mark: two speech bubbles (the agent and the customer) on
- * the AI gradient. `withName` adds the wordmark in the display face.
+ * The SalesMate mark, «Mate»: two circles that overlap, you and your agent
+ * working together, in dark ink on a flat lime tile. `withName` adds the
+ * wordmark.
  */
 export function Logo({
   size = 32,
@@ -17,26 +18,18 @@ export function Logo({
     <span className={cx("inline-flex items-center gap-2.5", className)}>
       <span
         aria-hidden
-        className="bg-ai flex shrink-0 items-center justify-center rounded-[28%] text-primary-foreground"
+        className="flex shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground"
         style={{ width: size, height: size }}
       >
-        <svg viewBox="0 0 24 24" width={size * 0.6} height={size * 0.6} fill="none">
-          <path
-            d="M4 6.5A2.5 2.5 0 0 1 6.5 4h7A2.5 2.5 0 0 1 16 6.5v4a2.5 2.5 0 0 1-2.5 2.5H9l-3.2 2.4c-.33.25-.8.01-.8-.4V13.0A2.5 2.5 0 0 1 4 10.5v-4Z"
-            fill="currentColor"
-          />
-          <path
-            d="M18 9.2a2.3 2.3 0 0 1 2 2.3v3.8a2.5 2.5 0 0 1-1 2V19.4c0 .4-.47.65-.8.4L15.2 17.5H12a2.5 2.5 0 0 1-2.2-1.3"
-            stroke="currentColor"
-            strokeOpacity="0.75"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+        <svg viewBox="0 0 48 48" width={size} height={size}>
+          <circle cx="19.5" cy="24" r="10" fill="currentColor" opacity="0.95" />
+          <circle cx="28.5" cy="24" r="10" fill="currentColor" opacity="0.5" />
         </svg>
       </span>
       {withName ? (
-        <span className="font-display text-[15px] font-bold tracking-tight text-foreground">SalesMate</span>
+        <span className="font-display text-[15px] font-semibold tracking-tight text-foreground">
+          SalesMate
+        </span>
       ) : null}
     </span>
   );

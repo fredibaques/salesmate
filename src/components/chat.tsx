@@ -55,7 +55,7 @@ function ChatAvatar({ from }: { from: "user" | "assistant" }) {
       aria-hidden
       className={cx(
         "flex size-8 shrink-0 items-center justify-center rounded-full [&_svg]:size-4",
-        from === "assistant" ? "bg-ai text-primary-foreground" : "bg-ink-100 text-ink-600",
+        from === "assistant" ? "bg-primary text-primary-foreground" : "bg-ink-100 text-ink-600",
       )}
     >
       {from === "assistant" ? <Sparkles /> : <User />}
@@ -131,7 +131,7 @@ export function ChatWelcome({
 }) {
   return (
     <div className="mx-auto flex max-w-xl flex-col items-center py-8 text-center">
-      <span className="bg-ai flex size-12 items-center justify-center rounded-2xl text-primary-foreground">
+      <span className="flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
         <Sparkles className="size-6" />
       </span>
       <p className="mt-4 text-base font-semibold">{title}</p>

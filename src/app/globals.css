@@ -51,9 +51,9 @@
   --color-coral-700: #b42318;
 
   /* Semantic names used by the components. */
-  /* The content area is almost white; the sidebar a light grey. */
-  --color-background: var(--color-ink-25);
-  --color-sidebar: var(--color-ink-100);
+  /* Minimal: everything white; the sidebar is set apart by a hairline. */
+  --color-background: var(--color-ink-0);
+  --color-sidebar: var(--color-ink-0);
   --color-surface: var(--color-ink-0);
   --color-foreground: var(--color-ink-900);
   --color-muted: var(--color-ink-500);
@@ -92,8 +92,6 @@
   --radius-xl: 6px;
   --radius-2xl: 8px;
 
-  /* The AI's signature, for the logo and the assistant (use sparingly). */
-  --gradient-ai: linear-gradient(135deg, #84cc16 0%, #22c55e 55%, #14b8a6 100%);
 }
 
 :root {
@@ -150,9 +148,6 @@ body {
   }
 }
 
-@utility bg-ai {
-  background-image: var(--gradient-ai);
-}
 
 /* Loading placeholders: a soft light sweeps across the shape of what is coming. */
 @keyframes shimmer {

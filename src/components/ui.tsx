@@ -135,7 +135,7 @@ export function EntityCard({
         variant === "default" && "border-border",
         variant === "placeholder" && "border-dashed border-border",
         variant === "disabled" && "border-dashed border-border bg-transparent opacity-70",
-        href && "hover:border-brand-200 hover:shadow-md",
+        href && "hover:border-border-strong",
       )}
     >
       <div className="flex items-start gap-3">
