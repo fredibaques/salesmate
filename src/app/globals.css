@@ -21,7 +21,7 @@
 
   /* Ink: neutrals with a hint of the brand. Text, surfaces, borders. */
   --color-ink-0: #ffffff;
-  --color-ink-25: #fcfcfe;
+  --color-ink-25: #fafafc;
   --color-ink-50: #f7f7fa;
   --color-ink-100: #efeff4;
   --color-ink-200: #e3e3eb;
@@ -50,7 +50,9 @@
   --color-coral-700: #b42318;
 
   /* Semantic names used by the components. */
-  --color-background: var(--color-ink-50);
+  /* The content area is almost white; the sidebar a light grey. */
+  --color-background: var(--color-ink-25);
+  --color-sidebar: var(--color-ink-100);
   --color-surface: var(--color-ink-0);
   --color-foreground: var(--color-ink-900);
   --color-muted: var(--color-ink-500);
@@ -84,6 +86,8 @@
 :root {
   /* Light theme only. */
   color-scheme: light;
+  /* Keep room for the scrollbar so pages don't shift sideways when they get long. */
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -135,4 +139,30 @@ body {
 
 @utility bg-ai {
   background-image: var(--gradient-ai);
+}
+
+/* Loading placeholders: a soft light sweeps across the shape of what is coming. */
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@utility skeleton {
+  background-color: var(--color-ink-100);
+  background-image: linear-gradient(
+    90deg,
+    var(--color-ink-100) 0%,
+    var(--color-ink-50) 40%,
+    var(--color-ink-100) 80%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
 }

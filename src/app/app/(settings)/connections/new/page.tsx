@@ -12,7 +12,6 @@ export default async function NewConnectionPage() {
     <>
       <PageHeader
         level="section"
-        back={{ href: "/app/connections", label: "Conexiones" }}
         title="Añadir conexión"
       />
       <div className="space-y-8">

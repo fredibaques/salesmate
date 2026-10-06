@@ -9,7 +9,7 @@ export default async function NewProjectPage() {
   await requireTenant();
   return (
     <>
-      <PageHeader title="Nuevo proyecto" tip={PROJECT_HELP} back={{ href: "/app", label: "Panel" }} />
+      <PageHeader title="Nuevo proyecto" tip={PROJECT_HELP} />
       <ProjectWizard />
     </>
   );

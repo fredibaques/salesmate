@@ -15,7 +15,7 @@ import { getConversation } from "@/server/services/sales";
 export default async function ConversationPage({
   params,
 }: PageProps<"/app/projects/[projectId]/conversations/[conversationId]">) {
-  const { projectId, conversationId } = await params;
+  const { conversationId } = await params;
   const tenant = await requireTenant();
   const data = await getConversation(getDb(), tenant, conversationId);
   if (!data) notFound();
@@ -25,7 +25,6 @@ export default async function ConversationPage({
     <>
       <PageHeader
         level="section"
-        back={{ href: `/app/projects/${projectId}/conversations`, label: "Conversaciones" }}
         title={
           [contact?.firstName, contact?.lastName].filter(Boolean).join(" ") || contact?.email || "Contacto"
         }
