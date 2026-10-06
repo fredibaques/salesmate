@@ -344,7 +344,7 @@ export function OutboundWizard({
       content: (
         <Field
           label="Instrucciones"
-          tip="Sector, tamaño, zona, señales de que encajan, qué fuentes usar o evitar y qué datos recoger. Lo común a todos los agentes (qué vendes, a quién) lo toma de Conocimiento → Oferta y cliente."
+          tip="Sector, tamaño, zona, señales de que encajan, qué fuentes usar o evitar y qué datos recoger. Lo común a todos los agentes (qué vendes, a quién) lo toma de Ajustes → Oferta y cliente."
         >
           <Textarea name="instructions" required defaultValue={defaults.instructions} className="min-h-56" />
         </Field>

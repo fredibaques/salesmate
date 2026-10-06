@@ -82,7 +82,7 @@ export function Wizard({
                   i === current
                     ? "bg-accent/10 font-medium text-accent"
                     : reachable
-                      ? "hover:bg-border/50"
+                      ? "hover:bg-ink-100"
                       : "",
                   !reachable && "cursor-default text-muted",
                 )}

@@ -23,6 +23,7 @@ import {
   type ButtonVariant,
   type ControlSize,
 } from "@/components/ui";
+import { BrandSection } from "./brand";
 import { ChatDemo } from "./chat-demo";
 
 export const metadata = { title: "Guía de estilo" };
@@ -62,6 +63,7 @@ export default function DesignPage() {
         tip="Los componentes comunes de la plataforma. Las reglas de uso están en docs/DESIGN.md."
       />
       <div className="space-y-6">
+        <BrandSection />
         <Card title="Botones">
           <div className="space-y-6">
             {VARIANTS.map(({ variant, label, use }) => (

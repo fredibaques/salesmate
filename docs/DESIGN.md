@@ -20,8 +20,8 @@ screen needs something new, add it here and as a component, not inline.
   - **Configuración**: Conexiones, Exclusiones and Auditoría, shared by every
     project.
 - A project has four tabs: **Agentes** (its home), **Conocimiento** (documents
-  and tables, and «Oferta y cliente»), **Conversaciones** and **Ajustes**
-  (general data, and rules and exclusions).
+  and tables), **Conversaciones** and **Ajustes** (General: project data,
+  «Oferta y cliente» and contact hours; and Reglas y exclusiones).
 - Light theme only.
 
 ## 2. Page anatomy
@@ -37,7 +37,7 @@ Every page reads top to bottom the same way:
 2. **Tabs** (`Tabs` + `TabLink`) when an entity has several facets (project,
    agent, Configuración). They wrap, never scroll. A tab stays active on its
    sub-pages (`also`). Inside a tab, related pages use pill sub-tabs
-   (`SubTabs` + `SubTabLink`), e.g. Conocimiento → Documentos · Oferta y cliente.
+   (`SubTabs` + `SubTabLink`), e.g. Ajustes → General · Reglas y exclusiones.
 3. **Content**: a grid of entity cards, or sections (`Card` with title,
    optional `tip` and actions), separated by `space-y-6`.
 
@@ -75,7 +75,14 @@ hand.
 | `Choice` | A checkbox or radio with its label and an optional description. `card` for options that need explaining (how a conversation ends). |
 | `Chip` | Small toggles in a row, e.g. the days of the week. |
 | `Segmented` | Two to four exclusive options side by side (B2B · B2C). |
+| `ChipSelect` | Several answers from a ready-made list plus «Otros» (zones, who decides). |
+| `ListInput` | A growing list of short texts, one per row (segments, problems). |
+| `PairListInput` | Pairs of texts per row (an objection and its answer). |
 | `FormSection` | Titled block inside a long form. |
+
+Forms are **one column**. When the answers are predictable, offer them
+(selector, chips, option cards with a «Personalizado» way out) instead of a
+blank text box: time zone, languages, tone, who decides.
 
 Sizes `sm` (tables, toolbars), `md` (default), `lg` (sign-in); `invalid` or
 `error` mark a wrong value. Use `group` on a `Field` that holds checkboxes,
@@ -168,15 +175,71 @@ Remove actions on a row are a `dangerGhost` icon button with an
 - Nothing under titles; how-to explanations go in tooltips. Hints under
   fields only when the field is not obvious.
 
-## 12. Visual tokens
+## 12. Design line
 
-- Colours come from the theme tokens (`accent`, `success`, `warning`,
-  `danger`, `muted`, `border`, `surface`, `background`); never raw colours
-  except a tool's brand colour in its avatar.
-- Radius: `rounded-xl` for cards and panels, `rounded-lg` for controls.
-- Spacing: `p-5` inside cards, `gap-4` in grids, `space-y-6` between
-  sections, `mb-6` under a page header.
+The tokens live in `src/app/globals.css` (`@theme`); the live reference is
+`/app/design`. Components use the semantic names, so a change of brand is a
+change of tokens, not of components.
+
+**Personality.** Calm, precise and warm: a tool that does sales work for
+you under your control. Mostly white and ink, with the brand colour kept for
+what acts or is active. The AI gradient is a signature, not a decoration.
+
+### Colour
+
+| Scale | Use |
+|---|---|
+| **Iris** (brand, `iris-50…950`, primary `iris-600` #5B45E0) | Primary actions, links, active navigation, focus, selected options. |
+| **Ink** (neutrals, `ink-0…950`) | Text (`ink-900`), secondary text (`ink-500`), page (`ink-50`), surfaces (`ink-0`), borders (`ink-200`, `ink-300` on hover). |
+| **Leaf / Amber / Coral** (status) | Working · needs attention · error. Tint `50` as background, `100` as border, `700` as text. |
+| **AI gradient** (`bg-ai`: iris → violet → orchid) | Only the logo and the assistant (avatar, chat welcome). |
+
+Semantic names (use these in components): `background`, `surface`,
+`foreground`, `muted`, `border`, `border-strong`, `accent`, `accent-hover`,
+`accent-foreground`, `success`, `warning`, `danger`. Every text colour
+passes WCAG AA on its background. Never raw hex values in components,
+except a tool's brand colour in its avatar.
+
+### Typography
+
+| Role | Face | Size / line | Weight |
+|---|---|---|---|
+| Page title (h1) | Plus Jakarta Sans | 24/32 (`text-2xl`) | 600, tight tracking |
+| Section title (h2) | Plus Jakarta Sans | 20/28 (`text-xl`) | 600 |
+| Card title (h3) | Plus Jakarta Sans | 16/24 (`text-base`) | 600 |
+| Interface text | Inter | 14/20 (`text-sm`) | 400; labels and buttons 500 |
+| Secondary data | Inter | 12/16 (`text-xs`, `text-muted`) | 400 |
+| Code, identifiers | JetBrains Mono | 12/16 | 400 |
+
+Headings take the display face automatically. Figures in tables and
+counters use `tabular-nums`. The fonts are self-hosted (`@fontsource-variable`).
+
+### Elevation and shape
+
+| Shadow | Use |
+|---|---|
+| `shadow-xs` | Controls and cards at rest. |
+| `shadow-md` | A card under the pointer. |
+| `shadow-lg` | Menus, tooltips, toasts. |
+| `shadow-xl` | Modals (with a blurred ink backdrop). |
+| `shadow-brand` | Primary button: light top edge and an iris-tinted drop. |
+
+Radius: `rounded-lg` (8) for buttons and fields, `rounded-xl` (12) for
+cards and panels, `rounded-2xl` (16) for modals and chat bubbles,
+`rounded-full` for badges and avatars.
+
+### Spacing
+
+A 4 px grid. Inside a group (chips, buttons) `gap-2`; entity icon and text
+`gap-3`; cards in a grid `gap-4`; inside a card `p-5` and `space-y-5`
+between fields; between sections `space-y-6`; page margins `px-8 py-8`;
+`mb-6` under a page header. Forms are one column.
+
+### Details
+
 - Icons: lucide, `size-4` in buttons and rows, inside an `IconTile` for
   entities.
 - Everything clickable has `cursor-pointer` (global) and a visible hover
-  state; focus is a 2px accent ring.
+  state; focus is a 2px accent ring. Transitions are 150 ms.
+- Logo: `Logo` (two speech bubbles on the AI gradient); the favicon is
+  `src/app/icon.svg`.

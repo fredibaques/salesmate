@@ -26,9 +26,12 @@ import {
   updateProject,
 } from "@/server/services/projects";
 import { formatSlot } from "@/lib/format";
+import { projectFromForm } from "../profile-form";
 
 const admin = () => requireRole(["owner", "admin"]);
 const refresh = (projectId: string) => revalidatePath(`/app/projects/${projectId}`, "layout");
+/** The project's name and paused state also show in the sidebar. */
+const refreshSidebar = () => revalidatePath("/app", "layout");
 
 // General -------------------------------------------------------------------
 
@@ -38,28 +41,21 @@ export async function saveProject(projectId: string, _: FormState, form: FormDat
     const from = str(form, "sendFrom");
     const to = str(form, "sendTo");
     await updateProject(getDb(), tenant, projectId, {
-      name: str(form, "name") ?? "",
-      description: str(form, "description"),
-      website: str(form, "website") ?? "",
-      timezone: str(form, "timezone") ?? "Europe/Madrid",
-      languages: (str(form, "languages") ?? "es")
-        .split(",")
-        .map((l) => l.trim())
-        .filter(Boolean),
+      ...projectFromForm(form),
       settings: {
         sendWindow: from && to ? [from, to] : undefined,
         sendDays: list(form, "sendDays").map(Number),
         crossProjectCooldownDays: num(form, "cooldown"),
       },
     });
-    refresh(projectId);
+    refreshSidebar();
   });
 }
 
 export async function toggleAgents(projectId: string, paused: boolean) {
   const tenant = await admin();
   await setProjectState(getDb(), tenant, projectId, { agentsPaused: paused });
-  refresh(projectId);
+  refreshSidebar();
 }
 
 // Meetings ------------------------------------------------------------------

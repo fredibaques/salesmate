@@ -74,7 +74,7 @@ export function ModalButton({
           if (e.target === dialog.current) close();
         }}
         className={cx(
-          "m-auto max-h-[90vh] w-[calc(100%-2rem)] overflow-hidden rounded-2xl border border-border bg-surface p-0 text-left font-normal text-foreground shadow-2xl",
+          "m-auto max-h-[90vh] w-[calc(100%-2rem)] overflow-hidden rounded-2xl border border-border bg-surface p-0 text-left font-normal text-foreground shadow-xl",
           width === "lg" ? "max-w-2xl" : "max-w-lg",
         )}
       >

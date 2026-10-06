@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cx } from "./cx";
+import { Logo } from "./logo";
 
 /**
  * The app's side navigation. Always one screen tall: only a section marked
@@ -24,11 +25,9 @@ export function SidebarBrand({ href, title, subtitle }: { href: string; title: s
       href={href}
       className="mx-3 mt-3 flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-background"
     >
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent text-sm font-bold text-accent-foreground">
-        {title.slice(0, 1)}
-      </span>
+      <Logo size={32} />
       <span className="min-w-0">
-        <span className="block truncate text-sm font-semibold tracking-tight">{title}</span>
+        <span className="block truncate font-display text-[15px] font-bold tracking-tight">{title}</span>
         {subtitle ? <span className="block truncate text-xs text-muted">{subtitle}</span> : null}
       </span>
     </Link>

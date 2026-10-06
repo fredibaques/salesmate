@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Mail, User } from "lucide-react";
+import { Logo } from "@/components/logo";
 import { PasswordInput } from "@/components/password-input";
 import { buttonClass, cx, Field, Input } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
@@ -34,6 +35,7 @@ export function AuthForm({ mode, googleEnabled }: { mode: "sign-in" | "sign-up";
 
   return (
     <div className="mx-auto mt-24 w-full max-w-sm rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <Logo size={36} className="mb-5" />
       <h1 className="text-xl font-semibold">{mode === "sign-in" ? "Entrar en SalesMate" : "Crear cuenta"}</h1>
       <form action={onSubmit} className="mt-6 space-y-4">
         {mode === "sign-up" ? (

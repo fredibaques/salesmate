@@ -19,7 +19,6 @@ import { listKnowledge } from "@/server/services/projects";
 import { askKnowledge, uploadKnowledge } from "../actions";
 import { AskBox } from "./ask-box";
 import { describeSource } from "./sources";
-import { KnowledgeNav } from "../section-navs";
 
 export const metadata = { title: "Conocimiento" };
 
@@ -85,7 +84,6 @@ export default async function KnowledgePage({ params }: PageProps<"/app/projects
 
   return (
     <>
-      <KnowledgeNav projectId={projectId} />
       <PageHeader
         level="section"
         title="Documentos y tablas"

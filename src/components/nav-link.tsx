@@ -42,9 +42,9 @@ export function TabLink({
   );
 }
 
-/** Second-level navigation inside a tab (e.g. Conocimiento → Oferta y cliente · Documentos). */
+/** Second-level navigation inside a tab (e.g. Ajustes → General · Reglas y exclusiones). */
 export function SubTabs({ children }: { children: ReactNode }) {
-  return <nav className="mb-6 inline-flex flex-wrap gap-1 rounded-xl bg-border/50 p-1">{children}</nav>;
+  return <nav className="mb-6 inline-flex flex-wrap gap-1 rounded-xl bg-ink-100 p-1">{children}</nav>;
 }
 
 export function SubTabLink({
