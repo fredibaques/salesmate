@@ -13,7 +13,16 @@ screen needs something new, add it here and as a component, not inline.
   initial. The person's own settings live in the `UserMenu` at the bottom:
   **Mi cuenta** (Perfil, Seguridad, Organización), switching organization and
   «Salir».
-- Content sits in a centred column (`max-w-6xl`, `px-8 py-8`).
+- Content takes the full width of the window (`px-8`); forms keep a reading
+  width (`max-w-3xl`). The page reserves the scrollbar's space
+  (`scrollbar-gutter: stable`) so nothing shifts when a page gets long.
+- The sidebar is light grey (`bg-sidebar`), the content area almost white
+  (`bg-background`); the active entry is a white pill.
+- **Breadcrumbs** sit top left on every sub-page (`@crumbs` slot in
+  `src/app/app`, rules in `src/app/app/crumbs.ts`). There are no «back»
+  buttons.
+- **Loading**: every main route has a `loading.tsx` with skeletons
+  (`src/components/skeleton.tsx`) shaped like the page that is coming.
 - The sidebar has three sections and the projects:
   - **Panel**: overview.
   - **Copilot**: the assistant and «Por aprobar» (what the agents want to do).
@@ -28,7 +37,7 @@ screen needs something new, add it here and as a component, not inline.
 
 Every page reads top to bottom the same way:
 
-1. **`PageHeader`**: optional back link, title (with its status badge)
+1. **`PageHeader`**: title (with its status badge)
    and the page's actions on the right. **No paragraph under titles**: when
    a page or a card needs explaining, pass `tip` and it shows as a «?» with
    a tooltip next to the title. Top-level pages use the default `level="page"` (h1); pages inside

@@ -29,13 +29,11 @@ export default async function NewAgentPage({
   const existing = await getAgent(db, tenant, projectId, agentType);
   if (existing) redirect(`/app/projects/${projectId}/agents/${agentType}`);
   const info = AGENT_INFO[agentType];
-  const base = `/app/projects/${projectId}`;
 
   return (
     <>
       <PageHeader
         level="section"
-        back={{ href: base, label: "Agentes" }}
         icon={AGENT_ICONS[agentType]}
         title={`Añadir el ${info.name.toLowerCase()}`}
         tip={info.description}

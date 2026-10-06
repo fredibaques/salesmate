@@ -34,7 +34,6 @@ export default async function SourcePage({
     <>
       <PageHeader
         level="section"
-        back={{ href: `/app/projects/${projectId}/knowledge`, label: "Conocimiento" }}
         icon={kind.icon}
         title={source.name}
         badge={

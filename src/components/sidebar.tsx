@@ -13,7 +13,7 @@ import { Logo } from "./logo";
  */
 export function Sidebar({ children }: { children: ReactNode }) {
   return (
-    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-border bg-surface">
+    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-border bg-sidebar">
       {children}
     </aside>
   );
@@ -23,7 +23,7 @@ export function SidebarBrand({ href, title, subtitle }: { href: string; title: s
   return (
     <Link
       href={href}
-      className="mx-3 mt-3 flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-background"
+      className="mx-3 mt-3 flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-ink-200/60"
     >
       <Logo size={32} />
       <span className="min-w-0">
@@ -107,8 +107,8 @@ export function SidebarItem({
       className={cx(
         "flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm transition-colors [&>svg]:size-4 [&>svg]:shrink-0",
         active
-          ? "bg-accent/10 font-medium text-accent"
-          : "text-foreground hover:bg-background [&>svg]:text-muted hover:[&>svg]:text-foreground",
+          ? "bg-surface font-medium text-accent shadow-xs"
+          : "text-ink-700 hover:bg-ink-200/60 hover:text-foreground [&>svg]:text-muted hover:[&>svg]:text-foreground",
       )}
     >
       {icon}
@@ -174,7 +174,7 @@ export function UserMenu({
   }, [open]);
 
   const item =
-    "flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-background [&>svg]:size-4 [&>svg]:text-muted";
+    "flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-ink-100 [&>svg]:size-4 [&>svg]:text-muted";
 
   return (
     <div ref={box} className="relative border-t border-border p-3">
@@ -228,11 +228,11 @@ export function UserMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         className={cx(
-          "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-background",
-          open && "bg-background",
+          "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-ink-200/60",
+          open && "bg-ink-200/60",
         )}
       >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-border text-sm font-semibold text-foreground">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-iris-100 text-sm font-semibold text-iris-700">
           {(name || email).slice(0, 1).toUpperCase()}
         </span>
         <span className="min-w-0 flex-1">

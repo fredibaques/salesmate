@@ -23,6 +23,7 @@ import {
   type ButtonVariant,
   type ControlSize,
 } from "@/components/ui";
+import { ListPageSkeleton, SkeletonCard } from "@/components/skeleton";
 import { BrandSection } from "./brand";
 import { ChatDemo } from "./chat-demo";
 
@@ -250,6 +251,16 @@ export default function DesignPage() {
 
         <Card title="Chat">
           <ChatDemo />
+        </Card>
+
+        <Card
+          title="Carga"
+          tip="Mientras una página carga se ven formas grises con un brillo suave en el sitio de lo que va a aparecer (loading.tsx)."
+        >
+          <div className="grid gap-4 lg:grid-cols-2">
+            <SkeletonCard />
+            <ListPageSkeleton rows={3} />
+          </div>
         </Card>
 
         <Card title="Estados">

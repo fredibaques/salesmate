@@ -27,7 +27,6 @@ export default async function AgentLayout({
     <>
       <PageHeader
         level="section"
-        back={{ href: `/app/projects/${projectId}`, label: "Agentes" }}
         icon={AGENT_ICONS[agentType]}
         title={info.name}
         actions={

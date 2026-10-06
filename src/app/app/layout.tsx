@@ -16,7 +16,7 @@ import { listActions, listProjects } from "@/server/services/projects";
 import { signOut, switchOrganization } from "./actions";
 import { NewProjectButton } from "./projects/new-project";
 
-export default async function AppLayout({ children }: LayoutProps<"/app">) {
+export default async function AppLayout({ children, crumbs }: LayoutProps<"/app">) {
   const tenant = await requireTenant();
   const db = getDb();
   const [projects, pending, memberships] = await Promise.all([
@@ -83,7 +83,11 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
           />
         </Sidebar>
         <main className="min-w-0 flex-1">
-          <div className="mx-auto max-w-6xl px-8 py-8">{children}</div>
+          {/* Full width; forms keep their own reading width. */}
+          <div className="px-8 pt-5 pb-10">
+            {crumbs}
+            {children}
+          </div>
         </main>
       </div>
     </ToastProvider>

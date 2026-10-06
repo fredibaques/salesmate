@@ -1,4 +1,4 @@
-import { ArrowLeft, CircleAlert, CircleCheck, Info, TriangleAlert } from "lucide-react";
+import { CircleAlert, CircleCheck, Info, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 
@@ -11,7 +11,7 @@ export * from "./tooltip";
 
 /**
  * Top of a page (or of a nested page such as an agent inside a project):
- * optional back link, title with its status and the page's actions on the
+ * title with its status and the page's actions on the
  * right. No paragraph under the title: when the page needs explaining, `tip`
  * puts a «?» next to it. Use `level="section"` below another header.
  */
@@ -20,7 +20,6 @@ export function PageHeader({
   tip,
   actions,
   badge,
-  back,
   icon,
   media,
   level = "page",
@@ -30,7 +29,6 @@ export function PageHeader({
   tip?: ReactNode;
   actions?: ReactNode;
   badge?: ReactNode;
-  back?: { href: string; label: string };
   icon?: ReactNode;
   /** Replaces the icon tile, e.g. a tool's logo avatar. */
   media?: ReactNode;
@@ -40,7 +38,6 @@ export function PageHeader({
   const Heading = level === "page" ? "h1" : "h2";
   return (
     <header className={cx(level === "page" ? "mb-6" : "mb-5", className)}>
-      {back ? <BackLink href={back.href}>{back.label}</BackLink> : null}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex min-w-0 flex-1 basis-72 items-center gap-3">
           {media ?? (icon ? <IconTile size="lg">{icon}</IconTile> : null)}
@@ -59,18 +56,6 @@ export function PageHeader({
         {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
       </div>
     </header>
-  );
-}
-
-export function BackLink({ href, children }: { href: string; children: ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="mb-3 inline-flex items-center gap-1 rounded-md text-sm text-muted transition-colors hover:text-foreground"
-    >
-      <ArrowLeft className="size-4" />
-      {children}
-    </Link>
   );
 }
 
