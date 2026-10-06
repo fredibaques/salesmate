@@ -33,7 +33,7 @@ export function SwitchButton({
       <span
         className={cx(
           "relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors",
-          on ? "bg-success group-hover/switch:bg-success/85" : "bg-border group-hover/switch:bg-muted/50",
+          on ? "bg-leaf-500 group-hover/switch:bg-leaf-700" : "bg-ink-300 group-hover/switch:bg-ink-400",
         )}
       >
         <span

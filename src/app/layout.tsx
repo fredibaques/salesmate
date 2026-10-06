@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { configProblems } from "@/server/env";
 import { ConfigError } from "./config-error";
+import "@fontsource-variable/inter";
+import "@fontsource-variable/plus-jakarta-sans";
+import "@fontsource-variable/jetbrains-mono";
 import "./globals.css";
 
 export const metadata: Metadata = {

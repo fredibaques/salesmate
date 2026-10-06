@@ -24,7 +24,7 @@ export function controlClass({
 }: ControlLook & { multiline?: boolean } = {}) {
   return cx(
     "w-full rounded-lg border bg-surface text-foreground shadow-xs transition-colors outline-none placeholder:text-muted/70",
-    "hover:border-muted/50 focus:ring-2",
+    "hover:border-border-strong focus:ring-2",
     "disabled:cursor-not-allowed disabled:bg-background disabled:text-muted disabled:hover:border-border",
     invalid
       ? "border-danger focus:border-danger focus:ring-danger/20"
@@ -180,7 +180,7 @@ export function Choice({
       className={cx(
         "flex items-start gap-3 text-sm",
         card &&
-          "rounded-xl border border-border bg-surface p-4 transition-colors hover:border-muted/50 hover:bg-background has-[:checked]:border-accent has-[:checked]:bg-accent/5",
+          "rounded-xl border border-border bg-surface p-4 transition-colors hover:border-border-strong hover:bg-ink-25 has-[:checked]:border-accent has-[:checked]:bg-accent/5",
         input.disabled && "opacity-60",
         className,
       )}
@@ -206,7 +206,7 @@ export function Chip({
       <span
         className={cx(
           "inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-border bg-surface px-2.5 text-sm transition-colors select-none",
-          "hover:border-muted/50 peer-checked:border-accent peer-checked:bg-accent peer-checked:text-accent-foreground",
+          "hover:border-border-strong peer-checked:border-accent peer-checked:bg-accent peer-checked:text-accent-foreground",
           "peer-focus-visible:ring-2 peer-focus-visible:ring-accent/40 peer-disabled:opacity-50",
         )}
       >
@@ -227,7 +227,7 @@ export function Segmented({
   defaultValue?: string;
 }) {
   return (
-    <div role="radiogroup" className="inline-flex flex-wrap gap-1 rounded-xl bg-border/50 p-1">
+    <div role="radiogroup" className="inline-flex flex-wrap gap-1 rounded-xl bg-ink-100 p-1">
       {options.map((o) => (
         <label key={o.value} className="inline-flex">
           <input
@@ -264,5 +264,36 @@ export function FormSection({
       </h3>
       {children}
     </section>
+  );
+}
+
+/**
+ * Several answers from a ready-made list, plus «Otros» for what the list
+ * doesn't cover. Chosen presets submit as `name`; the free text as
+ * `${name}Other`, separated by commas (read both with `listWithOther`).
+ */
+export function ChipSelect({
+  name,
+  options,
+  defaultValue = [],
+  otherPlaceholder = "Otros, separados por comas",
+}: {
+  name: string;
+  options: readonly string[];
+  defaultValue?: string[];
+  otherPlaceholder?: string;
+}) {
+  const others = defaultValue.filter((v) => !options.includes(v));
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((o) => (
+          <Chip key={o} name={name} value={o} defaultChecked={defaultValue.includes(o)}>
+            {o}
+          </Chip>
+        ))}
+      </div>
+      <Input name={`${name}Other`} defaultValue={others.join(", ")} placeholder={otherPlaceholder} />
+    </div>
   );
 }

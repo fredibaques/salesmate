@@ -49,7 +49,7 @@ export default async function AgentHomePage({
       <div className="space-y-6">
         <Card
           title="Proceso de venta"
-          tip="Cómo trabaja este agente con cada contacto. Lo común a todos los agentes (qué vendes, a quién, objeciones, tono y firma) está en Conocimiento → Oferta y cliente."
+          tip="Cómo trabaja este agente con cada contacto. Lo común a todos los agentes (qué vendes, a quién, objeciones, tono y firma) está en Ajustes → Oferta y cliente."
         >
           <ActionForm
             key={process.currentVersion}

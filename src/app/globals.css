@@ -1,40 +1,105 @@
 @import "tailwindcss";
 
+/*
+ * SalesMate design line. Raw scales (iris, ink, leaf, amber, coral) define
+ * the palette; components use the semantic names (accent, muted, border…),
+ * so the whole app changes from here. Rules and usage: docs/DESIGN.md.
+ */
+@theme {
+  /* Iris: the brand. Primary actions, links, active states, focus. */
+  --color-iris-50: #f4f3ff;
+  --color-iris-100: #eceafe;
+  --color-iris-200: #dad6fe;
+  --color-iris-300: #bdb4fc;
+  --color-iris-400: #9c8ef8;
+  --color-iris-500: #7c68f1;
+  --color-iris-600: #5b45e0;
+  --color-iris-700: #4b36c4;
+  --color-iris-800: #3e2d9e;
+  --color-iris-900: #34297d;
+  --color-iris-950: #1f1a4b;
+
+  /* Ink: neutrals with a hint of the brand. Text, surfaces, borders. */
+  --color-ink-0: #ffffff;
+  --color-ink-25: #fcfcfe;
+  --color-ink-50: #f7f7fa;
+  --color-ink-100: #efeff4;
+  --color-ink-200: #e3e3eb;
+  --color-ink-300: #cdcdd9;
+  --color-ink-400: #9e9eb2;
+  --color-ink-500: #6b6b84;
+  --color-ink-600: #52526a;
+  --color-ink-700: #3d3d52;
+  --color-ink-800: #28283a;
+  --color-ink-900: #19192a;
+  --color-ink-950: #0e0e19;
+
+  /* Status. 700 is the text shade (AA on white and on its 50 tint). */
+  --color-leaf-50: #ecfdf3;
+  --color-leaf-100: #d1fadf;
+  --color-leaf-500: #17b26a;
+  --color-leaf-700: #067647;
+  --color-amber-50: #fffaeb;
+  --color-amber-100: #fef0c7;
+  --color-amber-500: #f79009;
+  --color-amber-700: #b54708;
+  --color-coral-50: #fef3f2;
+  --color-coral-100: #fee4e2;
+  --color-coral-500: #f04438;
+  --color-coral-600: #d92d20;
+  --color-coral-700: #b42318;
+
+  /* Semantic names used by the components. */
+  --color-background: var(--color-ink-50);
+  --color-surface: var(--color-ink-0);
+  --color-foreground: var(--color-ink-900);
+  --color-muted: var(--color-ink-500);
+  --color-border: var(--color-ink-200);
+  --color-border-strong: var(--color-ink-300);
+  --color-accent: var(--color-iris-600);
+  --color-accent-hover: var(--color-iris-700);
+  --color-accent-foreground: var(--color-ink-0);
+  --color-success: var(--color-leaf-700);
+  --color-warning: var(--color-amber-700);
+  --color-danger: var(--color-coral-600);
+
+  /* Type: Inter for the interface, Plus Jakarta Sans for titles, JetBrains Mono for code. */
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Plus Jakarta Sans Variable", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Elevation: soft, tinted with ink. Cards rest on xs, rise to md on hover; menus lg; modals xl. */
+  --shadow-xs: 0 1px 2px 0 rgb(25 25 42 / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(25 25 42 / 0.07), 0 1px 2px -1px rgb(25 25 42 / 0.05);
+  --shadow-md: 0 6px 12px -4px rgb(25 25 42 / 0.09), 0 2px 4px -2px rgb(25 25 42 / 0.05);
+  --shadow-lg: 0 14px 24px -6px rgb(25 25 42 / 0.12), 0 4px 8px -4px rgb(25 25 42 / 0.05);
+  --shadow-xl: 0 24px 48px -12px rgb(25 25 42 / 0.22);
+  /* Primary buttons: a light top edge and a brand-tinted drop. */
+  --shadow-brand: inset 0 1px 0 0 rgb(255 255 255 / 0.16), 0 1px 2px 0 rgb(75 54 196 / 0.35);
+
+  /* The AI's signature, for the logo and the assistant (use sparingly). */
+  --gradient-ai: linear-gradient(135deg, #5b45e0 0%, #8b5cf6 55%, #c04fe8 100%);
+}
+
 :root {
   /* Light theme only. */
   color-scheme: light;
-  --background: #f7f7f8;
-  --foreground: #18181b;
-  --surface: #ffffff;
-  --muted: #71717a;
-  --border: #e4e4e7;
-  --accent: #4f46e5;
-  --accent-foreground: #ffffff;
-  --danger: #dc2626;
-  --success: #16a34a;
-  --warning: #d97706;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-surface: var(--surface);
-  --color-muted: var(--muted);
-  --color-border: var(--border);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-danger: var(--danger);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 body {
   font-family: var(--font-sans);
+  /* Inter: open digits and a single-storey «a» read better at small sizes. */
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
 @layer base {
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+
   /* Tailwind 4 leaves buttons with the default cursor: everything clickable shows the hand. */
   button:not(:disabled),
   [role="button"],
@@ -55,10 +120,19 @@ body {
 
   input[type="checkbox"],
   input[type="radio"] {
-    accent-color: var(--accent);
+    accent-color: var(--color-accent);
+  }
+
+  ::selection {
+    background: var(--color-iris-100);
   }
 
   dialog::backdrop {
-    background: rgb(0 0 0 / 0.45);
+    background: rgb(14 14 25 / 0.45);
+    backdrop-filter: blur(2px);
   }
+}
+
+@utility bg-ai {
+  background-image: var(--gradient-ai);
 }

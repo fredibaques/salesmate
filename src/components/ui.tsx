@@ -146,11 +146,11 @@ export function EntityCard({
   return (
     <article
       className={cx(
-        "group relative flex flex-col rounded-xl border bg-surface p-5 transition",
+        "group relative flex flex-col rounded-xl border bg-surface p-5 shadow-xs transition",
         variant === "default" && "border-border",
         variant === "placeholder" && "border-dashed border-border",
         variant === "disabled" && "border-dashed border-border bg-transparent opacity-70",
-        href && "hover:border-accent/40 hover:shadow-sm",
+        href && "hover:border-iris-200 hover:shadow-md",
       )}
     >
       <div className="flex items-start gap-3">
@@ -218,7 +218,7 @@ export function Card({
 }) {
   const hasHeader = title || actions;
   return (
-    <section className={cx("rounded-xl border border-border bg-surface p-5", className)}>
+    <section className={cx("rounded-xl border border-border bg-surface p-5 shadow-xs", className)}>
       {hasHeader ? (
         <div className="flex min-h-8 flex-wrap items-center justify-between gap-3">
           {title ? (
@@ -243,16 +243,16 @@ export function Card({
 
 const buttonVariants = {
   /** The main action of a view. One per view. */
-  primary: "bg-accent text-accent-foreground shadow-sm hover:bg-accent/90 active:bg-accent/80",
+  primary: "bg-accent text-accent-foreground shadow-brand hover:bg-accent-hover active:bg-iris-800",
   /** Other actions. */
   secondary:
-    "border border-border bg-surface text-foreground shadow-sm hover:border-muted/40 hover:bg-background active:bg-border/60",
+    "border border-border bg-surface text-foreground shadow-xs hover:border-border-strong hover:bg-ink-50 active:bg-ink-100",
   /** Low-emphasis actions: in toolbars, headers, rows and next to a primary. */
-  ghost: "text-foreground hover:bg-border/50 active:bg-border/80",
+  ghost: "text-foreground hover:bg-ink-100 active:bg-ink-200",
   /** Destructive action that needs weight (confirming a removal). */
-  danger: "bg-danger text-white shadow-sm hover:bg-danger/90 active:bg-danger/80",
+  danger: "bg-danger text-white shadow-xs hover:bg-coral-700 active:bg-coral-700",
   /** Destructive action at rest («Quitar», trash icon in a row). */
-  dangerGhost: "text-danger hover:bg-danger/10 active:bg-danger/15",
+  dangerGhost: "text-danger hover:bg-coral-50 active:bg-coral-100",
 };
 
 const buttonSizes = {
@@ -312,11 +312,11 @@ export function LinkButton({
 }
 
 const badgeStyles = {
-  neutral: "bg-background text-muted border-border",
-  success: "bg-success/10 text-success border-success/30",
-  warning: "bg-warning/10 text-warning border-warning/30",
-  danger: "bg-danger/10 text-danger border-danger/30",
-  accent: "bg-accent/10 text-accent border-accent/30",
+  neutral: "bg-ink-50 text-ink-600 border-ink-200",
+  success: "bg-leaf-50 text-leaf-700 border-leaf-100",
+  warning: "bg-amber-50 text-amber-700 border-amber-100",
+  danger: "bg-coral-50 text-coral-700 border-coral-100",
+  accent: "bg-iris-50 text-iris-700 border-iris-100",
 };
 
 export function Badge({
@@ -437,18 +437,14 @@ export function Td({ children, className }: { children: ReactNode; className?: s
 }
 
 const noticeTones = {
-  success: {
-    box: "border-success/30 bg-success/10 text-foreground",
-    icon: "text-success",
-    Icon: CircleCheck,
-  },
-  info: { box: "border-border bg-surface text-foreground", icon: "text-accent", Icon: Info },
+  success: { box: "border-leaf-100 bg-leaf-50 text-foreground", icon: "text-leaf-700", Icon: CircleCheck },
+  info: { box: "border-iris-100 bg-iris-50 text-foreground", icon: "text-accent", Icon: Info },
   warning: {
-    box: "border-warning/40 bg-warning/10 text-foreground",
-    icon: "text-warning",
+    box: "border-amber-100 bg-amber-50 text-foreground",
+    icon: "text-amber-700",
     Icon: TriangleAlert,
   },
-  danger: { box: "border-danger/40 bg-danger/10 text-foreground", icon: "text-danger", Icon: CircleAlert },
+  danger: { box: "border-coral-100 bg-coral-50 text-foreground", icon: "text-coral-700", Icon: CircleAlert },
 };
 
 /** A message about the state of the page (something off, missing or worth knowing), with an optional fix. */

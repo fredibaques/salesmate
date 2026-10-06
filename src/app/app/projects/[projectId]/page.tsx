@@ -23,7 +23,7 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/app/pr
       done: Boolean(profile.offer || profile.valueProposition || profile.segment.include.length),
       label: "Describe tu oferta y tu cliente ideal",
       hint: "Lo comparten todos los agentes del proyecto.",
-      href: `${base}/offer`,
+      href: `${base}/settings#oferta`,
     },
     {
       done: sources.length > 0,

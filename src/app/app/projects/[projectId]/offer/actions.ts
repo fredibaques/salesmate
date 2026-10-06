@@ -8,38 +8,12 @@ import { runForm, str } from "@/server/form";
 import { getLlm } from "@/server/llm/client";
 import { draftPlaybook } from "@/server/playbooks/draft";
 import { activePlaybookFor } from "@/server/playbooks/service";
-import { PLAYBOOK_TEMPLATES, type SalesProfile } from "@/server/playbooks/spec";
+import { PLAYBOOK_TEMPLATES } from "@/server/playbooks/spec";
 import { withTenant } from "@/server/db/tenant";
 import { getSalesProfile, saveSalesProfile } from "@/server/services/agents";
+import { profileFromForm } from "../../profile-form";
 
 const admin = () => requireRole(["owner", "admin"]);
-const lines = (form: FormData, key: string) =>
-  (str(form, key) ?? "")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-function profileFromForm(form: FormData): SalesProfile {
-  return {
-    offer: str(form, "offer") ?? "",
-    valueProposition: str(form, "valueProposition") ?? "",
-    segment: {
-      include: lines(form, "segmentInclude"),
-      exclude: lines(form, "segmentExclude"),
-      geography: lines(form, "geography"),
-    },
-    decisionMakers: lines(form, "decisionMakers"),
-    pains: lines(form, "pains"),
-    objections: lines(form, "objections").flatMap((l) => {
-      const [objection, ...rest] = l.split("=>");
-      const response = rest.join("=>").trim();
-      return objection.trim() && response ? [{ objection: objection.trim(), response }] : [];
-    }),
-    tone: str(form, "tone") ?? "",
-    signature: str(form, "signature") ?? "",
-  };
-}
-
 export async function saveOffer(projectId: string, _: FormState, form: FormData): Promise<FormState> {
   const result = await runForm(async () => {
     const tenant = await admin();

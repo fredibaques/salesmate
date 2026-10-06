@@ -55,7 +55,7 @@ function ChatAvatar({ from }: { from: "user" | "assistant" }) {
       aria-hidden
       className={cx(
         "flex size-8 shrink-0 items-center justify-center rounded-full [&_svg]:size-4",
-        from === "assistant" ? "bg-accent/10 text-accent" : "bg-border text-muted",
+        from === "assistant" ? "bg-ai text-white shadow-brand" : "bg-ink-100 text-ink-600",
       )}
     >
       {from === "assistant" ? <Sparkles /> : <User />}
@@ -131,7 +131,7 @@ export function ChatWelcome({
 }) {
   return (
     <div className="mx-auto flex max-w-xl flex-col items-center py-8 text-center">
-      <span className="flex size-12 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+      <span className="bg-ai flex size-12 items-center justify-center rounded-2xl text-white shadow-brand">
         <Sparkles className="size-6" />
       </span>
       <p className="mt-4 text-base font-semibold">{title}</p>
@@ -187,7 +187,7 @@ export function ChatComposer({
       }}
       className="mx-auto max-w-3xl"
     >
-      <div className="flex items-end gap-2 rounded-xl border border-border bg-surface p-1.5 shadow-xs transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20 hover:border-muted/50">
+      <div className="flex items-end gap-2 rounded-xl border border-border bg-surface p-1.5 shadow-xs transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20 hover:border-border-strong">
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}

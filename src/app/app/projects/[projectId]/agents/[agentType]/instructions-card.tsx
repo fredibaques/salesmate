@@ -37,7 +37,7 @@ export function InstructionsCard({
   return (
     <Card
       title="Instrucciones"
-      tip="Lo que comparten todos los agentes (qué vendes, a quién, tono) ya lo saben por «Oferta y cliente». Aquí va lo propio de este agente."
+      tip="Lo que comparten todos los agentes (qué vendes, a quién, tono) ya lo saben por Ajustes → Oferta y cliente. Aquí va lo propio de este agente."
     >
       <ActionForm
         key={`${config.instructions ?? ""}|${JSON.stringify(config.schedule)}|${JSON.stringify(config.settings)}`}

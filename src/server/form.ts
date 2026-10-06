@@ -44,3 +44,19 @@ export function list(form: FormData, key: string): string[] {
 export function bool(form: FormData, key: string): boolean {
   return form.get(key) === "on" || form.get(key) === "true";
 }
+
+/** The chips of a `ChipSelect` plus its comma-separated «Otros» field. */
+export function listWithOther(form: FormData, key: string): string[] {
+  const other = (str(form, `${key}Other`) ?? "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+  return [...new Set([...list(form, key), ...other])];
+}
+
+/** Rows of a `PairListInput`: both values of each row, dropping rows with an empty side. */
+export function pairs(form: FormData, first: string, second: string): [string, string][] {
+  const a = form.getAll(first).map((v) => String(v).trim());
+  const b = form.getAll(second).map((v) => String(v).trim());
+  return a.flatMap((x, i) => (x && b[i] ? [[x, b[i]] as [string, string]] : []));
+}

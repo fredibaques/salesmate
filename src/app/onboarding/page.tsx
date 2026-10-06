@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ActionForm, type FormState } from "@/components/action-form";
+import { Logo } from "@/components/logo";
 import { Field, Input } from "@/components/ui";
 import { getAuth } from "@/server/auth/auth";
 import { requireUser } from "@/server/auth/session";
@@ -27,7 +28,8 @@ async function createOrganization(_: FormState, form: FormData): Promise<FormSta
 export default async function OnboardingPage() {
   const session = await requireUser();
   return (
-    <div className="mx-auto mt-24 w-full max-w-md rounded-xl border border-border bg-surface p-6">
+    <div className="mx-auto mt-24 w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <Logo size={36} className="mb-5" />
       <h1 className="text-xl font-semibold">Hola, {session.user.name}</h1>
       <p className="mt-2 text-sm text-muted">
         Crea tu organización. Dentro podrás dar de alta todos tus proyectos (empresas, marcas o tu actividad
