@@ -180,7 +180,7 @@ export function Choice({
       className={cx(
         "flex items-start gap-3 text-sm",
         card &&
-          "rounded-xl border border-border bg-surface p-4 transition-colors hover:border-border-strong hover:bg-ink-25 has-[:checked]:border-accent has-[:checked]:bg-accent/5",
+          "rounded-xl border border-border bg-surface p-4 transition-colors hover:border-border-strong hover:bg-ink-25 has-[:checked]:border-accent has-[:checked]:bg-brand-50",
         input.disabled && "opacity-60",
         className,
       )}
@@ -206,7 +206,7 @@ export function Chip({
       <span
         className={cx(
           "inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-border bg-surface px-2.5 text-sm transition-colors select-none",
-          "hover:border-border-strong peer-checked:border-accent peer-checked:bg-accent peer-checked:text-accent-foreground",
+          "hover:border-border-strong peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground",
           "peer-focus-visible:ring-2 peer-focus-visible:ring-accent/40 peer-disabled:opacity-50",
         )}
       >

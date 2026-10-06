@@ -59,7 +59,7 @@ export function AskBox({
                 <Link
                   key={s.id}
                   href={`/app/projects/${projectId}/knowledge/${s.id}`}
-                  className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2 py-0.5 text-foreground transition-colors hover:border-accent/50 hover:text-accent"
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2 py-0.5 text-foreground transition-colors hover:border-brand-300 hover:text-accent"
                 >
                   <FileText className="size-3.5" />
                   {s.name}

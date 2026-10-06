@@ -121,7 +121,7 @@ export default async function ProspectsPage({
                     className={cx(
                       "rounded-lg px-3 py-1.5 transition-colors",
                       active
-                        ? "bg-accent/10 font-medium text-accent"
+                        ? "bg-brand-100 font-medium text-accent"
                         : "text-muted hover:bg-background hover:text-foreground",
                     )}
                   >

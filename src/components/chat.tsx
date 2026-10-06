@@ -55,7 +55,7 @@ function ChatAvatar({ from }: { from: "user" | "assistant" }) {
       aria-hidden
       className={cx(
         "flex size-8 shrink-0 items-center justify-center rounded-full [&_svg]:size-4",
-        from === "assistant" ? "bg-ai text-white shadow-brand" : "bg-ink-100 text-ink-600",
+        from === "assistant" ? "bg-ai text-primary-foreground" : "bg-ink-100 text-ink-600",
       )}
     >
       {from === "assistant" ? <Sparkles /> : <User />}
@@ -85,7 +85,7 @@ export function ChatMessage({
           className={cx(
             "rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
             mine
-              ? "rounded-tr-md bg-accent whitespace-pre-wrap text-accent-foreground"
+              ? "rounded-tr-md bg-primary whitespace-pre-wrap text-primary-foreground"
               : tone === "danger"
                 ? "rounded-tl-md border border-danger/30 bg-danger/10 text-foreground"
                 : "rounded-tl-md border border-border bg-surface text-foreground shadow-xs",
@@ -131,7 +131,7 @@ export function ChatWelcome({
 }) {
   return (
     <div className="mx-auto flex max-w-xl flex-col items-center py-8 text-center">
-      <span className="bg-ai flex size-12 items-center justify-center rounded-2xl text-white shadow-brand">
+      <span className="bg-ai flex size-12 items-center justify-center rounded-2xl text-primary-foreground">
         <Sparkles className="size-6" />
       </span>
       <p className="mt-4 text-base font-semibold">{title}</p>
@@ -154,7 +154,7 @@ export function SuggestionButton({ children, onClick }: { children: ReactNode; o
     <button
       type="button"
       onClick={onClick}
-      className="rounded-xl border border-border bg-surface px-3.5 py-2.5 text-left text-sm transition-colors hover:border-accent/50 hover:bg-accent/5 hover:text-accent"
+      className="rounded-xl border border-border bg-surface px-3.5 py-2.5 text-left text-sm transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-accent"
     >
       {children}
     </button>

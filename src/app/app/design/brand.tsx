@@ -4,25 +4,25 @@ import { Card } from "@/components/ui";
 /** The palette as Tailwind classes (spelled out so Tailwind generates them). */
 const SCALES: { name: string; use: string; swatches: [string, string][] }[] = [
   {
-    name: "Iris",
-    use: "Marca: acción principal, enlaces, activo, foco.",
+    name: "Lima (marca)",
+    use: "500 rellena (botón principal, selección, logotipo) con texto oscuro encima; 700 es el tono de texto, enlaces, bordes activos y foco.",
     swatches: [
-      ["50", "bg-iris-50"],
-      ["100", "bg-iris-100"],
-      ["200", "bg-iris-200"],
-      ["300", "bg-iris-300"],
-      ["400", "bg-iris-400"],
-      ["500", "bg-iris-500"],
-      ["600", "bg-iris-600"],
-      ["700", "bg-iris-700"],
-      ["800", "bg-iris-800"],
-      ["900", "bg-iris-900"],
-      ["950", "bg-iris-950"],
+      ["50", "bg-brand-50"],
+      ["100", "bg-brand-100"],
+      ["200", "bg-brand-200"],
+      ["300", "bg-brand-300"],
+      ["400", "bg-brand-400"],
+      ["500", "bg-brand-500"],
+      ["600", "bg-brand-600"],
+      ["700", "bg-brand-700"],
+      ["800", "bg-brand-800"],
+      ["900", "bg-brand-900"],
+      ["950", "bg-brand-950"],
     ],
   },
   {
     name: "Ink",
-    use: "Neutros: texto, superficies y bordes.",
+    use: "Grises neutros: texto, superficies y bordes.",
     swatches: [
       ["0", "bg-ink-0"],
       ["25", "bg-ink-25"],
@@ -60,17 +60,17 @@ const TYPE: { label: string; className: string; spec: string }[] = [
   {
     label: "Título de página",
     className: "font-display text-2xl font-semibold tracking-tight",
-    spec: "Jakarta 24/32 · 600",
+    spec: "Inter 24/32 · 600",
   },
   {
     label: "Título de sección",
     className: "font-display text-xl font-semibold tracking-tight",
-    spec: "Jakarta 20/28 · 600",
+    spec: "Inter 20/28 · 600",
   },
   {
     label: "Título de tarjeta",
     className: "font-display text-base font-semibold",
-    spec: "Jakarta 16/24 · 600",
+    spec: "Inter 16/24 · 600",
   },
   { label: "Texto de la interfaz", className: "text-sm", spec: "Inter 14/20 · 400" },
   { label: "Etiquetas y botones", className: "text-sm font-medium", spec: "Inter 14/20 · 500" },
@@ -80,19 +80,19 @@ const TYPE: { label: string; className: string; spec: string }[] = [
 ];
 
 const SHADOWS: [string, string, string][] = [
-  ["xs", "shadow-xs", "Controles y tarjetas en reposo"],
+  ["Reposo", "shadow-xs", "Sin sombra: separan los bordes"],
   ["sm", "shadow-sm", "Elementos sobre una tarjeta"],
-  ["md", "shadow-md", "Tarjeta al pasar el ratón"],
+  ["md", "shadow-md", "Tarjeta al pasar el ratón (muy leve)"],
   ["lg", "shadow-lg", "Menús, tooltips, avisos"],
   ["xl", "shadow-xl", "Ventanas modales"],
-  ["brand", "shadow-brand bg-accent", "Botón principal"],
+  ["brand", "shadow-brand bg-primary", "Botón principal (plano)"],
 ];
 
 const RADII: [string, string, string][] = [
-  ["md · 6", "rounded-md", "Etiquetas pequeñas"],
-  ["lg · 8", "rounded-lg", "Botones y campos"],
-  ["xl · 12", "rounded-xl", "Tarjetas y paneles"],
-  ["2xl · 16", "rounded-2xl", "Modales y burbujas"],
+  ["md · 3", "rounded-md", "Etiquetas pequeñas"],
+  ["lg · 4", "rounded-lg", "Botones y campos"],
+  ["xl · 6", "rounded-xl", "Tarjetas y paneles"],
+  ["2xl · 8", "rounded-2xl", "Modales y burbujas"],
   ["full", "rounded-full", "Insignias, avatares"],
 ];
 
@@ -116,8 +116,8 @@ export function BrandSection() {
           <Logo size={32} />
           <div className="bg-ai h-12 w-48 rounded-xl shadow-brand" />
           <p className="max-w-sm text-sm text-muted">
-            El degradado de la IA solo aparece en el logotipo y en el asistente. Todo lo demás usa colores
-            planos.
+            Lima + minimalista + poco redondeado. El degradado (lima → verde → turquesa) solo aparece en el
+            logotipo y en el asistente; todo lo demás usa colores planos y bordes finos.
           </p>
         </div>
       </Card>
@@ -171,7 +171,7 @@ export function BrandSection() {
           <div className="grid grid-cols-2 gap-5 sm:grid-cols-3">
             {RADII.map(([name, cls, use]) => (
               <div key={name}>
-                <div className={`h-16 border-2 border-iris-300 bg-iris-50 ${cls}`} />
+                <div className={`h-16 border-2 border-brand-300 bg-brand-50 ${cls}`} />
                 <p className="mt-2 text-xs font-medium">{name}</p>
                 <p className="text-xs text-muted">{use}</p>
               </div>
@@ -185,7 +185,7 @@ export function BrandSection() {
           {SPACING.map(([name, px, use]) => (
             <div key={name} className="grid grid-cols-[5rem_3rem_1fr] items-center gap-3 text-sm">
               <span className="text-xs text-muted tabular-nums">{name}</span>
-              <span className="h-3 rounded-sm bg-iris-400" style={{ width: px }} />
+              <span className="h-3 rounded-sm bg-brand-400" style={{ width: px }} />
               <span className="text-muted">{use}</span>
             </div>
           ))}

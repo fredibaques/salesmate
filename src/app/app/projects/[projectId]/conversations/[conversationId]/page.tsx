@@ -47,7 +47,7 @@ export default async function ConversationPage({
               {data.messages.map((m) => (
                 <li
                   key={m.id}
-                  className={`rounded-lg border p-3 text-sm ${m.direction === "inbound" ? "border-border" : "border-accent/30 bg-accent/5"}`}
+                  className={`rounded-lg border p-3 text-sm ${m.direction === "inbound" ? "border-border" : "border-brand-200 bg-brand-50"}`}
                 >
                   <div className="mb-1 text-xs text-muted">
                     {m.direction === "inbound" ? "Contacto" : "Nosotros"} · {m.channel} ·{" "}

@@ -80,7 +80,7 @@ export function Wizard({
                 className={cx(
                   "flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm transition-colors",
                   i === current
-                    ? "bg-accent/10 font-medium text-accent"
+                    ? "bg-brand-100 font-medium text-accent"
                     : reachable
                       ? "hover:bg-ink-100"
                       : "",
@@ -91,7 +91,7 @@ export function Wizard({
                   className={cx(
                     "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
                     i === current
-                      ? "border-accent bg-accent text-accent-foreground"
+                      ? "border-primary bg-primary text-primary-foreground"
                       : done
                         ? "border-success bg-success text-white"
                         : "border-border bg-surface text-muted",
