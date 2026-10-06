@@ -87,6 +87,7 @@ export function formatBytes(bytes: number): string {
 const EVENT_LABELS: Record<string, string> = {
   "project.created": "Proyecto creado",
   "project.updated": "Proyecto actualizado",
+  "project.deleted": "Proyecto eliminado",
   "project.sales_profile_updated": "Oferta y cliente actualizados",
   "project.form_key_rotated": "Clave del formulario renovada",
   "project.connection_linked": "Conexión asignada al proyecto",

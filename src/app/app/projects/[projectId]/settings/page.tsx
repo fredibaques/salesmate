@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react";
+import { Sparkles, Trash2 } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
 import { Card, Chip, Field, FormSection, Input, Notice, Textarea } from "@/components/ui";
@@ -8,7 +8,7 @@ import { isLlmConfigured } from "@/server/llm/client";
 import { getSalesProfile } from "@/server/services/agents";
 import { getProject } from "@/server/services/projects";
 import { CustomerFields, OfferFields, ProjectBasicsFields, VoiceFields } from "../../profile-fields";
-import { saveProject } from "../actions";
+import { deleteProjectAction, saveProject } from "../actions";
 import { draftOffer, saveOffer } from "../offer/actions";
 import { SettingsNav } from "../section-navs";
 
@@ -132,6 +132,38 @@ export default async function ProjectSettingsPage({
             </ActionForm>
           </Card>
         </section>
+
+        {tenant.role !== "member" ? (
+          <Card title="Eliminar el proyecto">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <p className="max-w-xl text-sm text-muted">
+                Se borran sus agentes, conocimiento, conversaciones, prospectos y reglas. Las conexiones de tu
+                organización y el registro de auditoría se conservan. No se puede deshacer.
+              </p>
+              <ModalButton
+                label="Eliminar proyecto"
+                icon={<Trash2 />}
+                title={`Eliminar «${project!.name}»`}
+                variant="dangerGhost"
+              >
+                <ActionForm
+                  action={deleteProjectAction.bind(null, projectId)}
+                  submitLabel="Eliminar para siempre"
+                  submitVariant="danger"
+                  className="space-y-4"
+                >
+                  <Notice tone="danger">
+                    Se borrará todo lo que hay dentro del proyecto y los agentes dejarán de trabajar en él. No
+                    se puede deshacer.
+                  </Notice>
+                  <Field label={`Escribe «${project!.name}» para confirmar`}>
+                    <Input name="confirmName" required autoComplete="off" />
+                  </Field>
+                </ActionForm>
+              </ModalButton>
+            </div>
+          </Card>
+        ) : null}
       </div>
     </>
   );

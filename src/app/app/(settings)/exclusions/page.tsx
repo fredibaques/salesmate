@@ -2,7 +2,7 @@ import { Plus, ShieldBan, Trash2 } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
 import { SUPPRESSION_TYPE_LABELS, SuppressionFields } from "@/components/suppression-fields";
-import { Badge, Button, Card, EmptyState, PageHeader } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Toolbar } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
@@ -32,12 +32,7 @@ export default async function ExclusionsPage() {
 
   return (
     <>
-      <PageHeader
-        level="section"
-        title="Exclusiones"
-        tip="Personas, dominios o teléfonos con los que ningún proyecto debe contactar: bajas, clientes actuales, competidores… Cada proyecto puede tener además las suyas en «Agentes y reglas»."
-        actions={suppressions.length > 0 ? <AddExclusion /> : null}
-      />
+      <Toolbar>{suppressions.length > 0 ? <AddExclusion /> : null}</Toolbar>
       <Card>
         {suppressions.length === 0 ? (
           <EmptyState

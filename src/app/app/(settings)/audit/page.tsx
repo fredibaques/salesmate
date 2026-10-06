@@ -1,5 +1,5 @@
 import { ScrollText } from "lucide-react";
-import { Card, EmptyState, PageHeader, Table, Td } from "@/components/ui";
+import { Card, EmptyState, Table, Td } from "@/components/ui";
 import { describeEvent, formatDateTime } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
@@ -18,11 +18,6 @@ export default async function AuditPage() {
 
   return (
     <>
-      <PageHeader
-        level="section"
-        title="Auditoría"
-        tip="Registro inmutable de todo lo que hacen las personas y los agentes."
-      />
       <Card>
         {events.length === 0 ? (
           <EmptyState

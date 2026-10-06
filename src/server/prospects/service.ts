@@ -220,8 +220,8 @@ const CSV_COLUMNS: [keyof ProspectRow, string][] = [
 ];
 
 const STATUS_LABELS: Record<ProspectStatus, string> = {
-  new: "Sin revisar",
-  accepted: "Aceptado",
+  new: "Nuevo",
+  accepted: "Nuevo",
   exported: "Exportado",
   discarded: "Descartado",
 };
