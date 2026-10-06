@@ -1,11 +1,17 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, seedOrg } from "../../../tests/helpers/db";
+import { eq } from "drizzle-orm";
+import { saveProspects } from "../prospects/service";
 import type { Db } from "../db/client";
+import { agentConfigs, auditLog, prospects } from "../db/schema";
+import { withSystem } from "../db/tenant";
+import { addAgent } from "./agents";
 import type { TenantContext } from "../db/tenant";
 import {
   addSuppression,
   createMeetingType,
   createProject,
+  deleteProject,
   getProjectRules,
   listProjects,
   normalizeSuppression,
@@ -99,5 +105,25 @@ describe("projects service", () => {
         hostUserId: userId,
       }),
     ).rejects.toThrow(/anterior/);
+  });
+
+  it("deletes a project with everything in it, only when its name is confirmed", async () => {
+    const project = await createProject(db, tenant, { name: "Para borrar" });
+    await addAgent(db, tenant, project.id, "outbound", "b2b_consultative");
+    await saveProspects(db, tenant, { projectId: project.id, items: [{ companyName: "Talleres Pérez" }] });
+
+    await expect(deleteProject(db, tenant, project.id, "Otro nombre")).rejects.toThrow(/nombre/);
+    await deleteProject(db, tenant, project.id, "Para borrar");
+
+    expect((await listProjects(db, tenant)).some((p) => p.id === project.id)).toBe(false);
+    const left = await withSystem(db, async (tx) => ({
+      agents: await tx.select().from(agentConfigs).where(eq(agentConfigs.projectId, project.id)),
+      prospects: await tx.select().from(prospects).where(eq(prospects.projectId, project.id)),
+      audit: await tx.select().from(auditLog).where(eq(auditLog.projectId, project.id)),
+    }));
+    expect(left.agents).toHaveLength(0);
+    expect(left.prospects).toHaveLength(0);
+    // The audit log keeps the project's history, deletion included.
+    expect(left.audit.map((a) => a.event)).toContain("project.deleted");
   });
 });

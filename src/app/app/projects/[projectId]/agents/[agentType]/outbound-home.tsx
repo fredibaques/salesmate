@@ -31,7 +31,9 @@ export async function OutboundHome({ projectId }: { projectId: string }) {
         }
       >
         <p className="text-3xl font-semibold tabular-nums">{prospects.total}</p>
-        <p className="text-sm text-muted">prospectos en la base, {prospects.byStatus.new ?? 0} sin revisar</p>
+        <p className="text-sm text-muted">
+          prospectos en la base, {prospects.byStatus.new ?? 0} nuevos sin exportar
+        </p>
         <div className="mt-4 border-t border-border pt-4 text-sm">
           {last ? (
             <>

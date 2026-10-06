@@ -33,7 +33,6 @@ export default async function NewAgentPage({
   return (
     <>
       <PageHeader
-        level="section"
         icon={AGENT_ICONS[agentType]}
         title={`Añadir el ${info.name.toLowerCase()}`}
         tip={info.description}

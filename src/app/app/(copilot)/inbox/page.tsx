@@ -1,7 +1,7 @@
 import { CalendarClock, FlaskConical, History, Inbox, X } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
-import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Textarea } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Field, Input, Select, Textarea, Toolbar } from "@/components/ui";
 import { ACTION_STATUS_LABELS, AGENT_LABELS, AUTONOMY_LABELS, formatDateTime } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
@@ -121,24 +121,19 @@ export default async function InboxPage() {
 
   return (
     <>
-      <PageHeader
-        level="section"
-        title="Por aprobar"
-        tip="Lo que los agentes quieren hacer, de todos tus proyectos. Puedes editarlo antes de aprobar."
-        actions={
-          projects.length > 0 ? (
-            <ModalButton
-              label="Probar el flujo de aprobación"
-              icon={<FlaskConical className="size-4" />}
-              title="Probar el flujo de aprobación"
-              variant="secondary"
-              width="lg"
-            >
-              <SimulateProposal projects={projects} emailIdentityId={emailIdentity?.id} />
-            </ModalButton>
-          ) : null
-        }
-      />
+      <Toolbar>
+        {projects.length > 0 ? (
+          <ModalButton
+            label="Probar el flujo de aprobación"
+            icon={<FlaskConical className="size-4" />}
+            title="Probar el flujo de aprobación"
+            variant="secondary"
+            width="lg"
+          >
+            <SimulateProposal projects={projects} emailIdentityId={emailIdentity?.id} />
+          </ModalButton>
+        ) : null}
+      </Toolbar>
 
       <section>
         {pending.length === 0 ? (

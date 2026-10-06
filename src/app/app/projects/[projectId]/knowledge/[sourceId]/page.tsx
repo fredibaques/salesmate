@@ -33,7 +33,6 @@ export default async function SourcePage({
   return (
     <>
       <PageHeader
-        level="section"
         icon={kind.icon}
         title={source.name}
         badge={

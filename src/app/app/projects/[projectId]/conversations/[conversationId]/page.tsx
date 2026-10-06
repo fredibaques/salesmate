@@ -24,7 +24,6 @@ export default async function ConversationPage({
   return (
     <>
       <PageHeader
-        level="section"
         title={
           [contact?.firstName, contact?.lastName].filter(Boolean).join(" ") || contact?.email || "Contacto"
         }

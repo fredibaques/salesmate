@@ -8,7 +8,7 @@ import {
   EntityCard,
   LinkButton,
   Notice,
-  PageHeader,
+  Toolbar,
 } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import { describeScopes, getIntegration } from "@/lib/integrations";
@@ -52,19 +52,14 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/app/
 
   return (
     <>
-      <PageHeader
-        level="section"
-        title="Conexiones"
-        tip="Las herramientas de tu organización que pueden usar los agentes. Después, en cada proyecto eliges cuáles usa y qué puede hacer con ellas."
-        actions={
-          connections.length > 0 ? (
-            <LinkButton href="/app/connections/new" variant="primary">
-              <Plus className="size-4" />
-              Añadir conexión
-            </LinkButton>
-          ) : null
-        }
-      />
+      <Toolbar>
+        {connections.length > 0 ? (
+          <LinkButton href="/app/connections/new" variant="primary">
+            <Plus className="size-4" />
+            Añadir conexión
+          </LinkButton>
+        ) : null}
+      </Toolbar>
 
       {query.connected || query.error ? (
         <div className="mb-6">

@@ -26,7 +26,6 @@ export default async function AgentLayout({
   return (
     <>
       <PageHeader
-        level="section"
         icon={AGENT_ICONS[agentType]}
         title={info.name}
         actions={

@@ -1,6 +1,6 @@
 import { CheckCircle2, ChevronRight, Circle } from "lucide-react";
 import Link from "next/link";
-import { Badge, Card, PageHeader } from "@/components/ui";
+import { Badge, Card } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getSalesProfile, listProjectAgents } from "@/server/services/agents";
@@ -89,11 +89,6 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/app/pr
       ) : null}
 
       <section id="agentes" className="scroll-mt-6">
-        <PageHeader
-          level="section"
-          title="Agentes"
-          tip="Actívalos o pausa cada uno desde aquí; entra en uno para ajustar cómo trabaja y qué necesita tu aprobación."
-        />
         <AgentCards projectId={projectId} agents={agents} />
       </section>
     </div>

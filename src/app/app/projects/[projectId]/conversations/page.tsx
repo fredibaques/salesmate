@@ -9,11 +9,11 @@ import {
   Field,
   Input,
   LinkButton,
+  Notice,
   Table,
   Td,
   Textarea,
-  Notice,
-  PageHeader,
+  Toolbar,
 } from "@/components/ui";
 import { CONVERSATION_STATUS, formatDateTime } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
@@ -93,11 +93,7 @@ export default async function ConversationsPage({
 
   return (
     <>
-      <PageHeader
-        level="section"
-        title="Conversaciones"
-        actions={rows.length > 0 && inbound ? <SimulateLeadButton projectId={projectId} /> : null}
-      />
+      <Toolbar>{rows.length > 0 && inbound ? <SimulateLeadButton projectId={projectId} /> : null}</Toolbar>
       <div className="space-y-6">
         {inbound && !inbound.config.enabled ? (
           <Notice

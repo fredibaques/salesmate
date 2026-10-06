@@ -147,6 +147,30 @@ export async function updateProject(
   });
 }
 
+/**
+ * Deletes a project and everything that belongs to it (agents, knowledge,
+ * conversations, prospects, rules…) through the foreign keys' cascades.
+ * The organization's connections stay, and so does the audit log, which
+ * records the deletion. `confirmName` must match, to avoid accidents.
+ */
+export async function deleteProject(db: Db, tenant: TenantContext, projectId: string, confirmName: string) {
+  return withTenant(db, tenant, async (tx) => {
+    const [current] = await tx.select().from(projects).where(eq(projects.id, projectId));
+    if (!current) throw new Error("Proyecto no encontrado.");
+    if (confirmName.trim() !== current.name.trim()) {
+      throw new Error("Escribe el nombre del proyecto exactamente igual para confirmar.");
+    }
+    await tx.delete(projects).where(eq(projects.id, projectId));
+    await audit(tx, tenant, {
+      event: "project.deleted",
+      projectId,
+      entityType: "project",
+      entityId: projectId,
+      data: { name: current.name },
+    });
+  });
+}
+
 /** Kill switch and lifecycle. */
 export async function setProjectState(
   db: Db,

@@ -10,10 +10,7 @@ export default async function NewConnectionPage() {
 
   return (
     <>
-      <PageHeader
-        level="section"
-        title="Añadir conexión"
-      />
+      <PageHeader title="Añadir conexión" />
       <div className="space-y-8">
         {categories.map((category) => (
           <section key={category}>

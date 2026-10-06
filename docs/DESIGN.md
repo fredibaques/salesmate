@@ -18,6 +18,11 @@ screen needs something new, add it here and as a component, not inline.
   (`scrollbar-gutter: stable`) so nothing shifts when a page gets long.
 - The sidebar is light grey (`bg-sidebar`), the content area almost white
   (`bg-background`); the active entry is a white pill.
+- **One title per screen.** A section's header and tabs (a project,
+  Configuración) show only on the section's own pages (`SectionChrome`);
+  deeper pages (an agent, a document, a new connection) bring their own
+  header. Tab pages don't repeat the tab's name: their actions go in a
+  `Toolbar`.
 - **Breadcrumbs** sit top left on every sub-page (`@crumbs` slot in
   `src/app/app`, rules in `src/app/app/crumbs.ts`). There are no «back»
   buttons.

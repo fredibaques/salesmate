@@ -451,3 +451,12 @@ export function Notice({
     </div>
   );
 }
+
+/**
+ * The actions of a page whose title is already its tab (Conexiones,
+ * Conversaciones…): right-aligned, with no second heading.
+ */
+export function Toolbar({ children }: { children?: ReactNode }) {
+  if (!children) return null;
+  return <div className="mb-5 flex flex-wrap items-center justify-end gap-2">{children}</div>;
+}

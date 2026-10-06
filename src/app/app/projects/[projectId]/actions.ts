@@ -19,6 +19,7 @@ import {
   addComplianceRule,
   addSuppression,
   createMeetingType,
+  deleteProject,
   deleteMeetingType,
   removeComplianceRule,
   removeSuppression,
@@ -50,6 +51,22 @@ export async function saveProject(projectId: string, _: FormState, form: FormDat
     });
     refreshSidebar();
   });
+}
+
+export async function deleteProjectAction(
+  projectId: string,
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const result = await runForm(async () => {
+    const tenant = await admin();
+    await deleteProject(getDb(), tenant, projectId, str(form, "confirmName") ?? "");
+  });
+  if (result?.ok) {
+    refreshSidebar();
+    redirect("/app");
+  }
+  return result;
 }
 
 export async function toggleAgents(projectId: string, paused: boolean) {

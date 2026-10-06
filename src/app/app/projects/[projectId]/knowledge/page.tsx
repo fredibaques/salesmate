@@ -9,8 +9,8 @@ import {
   Field,
   Input,
   Meta,
-  PageHeader,
   Textarea,
+  Toolbar,
 } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
@@ -84,19 +84,14 @@ export default async function KnowledgePage({ params }: PageProps<"/app/projects
 
   return (
     <>
-      <PageHeader
-        level="section"
-        title="Documentos y tablas"
-        tip="Todo lo que subas aquí lo usan los agentes para responder con datos reales y decir de dónde los sacan. Si algo cambia, sube la versión nueva y borra la antigua."
-        actions={
-          sources.length > 0 ? (
-            <>
-              <PasteButton projectId={projectId} />
-              <UploadButton projectId={projectId} />
-            </>
-          ) : null
-        }
-      />
+      <Toolbar>
+        {sources.length > 0 ? (
+          <>
+            <PasteButton projectId={projectId} />
+            <UploadButton projectId={projectId} />
+          </>
+        ) : null}
+      </Toolbar>
 
       {sources.length === 0 ? (
         <EmptyState

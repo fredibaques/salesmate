@@ -17,11 +17,18 @@ export const maxDuration = 300;
 
 const STATUS: Record<ProspectStatus, { label: string; tone: "accent" | "success" | "neutral" | "warning" }> =
   {
-    new: { label: "Sin revisar", tone: "accent" },
-    accepted: { label: "Aceptado", tone: "success" },
+    new: { label: "Nuevo", tone: "accent" },
+    accepted: { label: "Nuevo", tone: "accent" },
     exported: { label: "Exportado", tone: "neutral" },
     discarded: { label: "Descartado", tone: "warning" },
   };
+
+const FILTER_LABELS: Record<ProspectStatus, string> = {
+  new: "Nuevos",
+  accepted: "Nuevos",
+  exported: "Exportados",
+  discarded: "Descartados",
+};
 
 /** A run cut off by the platform stays "running"; after 10 minutes it isn't really searching. */
 function isRecent(startedAt: Date) {
@@ -72,7 +79,7 @@ export default async function ProspectsPage({
 
       <Card
         title="Prospectos"
-        tip="Empresas que ha encontrado el agente, con los datos públicos y las páginas de donde salen. Revisa, descarta las que no te sirvan y exporta el resto."
+        tip="Empresas que ha encontrado el agente, con sus datos públicos y las páginas de donde salen. Nuevo: aún no lo has exportado. Descarta con la ✕ las que no te interesen. «Exportar nuevos» descarga un Excel (CSV) con los nuevos y los marca como exportados, para que la próxima vez solo salgan los que encuentre después. Los descartados no se exportan ni el agente los vuelve a proponer."
         actions={
           data.total > 0 ? (
             <>
@@ -102,9 +109,11 @@ export default async function ProspectsPage({
         ) : (
           <>
             <nav className="mb-4 flex flex-wrap gap-1 text-sm">
-              {[undefined, ...PROSPECT_STATUSES].map((s) => {
+              {([undefined, "new", "exported", "discarded"] as const).map((s) => {
                 const active = s === status;
-                const n = s ? (data.byStatus[s] ?? 0) : data.total;
+                const n = s
+                  ? (data.byStatus[s] ?? 0) + (s === "new" ? (data.byStatus.accepted ?? 0) : 0)
+                  : data.total;
                 return (
                   <Link
                     key={s ?? "all"}
@@ -116,7 +125,7 @@ export default async function ProspectsPage({
                         : "text-muted hover:bg-background hover:text-foreground",
                     )}
                   >
-                    {s ? STATUS[s].label : "Todos"} <span className="tabular-nums">{n}</span>
+                    {s ? FILTER_LABELS[s] : "Todos"} <span className="tabular-nums">{n}</span>
                   </Link>
                 );
               })}
