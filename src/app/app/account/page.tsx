@@ -11,7 +11,7 @@ export default async function ProfilePage() {
   return (
     <Card title="Perfil">
       <div className="mb-6 flex items-center gap-4">
-        <span className="flex size-14 items-center justify-center rounded-full bg-accent/10 text-xl font-semibold text-accent">
+        <span className="flex size-14 items-center justify-center rounded-full bg-brand-100 text-xl font-semibold text-accent">
           {(tenant.user.name || tenant.user.email).slice(0, 1).toUpperCase()}
         </span>
         <div className="min-w-0">

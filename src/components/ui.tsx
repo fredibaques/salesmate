@@ -60,7 +60,7 @@ export function PageHeader({
 }
 
 const tileTones = {
-  accent: "bg-accent/10 text-accent",
+  accent: "bg-brand-100 text-accent",
   success: "bg-success/10 text-success",
   warning: "bg-warning/10 text-warning",
   neutral: "bg-background text-muted",
@@ -135,7 +135,7 @@ export function EntityCard({
         variant === "default" && "border-border",
         variant === "placeholder" && "border-dashed border-border",
         variant === "disabled" && "border-dashed border-border bg-transparent opacity-70",
-        href && "hover:border-iris-200 hover:shadow-md",
+        href && "hover:border-brand-200 hover:shadow-md",
       )}
     >
       <div className="flex items-start gap-3">
@@ -228,7 +228,7 @@ export function Card({
 
 const buttonVariants = {
   /** The main action of a view. One per view. */
-  primary: "bg-accent text-accent-foreground shadow-brand hover:bg-accent-hover active:bg-iris-800",
+  primary: "bg-primary text-primary-foreground shadow-brand hover:bg-primary-hover active:bg-brand-300",
   /** Other actions. */
   secondary:
     "border border-border bg-surface text-foreground shadow-xs hover:border-border-strong hover:bg-ink-50 active:bg-ink-100",
@@ -296,12 +296,13 @@ export function LinkButton({
   );
 }
 
+/** Minimal badges: a coloured dot and the word, no box. */
 const badgeStyles = {
-  neutral: "bg-ink-50 text-ink-600 border-ink-200",
-  success: "bg-leaf-50 text-leaf-700 border-leaf-100",
-  warning: "bg-amber-50 text-amber-700 border-amber-100",
-  danger: "bg-coral-50 text-coral-700 border-coral-100",
-  accent: "bg-iris-50 text-iris-700 border-iris-100",
+  neutral: { text: "text-ink-600", dot: "bg-ink-400" },
+  success: { text: "text-leaf-700", dot: "bg-leaf-500" },
+  warning: { text: "text-amber-700", dot: "bg-amber-500" },
+  danger: { text: "text-coral-700", dot: "bg-coral-500" },
+  accent: { text: "text-brand-800", dot: "bg-brand-500" },
 };
 
 export function Badge({
@@ -314,10 +315,11 @@ export function Badge({
   return (
     <span
       className={cx(
-        "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
-        badgeStyles[tone],
+        "inline-flex items-center gap-1.5 text-xs font-medium whitespace-nowrap",
+        badgeStyles[tone].text,
       )}
     >
+      <span aria-hidden className={cx("size-1.5 shrink-0 rounded-full", badgeStyles[tone].dot)} />
       {children}
     </span>
   );
@@ -348,7 +350,7 @@ export function EmptyState({
       )}
     >
       {icon ? (
-        <div className="mb-3 flex size-11 items-center justify-center rounded-full bg-accent/10 text-accent [&_svg]:size-5">
+        <div className="mb-3 flex size-11 items-center justify-center rounded-full bg-brand-100 text-accent [&_svg]:size-5">
           {icon}
         </div>
       ) : null}
@@ -389,7 +391,7 @@ export function Avatar({ label, color, className }: { label: string; color?: str
       aria-hidden
       style={color ? { backgroundColor: color, color: "#fff" } : undefined}
       className={cx(
-        "flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-sm font-semibold text-accent",
+        "flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-sm font-semibold text-accent",
         className,
       )}
     >
@@ -423,7 +425,7 @@ export function Td({ children, className }: { children: ReactNode; className?: s
 
 const noticeTones = {
   success: { box: "border-leaf-100 bg-leaf-50 text-foreground", icon: "text-leaf-700", Icon: CircleCheck },
-  info: { box: "border-iris-100 bg-iris-50 text-foreground", icon: "text-accent", Icon: Info },
+  info: { box: "border-border bg-ink-50 text-foreground", icon: "text-accent", Icon: Info },
   warning: {
     box: "border-amber-100 bg-amber-50 text-foreground",
     icon: "text-amber-700",

@@ -44,7 +44,7 @@ function UploadButton({
             type="file"
             accept=".csv,.tsv,.xlsx,.pdf,.docx,.md,.txt,.html"
             required
-            className="file:mr-3 file:rounded-md file:border-0 file:bg-accent/10 file:px-2 file:py-1 file:text-accent hover:file:bg-accent/20"
+            className="file:mr-3 file:rounded-md file:border-0 file:bg-brand-100 file:px-2 file:py-1 file:text-accent hover:file:bg-brand-200"
           />
         </Field>
         <Field label="Nombre" optional hint="Si lo dejas vacío, se usa el nombre del fichero.">

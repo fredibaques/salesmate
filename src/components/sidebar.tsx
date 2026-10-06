@@ -74,7 +74,7 @@ export function CountBadge({ count, tone = "accent" }: { count: number; tone?: "
     <span
       className={cx(
         "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-medium tabular-nums",
-        tone === "accent" ? "bg-accent text-accent-foreground" : "bg-border text-muted",
+        tone === "accent" ? "bg-primary text-primary-foreground" : "bg-border text-muted",
       )}
     >
       {count > 99 ? "99+" : count}
@@ -125,7 +125,7 @@ export function SidebarDot({ label, muted = false }: { label: string; muted?: bo
       aria-hidden
       className={cx(
         "flex size-5 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold",
-        muted ? "bg-border text-muted" : "bg-accent/15 text-accent",
+        muted ? "bg-border text-muted" : "bg-brand-100 text-accent",
       )}
     >
       {label.slice(0, 1).toUpperCase()}
@@ -232,7 +232,7 @@ export function UserMenu({
           open && "bg-ink-200/60",
         )}
       >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-iris-100 text-sm font-semibold text-iris-700">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
           {(name || email).slice(0, 1).toUpperCase()}
         </span>
         <span className="min-w-0 flex-1">
