@@ -1,21 +1,54 @@
-import { Building2, Undo2, User, X } from "lucide-react";
+import { Building2, Lock, Undo2, User, X } from "lucide-react";
+import type { ReactNode } from "react";
 import { ActionForm } from "@/components/action-form";
 import { Drawer } from "@/components/drawer";
 import { Badge, Button, Chip, Field, Input, Select, Textarea } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
-import type { BaseColumn } from "@/lib/prospect-columns";
+import { isPendingCell, type BaseColumn } from "@/lib/prospect-columns";
 import type { CellMeta } from "@/server/db/schema";
 import type { ProspectBase } from "@/server/prospects/bases";
-import type { ProspectRow } from "@/server/prospects/service";
+import { normalizeDomain, type ProspectRow } from "@/server/prospects/service";
+import { completeProspectsNow } from "../../agents/actions";
 import { changeProspectStatus, saveRowAction } from "../actions";
 import { COLUMN_ICONS } from "../column-icons";
 
 /** Where a value comes from, under its field. */
-function provenance(column: BaseColumn, meta: CellMeta | undefined) {
-  if (meta?.by === "agent") return `Lo encontró el agente · ${formatDateTime(meta.at)}`;
-  if (meta?.by === "user") return `Escrito a mano · ${formatDateTime(meta.at)}`;
+function provenance(
+  column: BaseColumn,
+  value: unknown,
+  meta: CellMeta | undefined,
+  agentFills: boolean,
+): ReactNode {
+  if (meta?.notFound) {
+    return `El agente lo buscó y no lo encontró publicado · ${formatDateTime(meta.at)}. «Completar esta fila» lo vuelve a buscar.`;
+  }
+  if (meta?.by === "agent") {
+    return (
+      <>
+        Lo encontró el agente · {formatDateTime(meta.at)}
+        {meta.source ? (
+          <>
+            {" · "}
+            <a href={meta.source} target="_blank" rel="noreferrer" className="text-accent hover:underline">
+              {normalizeDomain(meta.source) ?? "fuente"}
+            </a>
+          </>
+        ) : null}
+      </>
+    );
+  }
+  if (meta?.by === "user") {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <Lock className="size-3" aria-hidden />
+        Escrito a mano · {formatDateTime(meta.at)}. El agente no lo cambia; vacíalo para que lo busque.
+      </span>
+    );
+  }
   if (column.filledBy === "person") return "La rellena el equipo";
-  return column.instructions;
+  return agentFills && isPendingCell(column, value, meta)
+    ? "Por completar: lo buscará el agente."
+    : column.instructions;
 }
 
 /** The control for one column, by its type. Its name is `f:<column id>`. */
@@ -97,11 +130,17 @@ export function RowPanel({
   base,
   row,
   closeHref,
+  agentFills = false,
+  canRun = false,
 }: {
   projectId: string;
   base: ProspectBase;
   row: ProspectRow | null;
   closeHref: string;
+  /** The prospecting agent fills this base. */
+  agentFills?: boolean;
+  /** The person can start the agent (owners and admins). */
+  canRun?: boolean;
 }) {
   const person = base.rowKind === "person";
   const title = row ? (person ? (row.personName ?? row.companyName) : row.companyName) : "Nueva fila";
@@ -170,7 +209,16 @@ export function RowPanel({
                     </span>
                   }
                   group={c.type === "multi"}
-                  hint={row ? provenance(c, row.cellMeta[c.id]) : c.instructions}
+                  hint={
+                    row
+                      ? provenance(
+                          c,
+                          row.data[c.id],
+                          row.cellMeta[c.id],
+                          agentFills && c.filledBy !== "person",
+                        )
+                      : c.instructions
+                  }
                 >
                   <CellInput column={c} value={row?.data[c.id]} />
                 </Field>
@@ -196,28 +244,37 @@ export function RowPanel({
       </ActionForm>
 
       {row ? (
-        <form
-          action={changeProspectStatus.bind(
-            null,
-            projectId,
-            base.id,
-            [row.id],
-            row.status === "discarded" ? "new" : "discarded",
-          )}
-          className="mt-6 border-t border-border pt-4"
-        >
-          {row.status === "discarded" ? (
-            <Button variant="ghost" size="sm">
-              <Undo2 className="size-4" />
-              Recuperar
-            </Button>
-          ) : (
-            <Button variant="dangerGhost" size="sm">
-              <X className="size-4" />
-              Descartar
-            </Button>
-          )}
-        </form>
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+          <form
+            action={changeProspectStatus.bind(
+              null,
+              projectId,
+              base.id,
+              [row.id],
+              row.status === "discarded" ? "new" : "discarded",
+            )}
+          >
+            {row.status === "discarded" ? (
+              <Button variant="ghost" size="sm">
+                <Undo2 className="size-4" />
+                Recuperar
+              </Button>
+            ) : (
+              <Button variant="dangerGhost" size="sm">
+                <X className="size-4" />
+                Descartar
+              </Button>
+            )}
+          </form>
+          {agentFills && canRun && row.status !== "discarded" ? (
+            <ActionForm
+              action={completeProspectsNow.bind(null, projectId, [row.id])}
+              submitLabel="Completar esta fila"
+              submitVariant="secondary"
+              cancel={false}
+            />
+          ) : null}
+        </div>
       ) : null}
     </Drawer>
   );

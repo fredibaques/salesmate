@@ -37,6 +37,8 @@ export const prospectInput = z.object({
   sources: z.array(z.string().url()).max(10).default([]),
   /** Values by column id (or column name). */
   fields: z.record(z.string(), z.unknown()).default({}),
+  /** The page each value comes from, by column id (or name). */
+  fieldSources: z.record(z.string(), z.string()).default({}),
 });
 export type ProspectInput = z.input<typeof prospectInput>;
 
@@ -77,7 +79,7 @@ export function dedupeKey(
 }
 
 /** The column a key refers to: its id, or its name as people (and models) write it. */
-function columnFor(columns: BaseColumn[], key: string) {
+export function columnFor(columns: BaseColumn[], key: string) {
   const folded = foldText(key).trim();
   return columns.find((c) => c.id === key) ?? columns.find((c) => foldText(c.name).trim() === folded);
 }
@@ -102,7 +104,32 @@ export function cellsFromFields(columns: BaseColumn[], fields: Record<string, un
   return { data, errors };
 }
 
-async function baseInfo(db: Db, tenant: Pick<TenantContext, "orgId">, baseId: string): Promise<BaseInfo> {
+/** Only web pages count as the source of a value. */
+export function sourceUrl(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  try {
+    const url = new URL(raw.trim());
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString().slice(0, 1000) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function sourceUrlsFor(columns: BaseColumn[], raw: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const column = columnFor(columns, key);
+    const url = sourceUrl(value);
+    if (column && url) out[column.id] = url;
+  }
+  return out;
+}
+
+export async function baseInfo(
+  db: Db,
+  tenant: Pick<TenantContext, "orgId">,
+  baseId: string,
+): Promise<BaseInfo> {
   const [base] = await withTenant(db, tenant, (tx) =>
     tx
       .select({
@@ -139,8 +166,9 @@ export async function saveProspects(
       invalid.push(label);
       return [];
     }
-    const { fields, ...system } = result.data;
+    const { fields, fieldSources, ...system } = result.data;
     const { data, errors } = cellsFromFields(base.columns, fields);
+    const sources = sourceUrlsFor(base.columns, fieldSources);
     fieldErrors.push(...errors.map((e) => `${label} · ${e}`));
     const key = dedupeKey(
       { ...system, city: typeof data.city === "string" ? data.city : undefined },
@@ -152,7 +180,9 @@ export async function saveProspects(
         row: {
           ...system,
           data,
-          cellMeta: Object.fromEntries(Object.keys(data).map((id) => [id, meta])),
+          cellMeta: Object.fromEntries(
+            Object.keys(data).map((id) => [id, sources[id] ? { ...meta, source: sources[id] } : meta]),
+          ),
         },
       },
     ];

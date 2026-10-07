@@ -4,6 +4,7 @@ import { formatDateTime } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { listBases } from "@/server/prospects/bases";
+import { countPendingCells } from "@/server/prospects/complete";
 import { getAgent, listAgentRuns } from "@/server/services/agents";
 import { InstructionsCard } from "./instructions-card";
 import { RunStatus } from "./run-status";
@@ -20,6 +21,7 @@ export async function OutboundHome({ projectId }: { projectId: string }) {
   if (!agent) notFound();
   const last = runs[0];
   const base = bases.find((b) => b.id === agent.config.prospectBaseId) ?? bases[0];
+  const pending = base ? await countPendingCells(db, tenant, base.id) : 0;
   return (
     <div className="grid items-start gap-6 xl:grid-cols-[2fr_1fr]">
       <InstructionsCard projectId={projectId} agentType="outbound" config={agent.config} bases={bases} />
@@ -34,7 +36,9 @@ export async function OutboundHome({ projectId }: { projectId: string }) {
         }
       >
         <p className="text-3xl font-semibold tabular-nums">{base?.rows ?? 0}</p>
-        <p className="text-sm text-muted">filas en «{base?.name ?? "Prospectos"}»</p>
+        <p className="text-sm text-muted">
+          filas en «{base?.name ?? "Prospectos"}»{pending ? `, ${pending} celdas por completar` : ""}
+        </p>
         <div className="mt-4 border-t border-border pt-4 text-sm">
           {last ? (
             <>

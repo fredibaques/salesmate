@@ -187,6 +187,14 @@ export function columnId(name: string, taken: Iterable<string>): string {
   return id;
 }
 
+/**
+ * A cell the agent still has to fill: a column it fills, with no value, that
+ * nobody has written and the agent hasn't already looked for in vain.
+ */
+export function isPendingCell(column: BaseColumn, value: unknown, meta: unknown): boolean {
+  return column.filledBy !== "person" && (value === null || value === undefined) && !meta;
+}
+
 export type CellCheck = { ok: true; value: unknown } | { ok: false; error: string };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

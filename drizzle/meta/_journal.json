@@ -92,6 +92,13 @@
       "when": 1791408413619,
       "tag": "0012_prospect_bases",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791414611475,
+      "tag": "0013_drop_old_prospect_columns",
+      "breakpoints": true
     }
   ]
 }

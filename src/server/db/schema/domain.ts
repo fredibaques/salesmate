@@ -341,9 +341,16 @@ export type AgentSchedule = {
 };
 
 /** Settings that only make sense for some templates. */
+export const PROSPECTING_MODES = ["find", "complete", "both"] as const;
+export type ProspectingMode = (typeof PROSPECTING_MODES)[number];
+
 export type AgentSettings = {
   /** Prospecting: new prospects to look for in each run. */
   prospectsPerRun?: number;
+  /** Prospecting: look for new rows, fill the empty cells of existing ones, or both. */
+  mode?: ProspectingMode;
+  /** Prospecting: empty cells to fill in each run (complete mode). */
+  cellsPerRun?: number;
 };
 
 export type AutonomyConfig = {
@@ -774,7 +781,19 @@ export const playbookVersions = pgTable(
 // Prospects: what a prospecting agent finds, before anyone contacts them
 // ---------------------------------------------------------------------------
 
-export type CellMeta = { by: "agent" | "user"; at: string; runId?: string; userId?: string };
+/**
+ * Who wrote a cell and when. A cell written by a person is locked: the agent
+ * doesn't change it. `source` is the page the agent took the value from;
+ * `notFound` marks a cell the agent looked for and didn't find published.
+ */
+export type CellMeta = {
+  by: "agent" | "user";
+  at: string;
+  runId?: string;
+  userId?: string;
+  source?: string;
+  notFound?: boolean;
+};
 
 export const PROSPECT_STATUSES = ["new", "accepted", "discarded", "exported"] as const;
 
@@ -822,15 +841,6 @@ export const prospects = pgTable(
     /** The person, in bases whose rows are people. */
     personName: text("person_name"),
     website: text("website"),
-    sector: text("sector"),
-    city: text("city"),
-    region: text("region"),
-    country: text("country"),
-    phone: text("phone"),
-    email: text("email"),
-    contactName: text("contact_name"),
-    contactRole: text("contact_role"),
-    linkedinUrl: text("linkedin_url"),
     /** 0-100: how well it matches the ideal customer. */
     fitScore: integer("fit_score"),
     fitReason: text("fit_reason"),

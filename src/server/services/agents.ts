@@ -15,6 +15,7 @@ import {
   projectConnections,
   projectIdentities,
   projects,
+  PROSPECTING_MODES,
   type AgentChannels,
   type AgentSchedule,
   type AgentSettings,
@@ -63,7 +64,7 @@ export const AGENT_DEFAULTS: Record<
     ].join("\n"),
     tools: { web: true },
     schedule: { time: "08:00", days: [1, 2, 3, 4, 5] },
-    settings: { prospectsPerRun: 10 },
+    settings: { prospectsPerRun: 10, mode: "both", cellsPerRun: 20 },
   },
   account_manager: { instructions: "", tools: {}, schedule: null, settings: {} },
 };
@@ -491,7 +492,13 @@ export const instructionsInput = z.object({
     })
     .nullable()
     .default(null),
-  settings: z.object({ prospectsPerRun: z.number().int().min(1).max(50).optional() }).default({}),
+  settings: z
+    .object({
+      prospectsPerRun: z.number().int().min(1).max(50).optional(),
+      mode: z.enum(PROSPECTING_MODES).optional(),
+      cellsPerRun: z.number().int().min(1).max(200).optional(),
+    })
+    .default({}),
 });
 
 export async function saveAgentInstructions(

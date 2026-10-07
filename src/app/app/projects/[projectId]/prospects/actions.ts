@@ -148,14 +148,13 @@ export async function saveColumnAction(
   form: FormData,
 ): Promise<FormState> {
   const result = await runForm(async () => {
-    const { cleared } = await saveColumn(
-      getDb(),
-      await admin(),
-      baseId,
-      columnFromForm(form),
-      columnId ?? undefined,
-    );
-    if (!columnId) return "Columna añadida.";
+    const draft = columnFromForm(form);
+    const { cleared } = await saveColumn(getDb(), await admin(), baseId, draft, columnId ?? undefined);
+    if (!columnId) {
+      return draft.filledBy === "person"
+        ? "Columna añadida."
+        : "Columna añadida. El agente la rellenará en las filas que ya hay al completar vacíos.";
+    }
     return cleared
       ? `Columna guardada. ${cleared === 1 ? "Se ha borrado 1 valor que ya no encajaba" : `Se han borrado ${cleared} valores que ya no encajaban`} con su tipo.`
       : "Columna guardada.";

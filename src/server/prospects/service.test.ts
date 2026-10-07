@@ -1,10 +1,9 @@
-import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, seedOrg } from "../../../tests/helpers/db";
 import { DEFAULT_COMPANY_COLUMNS, checkCell, type BaseColumn } from "@/lib/prospect-columns";
 import type { Db } from "../db/client";
-import { agentConfigs, prospectBases, projects } from "../db/schema";
-import { withSystem, withTenant, type TenantContext } from "../db/tenant";
+import { prospectBases, projects } from "../db/schema";
+import { withTenant, type TenantContext } from "../db/tenant";
 import { addAgent } from "../services/agents";
 import { columnsPrompt, saveRowsSchema } from "./agent-schema";
 import { ensureAgentBase, listBases, setAgentBase } from "./bases";
@@ -255,40 +254,5 @@ describe("the agent's view of a base", () => {
     await expect(setAgentBase(db, tenant, project.id, config.id, baseId)).rejects.toThrow(
       /no es de este proyecto/,
     );
-  });
-});
-
-describe("migration of the prospects that existed before bases", () => {
-  it("moves their values into the columns of a «Prospectos» base", async () => {
-    // Replays the data step of drizzle/0012 on a row written the old way.
-    const { orgId } = tenant;
-    const migrated = await withSystem(db, async (tx) => {
-      const [p] = await tx.insert(projects).values({ orgId, name: "Antiguo" }).returning();
-      const [b] = await tx
-        .insert(prospectBases)
-        .values({ orgId, projectId: p.id, name: "Prospectos", columns: DEFAULT_COMPANY_COLUMNS })
-        .returning();
-      await tx.execute(sql`
-        insert into prospects (org_id, project_id, base_id, dedupe_key, company_name, city, phone, contact_name, linkedin_url)
-        values (${orgId}, ${p.id}, ${b.id}, 'name:viejo|', 'Taller Viejo', 'Jaén', '953 000 000', 'Pepe', 'https://linkedin.com/company/viejo')`);
-      await tx.execute(sql`
-        update prospects x set data = x.data || jsonb_strip_nulls(jsonb_build_object(
-          'sector', x.sector, 'city', x.city, 'region', x.region, 'country', x.country,
-          'phone', x.phone, 'email', x.email, 'contact', x.contact_name, 'role', x.contact_role,
-          'linkedin', x.linkedin_url))
-        where x.base_id = ${b.id}`);
-      return b.id;
-    });
-    const { rows } = await listProspects(db, tenant, migrated);
-    expect(rows[0].data).toEqual({
-      city: "Jaén",
-      phone: "953 000 000",
-      contact: "Pepe",
-      linkedin: "https://linkedin.com/company/viejo",
-    });
-    const [agentless] = await withSystem(db, (tx) =>
-      tx.select().from(agentConfigs).where(eq(agentConfigs.prospectBaseId, migrated)),
-    );
-    expect(agentless).toBeUndefined();
   });
 });

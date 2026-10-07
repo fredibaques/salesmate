@@ -5,6 +5,7 @@ import { formatDateTime, plural } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { listBases } from "@/server/prospects/bases";
+import { countPendingCells } from "@/server/prospects/complete";
 
 export const metadata = { title: "Prospectos" };
 
@@ -14,7 +15,12 @@ export default async function ProspectBasesPage({
 }: PageProps<"/app/projects/[projectId]/prospects">) {
   const { projectId } = await params;
   const tenant = await requireTenant();
-  const bases = await listBases(getDb(), tenant, projectId);
+  const db = getDb();
+  const bases = await listBases(db, tenant, projectId);
+  // Cells left to fill, only where an agent fills the base.
+  const pending = await Promise.all(
+    bases.map((b) => (b.agents.length ? countPendingCells(db, tenant, b.id) : Promise.resolve(0))),
+  );
   const path = `/app/projects/${projectId}/prospects`;
   const canEdit = tenant.role !== "member";
   const newBase = canEdit ? (
@@ -48,7 +54,7 @@ export default async function ProspectBasesPage({
     <>
       <Toolbar>{newBase}</Toolbar>
       <CardGrid>
-        {bases.map((b) => (
+        {bases.map((b, i) => (
           <EntityCard
             key={b.id}
             href={`${path}/${b.id}`}
@@ -60,6 +66,7 @@ export default async function ProspectBasesPage({
                   b.rowKind === "person" ? "Personas" : "Empresas",
                   plural(b.rows, "fila", "filas"),
                   plural(b.columns.length, "columna", "columnas"),
+                  pending[i] ? `${pending[i]} por completar` : null,
                   `actualizada ${formatDateTime(b.updatedAt)}`,
                 ]}
               />
