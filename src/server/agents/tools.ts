@@ -338,7 +338,11 @@ export async function mcpTools(
   return out;
 }
 
-/** Web tools of the API (searched and read on Anthropic's side), capped per run. */
+/**
+ * Web tools of the API (searched and read on the provider's side). The caps
+ * apply to each request, so they also bound how long one turn of the agent
+ * can run before the loop gets control back.
+ */
 export function webTools(maxSearches: number): ServerTool[] {
   return [
     { type: "web_search_20260209", name: "web_search", max_uses: maxSearches },
