@@ -37,7 +37,7 @@ export const AI_PROVIDER_INFO: Record<AiProvider, AiProviderInfo> = {
   anthropic: {
     id: "anthropic",
     label: "Anthropic (Claude)",
-    keysUrl: "https://console.anthropic.com/settings/keys",
+    keysUrl: "https://platform.claude.com/settings/keys",
     keyPlaceholder: "sk-ant-…",
     webSearchUsd: 0.01,
     models: [

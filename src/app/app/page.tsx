@@ -15,7 +15,7 @@ import { getDb } from "@/server/db/client";
 import { getActionDefinition } from "@/server/gateway/definitions";
 import { listActions, listAudit, listOrgConnections, listProjects } from "@/server/services/projects";
 import { describeEvent, formatDateTime } from "@/lib/format";
-import { AI_SETTINGS_HREF, currentAi } from "./ai-notice";
+import { AI_CONNECT_HREF, currentAi } from "./ai-notice";
 import { NewProjectButton } from "./projects/new-project";
 
 export const metadata = { title: "Panel" };
@@ -32,7 +32,7 @@ export default async function DashboardPage() {
   ]);
 
   const steps = [
-    { done: Boolean(ai), label: "Conecta tu IA (Anthropic, OpenAI o Kimi)", href: AI_SETTINGS_HREF },
+    { done: Boolean(ai), label: "Conecta tu IA (Anthropic, OpenAI o Kimi)", href: AI_CONNECT_HREF },
     {
       done: connections.length > 0,
       label: "Conecta tus herramientas (CRM, correo, calendario)",

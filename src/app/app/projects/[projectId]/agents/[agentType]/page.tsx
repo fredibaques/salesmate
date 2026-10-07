@@ -7,7 +7,7 @@ import { formatDateTime } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { SALES_MOTIONS } from "@/server/db/schema";
-import { AI_SETTINGS_HREF, currentAi } from "../../../../ai-notice";
+import { AI_CONNECT_HREF, currentAi } from "../../../../ai-notice";
 import {
   CALENDAR_STEPS,
   NEXT_STEP_DESCRIPTIONS,
@@ -223,7 +223,7 @@ export default async function AgentHomePage({
               </ActionForm>
             </ModalButton>
           ) : (
-            <LinkButton href={AI_SETTINGS_HREF} size="sm">
+            <LinkButton href={AI_CONNECT_HREF} size="sm">
               Conectar IA
             </LinkButton>
           )}

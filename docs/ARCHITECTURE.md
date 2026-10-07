@@ -125,6 +125,10 @@ la cola y el planificador salta a sus agentes sin consumir la franja.
   llamadas no guardan estado (`store: false`): la salida cruda de cada turno
   viaja en un bloque marcador y se reenvía tal cual, así el razonamiento y las
   búsquedas siguen siendo válidos en el bucle.
+- **Conexión guiada** (`/app/ai/connect`): elegir proveedor, cómo conseguir
+  la clave en su consola (`lib/ai-guides.ts`: pasos con enlace a cada página y
+  lo que suele fallar) y pegarla. «Cambiar» abre un modal rápido con enlace a
+  la guía.
 - **La clave** se comprueba gratis listando los modelos de la cuenta (y que el
   elegido esté), se guarda cifrada (AES-256-GCM, como las conexiones) y solo se
   muestran sus 4 últimos caracteres. La auditoría registra altas, cambios y

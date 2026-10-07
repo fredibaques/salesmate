@@ -1,44 +1,38 @@
 import { KeyRound, Sparkles } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
-import { Badge, Card, EmptyState, Notice } from "@/components/ui";
+import { Badge, Card, EmptyState, LinkButton, Notice } from "@/components/ui";
 import { AI_PROVIDER_INFO, findModel } from "@/lib/ai-providers";
 import { formatDateTime } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { aiUsageThisMonth, getOrgAi } from "@/server/llm/org-ai";
-import { AiFields } from "./ai-form";
+import { AI_GUIDE_HREF, AiFields } from "./ai-form";
 import { connectAi, disconnectAi } from "./actions";
 
 export const metadata = { title: "IA" };
 
 const usd = new Intl.NumberFormat("es-ES", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
 
-function ConnectButton({
-  current,
-  variant = "primary",
-}: {
-  current?: Parameters<typeof AiFields>[0]["current"];
-  variant?: "primary" | "secondary";
-}) {
+/** Quick change of model or key; a new provider can follow the guide from the key field. */
+function ChangeButton({ current }: { current: NonNullable<Parameters<typeof AiFields>[0]["current"]> }) {
   return (
-    <ModalButton
-      label={current ? "Cambiar" : "Conectar IA"}
-      icon={current ? <KeyRound /> : <Sparkles />}
-      title={current ? "Cambiar la cuenta de IA" : "Conectar tu IA"}
-      variant={variant}
-    >
-      <ActionForm action={connectAi} submitLabel={current ? "Guardar" : "Conectar"} className="space-y-4">
+    <ModalButton label="Cambiar" icon={<KeyRound />} title="Cambiar la cuenta de IA" variant="secondary">
+      <ActionForm action={connectAi} submitLabel="Guardar" className="space-y-4">
         <AiFields current={current} />
       </ActionForm>
     </ModalButton>
   );
 }
 
-export default async function AiSettingsPage() {
+export default async function AiSettingsPage({ searchParams }: PageProps<"/app/ai">) {
   const tenant = await requireTenant();
   const db = getDb();
-  const [ai, usage] = await Promise.all([getOrgAi(db, tenant), aiUsageThisMonth(db, tenant)]);
+  const [ai, usage, query] = await Promise.all([
+    getOrgAi(db, tenant),
+    aiUsageThisMonth(db, tenant),
+    searchParams,
+  ]);
   const canEdit = tenant.role === "owner" || tenant.role === "admin";
 
   if (!ai) {
@@ -48,7 +42,14 @@ export default async function AiSettingsPage() {
           icon={<Sparkles />}
           title="Conecta tu IA"
           description="Los agentes, Copilot y las propuestas con IA usan la cuenta de tu organización: Anthropic, OpenAI o Kimi. Pagas directamente al proveedor lo que consumen. Hasta entonces, la IA está apagada."
-          action={canEdit ? <ConnectButton /> : undefined}
+          action={
+            canEdit ? (
+              <LinkButton href={AI_GUIDE_HREF} variant="primary">
+                <Sparkles />
+                Conectar IA
+              </LinkButton>
+            ) : undefined
+          }
         />
       </Card>
     );
@@ -58,6 +59,12 @@ export default async function AiSettingsPage() {
   const model = findModel(ai.model);
   return (
     <div className="space-y-6">
+      {query.connected && ai.status === "active" ? (
+        <Notice tone="success">
+          Conectado. Desde ahora los agentes y Copilot usan tu cuenta de {AI_PROVIDER_INFO[ai.provider].label}
+          .
+        </Notice>
+      ) : null}
       {ai.status === "error" ? (
         <Notice tone="danger">
           {ai.lastError} La IA no funcionará hasta que lo resuelvas
@@ -72,10 +79,7 @@ export default async function AiSettingsPage() {
         actions={
           canEdit ? (
             <>
-              <ConnectButton
-                variant="secondary"
-                current={{ provider: ai.provider, model: ai.model, keyHint: ai.keyHint }}
-              />
+              <ChangeButton current={{ provider: ai.provider, model: ai.model, keyHint: ai.keyHint }} />
               <ActionForm
                 action={disconnectAi}
                 submitLabel="Desconectar"

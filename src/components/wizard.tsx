@@ -2,7 +2,7 @@
 
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import Link from "next/link";
-import { useActionState, useRef, useState, type ReactNode } from "react";
+import { startTransition, useActionState, useRef, useState, type ReactNode } from "react";
 import type { FormAction, FormState } from "./action-form";
 import { cx } from "./cx";
 import { buttonClass } from "./ui";
@@ -108,7 +108,14 @@ export function Wizard({
 
       <form
         ref={form}
-        action={formAction}
+        // Submitted by hand rather than with `action`: React resets a form after
+        // its action, so a rejected submit would wipe every step.
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!currentStepValid()) return;
+          const data = new FormData(e.currentTarget);
+          startTransition(() => formAction(data));
+        }}
         onKeyDown={(e) => {
           // Enter in a single-line field moves forward instead of submitting early.
           if (e.key === "Enter" && !last && (e.target as HTMLElement).tagName === "INPUT") {

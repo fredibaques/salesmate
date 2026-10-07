@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import type { FormState } from "@/components/action-form";
 import { requireRole } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
@@ -30,5 +31,12 @@ export async function disconnectAi(_: FormState): Promise<FormState> {
     return "Desconectado. La IA queda apagada hasta que conectes otra cuenta.";
   });
   revalidatePath("/app", "layout");
+  return result;
+}
+
+/** The connection wizard: back to the AI settings once connected. */
+export async function connectAiFromWizard(prev: FormState, form: FormData): Promise<FormState> {
+  const result = await connectAi(prev, form);
+  if (result?.ok) redirect("/app/ai?connected=1");
   return result;
 }

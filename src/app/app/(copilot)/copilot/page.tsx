@@ -2,7 +2,7 @@ import { Bot, FolderKanban } from "lucide-react";
 import { Card, EmptyState, LinkButton } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
-import { AI_SETTINGS_HREF, AiNotice, currentAi } from "../../ai-notice";
+import { AI_CONNECT_HREF, AiNotice, currentAi } from "../../ai-notice";
 import { listProjects } from "@/server/services/projects";
 import { NewProjectButton } from "../../projects/new-project";
 import { CopilotChat } from "./chat";
@@ -21,7 +21,7 @@ export default async function CopilotPage() {
             title="Conecta tu IA"
             description="Copilot usa la cuenta de IA de tu organización: Anthropic, OpenAI o Kimi."
             action={
-              <LinkButton href={AI_SETTINGS_HREF} variant="primary">
+              <LinkButton href={AI_CONNECT_HREF} variant="primary">
                 Conectar IA
               </LinkButton>
             }

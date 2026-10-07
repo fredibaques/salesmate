@@ -62,6 +62,7 @@ export async function crumbsFor(segments: string[], names: NameLookup): Promise<
       if (rest[1]) out.push({ label: getIntegration(rest[1])?.name ?? rest[1] });
       return out;
     }
+    if (first === "ai" && rest[0] === "connect") return [section.parent, here, { label: "Conectar" }];
     return [section.parent, here];
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, type ReactNode } from "react";
+import { startTransition, useActionState, useRef, type ReactNode } from "react";
 import { useModal } from "./modal";
 import { useToast } from "./toast";
 import { buttonClass, cx, type ButtonVariant } from "./ui";
@@ -34,28 +34,34 @@ export function ActionForm({
   // refreshed page may remount this form (new version) or, in a modal, move
   // or remove the button that opened it, so an inline message or an effect
   // would be lost. Errors stay next to the button.
-  const [state, formAction, pending] = useActionState<FormState, FormData>(
-    toast
-      ? async (prev, formData) => {
-          const result = await action(prev, formData);
-          if (result?.ok) {
-            toast({ ok: true, message: result.message });
-            modal?.close();
-          }
-          return result;
-        }
-      : action,
-    null,
-  );
+  const form = useRef<HTMLFormElement>(null);
+  const [state, formAction, pending] = useActionState<FormState, FormData>(async (prev, formData) => {
+    const result = await action(prev, formData);
+    if (result?.ok) {
+      // Clean for the next use, as React does after an action; a rejected
+      // submit keeps what was typed so it can be fixed and sent again.
+      form.current?.reset();
+      if (toast) {
+        toast({ ok: true, message: result.message });
+        modal?.close();
+      }
+    }
+    return result;
+  }, null);
 
   const inlineStatus = state && !(toast && state.ok);
 
   return (
     <form
-      action={formAction}
+      ref={form}
       className={className ?? "space-y-3"}
+      // Submitted by hand rather than with `action`, which would reset the
+      // form even when the server rejects it.
       onSubmit={(e) => {
-        if (confirm && !window.confirm(confirm)) e.preventDefault();
+        e.preventDefault();
+        if (confirm && !window.confirm(confirm)) return;
+        const data = new FormData(e.currentTarget);
+        startTransition(() => formAction(data));
       }}
     >
       {children}

@@ -17,6 +17,7 @@ describe("crumbsFor", () => {
       "Nueva conexión",
       "Google Workspace",
     ]);
+    expect(await labels("ai/connect")).toEqual(["Configuración", "IA", "Conectar"]);
     expect(await labels("inbox")).toEqual(["Copilot", "Por aprobar"]);
     expect(await labels("account/security")).toEqual(["Mi cuenta", "Seguridad"]);
   });

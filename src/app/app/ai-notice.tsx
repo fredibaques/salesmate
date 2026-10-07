@@ -5,6 +5,8 @@ import { getDb } from "@/server/db/client";
 import { getOrgAi } from "@/server/llm/org-ai";
 
 export const AI_SETTINGS_HREF = "/app/ai";
+/** The guided connection (provider, how to get the key, paste it). */
+export const AI_CONNECT_HREF = "/app/ai/connect";
 
 /** The organization's AI connection, once per request. */
 export const currentAi = cache(async () => getOrgAi(getDb(), await requireTenant()));
@@ -21,7 +23,7 @@ export async function AiNotice({ feature }: { feature: string }) {
     <Notice
       tone={ai ? "danger" : "warning"}
       action={
-        <LinkButton href={AI_SETTINGS_HREF} size="sm">
+        <LinkButton href={ai ? AI_SETTINGS_HREF : AI_CONNECT_HREF} size="sm">
           {ai ? "Revisar" : "Conectar IA"}
         </LinkButton>
       }
