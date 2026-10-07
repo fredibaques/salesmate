@@ -6,18 +6,17 @@ import { inboundDeps } from "@/server/agents/runtime";
 import { getDb } from "@/server/db/client";
 import { connections, inboundEvents } from "@/server/db/schema";
 import { withSystem } from "@/server/db/tenant";
-import { env } from "@/server/env";
+import { isSchedulerCall } from "@/server/cron";
 import { orgLlm } from "@/server/llm/org-ai";
 
 export const maxDuration = 300;
 
 /**
  * Scheduler entry point: reads new mail from connected mailboxes and runs the
- * inbound agent on pending events. Protected by CRON_SECRET.
+ * inbound agent on pending events. Protected by the scheduler secrets.
  */
 export async function GET(request: Request) {
-  const secret = env().CRON_SECRET;
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!(await isSchedulerCall(getDb(), request))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const db = getDb();

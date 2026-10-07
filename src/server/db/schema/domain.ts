@@ -378,6 +378,10 @@ export const agentConfigs = pgTable(
     settings: jsonb("settings").$type<AgentSettings>().notNull().default({}),
     /** Last scheduled run started (prevents running the same slot twice). */
     lastScheduledRunAt: timestamp("last_scheduled_run_at", { withTimezone: true }),
+    /** Last time the scheduler looked at this agent (shows whether it is passing). */
+    scheduleCheckedAt: timestamp("schedule_checked_at", { withTimezone: true }),
+    /** Why its last due slot did not run (no AI connected, failed…); null when it ran. */
+    scheduleNote: text("schedule_note"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

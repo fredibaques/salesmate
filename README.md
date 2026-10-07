@@ -72,11 +72,14 @@ Las migraciones nuevas se aplican con `pnpm db:migrate`.
   `{APP_URL}/api/auth/callback/google` y `{APP_URL}/api/connections/google/callback`.
   Pon `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` en `.env.local`. Mientras la app
   no esté verificada por Google, añade tus cuentas como usuarios de prueba.
-- **Acciones programadas**: las acciones fuera de horario se liberan llamando a
-  `GET /api/cron/release-deferred` con `Authorization: Bearer $CRON_SECRET`.
-  Lo hace el workflow `release-deferred` de GitHub Actions cada 30 minutos en
-  horario laboral (configura los secretos `APP_URL` y `CRON_SECRET` del
-  repositorio). Así la base de datos puede apagarse el resto del tiempo y el
+- **Programador**: correo entrante, agentes con horario y acciones fuera de
+  horario se procesan llamando a `GET /api/cron/{inbound,agents,release-deferred}`
+  con `Authorization: Bearer <secreto>`. Lo hace una Neon Function con dos
+  disparadores (cada 15 minutos de 5 a 20 UTC y cada hora de noche), cuya
+  clave se comprueba contra su hash en `scheduler_keys`: ver
+  `scripts/neon-scheduler/README.md`. El
+  workflow de GitHub Actions queda de respaldo cada hora (secretos `APP_URL` y
+  `CRON_SECRET` del repositorio). Todas las llamadas son idempotentes, y el
   consumo cabe en el plan gratuito de Neon.
 
 ### IA (cuenta de cada organización)

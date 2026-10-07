@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, isNull, lt } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { agentConfigs, agentRuns, projects, type AgentSchedule } from "../db/schema";
 import { withSystem, withTenant } from "../db/tenant";
 import type { LlmClient } from "../llm/client";
@@ -58,9 +58,20 @@ export async function closeStaleRuns(db: AgentRunDeps["db"], now: Date): Promise
   return rows.length;
 }
 
+export type ScheduledRun = { projectId: string; result: ProspectingResult | { error: string } };
+export type SkippedAgent = { projectId: string; reason: "no_ai" | "taken" | "over_limit" };
+
+const SKIP_NOTES: Partial<Record<SkippedAgent["reason"], string>> = {
+  no_ai: "No ha podido trabajar: la organización no tiene la IA conectada.",
+};
+
 /**
- * Runs the scheduled agents whose time has come. Each slot is claimed with a
- * conditional update first, so two overlapping cron calls never run it twice.
+ * Runs the scheduled agents whose time has come, up to `limit` at once (in
+ * parallel: each run has its own time budget). Each slot is claimed with a
+ * conditional update first, so two overlapping scheduler calls never run it
+ * twice. Every enabled agent is stamped as checked, and the reason a due
+ * slot could not run is kept on the agent, so its page can say what is
+ * happening.
  */
 export async function runDueAgents(
   deps: Omit<AgentRunDeps, "llm"> & {
@@ -68,8 +79,9 @@ export async function runDueAgents(
     llmFor: (orgId: string) => Promise<LlmClient | null>;
   },
   options: { limit?: number } = {},
-): Promise<{ projectId: string; result: ProspectingResult | { error: string } }[]> {
+): Promise<{ runs: ScheduledRun[]; skipped: SkippedAgent[]; checked: number }> {
   const now = deps.now?.() ?? new Date();
+  const limit = options.limit ?? 3;
   await closeStaleRuns(deps.db, now);
   const candidates = await withSystem(deps.db, (tx) =>
     tx
@@ -86,20 +98,50 @@ export async function runDueAgents(
         ),
       ),
   );
+  if (candidates.length) {
+    await withSystem(deps.db, (tx) =>
+      tx
+        .update(agentConfigs)
+        // Keep updated_at: a check is not an edit.
+        .set({ scheduleCheckedAt: now, updatedAt: sql`${agentConfigs.updatedAt}` })
+        .where(
+          inArray(
+            agentConfigs.id,
+            candidates.map((c) => c.agent.id),
+          ),
+        ),
+    );
+  }
   const due = candidates.filter(({ agent, project }) =>
     isDue(agent.schedule!, agent.lastScheduledRunAt, now, project.timezone),
   );
 
-  const report = [];
+  const note = (agentId: string, orgId: string, text: string | null) =>
+    withTenant(deps.db, { orgId }, (tx) =>
+      tx
+        .update(agentConfigs)
+        .set({ scheduleNote: text, updatedAt: sql`${agentConfigs.updatedAt}` })
+        .where(eq(agentConfigs.id, agentId)),
+    );
+
+  const skipped: SkippedAgent[] = [];
+  const claimed: { agent: (typeof due)[number]["agent"]; projectId: string; llm: LlmClient }[] = [];
   const clients = new Map<string, LlmClient | null>();
   for (const { agent, project } of due) {
-    if (report.length >= (options.limit ?? 1)) break;
-    const tenant = { orgId: agent.orgId };
+    if (claimed.length >= limit) {
+      // Picked up by the next call.
+      skipped.push({ projectId: project.id, reason: "over_limit" });
+      continue;
+    }
     if (!clients.has(agent.orgId)) clients.set(agent.orgId, await deps.llmFor(agent.orgId));
     const llm = clients.get(agent.orgId);
-    // No AI connected: the slot stays unclaimed and runs once the key is added.
-    if (!llm) continue;
-    const claimed = await withTenant(deps.db, tenant, (tx) =>
+    if (!llm) {
+      // The slot stays unclaimed and runs once the key is added.
+      skipped.push({ projectId: project.id, reason: "no_ai" });
+      await note(agent.id, agent.orgId, SKIP_NOTES.no_ai!);
+      continue;
+    }
+    const won = await withTenant(deps.db, { orgId: agent.orgId }, (tx) =>
       tx
         .update(agentConfigs)
         .set({ lastScheduledRunAt: now })
@@ -107,25 +149,72 @@ export async function runDueAgents(
           and(
             eq(agentConfigs.id, agent.id),
             agent.lastScheduledRunAt
-              ? eq(agentConfigs.lastScheduledRunAt, agent.lastScheduledRunAt)
+              ? // Postgres keeps microseconds, JavaScript dates only milliseconds:
+                // compare at millisecond precision or the claim never matches.
+                sql`date_trunc('milliseconds', ${agentConfigs.lastScheduledRunAt}) = ${agent.lastScheduledRunAt.toISOString()}::timestamptz`
               : isNull(agentConfigs.lastScheduledRunAt),
           ),
         )
         .returning({ id: agentConfigs.id }),
     );
-    if (claimed.length === 0) continue;
-    try {
-      const result = await runProspecting({ ...deps, llm }, tenant, {
-        projectId: project.id,
-        trigger: "schedule",
-      });
-      report.push({ projectId: project.id, result });
-    } catch (err) {
-      report.push({
-        projectId: project.id,
-        result: { error: err instanceof Error ? err.message : String(err) },
-      });
+    if (won.length === 0) {
+      skipped.push({ projectId: project.id, reason: "taken" });
+      continue;
     }
+    claimed.push({ agent, projectId: project.id, llm });
   }
-  return report;
+
+  const runs = await Promise.all(
+    claimed.map(async ({ agent, projectId, llm }): Promise<ScheduledRun> => {
+      const tenant = { orgId: agent.orgId };
+      try {
+        const result = await runProspecting({ ...deps, llm }, tenant, { projectId, trigger: "schedule" });
+        await note(agent.id, agent.orgId, null);
+        return { projectId, result };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        await note(agent.id, agent.orgId, `La última ejecución programada falló: ${message}`);
+        return { projectId, result: { error: message } };
+      }
+    }),
+  );
+  return { runs, skipped, checked: candidates.length };
 }
+
+const WEEKDAY_NAMES = [
+  "",
+  "el lunes",
+  "el martes",
+  "el miércoles",
+  "el jueves",
+  "el viernes",
+  "el sábado",
+  "el domingo",
+];
+
+/** When a scheduled agent works next, in words ("hoy a las 08:00", "el lunes a las 08:00"). */
+export function describeNextRun(
+  schedule: AgentSchedule,
+  lastRunAt: Date | null,
+  now: Date,
+  timeZone: string,
+): string | null {
+  if (!schedule.days.length) return null;
+  const today = localClock(now, timeZone);
+  const ranToday = lastRunAt ? localClock(lastRunAt, timeZone).date === today.date : false;
+  for (let i = 0; i <= 7; i++) {
+    const weekday = ((today.weekday - 1 + i) % 7) + 1;
+    if (!schedule.days.includes(weekday)) continue;
+    if (i === 0) {
+      if (ranToday) continue;
+      if (today.time >= schedule.time) return "ahora, en la próxima pasada del programador";
+      return `hoy a las ${schedule.time}`;
+    }
+    if (i === 1) return `mañana a las ${schedule.time}`;
+    return `${WEEKDAY_NAMES[weekday]} a las ${schedule.time}`;
+  }
+  return null;
+}
+
+/** The scheduler passes every 15 minutes (hourly at night): longer than this means it is not passing. */
+export const SCHEDULER_STALE_MS = 75 * 60_000;

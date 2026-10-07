@@ -1,7 +1,7 @@
 import { and, eq, lte } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb } from "@/server/db/client";
-import { env } from "@/server/env";
+import { isSchedulerCall } from "@/server/cron";
 import { actions } from "@/server/db/schema";
 import { withSystem } from "@/server/db/tenant";
 import { releaseDueActions } from "@/server/gateway/gateway";
@@ -9,11 +9,10 @@ import { gatewayDeps } from "@/server/gateway/runtime";
 
 /**
  * Scheduler entry point (e.g. Vercel Cron every 5 minutes): executes deferred
- * actions whose send window or daily limit has opened. Protected by CRON_SECRET.
+ * actions whose send window or daily limit has opened. Protected by the scheduler secrets.
  */
 export async function GET(request: Request) {
-  const secret = env().CRON_SECRET;
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!(await isSchedulerCall(getDb(), request))) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const now = new Date();
