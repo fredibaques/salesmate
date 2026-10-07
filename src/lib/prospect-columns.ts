@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 /**
  * Columns of a prospect base, defined by the user (like a spreadsheet). The
  * definitions are data shared by the screens and the server: what each
@@ -101,6 +103,89 @@ export const DEFAULT_COMPANY_COLUMNS: BaseColumn[] = [
   { id: "role", name: "Cargo", type: "text", filledBy: "agent", instructions: "Cargo de esa persona." },
   { id: "linkedin", name: "LinkedIn", type: "url", filledBy: "agent", instructions: "Página de empresa." },
 ];
+
+/** Columns of a new base of people, when the AI doesn't propose any. */
+export const DEFAULT_PERSON_COLUMNS: BaseColumn[] = [
+  { id: "role", name: "Cargo", type: "text", filledBy: "agent", instructions: "Cargo en la empresa." },
+  {
+    id: "email",
+    name: "Email",
+    type: "email",
+    filledBy: "agent",
+    instructions: "Email profesional, solo si se publica para ser contactada.",
+  },
+  {
+    id: "phone",
+    name: "Teléfono",
+    type: "phone",
+    filledBy: "agent",
+    instructions: "Teléfono profesional, solo si se publica para ser contactada.",
+  },
+  { id: "city", name: "Ciudad", type: "text", filledBy: "agent", instructions: "Ciudad donde trabaja." },
+  { id: "linkedin", name: "LinkedIn", type: "url", filledBy: "agent", instructions: "Perfil público." },
+];
+
+export const DEFAULT_COLUMNS: Record<RowKind, BaseColumn[]> = {
+  company: DEFAULT_COMPANY_COLUMNS,
+  person: DEFAULT_PERSON_COLUMNS,
+};
+
+/** A column as people (or the AI) describe it, before it gets its id. */
+export const columnDraft = z
+  .object({
+    name: z.string().trim().min(1, "Ponle un nombre a la columna.").max(80),
+    type: z.enum(COLUMN_TYPES),
+    options: z.array(z.string().trim().min(1).max(80)).max(50).optional(),
+    instructions: z.string().trim().max(1000).optional(),
+    filledBy: z.enum(FILLED_BY).default("agent"),
+    hidden: z.boolean().optional(),
+  })
+  .transform((c) => ({
+    ...c,
+    options: c.type === "select" || c.type === "multi" ? [...new Set(c.options ?? [])] : undefined,
+    instructions: c.instructions || undefined,
+  }))
+  .refine((c) => !c.options || c.options.length > 0, {
+    message: "Una columna de selección necesita al menos una opción.",
+    path: ["options"],
+  });
+export type ColumnDraft = z.input<typeof columnDraft>;
+
+/**
+ * Keys the table already uses for its fixed columns (sorting, the agent's
+ * row fields): a column can't take them as its id.
+ */
+const RESERVED_IDS = new Set([
+  "name",
+  "person",
+  "web",
+  "fit",
+  "status",
+  "created",
+  "companyname",
+  "personname",
+  "website",
+  "fitscore",
+  "fitreason",
+  "sources",
+]);
+
+/** A stable id for a new column from its name: «¿Gestoría propia?» → «gestoria_propia». */
+export function columnId(name: string, taken: Iterable<string>): string {
+  const used = new Set(taken);
+  const slug =
+    name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 40) || "columna";
+  const base = RESERVED_IDS.has(slug.replace(/_/g, "")) ? `${slug}_col` : slug;
+  let id = base;
+  for (let n = 2; used.has(id); n++) id = `${base}_${n}`;
+  return id;
+}
 
 export type CellCheck = { ok: true; value: unknown } | { ok: false; error: string };
 

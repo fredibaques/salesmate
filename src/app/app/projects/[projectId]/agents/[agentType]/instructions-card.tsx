@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { Card, Chip, Field, Input, Select, Textarea } from "@/components/ui";
 import type { agentConfigs } from "@/server/db/schema";
@@ -53,6 +54,11 @@ export function InstructionsCard({
           <Field
             label="Trabaja sobre"
             tip="La base de prospectos del proyecto donde guarda lo que encuentra. Recoge los datos de sus columnas."
+            hint={
+              <Link href={`/app/projects/${projectId}/prospects/new`} className="text-accent hover:underline">
+                Crear otra base
+              </Link>
+            }
           >
             <Select name="baseId" defaultValue={config.prospectBaseId ?? bases[0].id} className="max-w-sm">
               {bases.map((b) => (

@@ -191,6 +191,164 @@ export async function saveProspects(
   });
 }
 
+/** One row of a base, or null. */
+export async function getProspect(
+  db: Db,
+  tenant: Pick<TenantContext, "orgId">,
+  baseId: string,
+  id: string,
+): Promise<ProspectRow | null> {
+  const [row] = await withTenant(db, tenant, (tx) =>
+    tx
+      .select()
+      .from(prospects)
+      .where(and(eq(prospects.baseId, baseId), eq(prospects.id, id))),
+  );
+  return row ?? null;
+}
+
+/** A row as a person writes it in the row panel. Fields not sent stay as they are. */
+export type RowEdit = {
+  companyName: string;
+  personName?: string;
+  website?: string;
+  fitScore?: number | null;
+  fitReason?: string;
+  /** Values by column id; an empty value clears the cell. */
+  fields: Record<string, unknown>;
+};
+
+const DUPLICATE_ROW = "Ya hay otra fila igual en esta base (misma web, o mismo nombre y ciudad).";
+
+/** Checks a person's edit: every value must fit its column (nothing is dropped silently). */
+function checkEdit(base: BaseInfo, edit: RowEdit) {
+  const companyName = edit.companyName.trim();
+  if (!companyName) throw new Error("Falta el nombre de la empresa.");
+  const personName = edit.personName?.trim() || null;
+  if (base.rowKind === "person" && !personName) throw new Error("Falta el nombre de la persona.");
+  const fitScore = edit.fitScore ?? null;
+  if (fitScore !== null && (!Number.isInteger(fitScore) || fitScore < 0 || fitScore > 100)) {
+    throw new Error("El encaje debe ser un número de 0 a 100.");
+  }
+  const values: Record<string, unknown> = {};
+  const errors: string[] = [];
+  for (const [id, raw] of Object.entries(edit.fields)) {
+    const column = base.columns.find((c) => c.id === id);
+    if (!column) continue;
+    const checked = checkCell(column, raw);
+    if (checked.ok) values[id] = checked.value;
+    else errors.push(checked.error);
+  }
+  if (errors.length) throw new Error(errors.join(" · "));
+  return {
+    companyName,
+    personName,
+    website: edit.website?.trim() || null,
+    fitScore,
+    fitReason: edit.fitReason?.trim() || null,
+    values,
+  };
+}
+
+/** A row a person adds by hand. */
+export async function addProspectRow(
+  db: Db,
+  tenant: TenantContext,
+  baseId: string,
+  edit: RowEdit,
+): Promise<ProspectRow> {
+  const base = await baseInfo(db, tenant, baseId);
+  const row = checkEdit(base, edit);
+  const data = Object.fromEntries(Object.entries(row.values).filter(([, v]) => v !== null));
+  const result = await saveProspects(db, tenant, {
+    baseId,
+    items: [
+      {
+        companyName: row.companyName,
+        personName: row.personName ?? undefined,
+        website: row.website ?? undefined,
+        fitScore: row.fitScore ?? undefined,
+        fitReason: row.fitReason ?? undefined,
+        fields: data,
+      },
+    ],
+  });
+  if (result.duplicates.length) throw new Error(DUPLICATE_ROW);
+  const [added] = result.added;
+  if (!added) throw new Error(result.fieldErrors[0] ?? "No se ha podido añadir la fila.");
+  return added;
+}
+
+/**
+ * Saves a person's changes to a row. The cells that change are marked as
+ * written by that person, so the panel can say who wrote each value.
+ */
+export async function updateProspectRow(
+  db: Db,
+  tenant: TenantContext,
+  baseId: string,
+  id: string,
+  edit: RowEdit,
+): Promise<{ changed: number }> {
+  const base = await baseInfo(db, tenant, baseId);
+  const next = checkEdit(base, edit);
+  return withTenant(db, tenant, async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(prospects)
+      .where(and(eq(prospects.baseId, baseId), eq(prospects.id, id)))
+      .for("update");
+    if (!row) throw new Error("Esa fila ya no existe.");
+    const data = { ...row.data };
+    const cellMeta = { ...row.cellMeta };
+    const meta: CellMeta = { by: "user", at: new Date().toISOString(), userId: tenant.actorId ?? undefined };
+    let changed = 0;
+    for (const [key, value] of Object.entries(next.values)) {
+      if (JSON.stringify(value) === JSON.stringify(data[key] ?? null)) continue;
+      changed++;
+      if (value === null) {
+        delete data[key];
+        delete cellMeta[key];
+      } else {
+        data[key] = value;
+        cellMeta[key] = meta;
+      }
+    }
+    const system = {
+      companyName: next.companyName,
+      personName: next.personName,
+      website: next.website,
+      fitScore: next.fitScore,
+      fitReason: next.fitReason,
+    };
+    changed += (Object.keys(system) as (keyof typeof system)[]).filter((k) => system[k] !== row[k]).length;
+    if (changed === 0) return { changed };
+    const key = dedupeKey(
+      { ...system, city: typeof data.city === "string" ? data.city : undefined },
+      base.rowKind,
+    );
+    if (key !== row.dedupeKey) {
+      const [clash] = await tx
+        .select({ id: prospects.id })
+        .from(prospects)
+        .where(and(eq(prospects.baseId, baseId), eq(prospects.dedupeKey, key)));
+      if (clash) throw new Error(DUPLICATE_ROW);
+    }
+    await tx
+      .update(prospects)
+      .set({ ...system, data, cellMeta, dedupeKey: key })
+      .where(eq(prospects.id, id));
+    await audit(tx, tenant, {
+      event: "prospect.edited",
+      projectId: base.projectId,
+      entityType: "prospect",
+      entityId: id,
+      data: { base: baseId, changed },
+    });
+    return { changed };
+  });
+}
+
 /** Which of these the base already has (by domain, or name and city). */
 export async function knownProspects(
   db: Db,

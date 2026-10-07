@@ -14,6 +14,11 @@ export function useModal() {
   return useContext(ModalContext);
 }
 
+/** Lets the forms inside another overlay (a side panel) close it after saving, as in a modal. */
+export function ModalScope({ close, children }: { close: () => void; children: ReactNode }) {
+  return <ModalContext.Provider value={{ close }}>{children}</ModalContext.Provider>;
+}
+
 /**
  * A button that opens its content in a modal. Creation forms live here instead
  * of sitting open on the page. The content mounts only while open, so every

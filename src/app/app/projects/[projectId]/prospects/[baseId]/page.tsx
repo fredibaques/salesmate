@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Plus,
   Search,
   Undo2,
   User,
@@ -25,16 +26,19 @@ import {
   Notice,
   PageHeader,
 } from "@/components/ui";
+import { plural } from "@/lib/format";
 import { PROSPECT_STATUSES } from "@/server/db/schema";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getBase, listBases } from "@/server/prospects/bases";
-import { listProspects, type ProspectStatus } from "@/server/prospects/service";
+import { getProspect, listProspects, type ProspectStatus } from "@/server/prospects/service";
 import { listAgentRuns } from "@/server/services/agents";
 import { AiNotice } from "../../../../ai-notice";
 import { runProspectingNow } from "../../agents/actions";
 import { changeProspectStatus } from "../actions";
 import { CellValue, COLUMN_ICONS, ScoreBar, WebLink } from "../cells";
+import { AddColumnButton, BaseSettings, ColumnsEditor, EditColumnButton } from "./columns-editor";
+import { RowPanel } from "./row-panel";
 
 // «Buscar ahora» keeps running after the response.
 export const maxDuration = 300;
@@ -76,7 +80,9 @@ export default async function ProspectBasePage({
   const sort = typeof query.sort === "string" ? query.sort : undefined;
   const dir = query.dir === "asc" || query.dir === "desc" ? query.dir : undefined;
   const page = Math.max(1, Number(query.page) || 1);
-  const [data, bases, runs] = await Promise.all([
+  const rowParam = typeof query.row === "string" ? query.row : undefined;
+  const canEdit = tenant.role !== "member";
+  const [data, bases, runs, openRow] = await Promise.all([
     listProspects(db, tenant, baseId, {
       status,
       q,
@@ -87,15 +93,17 @@ export default async function ProspectBasePage({
     }),
     listBases(db, tenant, projectId),
     listAgentRuns(db, tenant, projectId, "outbound", 1),
+    rowParam && rowParam !== "new" ? getProspect(db, tenant, baseId, rowParam).catch(() => null) : null,
   ]);
-  const filledByAgent = bases.find((b) => b.id === baseId)?.agents.includes("outbound") ?? false;
+  const agents = bases.find((b) => b.id === baseId)?.agents ?? [];
+  const filledByAgent = agents.includes("outbound");
   const running = filledByAgent && runs[0]?.status === "running" && isRecent(runs[0].startedAt);
   const columns = base.columns.filter((c) => !c.hidden);
   const person = base.rowKind === "person";
   const path = `/app/projects/${projectId}/prospects/${baseId}`;
   const href = (changes: Record<string, string | number | undefined>) => {
     const params = new URLSearchParams();
-    const next = { status, q: q || undefined, sort, dir, ...changes };
+    const next = { status, q: q || undefined, sort, dir, page, ...changes };
     for (const [k, v] of Object.entries(next)) {
       if (v === undefined || v === "" || (k === "page" && Number(v) === 1)) continue;
       params.set(k, String(v));
@@ -123,6 +131,17 @@ export default async function ProspectBasePage({
   const pendingExport = (data.byStatus.new ?? 0) + (data.byStatus.accepted ?? 0);
   const pages = Math.max(1, Math.ceil(data.matching / PAGE_SIZE));
   const exportUrl = `${path}/export`;
+  const ids = { projectId, baseId };
+  const addRow = (
+    <Link
+      href={href({ row: "new" })}
+      scroll={false}
+      className={buttonClass({ variant: "ghost", size: "sm" })}
+    >
+      <Plus />
+      Añadir fila
+    </Link>
+  );
 
   return (
     <>
@@ -149,6 +168,9 @@ export default async function ProspectBasePage({
                 Exportar nuevos ({pendingExport})
               </a>
             ) : null}
+            {canEdit ? (
+              <BaseSettings {...ids} name={base.name} rows={data.total} agents={agents.length} />
+            ) : null}
           </>
         }
       />
@@ -160,15 +182,21 @@ export default async function ProspectBasePage({
         ) : null}
 
         {data.total === 0 ? (
-          <EmptyState
-            icon={<Search />}
-            title="Todavía no hay filas"
-            description={
-              filledByAgent
-                ? "El agente de prospección las irá guardando aquí en cada ejecución. También puedes lanzarlo ahora con «Buscar ahora»."
-                : "Asigna esta base al agente de prospección desde su ficha para que la rellene."
-            }
-          />
+          <>
+            <div className="flex flex-wrap items-center justify-end gap-1">
+              {canEdit ? <ColumnsEditor {...ids} columns={base.columns} person={person} /> : null}
+              {addRow}
+            </div>
+            <EmptyState
+              icon={<Search />}
+              title="Todavía no hay filas"
+              description={
+                filledByAgent
+                  ? "El agente de prospección las irá guardando aquí en cada ejecución. También puedes lanzarlo ahora con «Buscar ahora» o añadirlas a mano."
+                  : "Añádelas a mano, o asigna esta base al agente de prospección desde su ficha para que la rellene."
+              }
+            />
+          </>
         ) : (
           <>
             <div className="flex flex-wrap items-center gap-2">
@@ -206,9 +234,14 @@ export default async function ProspectBasePage({
                   );
                 })}
               </nav>
-              <a href={exportUrl} className={cx(buttonClass({ variant: "ghost", size: "sm" }), "ml-auto")}>
-                Exportar todo
-              </a>
+              <span className="ml-auto flex flex-wrap items-center gap-1">
+                {canEdit ? <ColumnsEditor {...ids} columns={base.columns} person={person} /> : null}
+                {addRow}
+                <a href={exportUrl} className={buttonClass({ variant: "ghost", size: "sm" })}>
+                  <Download />
+                  Exportar todo
+                </a>
+              </span>
             </div>
 
             {data.rows.length === 0 ? (
@@ -227,20 +260,33 @@ export default async function ProspectBasePage({
                       const end = c.type === "number";
                       return (
                         <GridHead key={c.id} align={end ? "end" : "start"}>
-                          {sortLink(
-                            c.id,
-                            <>
-                              <Icon />
-                              {c.name}
-                            </>,
-                            end ? "end" : "start",
-                          )}
+                          <span className={cx("inline-flex items-center gap-1", end && "flex-row-reverse")}>
+                            {sortLink(
+                              c.id,
+                              <>
+                                <Icon />
+                                {c.name}
+                              </>,
+                              end ? "end" : "start",
+                            )}
+                            {canEdit ? (
+                              <EditColumnButton
+                                {...ids}
+                                column={c}
+                                className="-my-1 opacity-0 group-hover/head:opacity-100 focus-visible:opacity-100"
+                              />
+                            ) : null}
+                          </span>
                         </GridHead>
                       );
                     })}
                     <GridHead>Fuentes</GridHead>
                     <GridHead>
-                      <span className="sr-only">Acciones</span>
+                      {canEdit ? (
+                        <AddColumnButton {...ids} variant="ghost" iconOnly />
+                      ) : (
+                        <span className="sr-only">Acciones</span>
+                      )}
                     </GridHead>
                   </>
                 }
@@ -249,9 +295,17 @@ export default async function ProspectBasePage({
                   const name = person ? (r.personName ?? "") : r.companyName;
                   return (
                     <GridRow key={r.id}>
-                      {person ? <GridCell sticky>{r.personName}</GridCell> : null}
-                      <GridCell sticky={!person} className={person ? "" : undefined}>
-                        {r.companyName}
+                      {person ? (
+                        <GridCell sticky>
+                          <RowLink href={href({ row: r.id })}>{r.personName}</RowLink>
+                        </GridCell>
+                      ) : null}
+                      <GridCell sticky={!person}>
+                        {person ? (
+                          r.companyName
+                        ) : (
+                          <RowLink href={href({ row: r.id })}>{r.companyName}</RowLink>
+                        )}
                       </GridCell>
                       <GridCell>{r.website ? <WebLink href={r.website} /> : null}</GridCell>
                       <GridCell title={r.fitReason ?? undefined}>
@@ -323,8 +377,8 @@ export default async function ProspectBasePage({
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
               <span>
                 {data.matching === data.total
-                  ? `${data.total} filas`
-                  : `${data.matching} de ${data.total} filas`}
+                  ? plural(data.total, "fila", "filas")
+                  : `${data.matching} de ${plural(data.total, "fila", "filas")}`}
                 {pages > 1 ? ` · página ${page} de ${pages}` : ""}
               </span>
               {pages > 1 ? (
@@ -347,6 +401,25 @@ export default async function ProspectBasePage({
           </>
         )}
       </div>
+
+      {rowParam === "new" || openRow ? (
+        <RowPanel
+          key={openRow?.id ?? "new"}
+          projectId={projectId}
+          base={base}
+          row={openRow}
+          closeHref={href({ row: undefined })}
+        />
+      ) : null}
     </>
+  );
+}
+
+/** Opens a row in the side panel, keeping the table's filters and page. */
+function RowLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link href={href} scroll={false} className="hover:text-accent hover:underline">
+      {children}
+    </Link>
   );
 }

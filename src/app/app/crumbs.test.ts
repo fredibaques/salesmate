@@ -40,6 +40,7 @@ describe("crumbsFor", () => {
     ]);
     expect(await labels("projects/p1/prospects")).toEqual(["Swipoo", "Prospectos"]);
     expect(await labels("projects/p1/prospects/b1")).toEqual(["Swipoo", "Prospectos", "Concesionarios"]);
+    expect(await labels("projects/p1/prospects/new")).toEqual(["Swipoo", "Prospectos", "Nueva base"]);
     expect(await labels("projects/p1/knowledge/s1")).toEqual(["Swipoo", "Conocimiento", "Tarifas 2026.xlsx"]);
     expect(await labels("projects/p1/conversations/c1")).toEqual(["Swipoo", "Conversaciones", "Ana García"]);
     expect(await labels("projects/p1/rules")).toEqual(["Swipoo", "Ajustes", "Reglas y exclusiones"]);
