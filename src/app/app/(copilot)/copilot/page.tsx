@@ -1,11 +1,12 @@
 import { Bot, FolderKanban } from "lucide-react";
-import { Card, EmptyState, LinkButton } from "@/components/ui";
+import { Card, EmptyState, LinkButton, PageHeader } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { AI_CONNECT_HREF, AiNotice, currentAi } from "../../ai-notice";
 import { listProjects } from "@/server/services/projects";
 import { NewProjectButton } from "../../projects/new-project";
 import { CopilotChat } from "./chat";
+import { COPILOT_TIP } from "../tips";
 
 export const metadata = { title: "Copilot" };
 
@@ -14,6 +15,7 @@ export default async function CopilotPage() {
   const [projects, ai] = await Promise.all([listProjects(getDb(), tenant), currentAi()]);
   return (
     <>
+      <PageHeader title="Copilot" tip={COPILOT_TIP} />
       {!ai ? (
         <Card>
           <EmptyState

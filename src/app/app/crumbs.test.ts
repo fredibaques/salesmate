@@ -9,7 +9,7 @@ const names: NameLookup = {
 const labels = async (path: string) => (await crumbsFor(path.split("/"), names)).map((c) => c.label);
 
 describe("crumbsFor", () => {
-  it("places settings and copilot pages under their section", async () => {
+  it("places settings pages under their section", async () => {
     expect(await labels("connections")).toEqual(["Configuración", "Conexiones"]);
     expect(await labels("connections/new/google")).toEqual([
       "Configuración",
@@ -18,7 +18,9 @@ describe("crumbsFor", () => {
       "Google Workspace",
     ]);
     expect(await labels("ai/connect")).toEqual(["Configuración", "IA", "Conectar"]);
-    expect(await labels("inbox")).toEqual(["Copilot", "Por aprobar"]);
+    // Top-level pages: their title is enough, no trail.
+    expect(await labels("inbox")).toEqual([]);
+    expect(await labels("copilot")).toEqual([]);
     expect(await labels("account/security")).toEqual(["Mi cuenta", "Seguridad"]);
   });
 
