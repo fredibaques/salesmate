@@ -3,12 +3,13 @@ name: Scheduled jobs
 # 1) Reads new email and runs the inbound agent on pending leads.
 # 2) Runs the agents whose daily schedule has come (prospecting).
 # 3) Executes actions that were waiting for their send window or daily limit.
-# Runs every 30 minutes on weekdays during European working hours only, so the
-# serverless database (Neon) can suspend the rest of the time.
+# Backup only: the schedule is driven by a Neon Function (scripts/neon-scheduler)
+# every 15 minutes by day. GitHub delays or drops scheduled runs under load, so
+# this runs hourly at an odd minute; every call is idempotent.
 # Requires repository secrets APP_URL and CRON_SECRET; skipped otherwise.
 on:
   schedule:
-    - cron: "*/30 6-19 * * 1-5"
+    - cron: "17 6-19 * * *"
   workflow_dispatch:
 
 jobs:

@@ -1,20 +1,27 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, seedOrg } from "../../../tests/helpers/db";
 import { lastToolResults, scriptedLlm } from "../../../tests/helpers/fake-llm";
 import type { Db } from "../db/client";
 import { agentConfigs, agentRuns, projects } from "../db/schema";
-import { withTenant, type TenantContext } from "../db/tenant";
+import { withSystem, withTenant, type TenantContext } from "../db/tenant";
 import type { GatewayDeps } from "../gateway/gateway";
 import { listProspects } from "../prospects/service";
 import { addAgent, saveAgentInstructions, setAgentEnabled } from "../services/agents";
 import { runProspecting } from "./prospector";
-import { closeStaleRuns, isDue, localClock, runDueAgents } from "./scheduler";
+import { closeStaleRuns, describeNextRun, isDue, localClock, runDueAgents } from "./scheduler";
 
 let db: Db;
 let close: () => Promise<void>;
 let tenant: TenantContext;
 let projectId: string;
+
+const config = async () =>
+  (
+    await withTenant(db, tenant, (tx) =>
+      tx.select().from(agentConfigs).where(eq(agentConfigs.projectId, projectId)),
+    )
+  )[0];
 
 const gateway = (): GatewayDeps => ({ db, executor: { execute: async () => ({}) } });
 
@@ -68,7 +75,7 @@ describe("runDueAgents", () => {
     // Not enabled yet: nothing runs.
     expect(
       await runDueAgents({ db, llmFor: async () => scriptedLlm([]).llm, gateway: gateway(), now }),
-    ).toEqual([]);
+    ).toEqual({ runs: [], skipped: [], checked: 0 });
     await setAgentEnabled(db, tenant, projectId, "outbound", true);
 
     const { llm, requests } = scriptedLlm([
@@ -106,11 +113,17 @@ describe("runDueAgents", () => {
       },
       { blocks: [{ type: "text", text: "He guardado 1 concesionario de Málaga." }] },
     ]);
-    // An organization without AI connected is skipped and keeps its slot.
-    expect(await runDueAgents({ db, llmFor: async () => null, gateway: gateway(), now })).toEqual([]);
+    // An organization without AI connected is skipped, keeps its slot and is told why.
+    expect(await runDueAgents({ db, llmFor: async () => null, gateway: gateway(), now })).toEqual({
+      runs: [],
+      skipped: [{ projectId, reason: "no_ai" }],
+      checked: 1,
+    });
+    expect((await config()).scheduleNote).toContain("IA");
     const report = await runDueAgents({ db, llmFor: async () => llm, gateway: gateway(), now });
-    expect(report).toHaveLength(1);
-    expect(report[0].result).toMatchObject({ status: "completed", added: 1 });
+    expect(report.runs).toHaveLength(1);
+    expect(report.runs[0].result).toMatchObject({ status: "completed", added: 1 });
+    expect(await config()).toMatchObject({ scheduleNote: null, scheduleCheckedAt: now() });
 
     const system = (requests[0].system as { text: string }[])[0].text;
     expect(system).toContain("Concesionarios de Andalucía.");
@@ -130,12 +143,42 @@ describe("runDueAgents", () => {
 
     // Same day again: already ran.
     expect(
-      await runDueAgents({ db, llmFor: async () => scriptedLlm([]).llm, gateway: gateway(), now }),
+      (await runDueAgents({ db, llmFor: async () => scriptedLlm([]).llm, gateway: gateway(), now })).runs,
     ).toEqual([]);
-    const [config] = await withTenant(db, tenant, (tx) =>
-      tx.select().from(agentConfigs).where(eq(agentConfigs.projectId, projectId)),
+    expect((await config()).lastScheduledRunAt).toEqual(now());
+  });
+
+  it("claims a slot whose last run was stored with microseconds", async () => {
+    // Postgres keeps microseconds; a millisecond comparison used to never match,
+    // so the agent was skipped silently every day after.
+    await withSystem(db, (tx) =>
+      tx.execute(
+        sql`update agent_configs set last_scheduled_run_at = '2026-10-05 16:18:13.443697+00' where project_id = ${projectId}`,
+      ),
     );
-    expect(config.lastScheduledRunAt).toEqual(now());
+    const now = () => new Date("2026-10-08T06:30:00Z");
+    const { llm } = scriptedLlm([{ blocks: [{ type: "text", text: "Hoy no he encontrado nada nuevo." }] }]);
+    const report = await runDueAgents({ db, llmFor: async () => llm, gateway: gateway(), now });
+    expect(report.runs).toHaveLength(1);
+    expect((await config()).lastScheduledRunAt).toEqual(now());
+  });
+});
+
+describe("describeNextRun", () => {
+  const schedule = { time: "08:00", days: [1, 2, 3, 4, 5] };
+  const tz = "Europe/Madrid";
+  // 2026-10-07 is a Wednesday; 05:00Z is 07:00 in Madrid.
+  it("says when the agent works next, in words", () => {
+    expect(describeNextRun(schedule, null, new Date("2026-10-07T05:00:00Z"), tz)).toBe("hoy a las 08:00");
+    expect(describeNextRun(schedule, null, new Date("2026-10-07T07:00:00Z"), tz)).toContain("ahora");
+    const ranToday = new Date("2026-10-07T06:05:00Z");
+    expect(describeNextRun(schedule, ranToday, new Date("2026-10-07T09:00:00Z"), tz)).toBe(
+      "mañana a las 08:00",
+    );
+    // Friday after its run: Monday.
+    expect(
+      describeNextRun(schedule, new Date("2026-10-09T06:05:00Z"), new Date("2026-10-09T09:00:00Z"), tz),
+    ).toBe("el lunes a las 08:00");
   });
 });
 

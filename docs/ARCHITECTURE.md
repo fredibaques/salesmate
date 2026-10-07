@@ -207,9 +207,20 @@ prospección son plantillas (`AGENT_DEFAULTS` en `services/agents.ts`):
   del servidor, con tope de usos y coste por búsqueda en `agent_runs`); y las
   herramientas de los servidores MCP de la organización que el usuario marque.
 - **Horario** (`agent_configs.schedule`, hora y días en la zona del proyecto):
-  `GET /api/cron/agents` ejecuta los que tocan (`agents/scheduler.ts`). Cada
-  franja se reclama con un `UPDATE` condicional sobre `last_scheduled_run_at`,
-  así que dos llamadas solapadas no la ejecutan dos veces.
+  `GET /api/cron/agents` ejecuta los que tocan (`agents/scheduler.ts`), hasta
+  tres a la vez en paralelo. Cada franja se reclama con un `UPDATE`
+  condicional sobre `last_scheduled_run_at` (comparado al milisegundo:
+  Postgres guarda microsegundos y JavaScript no), así que dos llamadas
+  solapadas no la ejecutan dos veces. Cada pasada marca
+  `schedule_checked_at` en los agentes activos y guarda en `schedule_note`
+  por qué una franja no se ejecutó (sin IA, error); la ficha del agente
+  muestra la próxima ejecución y avisa si el programador no pasa.
+- **Quién llama al programador**: una Neon Function
+  (`scripts/neon-scheduler`) con disparadores programados de Neon, cada 15
+  minutos de día y cada hora de noche (UTC). Su clave se comprueba contra el
+  hash guardado en `scheduler_keys` (tabla de plataforma sin `org_id`, con
+  RLS y sin política: el rol de la app no la lee; solo `withSystem`). GitHub Actions queda de respaldo cada hora: sus
+  ejecuciones programadas se retrasan o se pierden con carga.
 
 **MCP** (`connectors/mcp.ts`). La organización añade un servidor (URL y token
 cifrado); se listan sus herramientas y se guardan en `connections.metadata`.

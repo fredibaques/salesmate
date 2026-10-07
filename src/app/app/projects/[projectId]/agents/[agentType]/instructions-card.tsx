@@ -3,6 +3,7 @@ import { Card, Chip, Field, Input, Textarea } from "@/components/ui";
 import type { agentConfigs } from "@/server/db/schema";
 import { SCHEDULED_AGENT_TYPES, type ProjectAgentType } from "@/server/services/agents";
 import { saveInstructions } from "../actions";
+import { ScheduleStatus } from "./schedule-status";
 
 const DAYS = [
   [1, "L"],
@@ -51,7 +52,10 @@ export function InstructionsCard({
         {scheduled ? (
           <>
             <div className="grid gap-4 sm:grid-cols-[auto_1fr_auto]">
-              <Field label="Hora">
+              <Field
+                label="Hora"
+                tip="Hora del proyecto. Trabaja solo a partir de esa hora, los días marcados, mientras esté activo: el programador pasa cada 15 minutos de día y cada hora de noche."
+              >
                 <Input name="time" type="time" defaultValue={schedule.time} required className="w-32" />
               </Field>
               <Field label="Días" group>
@@ -74,10 +78,7 @@ export function InstructionsCard({
                 />
               </Field>
             </div>
-            <p className="text-xs text-muted">
-              Trabaja solo, a esa hora del proyecto, mientras esté activo. Las comprobaciones automáticas se
-              hacen de lunes a viernes cada media hora entre las 8:00 y las 21:00 (hora de Madrid).
-            </p>
+            <ScheduleStatus projectId={projectId} config={config} />
           </>
         ) : null}
       </ActionForm>
