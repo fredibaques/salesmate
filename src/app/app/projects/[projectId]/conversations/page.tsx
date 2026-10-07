@@ -18,7 +18,7 @@ import {
 import { CONVERSATION_STATUS, formatDateTime } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
-import { isLlmConfigured } from "@/server/llm/client";
+import { AiNotice, currentAi } from "../../../ai-notice";
 import { getAgent } from "@/server/services/agents";
 import { listConversations, listRecentEvents } from "@/server/services/sales";
 import { processNow, simulateLead } from "./actions";
@@ -83,12 +83,12 @@ export default async function ConversationsPage({
   const { projectId } = await params;
   const tenant = await requireTenant();
   const db = getDb();
-  const [inbound, rows, events] = await Promise.all([
+  const [inbound, rows, events, llm] = await Promise.all([
     getAgent(db, tenant, projectId, "inbound"),
     listConversations(db, tenant, projectId),
     listRecentEvents(db, tenant, projectId),
+    currentAi(),
   ]);
-  const llm = isLlmConfigured();
   const agentsUrl = `/app/projects/${projectId}/agents`;
 
   return (
@@ -108,11 +108,8 @@ export default async function ConversationsPage({
             actives.
           </Notice>
         ) : null}
-        {!llm ? (
-          <Notice tone="warning">
-            Los agentes están desactivados: falta ANTHROPIC_API_KEY. Los mensajes se guardan y se procesarán
-            cuando la configures.
-          </Notice>
+        {inbound ? (
+          <AiNotice feature="El agente inbound (los mensajes se guardan y se atenderán después)" />
         ) : null}
 
         <Card>

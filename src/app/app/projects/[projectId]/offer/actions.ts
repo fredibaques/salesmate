@@ -5,7 +5,7 @@ import type { FormState } from "@/components/action-form";
 import { requireRole } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { runForm, str } from "@/server/form";
-import { getLlm } from "@/server/llm/client";
+import { requireOrgLlm } from "@/server/llm/org-ai";
 import { draftPlaybook } from "@/server/playbooks/draft";
 import { activePlaybookFor } from "@/server/playbooks/service";
 import { PLAYBOOK_TEMPLATES } from "@/server/playbooks/spec";
@@ -31,7 +31,7 @@ export async function draftOffer(projectId: string, _: FormState, form: FormData
     const current = await getSalesProfile(db, tenant, projectId);
     const process = await withTenant(db, tenant, (tx) => activePlaybookFor(tx, projectId, "inbound"));
     const motion = process?.salesMotion ?? "b2b_consultative";
-    const { spec, gaps } = await draftPlaybook({ db, llm: getLlm() }, tenant, {
+    const { spec, gaps } = await draftPlaybook({ db, llm: await requireOrgLlm(db, tenant) }, tenant, {
       projectId,
       salesMotion: motion,
       current: {

@@ -3,78 +3,66 @@ import type {
   BetaMessage,
   MessageCreateParamsNonStreaming,
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import { env } from "../env";
+import { AI_PROVIDER_INFO, findModel, snapEffort, type AiProvider } from "@/lib/ai-providers";
 
 /**
- * Thin seam over the Anthropic SDK so agents can be tested with a scripted
- * model. Production uses Claude through the beta Messages endpoint to opt
- * into server-side fallbacks: if a safety classifier declines a request, the
- * API retries it on Anthropic's recommended fallback model in the same call.
+ * Thin seam over the model providers so agents can be tested with a scripted
+ * model. Requests and responses use the shape of Anthropic's Messages API;
+ * other providers translate to and from it (responses-api.ts). Claude goes
+ * through the beta endpoint to opt into server-side fallbacks: if a safety
+ * classifier declines a request, the API retries it on Anthropic's
+ * recommended fallback model in the same call.
  */
 export type LlmRequest = Omit<MessageCreateParamsNonStreaming, "model" | "betas" | "fallbacks"> & {
   model?: string;
 };
 
 export interface LlmClient {
+  readonly provider: AiProvider;
   readonly model: string;
   create(request: LlmRequest): Promise<BetaMessage>;
 }
 
-export const DEFAULT_MODEL = "claude-opus-5-5";
-
 export class LlmNotConfiguredError extends Error {
   constructor() {
-    super("La IA no está configurada: falta ANTHROPIC_API_KEY.");
+    super("La IA no está conectada: añade la clave de tu proveedor en Configuración → IA.");
   }
 }
 
-export function anthropicLlm(options: { apiKey?: string; model?: string } = {}): LlmClient {
-  const apiKey = options.apiKey ?? env().ANTHROPIC_API_KEY;
-  if (!apiKey) throw new LlmNotConfiguredError();
-  const client = new Anthropic({ apiKey });
-  const model = options.model ?? env().ANTHROPIC_MODEL ?? DEFAULT_MODEL;
+export function anthropicLlm(options: { apiKey: string; model: string }): LlmClient {
+  const client = new Anthropic({ apiKey: options.apiKey });
   return {
-    model,
-    create: (request) =>
-      client.beta.messages.create({
+    provider: "anthropic",
+    model: options.model,
+    create: (request) => {
+      const model = request.model ?? options.model;
+      const effort = request.output_config?.effort;
+      const snapped = effort ? snapEffort(model, effort) : undefined;
+      return client.beta.messages.create({
         ...request,
-        model: request.model ?? model,
+        output_config: request.output_config ? { ...request.output_config, effort: snapped } : undefined,
+        model,
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
-      }),
+      });
+    },
   };
 }
 
-let shared: LlmClient | undefined;
-
-/** Process-wide client; throws LlmNotConfiguredError when there is no key. */
-export function getLlm(): LlmClient {
-  shared ??= anthropicLlm();
-  return shared;
-}
-
-export function isLlmConfigured(): boolean {
-  return Boolean(env().ANTHROPIC_API_KEY);
-}
-
-/** USD per million tokens (input, output, cache read). Unknown models count as zero. */
-const PRICES: Record<string, { input: number; output: number; cacheRead: number }> = {
-  "claude-opus-5-5": { input: 4, output: 20, cacheRead: 0.2 },
-  "claude-sonnet-5-5": { input: 2, output: 10, cacheRead: 0.2 },
-  "claude-haiku-4-5": { input: 1, output: 5, cacheRead: 0.1 },
-};
-
+/** USD for the tokens of a run. Unknown models count as zero. */
 export function estimateCostUsd(
   model: string,
-  usage: { input: number; output: number; cacheRead: number; cacheWrite: number },
+  usage: { input: number; output: number; cacheRead: number; cacheWrite: number; webSearches?: number },
 ): number {
-  const p = PRICES[model];
-  if (!p) return 0;
+  const found = findModel(model);
+  if (!found) return 0;
+  const p = found.price;
   return (
     (usage.input * p.input +
       usage.output * p.output +
       usage.cacheRead * p.cacheRead +
-      usage.cacheWrite * p.input * 1.25) /
-    1_000_000
+      usage.cacheWrite * p.cacheWrite) /
+      1_000_000 +
+    (usage.webSearches ?? 0) * AI_PROVIDER_INFO[found.provider].webSearchUsd
   );
 }

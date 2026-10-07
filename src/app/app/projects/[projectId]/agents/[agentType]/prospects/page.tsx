@@ -7,7 +7,7 @@ import { formatDate } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { PROSPECT_STATUSES } from "@/server/db/schema";
-import { isLlmConfigured } from "@/server/llm/client";
+import { AiNotice } from "../../../../../ai-notice";
 import { listProspects, normalizeDomain, type ProspectStatus } from "@/server/prospects/service";
 import { getAgent, listAgentRuns } from "@/server/services/agents";
 import { changeProspects, runProspectingNow } from "../../actions";
@@ -69,11 +69,8 @@ export default async function ProspectsPage({
 
   return (
     <div className="space-y-6">
-      {!isLlmConfigured() ? (
-        <Notice tone="warning">
-          La IA no está configurada todavía (falta ANTHROPIC_API_KEY): el agente no puede buscar.
-        </Notice>
-      ) : running ? (
+      <AiNotice feature="La búsqueda de prospectos" />
+      {running ? (
         <Notice>Está buscando ahora mismo. Recarga la página en unos minutos para ver lo nuevo.</Notice>
       ) : null}
 

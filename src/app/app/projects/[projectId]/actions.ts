@@ -14,7 +14,8 @@ import {
   ingestDocumentText,
   ingestTableFile,
 } from "@/server/knowledge/service";
-import { getLlm, isLlmConfigured } from "@/server/llm/client";
+import { LlmProviderError } from "@/server/llm/errors";
+import { orgLlm } from "@/server/llm/org-ai";
 import {
   addComplianceRule,
   addSuppression,
@@ -184,17 +185,20 @@ export async function askKnowledge(projectId: string, _: AskState, form: FormDat
   if (!question) return null;
   try {
     const tenant = await requireTenant();
-    if (!isLlmConfigured()) {
-      return { question, error: "La IA no está configurada todavía (falta ANTHROPIC_API_KEY)." };
+    const db = getDb();
+    const llm = await orgLlm(db, tenant);
+    if (!llm) {
+      return { question, error: "Conecta tu proveedor de IA en Configuración → IA para usar esta función." };
     }
     const result = await answerFromKnowledge(
-      { db: getDb(), llm: getLlm() },
+      { db, llm },
       { orgId: tenant.orgId, userId: tenant.userId },
       { projectId, question },
     );
     return { question, answer: result.answer, sources: result.sources };
   } catch (err) {
     console.error(err);
+    if (err instanceof LlmProviderError) return { question, error: err.message };
     return { question, error: "No he podido responder ahora mismo. Inténtalo de nuevo en un momento." };
   }
 }

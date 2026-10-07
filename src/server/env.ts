@@ -10,10 +10,6 @@ const schema = z.object({
   ENCRYPTION_KEY: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
-  /** Claude API key. Without it the agents and the copilot are disabled. */
-  ANTHROPIC_API_KEY: z.string().optional(),
-  /** Overrides the model (default claude-opus-5-5). */
-  ANTHROPIC_MODEL: z.string().optional(),
   /** Shared secret for scheduler calls (Authorization: Bearer …). */
   CRON_SECRET: z.string().optional(),
 });
@@ -55,7 +51,11 @@ export function env(): Env {
     const raw = schema.parse({
       ...process.env,
       // Treat empty strings from dashboards as "not set".
-      ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => v === "").map(([k]) => [k, undefined])),
+      ...Object.fromEntries(
+        Object.entries(process.env)
+          .filter(([, v]) => v === "")
+          .map(([k]) => [k, undefined]),
+      ),
     });
     cached = {
       ...raw,

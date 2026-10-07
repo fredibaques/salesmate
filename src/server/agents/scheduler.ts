@@ -1,6 +1,7 @@
 import { and, eq, isNotNull, isNull, lt } from "drizzle-orm";
 import { agentConfigs, agentRuns, projects, type AgentSchedule } from "../db/schema";
 import { withSystem, withTenant } from "../db/tenant";
+import type { LlmClient } from "../llm/client";
 import { runProspecting, type AgentRunDeps, type ProspectingResult } from "./prospector";
 
 const WEEKDAYS: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
@@ -62,7 +63,10 @@ export async function closeStaleRuns(db: AgentRunDeps["db"], now: Date): Promise
  * conditional update first, so two overlapping cron calls never run it twice.
  */
 export async function runDueAgents(
-  deps: AgentRunDeps,
+  deps: Omit<AgentRunDeps, "llm"> & {
+    /** The organization's model client; null skips its agents (no AI connected). */
+    llmFor: (orgId: string) => Promise<LlmClient | null>;
+  },
   options: { limit?: number } = {},
 ): Promise<{ projectId: string; result: ProspectingResult | { error: string } }[]> {
   const now = deps.now?.() ?? new Date();
@@ -82,13 +86,19 @@ export async function runDueAgents(
         ),
       ),
   );
-  const due = candidates
-    .filter(({ agent, project }) => isDue(agent.schedule!, agent.lastScheduledRunAt, now, project.timezone))
-    .slice(0, options.limit ?? 1);
+  const due = candidates.filter(({ agent, project }) =>
+    isDue(agent.schedule!, agent.lastScheduledRunAt, now, project.timezone),
+  );
 
   const report = [];
+  const clients = new Map<string, LlmClient | null>();
   for (const { agent, project } of due) {
+    if (report.length >= (options.limit ?? 1)) break;
     const tenant = { orgId: agent.orgId };
+    if (!clients.has(agent.orgId)) clients.set(agent.orgId, await deps.llmFor(agent.orgId));
+    const llm = clients.get(agent.orgId);
+    // No AI connected: the slot stays unclaimed and runs once the key is added.
+    if (!llm) continue;
     const claimed = await withTenant(deps.db, tenant, (tx) =>
       tx
         .update(agentConfigs)
@@ -105,7 +115,10 @@ export async function runDueAgents(
     );
     if (claimed.length === 0) continue;
     try {
-      const result = await runProspecting(deps, tenant, { projectId: project.id, trigger: "schedule" });
+      const result = await runProspecting({ ...deps, llm }, tenant, {
+        projectId: project.id,
+        trigger: "schedule",
+      });
       report.push({ projectId: project.id, result });
     } catch (err) {
       report.push({

@@ -19,6 +19,7 @@ export function scriptedLlm(turns: (ScriptedTurn | ((req: LlmRequest) => Scripte
   const requests: LlmRequest[] = [];
   let i = 0;
   const llm: LlmClient = {
+    provider: "anthropic",
     model: "claude-opus-5-5",
     async create(request) {
       requests.push(structuredClone(request));

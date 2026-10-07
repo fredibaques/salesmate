@@ -2,7 +2,7 @@ import { Tabs, TabLink } from "@/components/nav-link";
 import { SectionChrome } from "@/components/section-chrome";
 import { PageHeader } from "@/components/ui";
 
-/** Organization-wide settings: connected tools, exclusions and the audit log. */
+/** Organization-wide settings: connected tools, the AI account, exclusions and the audit log. */
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
@@ -10,6 +10,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
         <PageHeader className="mb-4" title="Configuración" />
         <Tabs>
           <TabLink href="/app/connections">Conexiones</TabLink>
+          <TabLink href="/app/ai">IA</TabLink>
           <TabLink href="/app/exclusions">Exclusiones</TabLink>
           <TabLink href="/app/audit">Auditoría</TabLink>
         </Tabs>

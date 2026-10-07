@@ -14,6 +14,7 @@ const ACCOUNT = { label: "Mi cuenta", href: "/app/account" };
 
 const SECTION_PAGES: Record<string, { parent: Crumb; label: string }> = {
   connections: { parent: SETTINGS, label: "Conexiones" },
+  ai: { parent: SETTINGS, label: "IA" },
   exclusions: { parent: SETTINGS, label: "Exclusiones" },
   audit: { parent: SETTINGS, label: "Auditoría" },
   copilot: { parent: COPILOT, label: "Asistente" },

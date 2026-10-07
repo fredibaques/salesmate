@@ -108,11 +108,43 @@ cifradas; si un proveedor devuelve 401/403 la conexión pasa a `error`.
 - El gateway solo acepta cifras en mensajes salientes si citan una fuente del
   conocimiento del proyecto.
 
+## IA de cada organización
+
+La plataforma no tiene clave de IA propia. Cada organización conecta la suya
+(`org_ai`: una por organización) con **Anthropic**, **OpenAI** o **Kimi** y
+elige el modelo en *Configuración → IA*. Sin ella, la IA está apagada:
+Copilot y las propuestas piden conectarla, los mensajes entrantes esperan en
+la cola y el planificador salta a sus agentes sin consumir la franja.
+
+- **Una interfaz, tres proveedores.** Los agentes hablan la forma de la API
+  Messages de Anthropic (`LlmClient.create`). Claude la usa tal cual; OpenAI y
+  Kimi pasan por la API Responses (Kimi ofrece una compatible): las
+  herramientas propias se traducen a `function`, `web_search` a su búsqueda
+  del lado del servidor (que también abre páginas; `web_fetch` no tiene
+  equivalente) y el esfuerzo se ajusta a los niveles de cada modelo. Las
+  llamadas no guardan estado (`store: false`): la salida cruda de cada turno
+  viaja en un bloque marcador y se reenvía tal cual, así el razonamiento y las
+  búsquedas siguen siendo válidos en el bucle.
+- **La clave** se comprueba gratis listando los modelos de la cuenta (y que el
+  elegido esté), se guarda cifrada (AES-256-GCM, como las conexiones) y solo se
+  muestran sus 4 últimos caracteres. La auditoría registra altas, cambios y
+  bajas sin la clave.
+- **Errores de cuenta.** Si el proveedor rechaza la clave, el saldo o el
+  modelo, `org_ai` pasa a `error` con un mensaje en español que muestran la
+  pantalla de IA y los avisos (`AiNotice`); la siguiente llamada correcta lo
+  limpia. Límites de velocidad y caídas no marcan la cuenta.
+- **Coste.** `estimateCostUsd` usa los precios públicos de cada modelo
+  (`lib/ai-providers.ts`), incluida la búsqueda web; la pantalla de IA suma el
+  mes en curso a partir de `agent_runs`.
+
 ## Agentes (fase 1)
 
 ```
 src/server/
-  llm/client.ts        Cliente de Claude (claude-opus-5-5, fallbacks del servidor) tras una interfaz inyectable
+  llm/client.ts        Interfaz inyectable (forma de la API Messages) y cliente de Claude con fallbacks del servidor
+  llm/responses-api.ts OpenAI y Kimi por la API Responses, traducidos a y desde la forma Messages
+  llm/org-ai.ts        Cuenta de IA de cada organización: clave cifrada, cliente por organización, estado
+  lib/ai-providers.ts  Proveedores, modelos, precios y niveles de razonamiento
   llm/agent-loop.ts    Bucle de herramientas append-only, validación zod, traza y coste
   agents/tools.ts      Herramientas: conocimiento, tablas, CRM, disponibilidad y propose_action
   agents/inbound.ts    Evento entrante → contacto → conversación → ejecución del agente

@@ -4,7 +4,7 @@ import { ModalButton } from "@/components/modal";
 import { Card, Chip, Field, FormSection, Input, Notice, Textarea } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
-import { isLlmConfigured } from "@/server/llm/client";
+import { currentAi } from "../../../ai-notice";
 import { getSalesProfile } from "@/server/services/agents";
 import { getProject } from "@/server/services/projects";
 import { CustomerFields, OfferFields, ProjectBasicsFields, VoiceFields } from "../../profile-fields";
@@ -30,9 +30,10 @@ export default async function ProjectSettingsPage({
   const { projectId } = await params;
   const tenant = await requireTenant();
   const db = getDb();
-  const [project, profile] = await Promise.all([
+  const [project, profile, ai] = await Promise.all([
     getProject(db, tenant, projectId),
     getSalesProfile(db, tenant, projectId),
+    currentAi(),
   ]);
   const s = project!.settings;
   const sendDays = s.sendDays ?? [1, 2, 3, 4, 5];
@@ -85,7 +86,7 @@ export default async function ProjectSettingsPage({
             title="Oferta y cliente"
             tip="Lo que todos los agentes de este proyecto necesitan saber de tu venta: qué ofreces, a quién y cómo hablarle. Lo propio de cada agente se configura en su ficha."
             actions={
-              isLlmConfigured() ? (
+              ai ? (
                 <ModalButton
                   label="Proponer con IA"
                   icon={<Sparkles />}

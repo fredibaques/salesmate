@@ -6,7 +6,7 @@ import { inboundDeps } from "@/server/agents/runtime";
 import { getDb } from "@/server/db/client";
 import { inboundEvents, projects } from "@/server/db/schema";
 import { withSystem, withTenant } from "@/server/db/tenant";
-import { isLlmConfigured } from "@/server/llm/client";
+import { orgLlm } from "@/server/llm/org-ai";
 
 /**
  * Public endpoint for a project's web forms. Accepts JSON, urlencoded or
@@ -93,9 +93,11 @@ export async function POST(request: Request, ctx: RouteContext<"/api/inbound/for
       .returning({ id: inboundEvents.id }),
   );
 
-  if (isLlmConfigured()) {
+  // Without the organization's AI the event waits in the queue.
+  const llm = await orgLlm(db, { orgId: project.orgId });
+  if (llm) {
     after(async () => {
-      await processInboundEvent(inboundDeps(), project.orgId, event.id);
+      await processInboundEvent(inboundDeps(llm), project.orgId, event.id);
     });
   }
   return respond();

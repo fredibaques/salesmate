@@ -66,7 +66,9 @@ describe("runDueAgents", () => {
     const now = () => new Date("2026-10-07T06:30:00Z");
 
     // Not enabled yet: nothing runs.
-    expect(await runDueAgents({ db, llm: scriptedLlm([]).llm, gateway: gateway(), now })).toEqual([]);
+    expect(
+      await runDueAgents({ db, llmFor: async () => scriptedLlm([]).llm, gateway: gateway(), now }),
+    ).toEqual([]);
     await setAgentEnabled(db, tenant, projectId, "outbound", true);
 
     const { llm, requests } = scriptedLlm([
@@ -104,7 +106,9 @@ describe("runDueAgents", () => {
       },
       { blocks: [{ type: "text", text: "He guardado 1 concesionario de Málaga." }] },
     ]);
-    const report = await runDueAgents({ db, llm, gateway: gateway(), now });
+    // An organization without AI connected is skipped and keeps its slot.
+    expect(await runDueAgents({ db, llmFor: async () => null, gateway: gateway(), now })).toEqual([]);
+    const report = await runDueAgents({ db, llmFor: async () => llm, gateway: gateway(), now });
     expect(report).toHaveLength(1);
     expect(report[0].result).toMatchObject({ status: "completed", added: 1 });
 
@@ -125,7 +129,9 @@ describe("runDueAgents", () => {
     ]);
 
     // Same day again: already ran.
-    expect(await runDueAgents({ db, llm: scriptedLlm([]).llm, gateway: gateway(), now })).toEqual([]);
+    expect(
+      await runDueAgents({ db, llmFor: async () => scriptedLlm([]).llm, gateway: gateway(), now }),
+    ).toEqual([]);
     const [config] = await withTenant(db, tenant, (tx) =>
       tx.select().from(agentConfigs).where(eq(agentConfigs.projectId, projectId)),
     );
