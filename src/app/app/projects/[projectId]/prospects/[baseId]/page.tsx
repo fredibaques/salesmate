@@ -1,0 +1,352 @@
+import {
+  ArrowDown,
+  ArrowUp,
+  Building2,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Search,
+  Undo2,
+  User,
+  X,
+} from "lucide-react";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ActionForm } from "@/components/action-form";
+import { DataGrid, GridCell, GridHead, GridRow } from "@/components/data-grid";
+import {
+  Badge,
+  Button,
+  buttonClass,
+  cx,
+  EmptyState,
+  Input,
+  LinkButton,
+  Notice,
+  PageHeader,
+} from "@/components/ui";
+import { PROSPECT_STATUSES } from "@/server/db/schema";
+import { requireTenant } from "@/server/auth/session";
+import { getDb } from "@/server/db/client";
+import { getBase, listBases } from "@/server/prospects/bases";
+import { listProspects, type ProspectStatus } from "@/server/prospects/service";
+import { listAgentRuns } from "@/server/services/agents";
+import { AiNotice } from "../../../../ai-notice";
+import { runProspectingNow } from "../../agents/actions";
+import { changeProspectStatus } from "../actions";
+import { CellValue, COLUMN_ICONS, ScoreBar, WebLink } from "../cells";
+
+// «Buscar ahora» keeps running after the response.
+export const maxDuration = 300;
+
+const PAGE_SIZE = 100;
+
+const STATUS: Record<ProspectStatus, { label: string; tone: "accent" | "neutral" | "warning" }> = {
+  new: { label: "Nuevo", tone: "accent" },
+  accepted: { label: "Nuevo", tone: "accent" },
+  exported: { label: "Exportado", tone: "neutral" },
+  discarded: { label: "Descartado", tone: "warning" },
+};
+
+const FILTERS: { key?: ProspectStatus; label: string }[] = [
+  { label: "Todos" },
+  { key: "new", label: "Nuevos" },
+  { key: "exported", label: "Exportados" },
+  { key: "discarded", label: "Descartados" },
+];
+
+/** A run cut off by the platform stays "running"; after 10 minutes it isn't really searching. */
+function isRecent(startedAt: Date) {
+  return Date.now() - new Date(startedAt).getTime() < 10 * 60_000;
+}
+
+export default async function ProspectBasePage({
+  params,
+  searchParams,
+}: PageProps<"/app/projects/[projectId]/prospects/[baseId]">) {
+  const { projectId, baseId } = await params;
+  const query = await searchParams;
+  const tenant = await requireTenant();
+  const db = getDb();
+  const base = await getBase(db, tenant, baseId);
+  if (!base || base.projectId !== projectId) notFound();
+
+  const status = PROSPECT_STATUSES.find((s) => s === query.status);
+  const q = typeof query.q === "string" ? query.q : "";
+  const sort = typeof query.sort === "string" ? query.sort : undefined;
+  const dir = query.dir === "asc" || query.dir === "desc" ? query.dir : undefined;
+  const page = Math.max(1, Number(query.page) || 1);
+  const [data, bases, runs] = await Promise.all([
+    listProspects(db, tenant, baseId, {
+      status,
+      q,
+      sort,
+      dir,
+      limit: PAGE_SIZE,
+      offset: (page - 1) * PAGE_SIZE,
+    }),
+    listBases(db, tenant, projectId),
+    listAgentRuns(db, tenant, projectId, "outbound", 1),
+  ]);
+  const filledByAgent = bases.find((b) => b.id === baseId)?.agents.includes("outbound") ?? false;
+  const running = filledByAgent && runs[0]?.status === "running" && isRecent(runs[0].startedAt);
+  const columns = base.columns.filter((c) => !c.hidden);
+  const person = base.rowKind === "person";
+  const path = `/app/projects/${projectId}/prospects/${baseId}`;
+  const href = (changes: Record<string, string | number | undefined>) => {
+    const params = new URLSearchParams();
+    const next = { status, q: q || undefined, sort, dir, ...changes };
+    for (const [k, v] of Object.entries(next)) {
+      if (v === undefined || v === "" || (k === "page" && Number(v) === 1)) continue;
+      params.set(k, String(v));
+    }
+    const s = params.toString();
+    return s ? `${path}?${s}` : path;
+  };
+  const sortLink = (key: string, label: React.ReactNode, align: "start" | "end" = "start") => {
+    const active = sort === key;
+    const nextDir = active && (dir ?? "asc") === "asc" ? "desc" : "asc";
+    return (
+      <Link
+        href={href({ sort: key, dir: nextDir, page: undefined })}
+        className={cx(
+          "inline-flex items-center gap-1.5 hover:text-foreground [&_svg]:size-3.5 [&_svg]:text-muted",
+          align === "end" && "flex-row-reverse",
+          active && "text-foreground",
+        )}
+      >
+        {label}
+        {active ? (dir ?? "asc") === "asc" ? <ArrowUp /> : <ArrowDown /> : null}
+      </Link>
+    );
+  };
+  const pendingExport = (data.byStatus.new ?? 0) + (data.byStatus.accepted ?? 0);
+  const pages = Math.max(1, Math.ceil(data.matching / PAGE_SIZE));
+  const exportUrl = `${path}/export`;
+
+  return (
+    <>
+      <PageHeader
+        icon={person ? <User /> : <Building2 />}
+        title={base.name}
+        tip={`Cada fila es ${person ? "una persona" : "una empresa"}. ${filledByAgent ? "La rellena el agente de prospección y la revisáis las personas del equipo." : "Ningún agente la rellena todavía."} Exportar descarga un Excel (CSV) con sus columnas y marca los nuevos como exportados.`}
+        actions={
+          <>
+            {filledByAgent ? (
+              <ActionForm
+                action={runProspectingNow.bind(null, projectId)}
+                submitLabel="Buscar ahora"
+                submitVariant="secondary"
+                className="flex flex-wrap items-center gap-3"
+              />
+            ) : null}
+            {data.total > 0 ? (
+              <a
+                href={`${exportUrl}?include=pending`}
+                className={buttonClass({ variant: pendingExport > 0 ? "primary" : "secondary" })}
+              >
+                <Download />
+                Exportar nuevos ({pendingExport})
+              </a>
+            ) : null}
+          </>
+        }
+      />
+
+      <div className="space-y-4">
+        {filledByAgent ? <AiNotice feature="La búsqueda de prospectos" /> : null}
+        {running ? (
+          <Notice>Está buscando ahora mismo. Recarga la página en unos minutos para ver lo nuevo.</Notice>
+        ) : null}
+
+        {data.total === 0 ? (
+          <EmptyState
+            icon={<Search />}
+            title="Todavía no hay filas"
+            description={
+              filledByAgent
+                ? "El agente de prospección las irá guardando aquí en cada ejecución. También puedes lanzarlo ahora con «Buscar ahora»."
+                : "Asigna esta base al agente de prospección desde su ficha para que la rellene."
+            }
+          />
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center gap-2">
+              <form action={path} className="w-full max-w-64">
+                {status ? <input type="hidden" name="status" value={status} /> : null}
+                <Input
+                  name="q"
+                  defaultValue={q}
+                  placeholder="Buscar por nombre"
+                  icon={<Search />}
+                  size="sm"
+                  aria-label="Buscar por nombre"
+                />
+              </form>
+              <nav className="flex flex-wrap gap-1" aria-label="Filtrar por estado">
+                {FILTERS.map((f) => {
+                  const n = f.key
+                    ? (data.byStatus[f.key] ?? 0) + (f.key === "new" ? (data.byStatus.accepted ?? 0) : 0)
+                    : data.total;
+                  const active = f.key === status;
+                  return (
+                    <Link
+                      key={f.label}
+                      href={href({ status: f.key, page: undefined })}
+                      aria-current={active ? "page" : undefined}
+                      className={cx(
+                        "rounded-full border px-3 py-1 text-xs transition-colors",
+                        active
+                          ? "border-border-strong bg-ink-100 font-medium text-foreground"
+                          : "border-border text-ink-700 hover:bg-ink-50",
+                      )}
+                    >
+                      {f.label} <span className="tabular-nums">{n}</span>
+                    </Link>
+                  );
+                })}
+              </nav>
+              <a href={exportUrl} className={cx(buttonClass({ variant: "ghost", size: "sm" }), "ml-auto")}>
+                Exportar todo
+              </a>
+            </div>
+
+            {data.rows.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted">Nada coincide con este filtro.</p>
+            ) : (
+              <DataGrid
+                head={
+                  <>
+                    {person ? <GridHead sticky>{sortLink("person", "Nombre")}</GridHead> : null}
+                    <GridHead sticky={!person}>{sortLink("name", "Empresa")}</GridHead>
+                    <GridHead>{sortLink("web", "Web")}</GridHead>
+                    <GridHead>{sortLink("fit", "Encaje")}</GridHead>
+                    <GridHead>{sortLink("status", "Estado")}</GridHead>
+                    {columns.map((c) => {
+                      const Icon = COLUMN_ICONS[c.type];
+                      const end = c.type === "number";
+                      return (
+                        <GridHead key={c.id} align={end ? "end" : "start"}>
+                          {sortLink(
+                            c.id,
+                            <>
+                              <Icon />
+                              {c.name}
+                            </>,
+                            end ? "end" : "start",
+                          )}
+                        </GridHead>
+                      );
+                    })}
+                    <GridHead>Fuentes</GridHead>
+                    <GridHead>
+                      <span className="sr-only">Acciones</span>
+                    </GridHead>
+                  </>
+                }
+              >
+                {data.rows.map((r) => {
+                  const name = person ? (r.personName ?? "") : r.companyName;
+                  return (
+                    <GridRow key={r.id}>
+                      {person ? <GridCell sticky>{r.personName}</GridCell> : null}
+                      <GridCell sticky={!person} className={person ? "" : undefined}>
+                        {r.companyName}
+                      </GridCell>
+                      <GridCell>{r.website ? <WebLink href={r.website} /> : null}</GridCell>
+                      <GridCell title={r.fitReason ?? undefined}>
+                        {r.fitScore != null ? <ScoreBar value={r.fitScore} /> : null}
+                      </GridCell>
+                      <GridCell>
+                        <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge>
+                      </GridCell>
+                      {columns.map((c) => (
+                        <GridCell key={c.id} align={c.type === "number" ? "end" : "start"}>
+                          <CellValue column={c} value={r.data[c.id]} />
+                        </GridCell>
+                      ))}
+                      <GridCell>
+                        <span className="inline-flex gap-2">
+                          {r.sources.map((src, i) => (
+                            <a
+                              key={src}
+                              href={src}
+                              target="_blank"
+                              rel="noreferrer"
+                              title={src}
+                              className="text-accent hover:underline"
+                            >
+                              {i + 1}
+                            </a>
+                          ))}
+                        </span>
+                      </GridCell>
+                      <GridCell>
+                        <form
+                          action={changeProspectStatus.bind(
+                            null,
+                            projectId,
+                            baseId,
+                            [r.id],
+                            r.status === "discarded" ? "new" : "discarded",
+                          )}
+                        >
+                          {r.status === "discarded" ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              iconOnly
+                              aria-label={`Recuperar ${name}`}
+                              title="Recuperar"
+                            >
+                              <Undo2 />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="dangerGhost"
+                              size="sm"
+                              iconOnly
+                              aria-label={`Descartar ${name}`}
+                              title="Descartar"
+                            >
+                              <X />
+                            </Button>
+                          )}
+                        </form>
+                      </GridCell>
+                    </GridRow>
+                  );
+                })}
+              </DataGrid>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+              <span>
+                {data.matching === data.total
+                  ? `${data.total} filas`
+                  : `${data.matching} de ${data.total} filas`}
+                {pages > 1 ? ` · página ${page} de ${pages}` : ""}
+              </span>
+              {pages > 1 ? (
+                <span className="flex gap-1">
+                  {page > 1 ? (
+                    <LinkButton href={href({ page: page - 1 })} variant="ghost" size="sm">
+                      <ChevronLeft />
+                      Anterior
+                    </LinkButton>
+                  ) : null}
+                  {page < pages ? (
+                    <LinkButton href={href({ page: page + 1 })} variant="ghost" size="sm">
+                      Siguiente
+                      <ChevronRight />
+                    </LinkButton>
+                  ) : null}
+                </span>
+              ) : null}
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+}

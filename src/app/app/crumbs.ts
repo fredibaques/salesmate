@@ -6,6 +6,7 @@ export type NameLookup = {
   project: (id: string) => Promise<string | null>;
   source: (id: string) => Promise<string | null>;
   conversation: (id: string) => Promise<string | null>;
+  base: (id: string) => Promise<string | null>;
 };
 
 const SETTINGS = { label: "Configuración", href: "/app/connections" };
@@ -22,6 +23,7 @@ const ACCOUNT_PAGES: Record<string, string> = { security: "Seguridad", organizat
 
 const PROJECT_TABS: Record<string, string> = {
   agents: "Agentes",
+  prospects: "Prospectos",
   knowledge: "Conocimiento",
   conversations: "Conversaciones",
   settings: "Ajustes",
@@ -37,8 +39,6 @@ function agentPageLabel(type: string, page: string) {
       return type === "outbound" ? "Herramientas" : "Canales y herramientas";
     case "approvals":
       return "Aprobaciones";
-    case "prospects":
-      return "Prospectos";
     default:
       return null;
   }
@@ -94,6 +94,9 @@ export async function crumbsFor(segments: string[], names: NameLookup): Promise<
     if (tab === "rules") return [project, tabCrumb, { label: "Reglas y exclusiones" }];
     if (tab === "knowledge" && sub)
       return [project, tabCrumb, { label: (await names.source(sub)) ?? "Documento" }];
+    if (tab === "prospects" && sub) {
+      return [project, tabCrumb, { label: (await names.base(sub)) ?? "Base" }];
+    }
     if (tab === "conversations" && sub) {
       return [project, tabCrumb, { label: (await names.conversation(sub)) ?? "Conversación" }];
     }

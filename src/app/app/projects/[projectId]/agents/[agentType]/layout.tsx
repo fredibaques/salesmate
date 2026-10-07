@@ -62,7 +62,6 @@ export default async function AgentLayout({
             <TabLink href={base} exact>
               Instrucciones
             </TabLink>
-            <TabLink href={`${base}/prospects`}>Prospectos</TabLink>
             <TabLink href={`${base}/channels`}>Herramientas</TabLink>
           </>
         ) : (

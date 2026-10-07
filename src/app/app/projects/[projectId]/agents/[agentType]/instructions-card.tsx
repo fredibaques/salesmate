@@ -1,5 +1,5 @@
 import { ActionForm } from "@/components/action-form";
-import { Card, Chip, Field, Input, Textarea } from "@/components/ui";
+import { Card, Chip, Field, Input, Select, Textarea } from "@/components/ui";
 import type { agentConfigs } from "@/server/db/schema";
 import { SCHEDULED_AGENT_TYPES, type ProjectAgentType } from "@/server/services/agents";
 import { saveInstructions } from "../actions";
@@ -28,10 +28,13 @@ export function InstructionsCard({
   projectId,
   agentType,
   config,
+  bases,
 }: {
   projectId: string;
   agentType: ProjectAgentType;
   config: typeof agentConfigs.$inferSelect;
+  /** The project's prospect bases, for agents that fill one. */
+  bases?: { id: string; name: string }[];
 }) {
   const scheduled = SCHEDULED_AGENT_TYPES.includes(agentType);
   const schedule = config.schedule ?? { time: "08:00", days: [1, 2, 3, 4, 5] };
@@ -41,11 +44,25 @@ export function InstructionsCard({
       tip="Lo que comparten todos los agentes (qué vendes, a quién, tono) ya lo saben por Ajustes → Oferta y cliente. Aquí va lo propio de este agente."
     >
       <ActionForm
-        key={`${config.instructions ?? ""}|${JSON.stringify(config.schedule)}|${JSON.stringify(config.settings)}`}
+        key={`${config.prospectBaseId ?? ""}|${config.instructions ?? ""}|${JSON.stringify(config.schedule)}|${JSON.stringify(config.settings)}`}
         action={saveInstructions.bind(null, projectId, agentType)}
         submitLabel="Guardar"
         className="space-y-5"
       >
+        {bases?.length ? (
+          <Field
+            label="Trabaja sobre"
+            tip="La base de prospectos del proyecto donde guarda lo que encuentra. Recoge los datos de sus columnas."
+          >
+            <Select name="baseId" defaultValue={config.prospectBaseId ?? bases[0].id} className="max-w-sm">
+              {bases.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        ) : null}
         <Field label="Qué tiene que hacer y cómo" hint={HINTS[agentType]}>
           <Textarea name="instructions" defaultValue={config.instructions ?? ""} className="min-h-48" />
         </Field>

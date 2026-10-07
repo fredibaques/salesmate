@@ -150,6 +150,9 @@ coming are visible together.
 Things that happen (conversations, approvals, audit events, rules,
 exclusions) are rows in a list or `Table`. A row that opens a detail uses
 `RowLink` (or a link with `after:absolute after:inset-0` in a table row).
+Records with many user-defined columns (prospect bases) use `DataGrid`
+(`components/data-grid.tsx`): it scrolls inside its own box, keeps the header
+and the first column in place, and each column header sorts by link.
 Remove actions on a row are a `dangerGhost` icon button with an
 `aria-label`.
 

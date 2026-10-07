@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, seedOrg } from "../../../tests/helpers/db";
 import { eq } from "drizzle-orm";
+import { ensureAgentBase } from "../prospects/bases";
 import { saveProspects } from "../prospects/service";
 import type { Db } from "../db/client";
 import { agentConfigs, auditLog, prospects } from "../db/schema";
@@ -109,8 +110,9 @@ describe("projects service", () => {
 
   it("deletes a project with everything in it, only when its name is confirmed", async () => {
     const project = await createProject(db, tenant, { name: "Para borrar" });
-    await addAgent(db, tenant, project.id, "outbound", "b2b_consultative");
-    await saveProspects(db, tenant, { projectId: project.id, items: [{ companyName: "Talleres Pérez" }] });
+    const agent = await addAgent(db, tenant, project.id, "outbound", "b2b_consultative");
+    const base = await ensureAgentBase(db, tenant, agent.id);
+    await saveProspects(db, tenant, { baseId: base.id, items: [{ companyName: "Talleres Pérez" }] });
 
     await expect(deleteProject(db, tenant, project.id, "Otro nombre")).rejects.toThrow(/nombre/);
     await deleteProject(db, tenant, project.id, "Para borrar");

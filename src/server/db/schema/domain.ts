@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
   bigint,
+  type AnyPgColumn,
   boolean,
   customType,
   doublePrecision,
@@ -17,6 +18,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { AI_PROVIDERS } from "../../../lib/ai-providers";
+import { ROW_KINDS, type BaseColumn } from "../../../lib/prospect-columns";
 import { organization } from "./auth";
 
 /**
@@ -376,6 +378,10 @@ export const agentConfigs = pgTable(
     /** Null = works only when something arrives or when asked. */
     schedule: jsonb("schedule").$type<AgentSchedule | null>(),
     settings: jsonb("settings").$type<AgentSettings>().notNull().default({}),
+    /** Prospect base the agent fills (outbound agents). */
+    prospectBaseId: uuid("prospect_base_id").references((): AnyPgColumn => prospectBases.id, {
+      onDelete: "set null",
+    }),
     /** Last scheduled run started (prevents running the same slot twice). */
     lastScheduledRunAt: timestamp("last_scheduled_run_at", { withTimezone: true }),
     /** Last time the scheduler looked at this agent (shows whether it is passing). */
@@ -768,7 +774,34 @@ export const playbookVersions = pgTable(
 // Prospects: what a prospecting agent finds, before anyone contacts them
 // ---------------------------------------------------------------------------
 
+export type CellMeta = { by: "agent" | "user"; at: string; runId?: string; userId?: string };
+
 export const PROSPECT_STATUSES = ["new", "accepted", "discarded", "exported"] as const;
+
+/**
+ * A prospect base: a table of the project, with columns the user defines,
+ * that agents fill (prospecting) and people review, complete and export.
+ * Any agent of the project can work on any of its bases.
+ */
+export const prospectBases = pgTable(
+  "prospect_bases",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: orgId(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** What each row is: decides how duplicates are found. */
+    rowKind: text("row_kind", { enum: ROW_KINDS }).notNull().default("company"),
+    /** The user's columns, in order (the system ones are not here). */
+    columns: jsonb("columns").$type<BaseColumn[]>().notNull().default([]),
+    createdBy: text("created_by"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("prospect_bases_project_idx").on(t.projectId), tenantPolicy("prospect_bases")],
+);
 
 export const prospects = pgTable(
   "prospects",
@@ -778,11 +811,16 @@ export const prospects = pgTable(
     projectId: uuid("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
+    baseId: uuid("base_id")
+      .notNull()
+      .references(() => prospectBases.id, { onDelete: "cascade" }),
     agentConfigId: uuid("agent_config_id").references(() => agentConfigs.id, { onDelete: "set null" }),
     runId: uuid("run_id"),
     /** Normalized domain, or folded name + city when there is no website. */
     dedupeKey: text("dedupe_key").notNull(),
     companyName: text("company_name").notNull(),
+    /** The person, in bases whose rows are people. */
+    personName: text("person_name"),
     website: text("website"),
     sector: text("sector"),
     city: text("city"),
@@ -801,13 +839,16 @@ export const prospects = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /** Values of the base's columns, by column id. */
     data: jsonb("data").$type<Record<string, unknown>>().notNull().default({}),
+    /** Who set each value and when, by column id. */
+    cellMeta: jsonb("cell_meta").$type<Record<string, CellMeta>>().notNull().default({}),
     status: text("status", { enum: PROSPECT_STATUSES }).notNull().default("new"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
-    unique("prospects_project_key_uq").on(t.projectId, t.dedupeKey),
+    unique("prospects_base_key_uq").on(t.baseId, t.dedupeKey),
     index("prospects_project_created_idx").on(t.projectId, t.createdAt),
     tenantPolicy("prospects"),
   ],

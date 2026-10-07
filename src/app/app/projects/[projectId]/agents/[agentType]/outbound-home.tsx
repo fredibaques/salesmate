@@ -3,7 +3,7 @@ import { Card, LinkButton, Meta } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
-import { listProspects } from "@/server/prospects/service";
+import { listBases } from "@/server/prospects/bases";
 import { getAgent, listAgentRuns } from "@/server/services/agents";
 import { InstructionsCard } from "./instructions-card";
 import { RunStatus } from "./run-status";
@@ -12,28 +12,29 @@ import { RunStatus } from "./run-status";
 export async function OutboundHome({ projectId }: { projectId: string }) {
   const tenant = await requireTenant();
   const db = getDb();
-  const [agent, runs, prospects] = await Promise.all([
+  const [agent, runs, bases] = await Promise.all([
     getAgent(db, tenant, projectId, "outbound"),
     listAgentRuns(db, tenant, projectId, "outbound", 1),
-    listProspects(db, tenant, projectId, { limit: 1 }),
+    listBases(db, tenant, projectId),
   ]);
   if (!agent) notFound();
   const last = runs[0];
+  const base = bases.find((b) => b.id === agent.config.prospectBaseId) ?? bases[0];
   return (
     <div className="grid items-start gap-6 xl:grid-cols-[2fr_1fr]">
-      <InstructionsCard projectId={projectId} agentType="outbound" config={agent.config} />
+      <InstructionsCard projectId={projectId} agentType="outbound" config={agent.config} bases={bases} />
       <Card
         title="Resultados"
         actions={
-          <LinkButton href={`/app/projects/${projectId}/agents/outbound/prospects`} variant="ghost">
-            Ver prospectos
-          </LinkButton>
+          base ? (
+            <LinkButton href={`/app/projects/${projectId}/prospects/${base.id}`} variant="ghost">
+              Abrir la base
+            </LinkButton>
+          ) : null
         }
       >
-        <p className="text-3xl font-semibold tabular-nums">{prospects.total}</p>
-        <p className="text-sm text-muted">
-          prospectos en la base, {prospects.byStatus.new ?? 0} nuevos sin exportar
-        </p>
+        <p className="text-3xl font-semibold tabular-nums">{base?.rows ?? 0}</p>
+        <p className="text-sm text-muted">filas en «{base?.name ?? "Prospectos"}»</p>
         <div className="mt-4 border-t border-border pt-4 text-sm">
           {last ? (
             <>
@@ -56,7 +57,7 @@ export async function OutboundHome({ projectId }: { projectId: string }) {
             </>
           ) : (
             <p className="text-muted">
-              Todavía no ha trabajado. Actívalo o lánzalo a mano desde «Prospectos».
+              Todavía no ha trabajado. Actívalo o lánzalo a mano desde su base con «Buscar ahora».
             </p>
           )}
         </div>

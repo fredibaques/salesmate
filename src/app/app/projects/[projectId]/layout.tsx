@@ -49,6 +49,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps<"/
           <TabLink href={base} exact also={[`${base}/agents`]}>
             Agentes
           </TabLink>
+          <TabLink href={`${base}/prospects`}>Prospectos</TabLink>
           <TabLink href={`${base}/knowledge`}>Conocimiento</TabLink>
           <TabLink href={`${base}/conversations`}>Conversaciones</TabLink>
           <TabLink href={`${base}/settings`} also={[`${base}/rules`]}>
