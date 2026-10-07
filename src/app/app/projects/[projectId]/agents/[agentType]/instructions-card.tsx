@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
-import { Card, Chip, Field, Input, Select, Textarea } from "@/components/ui";
+import { Card, Chip, Field, Input, Segmented, Select, Textarea } from "@/components/ui";
+import { DEFAULT_CELLS_PER_RUN } from "@/server/agents/prospector";
 import type { agentConfigs } from "@/server/db/schema";
 import { SCHEDULED_AGENT_TYPES, type ProjectAgentType } from "@/server/services/agents";
 import { saveInstructions } from "../actions";
@@ -15,6 +16,12 @@ const DAYS = [
   [6, "S"],
   [7, "D"],
 ] as const;
+
+const MODES = [
+  { value: "find", label: "Buscar nuevos" },
+  { value: "complete", label: "Completar vacíos" },
+  { value: "both", label: "Las dos cosas" },
+];
 
 const HINTS: Record<ProjectAgentType, string> = {
   inbound:
@@ -74,7 +81,14 @@ export function InstructionsCard({
         </Field>
         {scheduled ? (
           <>
-            <div className="grid gap-4 sm:grid-cols-[auto_1fr_auto]">
+            <Field
+              label="En cada ejecución"
+              group
+              tip="Completar rellena las celdas vacías de filas que ya están en la base, empezando por las de mejor encaje. No toca lo que ha escrito una persona."
+            >
+              <Segmented name="mode" options={MODES} defaultValue={config.settings.mode ?? "find"} />
+            </Field>
+            <div className="grid gap-4 sm:grid-cols-[auto_1fr]">
               <Field
                 label="Hora"
                 tip="Hora del proyecto. Trabaja solo a partir de esa hora, los días marcados, mientras esté activo: el programador pasa cada 15 minutos de día y cada hora de noche."
@@ -90,13 +104,31 @@ export function InstructionsCard({
                   ))}
                 </div>
               </Field>
-              <Field label="Prospectos por ejecución">
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Filas nuevas por ejecución"
+                tip="Cuántas empresas o personas nuevas busca cada vez."
+              >
                 <Input
                   name="prospectsPerRun"
                   type="number"
                   min={1}
                   max={50}
                   defaultValue={config.settings.prospectsPerRun ?? 10}
+                  className="w-32"
+                />
+              </Field>
+              <Field
+                label="Celdas a completar por ejecución"
+                tip="Tope de datos que busca para filas que ya existen. Junto con las filas nuevas, controla lo que cuesta cada ejecución."
+              >
+                <Input
+                  name="cellsPerRun"
+                  type="number"
+                  min={1}
+                  max={200}
+                  defaultValue={config.settings.cellsPerRun ?? DEFAULT_CELLS_PER_RUN}
                   className="w-32"
                 />
               </Field>

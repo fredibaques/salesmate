@@ -47,6 +47,15 @@ function missingSetup(type: ProjectAgentType, channels: { mailboxId?: string | n
  * Every agent a project can have, as cards: the added ones with their
  * on/off switch, the available ones ready to add, the rest as «próximamente».
  */
+/** What the prospecting agent does in each run, in one line. */
+function outboundSummary(settings: { prospectsPerRun?: number; mode?: string; cellsPerRun?: number }) {
+  const find = `busca ${settings.prospectsPerRun ?? 10} prospectos nuevos`;
+  const complete = `completa hasta ${settings.cellsPerRun ?? 20} datos que faltan`;
+  const mode = settings.mode ?? "find";
+  const text = mode === "complete" ? complete : mode === "both" ? `${complete} y ${find}` : find;
+  return `En cada ejecución ${text}.`;
+}
+
 export function AgentCards({ projectId, agents }: { projectId: string; agents: Agents }) {
   return (
     <CardGrid>
@@ -76,7 +85,7 @@ export function AgentCards({ projectId, agents }: { projectId: string; agents: A
               }
               description={
                 type === "outbound"
-                  ? `Busca ${agent.config.settings.prospectsPerRun ?? 10} prospectos nuevos en cada ejecución.`
+                  ? outboundSummary(agent.config.settings)
                   : steps.length > 0
                     ? `Objetivo: ${NEXT_STEP_LABELS[steps[0]].toLowerCase()}${
                         steps.length > 1

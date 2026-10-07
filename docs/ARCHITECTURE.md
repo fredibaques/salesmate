@@ -160,6 +160,7 @@ src/server/
   prospects/service.ts Filas: guardar sin duplicados, listar, filtrar, ordenar y exportar
   prospects/agent-schema.ts  Esquema de save_prospects y prompt a partir de las columnas de la base
   prospects/propose-columns.ts  Columnas propuestas por la IA para una base nueva
+  prospects/complete.ts  Celdas por completar y cómo las rellena el agente sin pisar lo escrito a mano
   agents/scheduler.ts  Agentes con horario: cuáles tocan y ejecución única por franja
   connectors/mcp.ts    Servidores MCP: alta, herramientas y llamadas
   playbooks/           Especificación, plantillas, versiones y borrador con IA (salida estructurada)
@@ -261,6 +262,21 @@ valores (no se descarta ninguno en silencio, a diferencia de lo que guarda el
 agente), las celdas que cambian quedan marcadas como escritas a mano y no se
 permite que una fila pase a duplicar otra. Al borrar una base, el agente que
 la rellenaba pasa a la primera que quede en el proyecto.
+
+**Completar vacíos** (`prospects/complete.ts`). Una celda está «por completar»
+si su columna la rellena el agente, no tiene valor y nadie la ha tocado
+(`isPendingCell`). Cada celda guarda en `cell_meta` quién la escribió, cuándo,
+la página de donde sale (`source`) o que el agente la buscó y no estaba
+publicada (`notFound`, para no volver a buscarla). Lo que escribe una persona
+queda bloqueado: el agente nunca cambia un valor existente ni una celda
+escrita a mano; vaciarla la devuelve a «por completar». El agente de
+prospección trabaja en un modo (`settings.mode`): buscar filas nuevas,
+completar vacíos o las dos cosas, con un tope de celdas por ejecución
+(`cellsPerRun`). Para completar recibe en el prompt las filas pendientes (las
+de mejor encaje primero, con referencias cortas F1, F2…) y guarda con
+`update_prospects`. «Completar vacíos» en la base y «Completar esta fila» en el
+panel lanzan una ejecución solo de completar; la de una fila vuelve a buscar
+también lo que no se encontró.
 
 **Prospección** (`agents/prospector.ts`). El agente outbound busca lo que
 encaja con el cliente ideal y lo guarda con `save_prospects` en su base. El

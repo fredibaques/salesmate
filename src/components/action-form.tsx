@@ -20,11 +20,14 @@ export function ActionForm({
   submitVariant = "primary",
   className,
   confirm,
+  cancel = true,
 }: {
   action: FormAction;
   children?: ReactNode;
   submitLabel: string;
   submitVariant?: ButtonVariant;
+  /** Inside a modal, whether to add «Cancelar» (off for a secondary form next to the main one). */
+  cancel?: boolean;
   className?: string;
   confirm?: string;
 }) {
@@ -66,12 +69,15 @@ export function ActionForm({
     >
       {children}
       <div
-        className={cx("flex flex-wrap items-center gap-3", modal && "flex-row-reverse justify-start pt-2")}
+        className={cx(
+          "flex flex-wrap items-center gap-3",
+          modal && cancel && "flex-row-reverse justify-start pt-2",
+        )}
       >
         <button type="submit" disabled={pending} className={buttonClass({ variant: submitVariant })}>
           {pending ? "Un momento…" : submitLabel}
         </button>
-        {modal ? (
+        {modal && cancel ? (
           <button type="button" onClick={modal.close} className={buttonClass({ variant: "ghost" })}>
             Cancelar
           </button>

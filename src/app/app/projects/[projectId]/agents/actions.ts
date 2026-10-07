@@ -6,12 +6,12 @@ import { redirect } from "next/navigation";
 import type { FormState } from "@/components/action-form";
 import { requireRole } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
-import { SALES_MOTIONS, type SalesMotion } from "@/server/db/schema";
+import { PROSPECTING_MODES, SALES_MOTIONS, type ProspectingMode, type SalesMotion } from "@/server/db/schema";
 import { bool, list, num, runForm, str } from "@/server/form";
 import { ACTION_DEFINITIONS } from "@/server/gateway/definitions";
 import { draftPlaybook } from "@/server/playbooks/draft";
 import { AGENT_PROCESS_FIELDS, NEXT_STEPS, type NextStep, type PlaybookSpec } from "@/server/playbooks/spec";
-import { runProspecting } from "@/server/agents/prospector";
+import { DEFAULT_CELLS_PER_RUN, runProspecting } from "@/server/agents/prospector";
 import { closeStaleRuns } from "@/server/agents/scheduler";
 import { agentRunDeps } from "@/server/agents/runtime";
 import { requireOrgLlm } from "@/server/llm/org-ai";
@@ -55,7 +55,13 @@ function instructionsFromForm(form: FormData, scheduled: boolean) {
   return {
     instructions: str(form, "instructions") ?? "",
     schedule: scheduled ? { time: str(form, "time") ?? "08:00", days: list(form, "days").map(Number) } : null,
-    settings: scheduled ? { prospectsPerRun: num(form, "prospectsPerRun") ?? 10 } : {},
+    settings: scheduled
+      ? {
+          prospectsPerRun: num(form, "prospectsPerRun") ?? 10,
+          mode: PROSPECTING_MODES.find((m) => m === str(form, "mode")) ?? "both",
+          cellsPerRun: num(form, "cellsPerRun") ?? DEFAULT_CELLS_PER_RUN,
+        }
+      : {},
   };
 }
 
@@ -300,26 +306,45 @@ export async function saveTools(
   return result;
 }
 
-/** Starts a prospecting run now; it keeps going after the response (results appear as they are saved). */
+/** Starts a run now in the background; what it finds appears as it is saved. */
+async function startRun(projectId: string, options: { mode?: ProspectingMode; rowIds?: string[] }) {
+  const tenant = await admin();
+  const db = getDb();
+  const llm = await requireOrgLlm(db, tenant);
+  await closeStaleRuns(db, new Date());
+  const [last] = await listAgentRuns(db, tenant, projectId, "outbound", 1);
+  if (last?.status === "running")
+    throw new Error("El agente ya está trabajando. Espera a que termine (unos minutos).");
+  after(async () => {
+    try {
+      await runProspecting(agentRunDeps(llm), tenant, {
+        projectId,
+        trigger: "manual",
+        triggerRef: tenant.userId,
+        ...options,
+      });
+    } catch (err) {
+      console.error("prospecting run failed", err);
+    }
+  });
+}
+
+/** «Buscar ahora»: a run in the agent's own mode. */
 export async function runProspectingNow(projectId: string, _: FormState): Promise<FormState> {
   return runForm(async () => {
-    const tenant = await admin();
-    const db = getDb();
-    const llm = await requireOrgLlm(db, tenant);
-    await closeStaleRuns(db, new Date());
-    const [last] = await listAgentRuns(db, tenant, projectId, "outbound", 1);
-    if (last?.status === "running") throw new Error("Ya está buscando. Espera a que termine (unos minutos).");
-    after(async () => {
-      try {
-        await runProspecting(agentRunDeps(llm), tenant, {
-          projectId,
-          trigger: "manual",
-          triggerRef: tenant.userId,
-        });
-      } catch (err) {
-        console.error("prospecting run failed", err);
-      }
-    });
-    return "En marcha. Los prospectos irán apareciendo aquí en unos minutos; recarga la página para verlos.";
+    await startRun(projectId, {});
+    return "En marcha. Lo que encuentre irá apareciendo en unos minutos; recarga la página para verlo.";
+  });
+}
+
+/** «Completar vacíos» (or one row's «Completar esta fila»): fills empty cells, without looking for new rows. */
+export async function completeProspectsNow(
+  projectId: string,
+  rowIds: string[] | null,
+  _: FormState,
+): Promise<FormState> {
+  return runForm(async () => {
+    await startRun(projectId, { mode: "complete", rowIds: rowIds ?? undefined });
+    return "En marcha. Los datos irán apareciendo en unos minutos; recarga la página para verlos.";
   });
 }

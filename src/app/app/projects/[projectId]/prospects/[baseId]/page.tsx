@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Lock,
   Plus,
   Search,
   Undo2,
@@ -27,16 +28,18 @@ import {
   PageHeader,
 } from "@/components/ui";
 import { plural } from "@/lib/format";
+import { isPendingCell } from "@/lib/prospect-columns";
 import { PROSPECT_STATUSES } from "@/server/db/schema";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getBase, listBases } from "@/server/prospects/bases";
+import { countPendingCells } from "@/server/prospects/complete";
 import { getProspect, listProspects, type ProspectStatus } from "@/server/prospects/service";
 import { listAgentRuns } from "@/server/services/agents";
 import { AiNotice } from "../../../../ai-notice";
-import { runProspectingNow } from "../../agents/actions";
+import { completeProspectsNow, runProspectingNow } from "../../agents/actions";
 import { changeProspectStatus } from "../actions";
-import { CellValue, COLUMN_ICONS, ScoreBar, WebLink } from "../cells";
+import { CellState, cellTitle, COLUMN_ICONS, NotFound, Pending, ScoreBar, WebLink } from "../cells";
 import { AddColumnButton, BaseSettings, ColumnsEditor, EditColumnButton } from "./columns-editor";
 import { RowPanel } from "./row-panel";
 
@@ -82,7 +85,7 @@ export default async function ProspectBasePage({
   const page = Math.max(1, Number(query.page) || 1);
   const rowParam = typeof query.row === "string" ? query.row : undefined;
   const canEdit = tenant.role !== "member";
-  const [data, bases, runs, openRow] = await Promise.all([
+  const [data, bases, runs, openRow, pendingCells] = await Promise.all([
     listProspects(db, tenant, baseId, {
       status,
       q,
@@ -94,6 +97,7 @@ export default async function ProspectBasePage({
     listBases(db, tenant, projectId),
     listAgentRuns(db, tenant, projectId, "outbound", 1),
     rowParam && rowParam !== "new" ? getProspect(db, tenant, baseId, rowParam).catch(() => null) : null,
+    countPendingCells(db, tenant, baseId),
   ]);
   const agents = bases.find((b) => b.id === baseId)?.agents ?? [];
   const filledByAgent = agents.includes("outbound");
@@ -151,7 +155,15 @@ export default async function ProspectBasePage({
         tip={`Cada fila es ${person ? "una persona" : "una empresa"}. ${filledByAgent ? "La rellena el agente de prospección y la revisáis las personas del equipo." : "Ningún agente la rellena todavía."} Exportar descarga un Excel (CSV) con sus columnas y marca los nuevos como exportados.`}
         actions={
           <>
-            {filledByAgent ? (
+            {filledByAgent && canEdit && pendingCells > 0 ? (
+              <ActionForm
+                action={completeProspectsNow.bind(null, projectId, null)}
+                submitLabel={`Completar vacíos (${pendingCells})`}
+                submitVariant="secondary"
+                className="flex flex-wrap items-center gap-3"
+              />
+            ) : null}
+            {filledByAgent && canEdit ? (
               <ActionForm
                 action={runProspectingNow.bind(null, projectId)}
                 submitLabel="Buscar ahora"
@@ -315,8 +327,21 @@ export default async function ProspectBasePage({
                         <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge>
                       </GridCell>
                       {columns.map((c) => (
-                        <GridCell key={c.id} align={c.type === "number" ? "end" : "start"}>
-                          <CellValue column={c} value={r.data[c.id]} />
+                        <GridCell
+                          key={c.id}
+                          align={c.type === "number" ? "end" : "start"}
+                          title={cellTitle(r.cellMeta[c.id])}
+                        >
+                          <CellState
+                            column={c}
+                            value={r.data[c.id]}
+                            meta={r.cellMeta[c.id]}
+                            pending={
+                              filledByAgent &&
+                              r.status !== "discarded" &&
+                              isPendingCell(c, r.data[c.id], r.cellMeta[c.id])
+                            }
+                          />
                         </GridCell>
                       ))}
                       <GridCell>
@@ -380,7 +405,19 @@ export default async function ProspectBasePage({
                   ? plural(data.total, "fila", "filas")
                   : `${data.matching} de ${plural(data.total, "fila", "filas")}`}
                 {pages > 1 ? ` · página ${page} de ${pages}` : ""}
+                {filledByAgent && pendingCells > 0
+                  ? ` · ${plural(pendingCells, "celda", "celdas")} por completar en toda la base`
+                  : ""}
               </span>
+              {filledByAgent ? (
+                <span className="flex flex-wrap items-center gap-3">
+                  <Pending />
+                  <NotFound />
+                  <span className="inline-flex items-center gap-1">
+                    escrito a mano <Lock className="size-3 text-ink-400" aria-hidden />
+                  </span>
+                </span>
+              ) : null}
               {pages > 1 ? (
                 <span className="flex gap-1">
                   {page > 1 ? (
@@ -409,6 +446,8 @@ export default async function ProspectBasePage({
           base={base}
           row={openRow}
           closeHref={href({ row: undefined })}
+          agentFills={filledByAgent}
+          canRun={canEdit}
         />
       ) : null}
     </>
