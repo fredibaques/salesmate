@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { audit } from "../audit";
+import { ensureAgentBaseIn } from "../prospects/bases";
 import { mcpToolsOf } from "../connectors/mcp";
 import { connectionCapabilities } from "../connectors/service";
 import type { Db } from "../db/client";
@@ -197,6 +198,8 @@ export async function addAgent(
         createdBy: tenant.actorId,
       });
     }
+    // A prospecting agent fills a base of the project from the start.
+    if (agentType === "outbound") await ensureAgentBaseIn(tx, tenant, config.id);
     await audit(tx, tenant, {
       event: "agent.added",
       projectId,

@@ -15,7 +15,7 @@ import { runProspecting } from "@/server/agents/prospector";
 import { closeStaleRuns } from "@/server/agents/scheduler";
 import { agentRunDeps } from "@/server/agents/runtime";
 import { requireOrgLlm } from "@/server/llm/org-ai";
-import { setProspectStatus } from "@/server/prospects/service";
+import { setAgentBase } from "@/server/prospects/bases";
 import {
   addAgent,
   getAgent,
@@ -272,7 +272,15 @@ export async function saveInstructions(
     const tenant = await admin();
     const kind = agentType(type);
     const scheduled = SCHEDULED_AGENT_TYPES.includes(kind);
-    await saveAgentInstructions(getDb(), tenant, projectId, kind, instructionsFromForm(form, scheduled));
+    const db = getDb();
+    await saveAgentInstructions(db, tenant, projectId, kind, instructionsFromForm(form, scheduled));
+    const baseId = str(form, "baseId");
+    if (kind === "outbound" && baseId) {
+      const agent = await getAgent(db, tenant, projectId, kind);
+      if (agent && agent.config.prospectBaseId !== baseId) {
+        await setAgentBase(db, tenant, projectId, agent.config.id, baseId);
+      }
+    }
   }, "Instrucciones guardadas.");
   refresh(projectId);
   return result;
@@ -314,10 +322,4 @@ export async function runProspectingNow(projectId: string, _: FormState): Promis
     });
     return "En marcha. Los prospectos irán apareciendo aquí en unos minutos; recarga la página para verlos.";
   });
-}
-
-export async function changeProspects(projectId: string, ids: string[], status: "new" | "discarded") {
-  const tenant = await admin();
-  await setProspectStatus(getDb(), tenant, projectId, ids, status);
-  refresh(projectId);
 }

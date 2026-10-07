@@ -155,7 +155,10 @@ src/server/
   agents/leads.ts      Normalización de formularios y emails (alias en español e inglés)
   agents/gmail-poller.ts  Lectura de buzones con permiso de lectura → inbound_events
   agents/copilot.ts    Chat sobre un proyecto, con las mismas herramientas
-  agents/prospector.ts Ejecución de prospección (web + MCP → prospects)
+  agents/prospector.ts Ejecución de prospección (web + MCP → filas de una base de prospectos)
+  prospects/bases.ts   Bases de prospectos del proyecto y la base que rellena cada agente
+  prospects/service.ts Filas: guardar sin duplicados, listar, filtrar, ordenar y exportar
+  prospects/agent-schema.ts  Esquema de save_prospects y prompt a partir de las columnas de la base
   agents/scheduler.ts  Agentes con horario: cuáles tocan y ejecución única por franja
   connectors/mcp.ts    Servidores MCP: alta, herramientas y llamadas
   playbooks/           Especificación, plantillas, versiones y borrador con IA (salida estructurada)
@@ -230,12 +233,29 @@ agente directamente; el resto se proponen al gateway como `mcp.call_tool`
 auditoría se aplican igual que a un email. La plataforma hace de cliente MCP a
 propósito: con el conector MCP de la API las llamadas no pasarían por el gateway.
 
-**Prospección** (`agents/prospector.ts`, `prospects/service.ts`). El agente
-outbound busca empresas que encajan con el cliente ideal y las guarda con
-`save_prospects` en `prospects`, sin duplicados por proyecto (dominio de la
-web, o nombre y ciudad). Cada prospecto guarda las URLs de donde salen sus
-datos. No contacta con nadie. Se revisan, descartan y exportan a CSV desde la
-pestaña «Prospectos» del agente.
+**Bases de prospectos** (`prospects/`, `lib/prospect-columns.ts`). Una base
+es una tabla del proyecto (`prospect_bases`), no del agente: el usuario define
+sus columnas (`columns`, JSONB con id, nombre, tipo, opciones, instrucciones y
+quién la rellena: agente, persona o ambos) y si cada fila es una empresa o una
+persona (`row_kind`). Cualquier agente del proyecto puede trabajar sobre
+cualquier base; el agente de prospección rellena la de
+`agent_configs.prospect_base_id` (si no tiene, la primera del proyecto, o una
+«Prospectos» nueva con columnas por defecto). Cada fila (`prospects`) guarda
+los campos fijos (empresa, persona, web, encaje, fuentes, estado) y los valores
+de las columnas en `data` por id de columna, con quién y cuándo escribió cada
+celda en `cell_meta`. No hay duplicados por base (`base_id, dedupe_key`:
+dominio de la web, o nombre y ciudad; en bases de personas, persona y empresa).
+Se ven en la pestaña «Prospectos» del proyecto: tabla con filtros, orden por
+cualquier columna, búsqueda y exportación a CSV con las columnas de la base.
+
+**Prospección** (`agents/prospector.ts`). El agente outbound busca lo que
+encaja con el cliente ideal y lo guarda con `save_prospects` en su base. El
+esquema JSON de la herramienta y una sección del prompt se generan a partir de
+las columnas (tipos, opciones e instrucciones; las columnas que rellenan las
+personas no se le muestran). Los valores se validan por campo con
+`checkCell`: uno que no encaja con su columna se descarta y se le devuelve en
+`fieldErrors`, sin perder la fila. Cada fila guarda las URLs de donde salen sus
+datos. No contacta con nadie.
 
 Guarda por tandas para no perder lo encontrado si se acaba el tiempo
 (~170 s por ejecución): la búsqueda web se limita a 3 búsquedas y 6

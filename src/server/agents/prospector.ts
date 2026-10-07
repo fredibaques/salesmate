@@ -10,6 +10,8 @@ import type { GatewayDeps } from "../gateway/gateway";
 import { defineTool, runAgentLoop, type AgentLoopResult } from "../llm/agent-loop";
 import type { LlmClient } from "../llm/client";
 import { parseSalesProfile, renderSalesProfile } from "../playbooks/spec";
+import { columnsPrompt, saveRowsSchema } from "../prospects/agent-schema";
+import { ensureAgentBase } from "../prospects/bases";
 import { knownProspects, prospectInput, recentProspectNames, saveProspects } from "../prospects/service";
 import { knowledgeTools, mcpTools, webTools, type AgentToolContext } from "./tools";
 
@@ -84,7 +86,7 @@ export type ProspectingResult = {
 /**
  * One prospecting run: looks for companies that match the project's ideal
  * customer, following the agent's instructions, and adds the new ones to
- * the project's prospects. Nothing is sent to anyone.
+ * the base it works on, with the values of its columns. Nothing is sent to anyone.
  */
 export async function runProspecting(
   deps: AgentRunDeps,
@@ -132,8 +134,10 @@ export async function runProspecting(
   });
 
   const target = agent.settings.prospectsPerRun ?? 10;
-  const known = await recentProspectNames(deps.db, tenant, project.id);
   const actor = { orgId: tenant.orgId, actorType: "agent" as const, actorId: run.id };
+  // Where the findings go: the base the agent works on, with its columns.
+  const base = await ensureAgentBase(deps.db, actor, agent.id);
+  const known = await recentProspectNames(deps.db, tenant, base.id);
   let added = 0;
 
   const ctx: AgentToolContext = {
@@ -151,6 +155,7 @@ export async function runProspecting(
 
   const candidate = z.object({
     companyName: z.string(),
+    personName: z.string().optional(),
     website: z.string().optional(),
     city: z.string().optional(),
   });
@@ -159,34 +164,39 @@ export async function runProspecting(
     defineTool({
       name: "check_prospects",
       description:
-        "Comprueba cuáles de estas empresas ya están en la base de prospectos del proyecto (por web, o por nombre y ciudad). Úsalo antes de investigar a fondo una empresa.",
+        "Comprueba cuáles de estas empresas (o personas) ya están en la base (por web, o por nombre y ciudad). Úsalo antes de investigar a fondo.",
       input: z.object({ companies: z.array(candidate).min(1).max(50) }),
       run: async ({ companies }) => ({
-        alreadyKnown: await knownProspects(deps.db, tenant, project.id, companies),
+        alreadyKnown: await knownProspects(deps.db, tenant, base.id, companies),
       }),
     }),
-    defineTool({
-      name: "save_prospects",
-      description:
-        "Guarda empresas que encajan con el cliente ideal en la base de prospectos del proyecto. Incluye en sources las URLs públicas de donde sale cada dato. Las repetidas se ignoran.",
-      input: z.object({ prospects: z.array(prospectInput).min(1).max(25) }),
-      run: async ({ prospects }) => {
-        const result = await saveProspects(deps.db, actor, {
-          projectId: project.id,
-          agentConfigId: agent.id,
-          runId: run.id,
-          items: prospects,
-        });
-        added += result.added.length;
-        return {
-          saved: result.added.map((p) => p.companyName),
-          alreadyKnown: result.duplicates,
-          invalid: result.invalid,
-          savedThisRun: added,
-          target,
-        };
-      },
-    }),
+    {
+      ...defineTool({
+        name: "save_prospects",
+        description: `Guarda filas en la base «${base.name}»: lo que encaja con el cliente ideal, con los valores de sus columnas en fields. Incluye en sources las URLs públicas de donde sale cada dato. Las repetidas se ignoran.`,
+        input: z.object({ prospects: z.array(prospectInput).min(1).max(25) }),
+        run: async ({ prospects }) => {
+          const result = await saveProspects(deps.db, actor, {
+            baseId: base.id,
+            agentConfigId: agent.id,
+            runId: run.id,
+            items: prospects,
+          });
+          added += result.added.length;
+          return {
+            saved: result.added.map((p) => p.personName ?? p.companyName),
+            alreadyKnown: result.duplicates,
+            invalid: result.invalid,
+            // Values left out because they didn't fit their column: fix them in the next batch.
+            fieldErrors: result.fieldErrors.slice(0, 20),
+            savedThisRun: added,
+            target,
+          };
+        },
+      }),
+      // The model sees the base's own columns, with their types and instructions.
+      jsonSchema: saveRowsSchema(base.rowKind, base.columns),
+    },
     ...(await mcpTools(ctx, agent.tools.mcp ?? [])),
   ];
 
@@ -200,10 +210,11 @@ export async function runProspecting(
 - ${!agent.tools.web ? "No tienes búsqueda web: usa solo las herramientas conectadas." : "Busca en la web y lee las páginas que encuentres (web_search, y web_fetch si lo tienes). Usa fuentes públicas: webs de empresas, directorios, asociaciones del sector, registros y noticias. No uses LinkedIn como fuente."}
 - Antes de investigar a fondo, comprueba con check_prospects que no los tenemos ya.
 - Trabaja por tandas de 2 o 3 empresas: encuéntralas, confirma sus datos y guárdalas con save_prospects antes de buscar las siguientes. Lo que no hayas guardado se pierde si se acaba el tiempo de la ejecución.
-- Guarda con los datos que hayas podido confirmar y las URLs de donde salen. No inventes datos: si no encuentras un teléfono o un email públicos, déjalos vacíos.
+- Guarda con los datos que hayas podido confirmar y las URLs de donde salen. No inventes datos: si no encuentras un dato público, deja su columna vacía.
 - Puntúa el encaje (fitScore 0-100) y explica en una frase por qué encaja (fitReason).
 - Datos de contacto: solo los que la propia empresa publica para ser contactada (email y teléfono generales o de ventas). No recojas datos personales privados.
 - Cuando llegues al objetivo o no encuentres más, termina con un resumen breve: cuántos has guardado, de qué tipo y qué fuentes han funcionado mejor.`,
+    columnsPrompt(base),
     known.length
       ? `## Ya están en la base (no los repitas)\n${known.join("\n")}`
       : "## Ya están en la base\n(Todavía ninguno.)",

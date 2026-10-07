@@ -6,6 +6,7 @@ import type { Db } from "../db/client";
 import { agentConfigs, agentRuns, projects } from "../db/schema";
 import { withSystem, withTenant, type TenantContext } from "../db/tenant";
 import type { GatewayDeps } from "../gateway/gateway";
+import { listBases } from "../prospects/bases";
 import { listProspects } from "../prospects/service";
 import { addAgent, saveAgentInstructions, setAgentEnabled } from "../services/agents";
 import { prospectingSteer, runProspecting } from "./prospector";
@@ -132,7 +133,8 @@ describe("runDueAgents", () => {
       expect.arrayContaining(["save_prospects", "check_prospects", "web_search", "web_fetch"]),
     );
 
-    const { rows } = await listProspects(db, tenant, projectId);
+    const [base] = await listBases(db, tenant, projectId);
+    const { rows } = await listProspects(db, tenant, base.id);
     expect(rows.map((r) => [r.companyName, r.fitScore])).toEqual([["Autos García", 85]]);
     const runs = await withTenant(db, tenant, (tx) =>
       tx.select().from(agentRuns).where(eq(agentRuns.projectId, projectId)),
