@@ -1,34 +1,8 @@
 import { ExternalLink } from "lucide-react";
-import {
-  AlignLeft,
-  Calendar,
-  CircleChevronDown,
-  Gauge,
-  Hash,
-  Link2,
-  ListChecks,
-  Mail,
-  Smartphone,
-  SquareCheck,
-  Type,
-  type LucideIcon,
-} from "lucide-react";
-import { formatCell, type BaseColumn, type ColumnType } from "@/lib/prospect-columns";
+import { formatCell, type BaseColumn } from "@/lib/prospect-columns";
 import { normalizeDomain } from "@/server/prospects/service";
 
-export const COLUMN_ICONS: Record<ColumnType, LucideIcon> = {
-  text: Type,
-  long: AlignLeft,
-  number: Hash,
-  date: Calendar,
-  bool: SquareCheck,
-  select: CircleChevronDown,
-  multi: ListChecks,
-  url: Link2,
-  email: Mail,
-  phone: Smartphone,
-  score: Gauge,
-};
+export { COLUMN_ICONS } from "./column-icons";
 
 export function WebLink({ href }: { href: string }) {
   const url = href.startsWith("http") ? href : `https://${href}`;

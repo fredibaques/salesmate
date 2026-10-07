@@ -26,11 +26,14 @@ export function Wizard({
   action,
   submitLabel,
   cancelHref,
+  onStepChange,
 }: {
   steps: WizardStep[];
   action: FormAction;
   submitLabel: string;
   cancelHref: string;
+  /** Called when a step opens, e.g. to prepare its content from earlier answers. */
+  onStepChange?: (index: number) => void;
 }) {
   const form = useRef<HTMLFormElement>(null);
   const panels = useRef<(HTMLDivElement | null)[]>([]);
@@ -44,6 +47,7 @@ export function Wizard({
     if (form.current) setValues(new FormData(form.current));
     setCurrent(index);
     setReached((r) => Math.max(r, index));
+    onStepChange?.(index);
     form.current?.scrollIntoView({ block: "start", behavior: "smooth" });
   }
 

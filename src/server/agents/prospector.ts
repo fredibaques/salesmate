@@ -201,7 +201,7 @@ export async function runProspecting(
   ];
 
   const system = [
-    `Eres el agente de prospección del proyecto «${project.name}». Buscas empresas que podrían ser clientes y las guardas en su base de prospectos. No contactas con nadie.`,
+    `Eres el agente de prospección del proyecto «${project.name}». Buscas ${base.rowKind === "person" ? "personas de empresas que podrían ser clientes (quienes deciden o influyen en la compra)" : "empresas que podrían ser clientes"} y las guardas en su base de prospectos. No contactas con nadie.`,
     `## El proyecto\n${project.description ?? "(sin descripción)"}\nWeb: ${project.website ?? "—"}`,
     `## Oferta y cliente ideal\n${renderSalesProfile(parseSalesProfile(project.salesProfile))}`,
     agent.instructions ? `## Instrucciones de la persona responsable\n${agent.instructions}` : "",

@@ -37,7 +37,7 @@ export function GridHead({
     <th
       scope="col"
       className={cx(
-        "sticky top-0 h-9 border-r border-b border-border bg-ink-50 px-3 text-left font-medium whitespace-nowrap text-ink-700",
+        "group/head sticky top-0 h-9 border-r border-b border-border bg-ink-50 px-3 text-left font-medium whitespace-nowrap text-ink-700",
         sticky ? "left-0 z-30 shadow-[1px_0_0_var(--color-border)]" : "z-20",
         align === "end" && "text-right",
         className,

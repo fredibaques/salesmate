@@ -159,6 +159,7 @@ src/server/
   prospects/bases.ts   Bases de prospectos del proyecto y la base que rellena cada agente
   prospects/service.ts Filas: guardar sin duplicados, listar, filtrar, ordenar y exportar
   prospects/agent-schema.ts  Esquema de save_prospects y prompt a partir de las columnas de la base
+  prospects/propose-columns.ts  Columnas propuestas por la IA para una base nueva
   agents/scheduler.ts  Agentes con horario: cuáles tocan y ejecución única por franja
   connectors/mcp.ts    Servidores MCP: alta, herramientas y llamadas
   playbooks/           Especificación, plantillas, versiones y borrador con IA (salida estructurada)
@@ -247,6 +248,19 @@ celda en `cell_meta`. No hay duplicados por base (`base_id, dedupe_key`:
 dominio de la web, o nombre y ciudad; en bases de personas, persona y empresa).
 Se ven en la pestaña «Prospectos» del proyecto: tabla con filtros, orden por
 cualquier columna, búsqueda y exportación a CSV con las columnas de la base.
+
+Las crean los propietarios y administradores con un asistente: qué es cada
+fila, columnas propuestas por la IA a partir de la oferta y el cliente ideal
+del proyecto (`prospects/propose-columns.ts`, salida estructurada; sin IA,
+las de siempre) y revisión. También cambian las columnas (`saveColumn`,
+`moveColumn`, `setColumnHidden`, `removeColumn`): el id de una columna sale de
+su nombre la primera vez y no cambia, y al cambiar su tipo u opciones los
+valores que ya no encajan se borran. Cualquier miembro edita y añade filas en
+un panel lateral (`updateProspectRow`, `addProspectRow`): se validan todos los
+valores (no se descarta ninguno en silencio, a diferencia de lo que guarda el
+agente), las celdas que cambian quedan marcadas como escritas a mano y no se
+permite que una fila pase a duplicar otra. Al borrar una base, el agente que
+la rellenaba pasa a la primera que quede en el proyecto.
 
 **Prospección** (`agents/prospector.ts`). El agente outbound busca lo que
 encaja con el cliente ideal y lo guarda con `save_prospects` en su base. El

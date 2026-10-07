@@ -130,3 +130,8 @@ export function describeEvent(event: string): string {
   }
   return event;
 }
+
+/** «1 fila», «3 filas»: a count with its noun in singular or plural. */
+export function plural(n: number, one: string, many: string): string {
+  return `${n.toLocaleString("es-ES")} ${n === 1 ? one : many}`;
+}

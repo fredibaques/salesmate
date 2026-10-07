@@ -95,6 +95,7 @@ export async function crumbsFor(segments: string[], names: NameLookup): Promise<
     if (tab === "knowledge" && sub)
       return [project, tabCrumb, { label: (await names.source(sub)) ?? "Documento" }];
     if (tab === "prospects" && sub) {
+      if (sub === "new") return [project, tabCrumb, { label: "Nueva base" }];
       return [project, tabCrumb, { label: (await names.base(sub)) ?? "Base" }];
     }
     if (tab === "conversations" && sub) {

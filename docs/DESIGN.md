@@ -187,6 +187,10 @@ Remove actions on a row are a `dangerGhost` icon button with an
   console (numbered steps with a button to each console page, and what
   usually goes wrong), then paste it. The guide lives where it is needed,
   not in a separate help page.
+- A record in a long table (a row of a prospect base) opens in a `Drawer`:
+  a side panel over the table, in the URL (`?row=<id>`, `?row=new` to add
+  one), with the record's form; saving closes it like a modal. The table
+  stays behind, with its filters and page.
 - Editing an entity's settings happens on its page, in sections, with one
   «Guardar» per form.
 - Removing asks first (`ConfirmForm`) and lives in the entity's header
