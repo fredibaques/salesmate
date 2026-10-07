@@ -79,12 +79,15 @@ Las migraciones nuevas se aplican con `pnpm db:migrate`.
   repositorio). Así la base de datos puede apagarse el resto del tiempo y el
   consumo cabe en el plan gratuito de Neon.
 
-### IA (Claude)
+### IA (cuenta de cada organización)
 
-Pon `ANTHROPIC_API_KEY` en `.env.local`. Los agentes usan `claude-opus-5-5`
-(se puede cambiar con `ANTHROPIC_MODEL`) con *fallback* automático del lado del
-servidor si un clasificador de seguridad rechaza una petición. Sin clave, los
-mensajes entrantes se guardan y se procesan cuando la configures.
+La plataforma no lleva una clave de IA propia: cada organización conecta la
+suya en *Configuración → IA* (Anthropic, OpenAI o Kimi) y elige el modelo. La
+clave se comprueba con el proveedor sin gastar (listando sus modelos) y se
+guarda cifrada con `ENCRYPTION_KEY`. Sin clave, la IA está apagada: los
+mensajes entrantes se guardan y se procesan cuando la conectes, y los agentes
+con horario esperan. Con Claude se usa el *fallback* automático del lado del
+servidor si un clasificador de seguridad rechaza una petición.
 
 ### Agente inbound
 

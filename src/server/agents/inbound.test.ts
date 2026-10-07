@@ -17,6 +17,7 @@ import {
 } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
 import { decideAction, type GatewayDeps } from "../gateway/gateway";
+import type { LlmClient } from "../llm/client";
 import { ingestTableFile } from "../knowledge/service";
 import { addAgent, saveAgentChannels, setAgentEnabled } from "../services/agents";
 import { recordActionInConversation } from "./conversations";
@@ -271,7 +272,8 @@ describe("inbound agent", () => {
 
   it("records failures and lets the event be retried", async () => {
     const eventId = await formEvent({ email: "fallo@cliente.com", mensaje: "Hola" });
-    const failing = {
+    const failing: LlmClient = {
+      provider: "anthropic",
       model: "claude-opus-5-5",
       create: async () => {
         throw new Error("API caída");

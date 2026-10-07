@@ -2,12 +2,12 @@ import { Sparkles } from "lucide-react";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
-import { Card, Choice, Field, FormSection, Input, Select, Textarea } from "@/components/ui";
+import { Card, Choice, Field, FormSection, Input, LinkButton, Select, Textarea } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { SALES_MOTIONS } from "@/server/db/schema";
-import { isLlmConfigured } from "@/server/llm/client";
+import { AI_CONNECT_HREF, currentAi } from "../../../../ai-notice";
 import {
   CALENDAR_STEPS,
   NEXT_STEP_DESCRIPTIONS,
@@ -32,11 +32,12 @@ export default async function AgentHomePage({
   if (agentType === "outbound") return <OutboundHome projectId={projectId} />;
   const tenant = await requireTenant();
   const db = getDb();
-  const [agent, meetingTypes, options, project] = await Promise.all([
+  const [agent, meetingTypes, options, project, ai] = await Promise.all([
     getAgent(db, tenant, projectId, agentType),
     listMeetingTypes(db, tenant, projectId),
     listChannelOptions(db, tenant),
     getProject(db, tenant, projectId),
+    currentAi(),
   ]);
   if (!agent?.process) notFound();
   const { process } = agent;
@@ -201,7 +202,7 @@ export default async function AgentHomePage({
           title="Proponer con IA"
           tip="Lee la oferta y el conocimiento del proyecto y propone el proceso. Se guarda como una versión nueva para que la revises."
         >
-          {isLlmConfigured() ? (
+          {ai ? (
             <ModalButton
               label="Generar propuesta"
               icon={<Sparkles className="size-4" />}
@@ -222,7 +223,9 @@ export default async function AgentHomePage({
               </ActionForm>
             </ModalButton>
           ) : (
-            <p className="text-sm text-muted">Configura ANTHROPIC_API_KEY para usar la IA.</p>
+            <LinkButton href={AI_CONNECT_HREF} size="sm">
+              Conectar IA
+            </LinkButton>
           )}
         </Card>
 

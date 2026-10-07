@@ -170,11 +170,18 @@ Remove actions on a row are a `dangerGhost` icon button with an
 
 - Creating opens a modal from a button (`ModalButton` + `ActionForm`): the
   modal closes and a toast confirms on success; errors stay next to the
-  button. Modals have a title and no description.
+  button and keep what was typed (forms and wizards are submitted by hand,
+  so React doesn't reset them when the server says no). Modals have a title
+  and no description.
 - Creating something that needs a first configuration (an agent) is a
   `Wizard`: one step per decision, each checked before moving on, a
   «Revisar» step that summarises the choices, and one server action at the
   end. Afterwards it is edited on its own page.
+- Connecting something from outside (an AI account) is a `Wizard` that
+  doubles as the guide: choose, how to get the credential in the provider's
+  console (numbered steps with a button to each console page, and what
+  usually goes wrong), then paste it. The guide lives where it is needed,
+  not in a separate help page.
 - Editing an entity's settings happens on its page, in sections, with one
   «Guardar» per form.
 - Removing asks first (`ConfirmForm`) and lives in the entity's header

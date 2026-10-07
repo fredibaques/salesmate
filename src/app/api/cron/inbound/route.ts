@@ -7,7 +7,7 @@ import { getDb } from "@/server/db/client";
 import { connections, inboundEvents } from "@/server/db/schema";
 import { withSystem } from "@/server/db/tenant";
 import { env } from "@/server/env";
-import { isLlmConfigured } from "@/server/llm/client";
+import { orgLlm } from "@/server/llm/org-ai";
 
 export const maxDuration = 300;
 
@@ -36,11 +36,12 @@ export async function GET(request: Request) {
   const report: Record<string, unknown> = {};
   for (const orgId of orgs) {
     const polled = await pollMailboxes({ db }, orgId);
-    const processed = isLlmConfigured() ? await processPendingInbound(inboundDeps(), orgId, 5) : [];
+    const llm = await orgLlm(db, { orgId });
+    const processed = llm ? await processPendingInbound(inboundDeps(llm), orgId, 5) : [];
     report[orgId] = {
       queued: polled.queued,
       errors: polled.errors,
-      processed: processed.map((p) => p.status),
+      processed: llm ? processed.map((p) => p.status) : "ai_not_connected",
     };
   }
   return NextResponse.json({ ok: true, report });

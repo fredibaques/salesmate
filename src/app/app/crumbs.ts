@@ -14,6 +14,7 @@ const ACCOUNT = { label: "Mi cuenta", href: "/app/account" };
 
 const SECTION_PAGES: Record<string, { parent: Crumb; label: string }> = {
   connections: { parent: SETTINGS, label: "Conexiones" },
+  ai: { parent: SETTINGS, label: "IA" },
   exclusions: { parent: SETTINGS, label: "Exclusiones" },
   audit: { parent: SETTINGS, label: "Auditoría" },
   copilot: { parent: COPILOT, label: "Asistente" },
@@ -61,6 +62,7 @@ export async function crumbsFor(segments: string[], names: NameLookup): Promise<
       if (rest[1]) out.push({ label: getIntegration(rest[1])?.name ?? rest[1] });
       return out;
     }
+    if (first === "ai" && rest[0] === "connect") return [section.parent, here, { label: "Conectar" }];
     return [section.parent, here];
   }
 

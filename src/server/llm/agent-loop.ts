@@ -39,9 +39,6 @@ export type AgentLoopResult = {
   model: string;
 };
 
-/** Web search is billed per request on top of tokens (USD 10 per 1,000). */
-const WEB_SEARCH_USD = 0.01;
-
 /** Server tools run on Anthropic's side (web search, web fetch): no `run`, just the definition. */
 export type ServerTool = Extract<BetaToolUnion, { type: `web_search_${string}` | `web_fetch_${string}` }>;
 
@@ -87,7 +84,8 @@ export async function runAgentLoop(input: {
   const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, webSearches: 0 };
   const byName = new Map(input.tools.map((t) => [t.name, t]));
   const apiTools: BetaToolUnion[] = [...input.tools.map(toApiTool), ...(input.serverTools ?? [])];
-  const cost = () => estimateCostUsd(model, usage) + usage.webSearches * WEB_SEARCH_USD;
+  // Web searches are billed per request on top of tokens.
+  const cost = () => estimateCostUsd(model, usage);
   const system: BetaTextBlockParam[] = [{ type: "text", text: input.system }];
   let model = input.llm.model;
   let finalText = "";

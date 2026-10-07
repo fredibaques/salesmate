@@ -1,8 +1,8 @@
 import { Bot, FolderKanban } from "lucide-react";
-import { Card, EmptyState } from "@/components/ui";
+import { Card, EmptyState, LinkButton } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
-import { isLlmConfigured } from "@/server/llm/client";
+import { AI_CONNECT_HREF, AiNotice, currentAi } from "../../ai-notice";
 import { listProjects } from "@/server/services/projects";
 import { NewProjectButton } from "../../projects/new-project";
 import { CopilotChat } from "./chat";
@@ -11,15 +11,20 @@ export const metadata = { title: "Copilot" };
 
 export default async function CopilotPage() {
   const tenant = await requireTenant();
-  const projects = await listProjects(getDb(), tenant);
+  const [projects, ai] = await Promise.all([listProjects(getDb(), tenant), currentAi()]);
   return (
     <>
-      {!isLlmConfigured() ? (
+      {!ai ? (
         <Card>
           <EmptyState
             icon={<Bot />}
-            title="La IA no está configurada"
-            description="Añade ANTHROPIC_API_KEY en las variables de entorno del servidor y vuelve a desplegar para usar Copilot."
+            title="Conecta tu IA"
+            description="Copilot usa la cuenta de IA de tu organización: Anthropic, OpenAI o Kimi."
+            action={
+              <LinkButton href={AI_CONNECT_HREF} variant="primary">
+                Conectar IA
+              </LinkButton>
+            }
           />
         </Card>
       ) : projects.length === 0 ? (
@@ -32,7 +37,12 @@ export default async function CopilotPage() {
           />
         </Card>
       ) : (
-        <CopilotChat projects={projects.map((p) => ({ id: p.id, name: p.name }))} />
+        <>
+          <div className="mb-4 empty:hidden">
+            <AiNotice feature="Copilot" />
+          </div>
+          <CopilotChat projects={projects.map((p) => ({ id: p.id, name: p.name }))} />
+        </>
       )}
     </>
   );

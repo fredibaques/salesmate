@@ -16,6 +16,7 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+import { AI_PROVIDERS } from "../../../lib/ai-providers";
 import { organization } from "./auth";
 
 /**
@@ -143,6 +144,33 @@ export const connections = pgTable(
     unique("connections_org_provider_account_uq").on(t.orgId, t.provider, t.accountRef),
     tenantPolicy("connections"),
   ],
+);
+
+/**
+ * The organization's own AI account (one per organization): every model call
+ * the platform makes for it uses this key. Without it, AI features are off.
+ * The key is stored encrypted; `keyHint` keeps its last characters to show.
+ */
+export const orgAi = pgTable(
+  "org_ai",
+  {
+    orgId: orgId().primaryKey(),
+    provider: text("provider", { enum: AI_PROVIDERS }).notNull(),
+    model: text("model").notNull(),
+    keyEncrypted: text("key_encrypted").notNull(),
+    keyHint: text("key_hint").notNull(),
+    /** "error" after the provider rejected the key, the balance or the model; cleared by the next success. */
+    status: text("status", { enum: ["active", "error"] })
+      .notNull()
+      .default("active"),
+    errorKind: text("error_kind", { enum: ["auth", "credit", "model"] }),
+    lastError: text("last_error"),
+    lastErrorAt: timestamp("last_error_at", { withTimezone: true }),
+    createdBy: text("created_by"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  () => [tenantPolicy("org_ai")],
 );
 
 /**

@@ -7,7 +7,7 @@ import { inboundDeps } from "@/server/agents/runtime";
 import { requireRole } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { runForm, str } from "@/server/form";
-import { isLlmConfigured } from "@/server/llm/client";
+import { requireOrgLlm } from "@/server/llm/org-ai";
 import { queueTestLead, rotateFormKey } from "@/server/services/sales";
 
 const admin = () => requireRole(["owner", "admin"]);
@@ -21,7 +21,7 @@ export async function rotateKey(projectId: string) {
 export async function simulateLead(projectId: string, _: FormState, form: FormData): Promise<FormState> {
   const result = await runForm(async () => {
     const tenant = await admin();
-    if (!isLlmConfigured()) throw new Error("Configura ANTHROPIC_API_KEY para probar el agente.");
+    const llm = await requireOrgLlm(getDb(), tenant);
     const fields = Object.fromEntries(
       ["nombre", "email", "telefono", "empresa", "mensaje"].flatMap((k) => {
         const v = str(form, k);
@@ -29,7 +29,7 @@ export async function simulateLead(projectId: string, _: FormState, form: FormDa
       }),
     );
     const event = await queueTestLead(getDb(), tenant, projectId, fields);
-    const outcome = await processInboundEvent(inboundDeps(), tenant.orgId, event.id);
+    const outcome = await processInboundEvent(inboundDeps(llm), tenant.orgId, event.id);
     if (outcome.status === "processed") return `Procesado. ${outcome.summary}`;
     if (outcome.status === "ignored") return `Ignorado: ${outcome.reason}`;
     if (outcome.status === "error") throw new Error(outcome.error);
@@ -43,8 +43,8 @@ export async function simulateLead(projectId: string, _: FormState, form: FormDa
 export async function processNow(projectId: string, _: FormState): Promise<FormState> {
   const result = await runForm(async () => {
     const tenant = await admin();
-    if (!isLlmConfigured()) throw new Error("Configura ANTHROPIC_API_KEY para procesar los mensajes.");
-    const outcomes = await processPendingInbound(inboundDeps(), tenant.orgId, 10);
+    const llm = await requireOrgLlm(getDb(), tenant);
+    const outcomes = await processPendingInbound(inboundDeps(llm), tenant.orgId, 10);
     return outcomes.length
       ? `Procesados: ${outcomes.map((o) => o.status).join(", ")}`
       : "No había nada pendiente.";

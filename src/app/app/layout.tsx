@@ -42,7 +42,11 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
             >
               Copilot
             </SidebarItem>
-            <SidebarItem href="/app/connections" also={["/app/exclusions", "/app/audit"]} icon={<Settings />}>
+            <SidebarItem
+              href="/app/connections"
+              also={["/app/ai", "/app/exclusions", "/app/audit"]}
+              icon={<Settings />}
+            >
               Configuración
             </SidebarItem>
           </SidebarSection>

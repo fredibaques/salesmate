@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { agentRunDeps } from "@/server/agents/runtime";
 import { runDueAgents } from "@/server/agents/scheduler";
 import { env } from "@/server/env";
-import { isLlmConfigured } from "@/server/llm/client";
+import { gatewayDeps } from "@/server/gateway/runtime";
+import { getDb } from "@/server/db/client";
+import { orgLlm } from "@/server/llm/org-ai";
 
 export const maxDuration = 300;
 
@@ -12,9 +13,13 @@ export async function GET(request: Request) {
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  if (!isLlmConfigured()) return NextResponse.json({ ok: true, skipped: "llm_not_configured" });
+  const db = getDb();
   // One run per call: a run takes up to ~3 minutes and the function gets 5.
-  const report = await runDueAgents(agentRunDeps(), { limit: 1 });
+  // Organizations without their own AI are skipped.
+  const report = await runDueAgents(
+    { db, gateway: gatewayDeps(), llmFor: (orgId) => orgLlm(db, { orgId }) },
+    { limit: 1 },
+  );
   return NextResponse.json({
     ok: true,
     runs: report.map((r) => ({

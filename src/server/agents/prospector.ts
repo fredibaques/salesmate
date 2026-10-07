@@ -154,7 +154,7 @@ export async function runProspecting(
     agent.instructions ? `## Instrucciones de la persona responsable\n${agent.instructions}` : "",
     `## Cómo trabajas
 - Objetivo de esta ejecución: ${target} prospectos nuevos que encajen de verdad. Mejor menos y buenos que muchos dudosos.
-- ${!agent.tools.web ? "No tienes búsqueda web: usa solo las herramientas conectadas." : "Busca con web_search y lee las páginas con web_fetch. Usa fuentes públicas: webs de empresas, directorios, asociaciones del sector, registros y noticias. No uses LinkedIn como fuente."}
+- ${!agent.tools.web ? "No tienes búsqueda web: usa solo las herramientas conectadas." : "Busca en la web y lee las páginas que encuentres (web_search, y web_fetch si lo tienes). Usa fuentes públicas: webs de empresas, directorios, asociaciones del sector, registros y noticias. No uses LinkedIn como fuente."}
 - Antes de investigar a fondo, comprueba con check_prospects que no los tenemos ya.
 - Guarda con save_prospects en tandas, con los datos que hayas podido confirmar y las URLs de donde salen. No inventes datos: si no encuentras un teléfono o un email públicos, déjalos vacíos.
 - Puntúa el encaje (fitScore 0-100) y explica en una frase por qué encaja (fitReason).

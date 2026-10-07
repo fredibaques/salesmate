@@ -9,13 +9,12 @@ import { getDb } from "@/server/db/client";
 import { SALES_MOTIONS, type SalesMotion } from "@/server/db/schema";
 import { bool, list, num, runForm, str } from "@/server/form";
 import { ACTION_DEFINITIONS } from "@/server/gateway/definitions";
-import { getLlm } from "@/server/llm/client";
 import { draftPlaybook } from "@/server/playbooks/draft";
 import { AGENT_PROCESS_FIELDS, NEXT_STEPS, type NextStep, type PlaybookSpec } from "@/server/playbooks/spec";
 import { runProspecting } from "@/server/agents/prospector";
 import { closeStaleRuns } from "@/server/agents/scheduler";
 import { agentRunDeps } from "@/server/agents/runtime";
-import { isLlmConfigured } from "@/server/llm/client";
+import { requireOrgLlm } from "@/server/llm/org-ai";
 import { setProspectStatus } from "@/server/prospects/service";
 import {
   addAgent,
@@ -202,7 +201,7 @@ export async function draftProcess(
     const kind = agentType(type);
     const agent = await getAgent(db, tenant, projectId, kind);
     if (!agent?.process) throw new Error("Agente no encontrado.");
-    const { spec, gaps } = await draftPlaybook({ db, llm: getLlm() }, tenant, {
+    const { spec, gaps } = await draftPlaybook({ db, llm: await requireOrgLlm(db, tenant) }, tenant, {
       projectId,
       salesMotion: agent.process.salesMotion,
       current: agent.process.spec,
@@ -297,14 +296,14 @@ export async function saveTools(
 export async function runProspectingNow(projectId: string, _: FormState): Promise<FormState> {
   return runForm(async () => {
     const tenant = await admin();
-    if (!isLlmConfigured()) throw new Error("La IA no está configurada todavía (falta ANTHROPIC_API_KEY).");
     const db = getDb();
+    const llm = await requireOrgLlm(db, tenant);
     await closeStaleRuns(db, new Date());
     const [last] = await listAgentRuns(db, tenant, projectId, "outbound", 1);
     if (last?.status === "running") throw new Error("Ya está buscando. Espera a que termine (unos minutos).");
     after(async () => {
       try {
-        await runProspecting(agentRunDeps(), tenant, {
+        await runProspecting(agentRunDeps(llm), tenant, {
           projectId,
           trigger: "manual",
           triggerRef: tenant.userId,
