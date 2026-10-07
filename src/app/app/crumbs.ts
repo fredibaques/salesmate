@@ -9,7 +9,6 @@ export type NameLookup = {
 };
 
 const SETTINGS = { label: "Configuración", href: "/app/connections" };
-const COPILOT = { label: "Copilot", href: "/app/copilot" };
 const ACCOUNT = { label: "Mi cuenta", href: "/app/account" };
 
 const SECTION_PAGES: Record<string, { parent: Crumb; label: string }> = {
@@ -17,8 +16,6 @@ const SECTION_PAGES: Record<string, { parent: Crumb; label: string }> = {
   ai: { parent: SETTINGS, label: "IA" },
   exclusions: { parent: SETTINGS, label: "Exclusiones" },
   audit: { parent: SETTINGS, label: "Auditoría" },
-  copilot: { parent: COPILOT, label: "Asistente" },
-  inbox: { parent: COPILOT, label: "Por aprobar" },
 };
 
 const ACCOUNT_PAGES: Record<string, string> = { security: "Seguridad", organization: "Organización" };

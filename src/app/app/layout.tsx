@@ -1,4 +1,4 @@
-import { LayoutDashboard, Settings, Sparkles } from "lucide-react";
+import { Inbox, LayoutDashboard, Settings, Sparkles } from "lucide-react";
 import {
   CountBadge,
   Sidebar,
@@ -34,13 +34,11 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
             <SidebarItem href="/app" exact icon={<LayoutDashboard />}>
               Panel
             </SidebarItem>
-            <SidebarItem
-              href="/app/copilot"
-              also={["/app/inbox"]}
-              icon={<Sparkles />}
-              badge={<CountBadge count={pending.length} />}
-            >
+            <SidebarItem href="/app/copilot" icon={<Sparkles />}>
               Copilot
+            </SidebarItem>
+            <SidebarItem href="/app/inbox" icon={<Inbox />} badge={<CountBadge count={pending.length} />}>
+              Por aprobar
             </SidebarItem>
             <SidebarItem
               href="/app/connections"

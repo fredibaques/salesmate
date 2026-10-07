@@ -1,13 +1,14 @@
 import { CalendarClock, FlaskConical, History, Inbox, X } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
-import { Badge, Button, Card, EmptyState, Field, Input, Select, Textarea, Toolbar } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Textarea } from "@/components/ui";
 import { ACTION_STATUS_LABELS, AGENT_LABELS, AUTONOMY_LABELS, formatDateTime } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getActionDefinition } from "@/server/gateway/definitions";
 import { listActions, listOrgIdentities, listProjects } from "@/server/services/projects";
 import { approve, cancel, reject, simulateAgentProposal } from "./actions";
+import { INBOX_TIP } from "../tips";
 
 export const metadata = { title: "Por aprobar" };
 
@@ -121,19 +122,23 @@ export default async function InboxPage() {
 
   return (
     <>
-      <Toolbar>
-        {projects.length > 0 ? (
-          <ModalButton
-            label="Probar el flujo de aprobación"
-            icon={<FlaskConical className="size-4" />}
-            title="Probar el flujo de aprobación"
-            variant="secondary"
-            width="lg"
-          >
-            <SimulateProposal projects={projects} emailIdentityId={emailIdentity?.id} />
-          </ModalButton>
-        ) : null}
-      </Toolbar>
+      <PageHeader
+        title="Por aprobar"
+        tip={INBOX_TIP}
+        actions={
+          projects.length > 0 ? (
+            <ModalButton
+              label="Probar el flujo de aprobación"
+              icon={<FlaskConical className="size-4" />}
+              title="Probar el flujo de aprobación"
+              variant="secondary"
+              width="lg"
+            >
+              <SimulateProposal projects={projects} emailIdentityId={emailIdentity?.id} />
+            </ModalButton>
+          ) : undefined
+        }
+      />
 
       <section>
         {pending.length === 0 ? (

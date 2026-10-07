@@ -28,11 +28,13 @@ screen needs something new, add it here and as a component, not inline.
   buttons.
 - **Loading**: every main route has a `loading.tsx` with skeletons
   (`src/components/skeleton.tsx`) shaped like the page that is coming.
-- The sidebar has three sections and the projects:
+- The sidebar has four entries and the projects:
   - **Panel**: overview.
-  - **Copilot**: the assistant and «Por aprobar» (what the agents want to do).
-  - **Configuración**: Conexiones, Exclusiones and Auditoría, shared by every
-    project.
+  - **Copilot**: the assistant, a chat about your projects.
+  - **Por aprobar**: what the agents want to do and waits for a person, with
+    its count. Its own entry, because deciding is the daily job.
+  - **Configuración**: Conexiones, IA, Exclusiones and Auditoría, shared by
+    every project.
 - A project has four tabs: **Agentes** (its home), **Conocimiento** (documents
   and tables), **Conversaciones** and **Ajustes** (General: project data,
   «Oferta y cliente» and contact hours; and Reglas y exclusiones).

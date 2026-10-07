@@ -77,7 +77,7 @@ export default async function ConversationPage({
                 compact
                 icon={<ListChecks />}
                 title="Ninguna acción propuesta"
-                description="Si el agente quiere responder, agendar o anotar algo en el CRM, aparecerá aquí y en Copilot → Por aprobar."
+                description="Si el agente quiere responder, agendar o anotar algo en el CRM, aparecerá aquí y en «Por aprobar»."
               />
             ) : (
               <ul className="divide-y divide-border text-sm">

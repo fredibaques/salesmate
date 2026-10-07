@@ -28,7 +28,7 @@ export default async function AgentApprovalsPage({
   return (
     <Card
       title="Qué puede hacer sin preguntarte"
-      tip="Por defecto el agente prepara todo y espera tu aprobación en Copilot → Por aprobar. Deja hacer solo las acciones que apruebas casi siempre sin cambios. Las reglas del proyecto (horario, exclusiones, cumplimiento) se aplican siempre."
+      tip="Por defecto el agente prepara todo y espera tu aprobación en «Por aprobar». Deja hacer solo las acciones que apruebas casi siempre sin cambios. Las reglas del proyecto (horario, exclusiones, cumplimiento) se aplican siempre."
       className="max-w-4xl"
     >
       <ActionForm

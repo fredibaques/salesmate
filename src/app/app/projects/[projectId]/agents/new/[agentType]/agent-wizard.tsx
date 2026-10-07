@@ -29,7 +29,7 @@ const AUTONOMY = [
     value: 1,
     label: "Pide mi aprobación",
     description:
-      "Prepara cada respuesta y espera a que la apruebes en Copilot → Por aprobar. Recomendado al empezar.",
+      "Prepara cada respuesta y espera a que la apruebes en «Por aprobar». Recomendado al empezar.",
   },
   {
     value: 2,
