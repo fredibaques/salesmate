@@ -113,4 +113,20 @@ describe("runAgentLoop", () => {
     });
     expect(limited.status).toBe("max_turns");
   });
+  it("sends the steering note after the tool results of the turn", async () => {
+    const { llm, requests } = scriptedLlm([
+      { blocks: [{ type: "tool_use", name: "echo", input: { value: 1 } }] },
+      { blocks: [{ type: "text", text: "Hecho." }] },
+    ]);
+    await runAgentLoop({
+      llm,
+      system: "sys",
+      messages: [{ role: "user", content: "hola" }],
+      tools: [echo],
+      steer: ({ steps }) => `Llevas ${steps.length} pasos.`,
+    });
+    const last = requests[1].messages.at(-1)!;
+    expect(Array.isArray(last.content) && last.content.map((b) => b.type)).toEqual(["tool_result", "text"]);
+    expect(Array.isArray(last.content) && last.content[1]).toMatchObject({ text: "Llevas 2 pasos." });
+  });
 });

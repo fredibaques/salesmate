@@ -8,7 +8,7 @@ import { withSystem, withTenant, type TenantContext } from "../db/tenant";
 import type { GatewayDeps } from "../gateway/gateway";
 import { listProspects } from "../prospects/service";
 import { addAgent, saveAgentInstructions, setAgentEnabled } from "../services/agents";
-import { runProspecting } from "./prospector";
+import { prospectingSteer, runProspecting } from "./prospector";
 import { closeStaleRuns, describeNextRun, isDue, localClock, runDueAgents } from "./scheduler";
 
 let db: Db;
@@ -205,6 +205,69 @@ describe("time limits", () => {
     );
     expect(run.status).toBe("completed");
     expect(run.summary).toContain("Se acabó el tiempo");
+  });
+
+  it("asks the agent to save what it found before searching more, and to wrap up at the end", async () => {
+    const search = (q: string) => ({
+      type: "server_tool_use" as const,
+      name: "web_search",
+      input: { query: q },
+    });
+    const read = (url: string) => ({ type: "server_tool_use" as const, name: "web_fetch", input: { url } });
+    const lastNote = (req: { messages: { content: unknown }[] }) => {
+      const content = req.messages.at(-1)?.content;
+      const text = Array.isArray(content) ? content.find((b) => b.type === "text") : undefined;
+      return text ? (text as { text: string }).text : null;
+    };
+    const { llm, requests } = scriptedLlm([
+      {
+        blocks: [
+          ...["a", "b", "c", "d"].map((q) => search(`talleres ${q}`)),
+          ...["1", "2", "3", "4", "5"].map((n) => read(`https://taller${n}.es`)),
+          {
+            type: "tool_use",
+            name: "check_prospects",
+            input: { companies: [{ companyName: "Taller Uno" }] },
+          },
+        ],
+      },
+      (req) => {
+        expect(lastNote(req)).toContain("9 búsquedas y lecturas sin guardar");
+        return {
+          blocks: [
+            {
+              type: "tool_use",
+              name: "save_prospects",
+              input: { prospects: [{ companyName: "Taller Uno", website: "taller1.es" }] },
+            },
+          ],
+        };
+      },
+      (req) => {
+        // Saved: no note until the next streak.
+        expect(lastNote(req)).toBeNull();
+        return { blocks: [{ type: "text", text: "He guardado 1 taller." }] };
+      },
+    ]);
+    const result = await runProspecting({ db, llm, gateway: gateway() }, tenant, {
+      projectId,
+      trigger: "manual",
+    });
+    expect(result).toMatchObject({ status: "completed", added: 1 });
+    // Few searches per request, so each turn hands control back soon.
+    const web = requests[0].tools?.find((t) => "name" in t && t.name === "web_search");
+    expect(web).toMatchObject({ max_uses: 3 });
+  });
+
+  it("tells the agent to stop searching and save when time is nearly up, once", () => {
+    let clock = 0;
+    const steer = prospectingSteer({ deadline: 170_000, now: () => clock });
+    clock = 100_000;
+    expect(steer({ steps: [] })).toBeNull();
+    clock = 130_000;
+    expect(steer({ steps: [] })).toContain("No busques más");
+    clock = 150_000;
+    expect(steer({ steps: [] })).toBeNull();
   });
 
   it("closes runs the platform cut off", async () => {

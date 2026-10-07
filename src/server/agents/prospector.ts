@@ -4,7 +4,7 @@ import { audit } from "../audit";
 import type { ConnectorDeps } from "../connectors/service";
 import type { McpDeps } from "../connectors/mcp";
 import type { Db } from "../db/client";
-import { agentConfigs, agentRuns, projects } from "../db/schema";
+import { agentConfigs, agentRuns, projects, type AgentRunStep } from "../db/schema";
 import { withTenant } from "../db/tenant";
 import type { GatewayDeps } from "../gateway/gateway";
 import { defineTool, runAgentLoop, type AgentLoopResult } from "../llm/agent-loop";
@@ -29,6 +29,49 @@ export type AgentRunDeps = {
 
 /** Default time budget of a run, well under the 300 s a serverless function gets. */
 export const RUN_TIME_BUDGET_MS = 170_000;
+
+/**
+ * Searches per request. Searches run on the provider's side within one
+ * request, so a high cap let a single turn outlast the whole budget with
+ * nothing saved; a low one hands control back often.
+ */
+const SEARCHES_PER_TURN = 3;
+/** Web searches and page reads in a row without saving before the agent is asked to save. */
+const NUDGE_AFTER_WEB_CALLS = 8;
+/** Time left when the agent is asked to stop searching and save what it has. */
+const WRAP_UP_MS = 45_000;
+
+const WEB_CALLS = new Set(["web_search", "web_fetch"]);
+
+/**
+ * What to tell the agent between turns so findings get saved as it goes:
+ * near the end of the budget, stop and save; after a run of searches
+ * without saving, save before going on. Each note is said once per streak.
+ */
+export function prospectingSteer(options: { deadline: number; now?: () => number }) {
+  let wrappedUp = false;
+  /** Index of the save that started the streak already nudged about (-1: before any save). */
+  let nudgedAt: number | null = null;
+  return ({ steps }: { steps: readonly AgentRunStep[] }): string | null => {
+    const now = (options.now ?? Date.now)();
+    if (!wrappedUp && options.deadline - now <= WRAP_UP_MS) {
+      wrappedUp = true;
+      return "Queda menos de un minuto de esta ejecución. No busques más: guarda ahora con save_prospects las empresas que ya tengas confirmadas y termina con el resumen. Si no tienes ninguna confirmada, termina sin guardar.";
+    }
+    let lastSave = -1;
+    steps.forEach((step, i) => {
+      if (step.type === "tool_call" && step.name === "save_prospects") lastSave = i;
+    });
+    const webCalls = steps
+      .slice(lastSave + 1)
+      .filter((step) => step.type === "tool_call" && WEB_CALLS.has(step.name)).length;
+    if (webCalls >= NUDGE_AFTER_WEB_CALLS && nudgedAt !== lastSave) {
+      nudgedAt = lastSave;
+      return `Llevas ${webCalls} búsquedas y lecturas sin guardar. Antes de seguir, guarda con save_prospects las empresas que ya tengas confirmadas: lo que no esté guardado se pierde si se acaba el tiempo.`;
+    }
+    return null;
+  };
+}
 
 export type ProspectingResult = {
   runId: string;
@@ -156,7 +199,8 @@ export async function runProspecting(
 - Objetivo de esta ejecución: ${target} prospectos nuevos que encajen de verdad. Mejor menos y buenos que muchos dudosos.
 - ${!agent.tools.web ? "No tienes búsqueda web: usa solo las herramientas conectadas." : "Busca en la web y lee las páginas que encuentres (web_search, y web_fetch si lo tienes). Usa fuentes públicas: webs de empresas, directorios, asociaciones del sector, registros y noticias. No uses LinkedIn como fuente."}
 - Antes de investigar a fondo, comprueba con check_prospects que no los tenemos ya.
-- Guarda con save_prospects en tandas, con los datos que hayas podido confirmar y las URLs de donde salen. No inventes datos: si no encuentras un teléfono o un email públicos, déjalos vacíos.
+- Trabaja por tandas de 2 o 3 empresas: encuéntralas, confirma sus datos y guárdalas con save_prospects antes de buscar las siguientes. Lo que no hayas guardado se pierde si se acaba el tiempo de la ejecución.
+- Guarda con los datos que hayas podido confirmar y las URLs de donde salen. No inventes datos: si no encuentras un teléfono o un email públicos, déjalos vacíos.
 - Puntúa el encaje (fitScore 0-100) y explica en una frase por qué encaja (fitReason).
 - Datos de contacto: solo los que la propia empresa publica para ser contactada (email y teléfono generales o de ventas). No recojas datos personales privados.
 - Cuando llegues al objetivo o no encuentres más, termina con un resumen breve: cuántos has guardado, de qué tipo y qué fuentes han funcionado mejor.`,
@@ -173,6 +217,7 @@ export async function runProspecting(
   let status: ProspectingResult["status"] = "failed";
   let summary = "";
   let costUsd = 0;
+  const deadline = startedAt + (deps.timeBudgetMs ?? RUN_TIME_BUDGET_MS);
   try {
     const result = await runAgentLoop({
       llm: deps.llm,
@@ -184,10 +229,12 @@ export async function runProspecting(
         },
       ],
       tools,
-      serverTools: !agent.tools.web ? [] : webTools(Math.max(5, target * 2)),
+      serverTools: !agent.tools.web ? [] : webTools(SEARCHES_PER_TURN),
       effort: "medium",
-      maxTurns: 30,
-      deadline: startedAt + (deps.timeBudgetMs ?? RUN_TIME_BUDGET_MS),
+      // Short turns: more of them fit in the budget.
+      maxTurns: 40,
+      deadline,
+      steer: prospectingSteer({ deadline }),
     });
     status = result.status;
     // Out of time is a normal end: what was found is already saved.

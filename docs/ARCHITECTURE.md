@@ -237,6 +237,15 @@ web, o nombre y ciudad). Cada prospecto guarda las URLs de donde salen sus
 datos. No contacta con nadie. Se revisan, descartan y exportan a CSV desde la
 pestaña «Prospectos» del agente.
 
+Guarda por tandas para no perder lo encontrado si se acaba el tiempo
+(~170 s por ejecución): la búsqueda web se limita a 3 búsquedas y 6
+lecturas por petición (se ejecutan dentro de una sola petición, así que un
+tope alto dejaba una vuelta más larga que todo el presupuesto), el prompt
+pide guardar cada 2 o 3 empresas, y entre vueltas `prospectingSteer` le
+recuerda guardar tras 8 búsquedas o lecturas sin hacerlo y, a 45 s del
+final, que deje de buscar y guarde lo confirmado (`steer` de
+`runAgentLoop`, texto tras los resultados de las herramientas).
+
 ## Pendiente
 
 - Varios agentes de la misma plantilla en un proyecto (hoy uno por tipo).

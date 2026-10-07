@@ -78,6 +78,11 @@ export async function runAgentLoop(input: {
   deadline?: number;
   /** Clock for the deadline (tests). */
   now?: () => number;
+  /**
+   * A note for the model after a round of tool results (e.g. "save what you
+   * have before searching more"), or null. Sent as text after the results.
+   */
+  steer?: (state: { turn: number; steps: readonly AgentRunStep[] }) => string | null;
 }): Promise<AgentLoopResult> {
   const messages = [...input.messages];
   const steps: AgentRunStep[] = [];
@@ -175,8 +180,12 @@ export async function runAgentLoop(input: {
         ...(isError ? { is_error: true } : {}),
       });
     }
-    // All results of one turn go back in a single user message.
-    messages.push({ role: "user", content: results });
+    // All results of one turn go back in a single user message, with the note after them.
+    const note = input.steer?.({ turn, steps });
+    messages.push({
+      role: "user",
+      content: note ? [...results, { type: "text", text: note }] : results,
+    });
   }
 
   return {

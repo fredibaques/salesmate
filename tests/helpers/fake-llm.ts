@@ -2,7 +2,10 @@ import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/mess
 import type { LlmClient, LlmRequest } from "@/server/llm/client";
 
 type Block =
-  { type: "text"; text: string } | { type: "tool_use"; name: string; input: Record<string, unknown> };
+  | { type: "text"; text: string }
+  | { type: "tool_use"; name: string; input: Record<string, unknown> }
+  /** A search or page read the provider ran on its side (web_search, web_fetch). */
+  | { type: "server_tool_use"; name: string; input: Record<string, unknown> };
 
 export type ScriptedTurn = {
   blocks: Block[];
@@ -29,7 +32,12 @@ export function scriptedLlm(turns: (ScriptedTurn | ((req: LlmRequest) => Scripte
       const content = turn.blocks.map((b, n) =>
         b.type === "text"
           ? { type: "text" as const, text: b.text, citations: null }
-          : { type: "tool_use" as const, id: `toolu_${i}_${n}`, name: b.name, input: b.input },
+          : {
+              type: b.type,
+              id: `${b.type === "tool_use" ? "toolu" : "srvtoolu"}_${i}_${n}`,
+              name: b.name,
+              input: b.input,
+            },
       );
       return {
         id: `msg_${i}`,
