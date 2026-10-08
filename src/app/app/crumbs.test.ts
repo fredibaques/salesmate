@@ -34,8 +34,8 @@ describe("crumbsFor", () => {
       "Canales y herramientas",
     ]);
     expect(await labels("projects/p1/agents/new/outbound")).toEqual(["Swipoo", "Añadir el agente outbound"]);
-    expect(await labels("projects/p1/prospects/b1")).toEqual(["Swipoo", "Prospectos", "Concesionarios"]);
-    expect(await labels("projects/p1/prospects/new")).toEqual(["Swipoo", "Prospectos", "Nueva base"]);
+    expect(await labels("projects/p1/prospects/b1")).toEqual(["Swipoo", "Tablas", "Concesionarios"]);
+    expect(await labels("projects/p1/prospects/new")).toEqual(["Swipoo", "Tablas", "Nueva tabla"]);
     expect(await labels("projects/p1/knowledge/s1")).toEqual(["Swipoo", "Conocimiento", "Tarifas 2026.xlsx"]);
     expect(await labels("projects/p1/conversations/c1")).toEqual(["Swipoo", "Conversaciones", "Ana García"]);
     expect(await labels("projects/new")).toEqual(["Panel", "Nuevo proyecto"]);

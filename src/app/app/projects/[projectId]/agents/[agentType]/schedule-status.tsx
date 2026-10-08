@@ -64,7 +64,7 @@ export async function ScheduleStatus({
           {checked
             ? `El programador automático no pasa desde ${formatDateTime(checked)}.`
             : "El programador automático todavía no ha pasado por este agente."}{" "}
-          Trabajará en cuanto vuelva a pasar; mientras, puedes lanzarlo a mano desde «Prospectos».
+          Trabajará en cuanto vuelva a pasar; mientras, puedes lanzarlo a mano con «Ejecutar ahora».
         </Notice>
       ) : null}
     </div>

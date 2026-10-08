@@ -355,6 +355,18 @@ prospección; `saveAgentAutomation` en `services/agents.ts`):
   envío, exclusiones y enfriamientos. `prospects.contact_action_id` evita
   repetirlo.
 
+## Rendimiento
+
+- Las funciones de Vercel corren en `fra1` (`vercel.json`), junto a Neon
+  (`aws-eu-central-1`): cada consulta son varios viajes de ida y vuelta, y
+  desde `iad1` cada uno costaba ~90 ms.
+- `withTenant` fija la organización y el rol en una sola sentencia
+  (`set_config('app.org_id')` y `set_config('role')`, locales a la transacción).
+- Better Auth guarda la sesión firmada en una cookie 5 minutos
+  (`session.cookieCache`): la mayoría de peticiones no la leen de la base de datos.
+- El menú lateral cuenta lo pendiente de aprobar con un `count` por proyecto,
+  no listando las acciones.
+
 ## Personas de la organización
 
 Configuración → Usuarios (`services/team.ts`, sobre las tablas `member` e

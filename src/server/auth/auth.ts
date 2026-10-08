@@ -21,6 +21,9 @@ function createAuth() {
     trustedOrigins: trustedOrigins(),
     database: drizzleAdapter(getDb(), { provider: "pg", schema }),
     emailAndPassword: { enabled: true, minPasswordLength: 10 },
+    // The session travels signed in a cookie for a few minutes: most requests
+    // don't need to read it from the database.
+    session: { cookieCache: { enabled: true, maxAge: 5 * 60 } },
     socialProviders:
       env().GOOGLE_CLIENT_ID && env().GOOGLE_CLIENT_SECRET
         ? {

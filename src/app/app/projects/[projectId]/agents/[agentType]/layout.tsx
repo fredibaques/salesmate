@@ -1,5 +1,6 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
+import { AgentLookFields, AgentTile } from "@/components/agent-look-fields";
 import { notFound } from "next/navigation";
 import { ConfirmForm } from "@/components/confirm-form";
 import { ModalButton } from "@/components/modal";
@@ -10,8 +11,7 @@ import { AGENT_INFO, agentName } from "@/lib/agents";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getAgent, isProjectAgentType } from "@/server/services/agents";
-import { removeAgentAction, renameAgentAction, toggleAgent } from "../actions";
-import { AGENT_ICONS } from "../agent-cards";
+import { removeAgentAction, customizeAgentAction, toggleAgent } from "../actions";
 
 export default async function AgentLayout({
   children,
@@ -29,19 +29,21 @@ export default async function AgentLayout({
   return (
     <>
       <PageHeader
-        icon={AGENT_ICONS[agentType]}
+        media={
+          <AgentTile type={agentType} icon={agent.config.icon} color={agent.config.color} size="title" />
+        }
         title={name}
         badge={
           <ModalButton
-            label="Cambiar el nombre"
+            label="Personalizar el agente"
             icon={<Pencil className="size-4" />}
-            title="Nombre del agente"
+            title="Personalizar el agente"
             variant="ghost"
             size="sm"
             iconOnly
           >
             <ActionForm
-              action={renameAgentAction.bind(null, projectId, agentType)}
+              action={customizeAgentAction.bind(null, projectId, agentType)}
               submitLabel="Guardar"
               className="space-y-4"
             >
@@ -53,6 +55,7 @@ export default async function AgentLayout({
                   placeholder={info.name}
                 />
               </Field>
+              <AgentLookFields type={agentType} icon={agent.config.icon} color={agent.config.color} />
             </ActionForm>
           </ModalButton>
         }

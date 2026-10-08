@@ -195,9 +195,9 @@ export function BaseSettings({
 }: Ids & { name: string; rows: number; agents: number }) {
   return (
     <ModalButton
-      label="Ajustes de la base"
+      label="Ajustes de la tabla"
       icon={<Settings2 className="size-4" />}
-      title="Ajustes de la base"
+      title="Ajustes de la tabla"
       variant="ghost"
       iconOnly
     >
@@ -211,14 +211,14 @@ export function BaseSettings({
         </Field>
       </ActionForm>
       <div className="mt-6 space-y-3 border-t border-border pt-5">
-        <h3 className="text-sm font-medium">Borrar la base</h3>
+        <h3 className="text-sm font-medium">Borrar la tabla</h3>
         <ConfirmForm
           action={deleteBaseAction.bind(null, projectId, baseId)}
-          message={`¿Borrar «${name}» y sus ${rows} filas? No se puede deshacer.${agents ? " El agente que la rellena pasará a otra base del proyecto." : ""}`}
+          message={`¿Borrar «${name}» y sus ${rows} filas? No se puede deshacer.${agents ? " El agente que la rellena pasará a otra tabla del proyecto." : ""}`}
         >
           <Button variant="danger" size="sm">
             <Trash2 className="size-4" />
-            Borrar la base y sus {rows} filas
+            Borrar la tabla y sus {rows} filas
           </Button>
         </ConfirmForm>
       </div>

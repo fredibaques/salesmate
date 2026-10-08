@@ -15,6 +15,7 @@ import {
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
+import { MenuButton } from "@/components/menu-button";
 import { DataGrid, GridCell, GridHead, GridRow } from "@/components/data-grid";
 import {
   Badge,
@@ -172,13 +173,23 @@ export default async function ProspectBasePage({
               />
             ) : null}
             {data.total > 0 ? (
-              <a
-                href={`${exportUrl}?include=pending`}
-                className={buttonClass({ variant: pendingExport > 0 ? "primary" : "secondary" })}
-              >
-                <Download />
-                Exportar nuevos ({pendingExport})
-              </a>
+              <MenuButton
+                label="Exportar"
+                icon={<Download />}
+                variant={pendingExport > 0 ? "primary" : "secondary"}
+                items={[
+                  {
+                    label: `Exportar nuevos (${pendingExport})`,
+                    description: "Los que aún no se han exportado. Quedan marcados como exportados.",
+                    href: `${exportUrl}?include=pending`,
+                  },
+                  {
+                    label: `Exportar todo (${data.total})`,
+                    description: "Todas las filas, en un Excel (CSV).",
+                    href: exportUrl,
+                  },
+                ]}
+              />
             ) : null}
             {canEdit ? (
               <BaseSettings {...ids} name={base.name} rows={data.total} agents={agents.length} />
@@ -205,7 +216,7 @@ export default async function ProspectBasePage({
               description={
                 filledByAgent
                   ? "El agente de prospección las irá guardando aquí en cada ejecución. También puedes lanzarlo ahora con «Buscar ahora» o añadirlas a mano."
-                  : "Añádelas a mano, o asigna esta base al agente de prospección desde su ficha para que la rellene."
+                  : "Añádelas a mano, o asigna esta tabla al agente de prospección desde su ficha para que la rellene."
               }
             />
           </>
@@ -249,10 +260,6 @@ export default async function ProspectBasePage({
               <span className="ml-auto flex flex-wrap items-center gap-1">
                 {canEdit ? <ColumnsEditor {...ids} columns={base.columns} person={person} /> : null}
                 {addRow}
-                <a href={exportUrl} className={buttonClass({ variant: "ghost", size: "sm" })}>
-                  <Download />
-                  Exportar todo
-                </a>
               </span>
             </div>
 
@@ -406,7 +413,7 @@ export default async function ProspectBasePage({
                   : `${data.matching} de ${plural(data.total, "fila", "filas")}`}
                 {pages > 1 ? ` · página ${page} de ${pages}` : ""}
                 {filledByAgent && pendingCells > 0
-                  ? ` · ${plural(pendingCells, "celda", "celdas")} por completar en toda la base`
+                  ? ` · ${plural(pendingCells, "celda", "celdas")} por completar en toda la tabla`
                   : ""}
               </span>
               {filledByAgent ? (

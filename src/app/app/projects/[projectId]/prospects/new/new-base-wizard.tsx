@@ -81,7 +81,7 @@ export function NewBaseWizard({ projectId }: { projectId: string }) {
       title: "Qué guardas",
       content: (
         <>
-          <Field label="Nombre de la base">
+          <Field label="Nombre de la tabla">
             <Input
               name="name"
               required
@@ -214,7 +214,7 @@ export function NewBaseWizard({ projectId }: { projectId: string }) {
             {chosen.length ? chosen.map((c) => c.name).join(" · ") : "Solo las fijas"}
           </ReviewRow>
           <ReviewRow label="Quién la rellena">
-            Nadie todavía. Elige esta base en «Trabaja sobre», en la ficha del agente de prospección, o añade
+            Nadie todavía. Elige esta tabla en «Trabaja sobre», en la ficha del agente de prospección, o añade
             filas a mano.
           </ReviewRow>
         </dl>
@@ -226,7 +226,7 @@ export function NewBaseWizard({ projectId }: { projectId: string }) {
     <Wizard
       steps={steps}
       action={createBaseAction.bind(null, projectId)}
-      submitLabel="Crear base"
+      submitLabel="Crear tabla"
       cancelHref={`/app/projects/${projectId}/prospects`}
       onStepChange={(index) => {
         // Propose again only when the answers that shape the columns changed.

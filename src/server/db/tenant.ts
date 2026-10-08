@@ -22,8 +22,10 @@ export async function withTenant<T>(
 ): Promise<T> {
   if (!ctx.orgId) throw new Error("withTenant: orgId is required");
   return db.transaction(async (tx) => {
-    await tx.execute(sql`select set_config('app.org_id', ${ctx.orgId}, true)`);
-    await tx.execute(sql`set local role salesmate_app`);
+    // One round trip: the tenant and the restricted role (as `set local role`), for this transaction.
+    await tx.execute(
+      sql`select set_config('app.org_id', ${ctx.orgId}, true), set_config('role', 'salesmate_app', true)`,
+    );
     return fn(tx);
   });
 }

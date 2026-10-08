@@ -1,4 +1,5 @@
 import { ChevronRight, Plus, TriangleAlert } from "lucide-react";
+import { AgentTile } from "@/components/agent-look-fields";
 import { AGENT_ICONS } from "@/components/agent-icons";
 import { SwitchButton } from "@/components/switch";
 import { ModalButton } from "@/components/modal";
@@ -92,8 +93,7 @@ export function AgentCards({ projectId, agents }: { projectId: string; agents: A
           <EntityCard
             key={type}
             href={href}
-            icon={AGENT_ICONS[type]}
-            iconTone={agent.config.enabled ? "success" : "neutral"}
+            media={<AgentTile type={type} icon={agent.config.icon} color={agent.config.color} />}
             title={agentName(type, agent.config.name)}
             meta={
               type === "outbound"

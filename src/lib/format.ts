@@ -99,7 +99,7 @@ const EVENT_LABELS: Record<string, string> = {
   "agent.removed": "Agente quitado",
   "agent.enabled": "Agente activado",
   "agent.paused": "Agente en pausa",
-  "agent.renamed": "Agente renombrado",
+  "agent.renamed": "Agente personalizado",
   "agent.automation_updated": "Automatización del agente guardada",
   "agent.hook_rotated": "Webhook del agente renovado",
   "member.invited": "Persona invitada",

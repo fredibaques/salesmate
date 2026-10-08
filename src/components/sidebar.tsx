@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, ChevronsUpDown, Check, LogOut, UserRound } from "lucide-react";
+import { ChevronRight, ChevronsUpDown, Check, LogOut, PanelLeft, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -277,6 +277,10 @@ export function UserMenu({
           <Link href="/app/account" role="menuitem" className={item}>
             <UserRound />
             Mi cuenta
+          </Link>
+          <Link href="/app/account/menu" role="menuitem" className={item}>
+            <PanelLeft />
+            Personalizar el menú
           </Link>
           {organizations.length > 1 ? (
             <>

@@ -21,7 +21,7 @@ const SECTION_PAGES: Record<string, { parent: Crumb; label: string }> = {
 };
 
 const PROJECT_TABS: Record<string, string> = {
-  prospects: "Prospectos",
+  prospects: "Tablas",
   knowledge: "Conocimiento",
   conversations: "Conversaciones",
   settings: "Ajustes",
@@ -94,7 +94,7 @@ export async function crumbsFor(segments: string[], names: NameLookup): Promise<
     if (tab === "knowledge" && sub)
       return [project, tabCrumb, { label: (await names.source(sub)) ?? "Documento" }];
     if (tab === "prospects" && sub) {
-      if (sub === "new") return [project, tabCrumb, { label: "Nueva base" }];
+      if (sub === "new") return [project, tabCrumb, { label: "Nueva tabla" }];
       return [project, tabCrumb, { label: (await names.base(sub)) ?? "Base" }];
     }
     if (tab === "conversations" && sub) {
