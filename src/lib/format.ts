@@ -119,6 +119,15 @@ const EVENT_LABELS: Record<string, string> = {
   "suppression.removed": "Exclusión quitada",
   "connection.saved": "Conexión guardada",
   "person.created": "Contacto creado",
+  "agent.base_changed": "Base del agente cambiada",
+  "prospect.edited": "Fila editada",
+  "prospect_base.created": "Tabla creada",
+  "prospect_base.deleted": "Tabla borrada",
+  "prospect_base.renamed": "Tabla renombrada",
+  "prospect_base.column_added": "Columna añadida",
+  "prospect_base.column_changed": "Columna cambiada",
+  "prospect_base.column_removed": "Columna borrada",
+  "prospects.completed": "Datos completados por el agente",
 };
 
 /** Human label for an audit event code; unknown codes are shown as they are. */

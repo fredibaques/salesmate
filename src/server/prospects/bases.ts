@@ -1,4 +1,4 @@
-import { and, asc, count, eq, isNotNull, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, isNotNull, max, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   checkCell,
@@ -12,7 +12,7 @@ import {
 } from "@/lib/prospect-columns";
 import { audit } from "../audit";
 import type { Db } from "../db/client";
-import { agentConfigs, prospectBases, prospects } from "../db/schema";
+import { agentConfigs, projects, prospectBases, prospects } from "../db/schema";
 import { withTenant, type TenantContext, type Tx } from "../db/tenant";
 import { foldText } from "../knowledge/normalize";
 
@@ -59,6 +59,41 @@ export async function listBases(db: Db, tenant: Pick<TenantContext, "orgId">, pr
       rows: Number(counts.find((c) => c.baseId === b.id)?.n ?? 0),
       agents: agents.filter((a) => a.baseId === b.id).map((a) => a.agentType),
     }));
+  });
+}
+
+/**
+ * Every base of the organization, from all its projects, most recently
+ * active first: the «Tablas» section. Activity is the last row added or
+ * changed, or the last change to the base itself.
+ */
+export async function listAllBases(db: Db, tenant: Pick<TenantContext, "orgId">) {
+  return withTenant(db, tenant, async (tx) => {
+    const bases = await tx
+      .select({ base: prospectBases, projectName: projects.name })
+      .from(prospectBases)
+      .innerJoin(projects, eq(projects.id, prospectBases.projectId));
+    const stats = await tx
+      .select({ baseId: prospects.baseId, n: count(), last: max(prospects.updatedAt) })
+      .from(prospects)
+      .groupBy(prospects.baseId);
+    const agents = await tx
+      .select({ baseId: agentConfigs.prospectBaseId, agentType: agentConfigs.agentType })
+      .from(agentConfigs)
+      .where(and(isNotNull(agentConfigs.addedAt), isNotNull(agentConfigs.prospectBaseId)));
+    return bases
+      .map(({ base, projectName }) => {
+        const stat = stats.find((s) => s.baseId === base.id);
+        const last = stat?.last ? new Date(stat.last) : null;
+        return {
+          ...base,
+          projectName,
+          rows: Number(stat?.n ?? 0),
+          agents: agents.filter((a) => a.baseId === base.id).map((a) => a.agentType),
+          lastActivity: last && last > base.updatedAt ? last : base.updatedAt,
+        };
+      })
+      .sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
   });
 }
 

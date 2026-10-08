@@ -215,3 +215,87 @@ export function ChatComposer({
     </form>
   );
 }
+
+/**
+ * The start of a conversation as the hero of a page (the home): a large
+ * box to write in, with controls below it (e.g. which project) and ready-made
+ * questions. Once the conversation starts, the page shows a `ChatPanel`.
+ */
+export function ChatHero({
+  title,
+  value,
+  onChange,
+  onSend,
+  pending = false,
+  placeholder = "Escribe tu mensaje…",
+  controls,
+  suggestions = [],
+}: {
+  title: string;
+  value: string;
+  onChange: (value: string) => void;
+  onSend: (value: string) => void;
+  pending?: boolean;
+  placeholder?: string;
+  /** Next to the send button, e.g. a project selector. */
+  controls?: ReactNode;
+  suggestions?: string[];
+}) {
+  const canSend = !pending && value.trim() !== "";
+  return (
+    <div className="mx-auto max-w-3xl py-6">
+      <h2 className="flex items-center justify-center gap-2 text-center font-display text-xl font-semibold tracking-tight">
+        <Sparkles className="size-5 text-accent" aria-hidden />
+        {title}
+      </h2>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (canSend) onSend(value);
+        }}
+        className="mt-5 rounded-2xl border border-border bg-surface p-3 shadow-sm transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20 hover:border-border-strong"
+      >
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              if (canSend) onSend(value);
+            }
+          }}
+          rows={3}
+          placeholder={placeholder}
+          aria-label={placeholder}
+          className="block max-h-60 min-h-20 w-full resize-none bg-transparent px-1.5 py-1 text-base outline-none [field-sizing:content] placeholder:text-muted/70"
+        />
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {controls}
+          <button
+            type="submit"
+            disabled={!canSend}
+            aria-label="Enviar"
+            className={cx(buttonClass({ variant: "primary", iconOnly: true }), "ml-auto")}
+          >
+            <ArrowUp />
+          </button>
+        </div>
+      </form>
+      {suggestions.length ? (
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {suggestions.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => onSend(s)}
+              disabled={pending}
+              className="rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm text-ink-700 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-accent"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}

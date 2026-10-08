@@ -2,18 +2,18 @@
 
 import { ArrowRight, RotateCcw } from "lucide-react";
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import {
   ChatComposer,
+  ChatHero,
   ChatMessage,
   ChatMessages,
   ChatPanel,
-  ChatWelcome,
   TypingIndicator,
 } from "@/components/chat";
 import { RichText } from "@/components/rich-text";
 import { Button, InfoTip, Select } from "@/components/ui";
-import { ask } from "./actions";
+import { ask } from "./copilot-actions";
 
 type Turn = { role: "user" | "assistant"; content: string; actions?: number };
 
@@ -24,7 +24,18 @@ const SUGGESTIONS = [
   "Prepárame la llamada con el último contacto",
 ];
 
-export function CopilotChat({ projects }: { projects: { id: string; name: string }[] }) {
+/**
+ * Copilot on the home page: a large box to ask, with the rest of the home
+ * (`children`) below it. Once a conversation starts it takes the page, until
+ * «Nueva conversación».
+ */
+export function CopilotChat({
+  projects,
+  children,
+}: {
+  projects: { id: string; name: string }[];
+  children?: ReactNode;
+}) {
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
@@ -45,34 +56,72 @@ export function CopilotChat({ projects }: { projects: { id: string; name: string
     });
   }
 
+  const projectSelect = (
+    <Select
+      size="sm"
+      value={projectId}
+      onChange={(e) => {
+        setProjectId(e.target.value);
+        setTurns([]);
+      }}
+      className="w-56"
+      aria-label="Proyecto"
+    >
+      {projects.map((p) => (
+        <option key={p.id} value={p.id}>
+          {p.name}
+        </option>
+      ))}
+    </Select>
+  );
+
+  if (turns.length === 0 && !pending && !error) {
+    return (
+      <>
+        <ChatHero
+          title="¿En qué te ayudo?"
+          value={draft}
+          onChange={setDraft}
+          onSend={send}
+          pending={pending}
+          placeholder="Pregunta sobre tu oferta, tus tarifas o tus contactos, o pide que prepare un email o una tarea…"
+          controls={
+            <>
+              {projectSelect}
+              <InfoTip>
+                Responde con el conocimiento del proyecto y cita sus fuentes. Lo que proponga hacer (un email,
+                una tarea…) espera tu aprobación en «Por aprobar».
+              </InfoTip>
+            </>
+          }
+          suggestions={SUGGESTIONS}
+        />
+        {children}
+      </>
+    );
+  }
+
   return (
     <ChatPanel
-      className="h-[calc(100vh-7.5rem)] min-h-96"
+      className="h-[calc(100vh-9rem)] min-h-96"
       toolbar={
         <>
           <span className="text-muted">Proyecto</span>
-          <Select
-            size="sm"
-            value={projectId}
-            onChange={(e) => {
-              setProjectId(e.target.value);
-              setTurns([]);
-            }}
-            className="w-56"
-            aria-label="Proyecto"
-          >
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </Select>
+          {projectSelect}
           <InfoTip>
             Responde con el conocimiento del proyecto y cita sus fuentes. Lo que proponga hacer (un email, una
             tarea…) espera tu aprobación en «Por aprobar».
           </InfoTip>
           {turns.length ? (
-            <Button variant="ghost" size="sm" onClick={() => setTurns([])} className="ml-auto">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setTurns([]);
+                setError(null);
+              }}
+              className="ml-auto"
+            >
               <RotateCcw />
               Nueva conversación
             </Button>
@@ -90,11 +139,6 @@ export function CopilotChat({ projects }: { projects: { id: string; name: string
       }
     >
       <ChatMessages count={turns.length + (pending ? 1 : 0) + (error ? 1 : 0)}>
-        {turns.length === 0 ? (
-          <ChatWelcome title="¿En qué te ayudo?" suggestions={SUGGESTIONS} onPick={send}>
-            Pregunta sobre tu oferta, tus tarifas o tus contactos, o pide que prepare un email o una tarea.
-          </ChatWelcome>
-        ) : null}
         {turns.map((t, i) =>
           t.role === "user" ? (
             <ChatMessage key={i} from="user">

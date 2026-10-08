@@ -35,8 +35,13 @@ screen needs something new, add it here and as a component, not inline.
 - **Loading**: every main route has a `loading.tsx` with skeletons
   (`src/components/skeleton.tsx`) shaped like the page that is coming.
 - The sidebar has four entries and the projects:
-  - **Panel**: overview.
-  - **Copilot**: the assistant, a chat about your projects.
+  - **Panel**: the home. Copilot comes first, as a large box to ask or ask
+    for something (`ChatHero`, with the project to talk about and ready-made
+    questions); once a conversation starts it takes the page. Below it: the
+    first steps, recent tables, projects, what waits for approval and the
+    latest activity. Copilot has no entry of its own.
+  - **Tablas**: every table of every project (the prospect bases the agents
+    fill), most recently active first, and «Nueva tabla» (pick the project).
   - **Por aprobar**: what the agents want to do and waits for a person, with
     its count. Its own entry, because deciding is the daily job.
   - **Configuración**: Conexiones, IA, Exclusiones and Auditoría, shared by
