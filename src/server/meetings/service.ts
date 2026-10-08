@@ -104,7 +104,7 @@ async function fetchTranscript(
   const candidates = await meetConnections(deps.db, tenant, input.connectionId);
   if (!candidates.length) {
     throw new Error(
-      "Ninguna cuenta de Google tiene permiso para leer transcripciones de Meet: conecta Google Meet en Configuración → Conexiones.",
+      "Ninguna cuenta de Google tiene permiso para leer transcripciones de Meet: conecta Google Meet en Integraciones.",
     );
   }
   let best: MeetTranscript = { status: "not_found" };

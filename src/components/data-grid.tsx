@@ -8,7 +8,10 @@ import { cx } from "./cx";
  */
 export function DataGrid({ head, children }: { head: ReactNode; children: ReactNode }) {
   return (
-    <div className="max-h-[calc(100vh-15rem)] overflow-auto rounded-xl border border-border bg-surface">
+    <div
+      data-grid-scroll
+      className="max-h-[calc(100dvh-15rem)] min-h-48 overflow-auto rounded-xl border border-border bg-surface"
+    >
       <table className="min-w-full border-separate border-spacing-0 text-sm">
         <thead>
           <tr>{head}</tr>
@@ -25,9 +28,12 @@ export function GridHead({
   children,
   sticky = false,
   align = "start",
+  dropId,
   className,
 }: {
   children: ReactNode;
+  /** A column that others can be dropped next to (dragging headers). */
+  dropId?: string;
   /** The first column: stays visible while scrolling sideways. */
   sticky?: boolean;
   align?: "start" | "end";
@@ -36,8 +42,10 @@ export function GridHead({
   return (
     <th
       scope="col"
+      data-drop-column={dropId}
       className={cx(
         "group/head sticky top-0 h-9 border-r border-b border-border bg-ink-50 px-3 text-left font-medium whitespace-nowrap text-ink-700",
+        "data-[dragging=true]:opacity-40 data-[drop=after]:shadow-[inset_-3px_0_0_var(--color-accent)] data-[drop=before]:shadow-[inset_3px_0_0_var(--color-accent)]",
         sticky ? "left-0 z-30 shadow-[1px_0_0_var(--color-border)]" : "z-20",
         align === "end" && "text-right",
         className,

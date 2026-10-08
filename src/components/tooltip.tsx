@@ -26,10 +26,11 @@ export function Tooltip({
       <span
         role="tooltip"
         className={cx(
-          "pointer-events-none invisible absolute z-50 w-max max-w-72 rounded-lg bg-foreground px-3 py-2",
+          // Out of the layout until shown, so it never widens a phone's page.
+          "pointer-events-none absolute z-50 hidden w-max max-w-[min(18rem,calc(100vw-2rem))] rounded-lg bg-foreground px-3 py-2",
           "text-left text-xs leading-relaxed font-normal tracking-normal whitespace-normal normal-case text-background",
-          "opacity-0 shadow-lg transition-opacity duration-150",
-          "group-focus-within/tip:visible group-focus-within/tip:opacity-100 group-hover/tip:visible group-hover/tip:opacity-100 group-hover/tip:delay-150",
+          "shadow-lg",
+          "group-focus-within/tip:block group-hover/tip:block",
           side === "top" ? "bottom-full mb-2" : "top-full mt-2",
           align === "center" && "left-1/2 -translate-x-1/2",
           align === "start" && "left-0",

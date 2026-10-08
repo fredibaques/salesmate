@@ -1,6 +1,17 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Inbox, LayoutDashboard, Pencil, Settings, Settings2, Sheet } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  BookOpen,
+  Inbox,
+  LayoutDashboard,
+  Pencil,
+  Plug,
+  Settings,
+  Settings2,
+  Sheet,
+} from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { resetMenu, saveMenu } from "@/app/app/account/actions";
 import { setProjectColorAction } from "@/app/app/projects/[projectId]/actions";
@@ -29,6 +40,8 @@ export type MenuProject = {
 const SECTIONS: Record<string, { label: string; icon: ReactNode }> = {
   home: { label: "Panel", icon: <LayoutDashboard className="size-4 text-muted" /> },
   tables: { label: "Tablas", icon: <Sheet className="size-4 text-muted" /> },
+  knowledge: { label: "Conocimiento", icon: <BookOpen className="size-4 text-muted" /> },
+  integrations: { label: "Integraciones", icon: <Plug className="size-4 text-muted" /> },
   inbox: { label: "Por aprobar", icon: <Inbox className="size-4 text-muted" /> },
   settings: { label: "Configuración", icon: <Settings className="size-4 text-muted" /> },
 };

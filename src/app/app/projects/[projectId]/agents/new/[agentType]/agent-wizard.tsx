@@ -379,8 +379,8 @@ export function OutboundWizard({
             ))
           ) : (
             <p className="text-sm text-muted">
-              Si usas un directorio de empresas o un CRM con MCP, conéctalo en Configuración → Conexiones y
-              añádelo después en la ficha del agente.
+              Si usas un directorio de empresas o un CRM con MCP, conéctalo en Integraciones y añádelo después
+              en la ficha del agente.
             </p>
           )}
         </>

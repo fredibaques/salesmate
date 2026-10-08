@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { useTargets } from "@/app/app/(settings)/connections/target-picker";
+import { useTargets } from "@/app/app/connections/target-picker";
 import { ActionForm } from "@/components/action-form";
 import { IntegrationLogo } from "@/components/integration-logo";
 import { ModalButton } from "@/components/modal";
@@ -59,8 +59,7 @@ export function SendTableModal({
     >
       {destinations.length === 0 ? (
         <Notice>
-          Conecta Google Sheets, Airtable, Trello o monday.com en Configuración → Conexiones para exportar
-          allí tus tablas.
+          Conecta Google Sheets, Airtable, Trello o monday.com en Integraciones para exportar allí tus tablas.
         </Notice>
       ) : (
         <ActionForm action={sendTableAction.bind(null, baseId)} submitLabel="Exportar" className="space-y-5">

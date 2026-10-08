@@ -1,4 +1,4 @@
-import { Inbox, LayoutDashboard, Settings, Sheet } from "lucide-react";
+import { BookOpen, Inbox, LayoutDashboard, Plug, Settings, Sheet } from "lucide-react";
 import {
   CountBadge,
   Sidebar,
@@ -17,7 +17,7 @@ import { getDb } from "@/server/db/client";
 import { AgentIcon } from "@/components/agent-look-fields";
 import { agentName } from "@/lib/agents";
 import { listSidebarAgents } from "@/server/services/agents";
-import { getNavPreferences, inOrder, NAV_SECTIONS, type NavSection } from "@/server/services/preferences";
+import { getNavPreferences, inOrder, sectionOrder, type NavSection } from "@/server/services/preferences";
 import { listProjects } from "@/server/services/projects";
 import { signOut, switchOrganization } from "./actions";
 import { NewProjectButton } from "./projects/new-project";
@@ -45,6 +45,16 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
         Tablas
       </SidebarItem>
     ),
+    knowledge: (
+      <SidebarItem key="knowledge" href="/app/knowledge" icon={<BookOpen />}>
+        Conocimiento
+      </SidebarItem>
+    ),
+    integrations: (
+      <SidebarItem key="integrations" href="/app/connections" icon={<Plug />}>
+        Integraciones
+      </SidebarItem>
+    ),
     inbox: (
       <SidebarItem key="inbox" href="/app/inbox" icon={<Inbox />} badge={<CountBadge count={pending} />}>
         Por aprobar
@@ -53,8 +63,8 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
     settings: (
       <SidebarItem
         key="settings"
-        href="/app/connections"
-        also={["/app/ai", "/app/users", "/app/exclusions", "/app/audit"]}
+        href="/app/ai"
+        also={["/app/users", "/app/exclusions", "/app/audit"]}
         icon={<Settings />}
       >
         Configuración
@@ -64,14 +74,14 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
 
   return (
     <ToastProvider>
-      <div className="flex min-h-screen">
-        <Sidebar>
+      <div className="flex min-h-screen flex-col md:flex-row">
+        <Sidebar title="SalesMate">
           <SidebarBrand
             href="/app"
             title="SalesMate"
             action={
               <MenuSettingsButton
-                sections={inOrder([...NAV_SECTIONS], (k) => k, nav.sections)}
+                sections={sectionOrder(nav.sections)}
                 canEditAgents={tenant.role !== "member"}
                 projects={projects.map((p) => ({
                   id: p.id,
@@ -87,9 +97,7 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
               />
             }
           />
-          <SidebarSection>
-            {inOrder([...NAV_SECTIONS], (k) => k, nav.sections).map((k) => sections[k])}
-          </SidebarSection>
+          <SidebarSection>{sectionOrder(nav.sections).map((k) => sections[k])}</SidebarSection>
 
           <SidebarSection
             label="Proyectos"
@@ -143,7 +151,7 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
           {/* Top bar with the trail, only on pages below a section. */}
           {crumbs}
           {/* Full width; forms keep their own reading width. */}
-          <div className="px-8 pt-5 pb-10">{children}</div>
+          <div className="px-4 pt-5 pb-10 md:px-8">{children}</div>
         </main>
       </div>
     </ToastProvider>

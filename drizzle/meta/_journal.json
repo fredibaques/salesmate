@@ -141,6 +141,13 @@
       "when": 1791489263605,
       "tag": "0019_standalone_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791492250337,
+      "tag": "0020_optional_fields_account_knowledge",
+      "breakpoints": true
     }
   ]
 }

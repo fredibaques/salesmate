@@ -3,6 +3,7 @@ import type { Db } from "../db/client";
 import { agentRuns, knowledgeRows, knowledgeSources, knowledgeTables, projects } from "../db/schema";
 import { withTenant } from "../db/tenant";
 import { rowToText } from "../knowledge/tabular";
+import { knowledgeOf } from "../knowledge/service";
 import { runAgentLoop, type AgentLoopResult } from "../llm/agent-loop";
 import type { LlmClient } from "../llm/client";
 import { knowledgeTools } from "./tools";
@@ -34,7 +35,7 @@ export async function answerFromKnowledge(
     const sources = await tx
       .select({ id: knowledgeSources.id, name: knowledgeSources.name, kind: knowledgeSources.kind })
       .from(knowledgeSources)
-      .where(eq(knowledgeSources.projectId, project.id))
+      .where(knowledgeOf(project.id))
       .orderBy(asc(knowledgeSources.createdAt));
     const tables =
       sources.length === 0

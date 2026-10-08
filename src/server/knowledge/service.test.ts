@@ -12,7 +12,9 @@ import {
   queryTable,
   reprocessTableSource,
   searchKnowledge,
+  setSourceProject,
 } from "./service";
+import { listKnowledge } from "../services/projects";
 
 let db: Db;
 let close: () => Promise<void>;
@@ -133,6 +135,33 @@ describe("searchKnowledge", () => {
   it("stays within the project", async () => {
     const hits = await searchKnowledge(db, tenant, { projectId: otherProjectId, query: "gratuita" });
     expect(hits).toEqual([]);
+  });
+});
+
+describe("knowledge of the whole account", () => {
+  it("is used by every project, next to each project's own, and can move to one project", async () => {
+    const { source } = await ingestDocumentText(db, tenant, {
+      projectId: null,
+      name: "Presentación de la empresa",
+      text: "Somos una consultora fundada en 2009 con oficinas en Valencia y Bilbao.",
+    });
+    for (const id of [projectId, otherProjectId]) {
+      const hits = await searchKnowledge(db, tenant, { projectId: id, query: "oficinas bilbao" });
+      expect(hits.map((h) => h.sourceName)).toEqual(["Presentación de la empresa"]);
+    }
+    expect((await listKnowledge(db, tenant, null)).map((s) => s.name)).toEqual([
+      "Presentación de la empresa",
+    ]);
+    expect((await listKnowledge(db, tenant, projectId)).map((s) => s.name)).not.toContain(
+      "Presentación de la empresa",
+    );
+
+    await setSourceProject(db, tenant, source.id, projectId);
+    expect(
+      await searchKnowledge(db, tenant, { projectId: otherProjectId, query: "oficinas bilbao" }),
+    ).toEqual([]);
+    expect(await searchKnowledge(db, tenant, { projectId, query: "oficinas bilbao" })).toHaveLength(1);
+    await setSourceProject(db, tenant, source.id, null);
   });
 });
 

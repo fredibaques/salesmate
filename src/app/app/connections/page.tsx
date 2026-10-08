@@ -1,7 +1,7 @@
 import { CalendarDays, Mail, Phone, Plug } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { IntegrationLogo } from "@/components/integration-logo";
-import { Badge, CardGrid, EmptyState, EntityCard, Notice, Toolbar } from "@/components/ui";
+import { Badge, CardGrid, EmptyState, EntityCard, Notice, PageHeader } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import { describeScopes, getIntegration } from "@/lib/integrations";
 import { requireTenant } from "@/server/auth/session";
@@ -14,7 +14,7 @@ import { testConnection } from "./actions";
 import { AddConnectionButton } from "./add-connection";
 import { TaskTargetForm } from "./target-picker";
 
-export const metadata = { title: "Conexiones" };
+export const metadata = { title: "Integraciones" };
 
 const IDENTITY = {
   email: { label: "Buzón", icon: Mail },
@@ -64,7 +64,12 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/app/
 
   return (
     <>
-      <Toolbar>{connections.length > 0 ? <AddConnectionButton {...setup} /> : null}</Toolbar>
+      <PageHeader
+        icon={<Plug />}
+        title="Integraciones"
+        tip="Las herramientas que tus agentes pueden usar: correo, calendario, CRM, datos de empresas, WhatsApp… Se conectan una vez para toda la cuenta y cada agente elige cuáles usa."
+        actions={connections.length > 0 && canEdit ? <AddConnectionButton {...setup} /> : null}
+      />
 
       {query.connected || query.error ? (
         <div className="mb-6">

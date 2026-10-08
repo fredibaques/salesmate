@@ -539,12 +539,13 @@ export async function listGlobalSuppressions(db: Db, tenant: Pick<TenantContext,
 // Knowledge listing
 // ---------------------------------------------------------------------------
 
-export async function listKnowledge(db: Db, tenant: Pick<TenantContext, "orgId">, projectId: string) {
+/** A project's own knowledge, or the account's (`projectId` null). */
+export async function listKnowledge(db: Db, tenant: Pick<TenantContext, "orgId">, projectId: string | null) {
   return withTenant(db, tenant, async (tx) => {
     const sources = await tx
       .select()
       .from(knowledgeSources)
-      .where(eq(knowledgeSources.projectId, projectId))
+      .where(projectId ? eq(knowledgeSources.projectId, projectId) : isNull(knowledgeSources.projectId))
       .orderBy(desc(knowledgeSources.createdAt));
     const tables = sources.length
       ? await tx

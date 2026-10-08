@@ -15,6 +15,7 @@ import {
 import type { Tx } from "../db/tenant";
 import type { ActionDefinition } from "./definitions";
 import { personKeys, suppressionLookupKeys } from "./targets";
+import { knowledgeOf } from "../knowledge/service";
 
 type ProjectRow = typeof projects.$inferSelect;
 type RuleRow = {
@@ -297,7 +298,7 @@ export const backedFigures: Policy = {
       const [backing] = await ctx.tx
         .select({ id: knowledgeSources.id })
         .from(knowledgeSources)
-        .where(and(inArray(knowledgeSources.id, sourceIds), eq(knowledgeSources.projectId, ctx.project.id)))
+        .where(and(inArray(knowledgeSources.id, sourceIds), knowledgeOf(ctx.project.id)))
         .limit(1);
       if (backing) return allow;
     }

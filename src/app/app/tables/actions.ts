@@ -9,8 +9,11 @@ import {
   COLUMN_TYPES,
   DEFAULT_COLUMNS,
   FILLED_BY,
+  newTableHiddenFields,
+  SYSTEM_FIELDS,
   type ColumnDraft,
   type RowKind,
+  type SystemField,
 } from "@/lib/prospect-columns";
 import { processAgentEvents, rowsAdded } from "@/server/agents/events";
 import { agentRunDeps } from "@/server/agents/runtime";
@@ -24,24 +27,30 @@ import { getDb } from "@/server/db/client";
 import { list, num, runForm, str } from "@/server/form";
 import { orgLlm } from "@/server/llm/org-ai";
 import {
+  baseAgents,
   createBase,
   deleteBase,
   getBase,
   moveColumn,
+  placeColumn,
   removeColumn,
   renameBase,
   saveColumn,
   setBaseProject,
   setColumnHidden,
+  setFieldHidden,
 } from "@/server/prospects/bases";
 import { setIntakeKey } from "@/server/prospects/intake";
 import { proposeColumns, type ProposedColumn } from "@/server/prospects/propose-columns";
 import {
   addProspectRow,
+  rowEditFromValues,
+  setProspectCell,
   setProspectStatus,
   updateProspectRow,
   type RowEdit,
 } from "@/server/prospects/service";
+import type { TenantContext } from "@/server/db/tenant";
 
 /** Only owners and admins change the shape of tables; any member edits rows. */
 const admin = () => requireRole(["owner", "admin"]);
@@ -98,8 +107,8 @@ export async function proposeColumnsAction(
 }
 
 /**
- * Creates a table with the usual columns for what its rows are, and opens
- * it: the columns are then changed on the table itself.
+ * Creates a table with only the row's name, and opens it: columns (and the
+ * fixed fields, like the web) are added on the table itself.
  */
 export async function createBaseAction(_: FormState, form: FormData): Promise<FormState> {
   let baseId = "";
@@ -109,7 +118,8 @@ export async function createBaseAction(_: FormState, form: FormData): Promise<Fo
     const base = await createBase(getDb(), tenant, str(form, "projectId") ?? null, {
       name: str(form, "name") ?? "",
       rowKind,
-      columns: DEFAULT_COLUMNS[rowKind].map(({ id: _id, ...draft }): ColumnDraft => draft),
+      columns: [],
+      hiddenFields: newTableHiddenFields(rowKind),
     });
     baseId = base.id;
   });
@@ -173,9 +183,11 @@ export async function saveColumnAction(
 ): Promise<FormState> {
   const result = await runForm(async () => {
     const draft = columnFromForm(form);
-    const { cleared } = await saveColumn(getDb(), await admin(), baseId, draft, columnId ?? undefined);
+    const tenant = await admin();
+    const { cleared } = await saveColumn(getDb(), tenant, baseId, draft, columnId ?? undefined);
     if (!columnId) {
-      return draft.filledBy === "person"
+      const filled = (await baseAgents(getDb(), tenant, baseId)).length > 0;
+      return draft.filledBy === "person" || !filled
         ? "Columna añadida."
         : "Columna añadida. El agente la rellenará en las filas que ya hay al completar vacíos.";
     }
@@ -192,6 +204,23 @@ export async function moveColumnAction(baseId: string, columnId: string, directi
   refresh();
 }
 
+/** Drops a dragged column before or after another one. */
+export async function placeColumnAction(
+  baseId: string,
+  columnId: string,
+  target: { id: string; side: "before" | "after" },
+) {
+  await placeColumn(getDb(), await admin(), baseId, columnId, target);
+  refresh();
+}
+
+/** Shows or hides a fixed field (web, fit, status, sources; the company in tables of people). */
+export async function toggleFieldAction(baseId: string, field: SystemField, hidden: boolean) {
+  if (!SYSTEM_FIELDS.includes(field)) return;
+  await setFieldHidden(getDb(), await admin(), baseId, field, hidden);
+  refresh();
+}
+
 export async function toggleColumnAction(baseId: string, columnId: string, hidden: boolean) {
   await setColumnHidden(getDb(), await admin(), baseId, columnId, hidden);
   refresh();
@@ -203,6 +232,51 @@ export async function removeColumnAction(baseId: string, columnId: string) {
 }
 
 // ---- Rows -------------------------------------------------------------------
+
+/** The agent that fills the table completes a new row, if it listens to new rows. */
+async function completeNewRow(tenant: TenantContext, baseId: string, rowId: string) {
+  const db = getDb();
+  const agentId = await rowsAdded(db, tenant, { baseId, rowIds: [rowId] });
+  if (!agentId) return false;
+  after(async () => {
+    try {
+      const llm = await orgLlm(db, tenant);
+      if (llm) await processAgentEvents(agentRunDeps(llm), tenant, agentId);
+    } catch (err) {
+      console.error("new-row run failed", err);
+    }
+  });
+  return true;
+}
+
+type CellValue = string | boolean | string[] | null;
+
+/** A row typed on the table's last line: fixed fields by key, columns by id. */
+export async function addRowAction(baseId: string, values: Record<string, CellValue>): Promise<FormState> {
+  const result = await runForm(async () => {
+    const tenant = await requireTenant();
+    const row = await addProspectRow(getDb(), tenant, baseId, rowEditFromValues(values));
+    return (await completeNewRow(tenant, baseId, row.id))
+      ? "Fila añadida. El agente la completará."
+      : "Fila añadida.";
+  });
+  revalidatePath(tablePath(baseId));
+  return result;
+}
+
+/** One cell typed on the table. */
+export async function saveCellAction(
+  baseId: string,
+  rowId: string,
+  key: string,
+  value: CellValue,
+): Promise<FormState> {
+  const result = await runForm(async () => {
+    await setProspectCell(getDb(), await requireTenant(), baseId, rowId, key, value);
+  }, "Guardado.");
+  revalidatePath(tablePath(baseId));
+  return result;
+}
 
 /** Adds a row by hand (no `rowId`) or saves the changes made in the row panel. */
 export async function saveRowAction(
@@ -232,20 +306,9 @@ export async function saveRowAction(
     };
     if (!rowId) {
       const row = await addProspectRow(db, tenant, baseId, edit);
-      // The agent that fills the base completes it, if it listens to new rows.
-      const agentId = await rowsAdded(db, tenant, { baseId, rowIds: [row.id] });
-      if (agentId) {
-        after(async () => {
-          try {
-            const llm = await orgLlm(db, tenant);
-            if (llm) await processAgentEvents(agentRunDeps(llm), tenant, agentId);
-          } catch (err) {
-            console.error("new-row run failed", err);
-          }
-        });
-        return "Fila añadida. El agente la completará.";
-      }
-      return "Fila añadida.";
+      return (await completeNewRow(tenant, baseId, row.id))
+        ? "Fila añadida. El agente la completará."
+        : "Fila añadida.";
     }
     const { changed } = await updateProspectRow(db, tenant, baseId, rowId, edit);
     return changed ? "Cambios guardados." : "No había cambios.";

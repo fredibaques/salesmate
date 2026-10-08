@@ -11,10 +11,9 @@ export type NameLookup = {
   agent: (projectId: string, type: string) => Promise<string | null>;
 };
 
-const SETTINGS = { label: "Configuración", href: "/app/connections" };
+const SETTINGS = { label: "Configuración", href: "/app/ai" };
 
 const SECTION_PAGES: Record<string, { parent: Crumb; label: string }> = {
-  connections: { parent: SETTINGS, label: "Conexiones" },
   ai: { parent: SETTINGS, label: "IA" },
   users: { parent: SETTINGS, label: "Usuarios" },
   exclusions: { parent: SETTINGS, label: "Exclusiones" },
@@ -62,8 +61,18 @@ export async function crumbsFor(segments: string[], names: NameLookup): Promise<
     return [];
   }
 
-  // Mi cuenta: its pages are tabs of one section.
-  if (first === "account") return [];
+  // Mi cuenta and Integraciones are pages of their own.
+  if (first === "account" || first === "connections") return [];
+
+  // Knowledge of the whole account: a source hangs from «Conocimiento».
+  if (first === "knowledge") {
+    const [id] = rest;
+    if (!id) return [];
+    return [
+      { label: "Conocimiento", href: "/app/knowledge" },
+      { label: (await names.source(id)) ?? "Documento" },
+    ];
+  }
 
   // A table, with a project or on its own: under «Tablas».
   if (first === "tables") {

@@ -714,7 +714,7 @@ export async function addAgentTool(
   if (!server) throw new Error("Servidor MCP no encontrado.");
   if (!server.tools.length)
     throw new Error(
-      "Este servidor no ofrece herramientas. Pulsa «Probar conexión» en Conexiones para actualizarlo.",
+      "Este servidor no ofrece herramientas. Pulsa «Probar conexión» en Integraciones para actualizarlo.",
     );
   return saveAgentTools(db, tenant, projectId, agentType, {
     ...tools,

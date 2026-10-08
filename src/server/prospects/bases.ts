@@ -7,9 +7,12 @@ import {
   columnId,
   DEFAULT_COMPANY_COLUMNS,
   MAX_COLUMNS,
+  primaryField,
   ROW_KINDS,
+  systemFields,
   type BaseColumn,
   type ColumnDraft,
+  type SystemField,
 } from "@/lib/prospect-columns";
 import { audit } from "../audit";
 import type { Db } from "../db/client";
@@ -242,7 +245,16 @@ export async function ensureAgentBaseIn(
     .limit(1);
   const base = first ?? (await createDefaultBase(tx, tenant, agent.projectId));
   await tx.update(agentConfigs).set({ prospectBaseId: base.id }).where(eq(agentConfigs.id, agent.id));
-  return base;
+  await showAgentFields(tx, base.id);
+  return { ...base, hiddenFields: [] };
+}
+
+/**
+ * An agent fills the web, the fit and the sources of each row: once one
+ * works on a table, those fields show (people may hide them again).
+ */
+async function showAgentFields(tx: Tx, baseId: string) {
+  await tx.update(prospectBases).set({ hiddenFields: [] }).where(eq(prospectBases.id, baseId));
 }
 
 /** Points an agent at a table of its project, or at one without a project. */
@@ -270,6 +282,7 @@ export async function setAgentBase(
       .where(and(eq(agentConfigs.id, agentConfigId), eq(agentConfigs.projectId, projectId)))
       .returning({ id: agentConfigs.id, agentType: agentConfigs.agentType });
     if (!agent) throw new Error("Agente no encontrado.");
+    await showAgentFields(tx, base.id);
     await audit(tx, tenant, {
       event: "agent.base_changed",
       projectId,
@@ -313,11 +326,14 @@ export async function createBase(
   db: Db,
   tenant: TenantContext,
   projectId: string | null,
-  input: { name: string; rowKind: string; columns: ColumnDraft[] },
+  input: { name: string; rowKind: string; columns: ColumnDraft[]; hiddenFields?: SystemField[] },
 ): Promise<ProspectBase> {
   const name = baseName.parse(input.name);
   const rowKind = z.enum(ROW_KINDS).parse(input.rowKind);
   const columns = newColumns(input.columns);
+  const hiddenFields = (input.hiddenFields ?? []).filter(
+    (f) => systemFields(rowKind).includes(f) && f !== primaryField(rowKind),
+  );
   return withTenant(db, tenant, async (tx) => {
     const [base] = await tx
       .insert(prospectBases)
@@ -327,6 +343,7 @@ export async function createBase(
         name,
         rowKind,
         columns,
+        hiddenFields,
         createdBy: tenant.actorType === "user" ? tenant.actorId : null,
       })
       .returning();
@@ -490,6 +507,53 @@ export async function moveColumn(
     await tx
       .update(prospectBases)
       .set({ columns, updatedAt: new Date() })
+      .where(eq(prospectBases.id, base.id));
+  });
+}
+
+/**
+ * Drops a column next to another one (dragging its header): before it, or
+ * after it.
+ */
+export async function placeColumn(
+  db: Db,
+  tenant: TenantContext,
+  baseId: string,
+  id: string,
+  target: { id: string; side: "before" | "after" },
+) {
+  if (id === target.id) return;
+  return withTenant(db, tenant, async (tx) => {
+    const base = await lockedBase(tx, baseId);
+    const column = base.columns.find((c) => c.id === id);
+    if (!column) throw new Error("Esa columna ya no existe.");
+    const rest = base.columns.filter((c) => c.id !== id);
+    const at = rest.findIndex((c) => c.id === target.id);
+    if (at < 0) throw new Error("Esa columna ya no existe.");
+    rest.splice(target.side === "before" ? at : at + 1, 0, column);
+    await tx
+      .update(prospectBases)
+      .set({ columns: rest, updatedAt: new Date() })
+      .where(eq(prospectBases.id, base.id));
+  });
+}
+
+/** Shows or hides one of the fixed fields (web, fit…); the row's name always shows. */
+export async function setFieldHidden(
+  db: Db,
+  tenant: TenantContext,
+  baseId: string,
+  field: SystemField,
+  hidden: boolean,
+) {
+  return withTenant(db, tenant, async (tx) => {
+    const base = await lockedBase(tx, baseId);
+    if (!systemFields(base.rowKind).includes(field)) throw new Error("Ese campo no existe.");
+    if (field === primaryField(base.rowKind)) throw new Error("El nombre de cada fila no se puede ocultar.");
+    const rest = base.hiddenFields.filter((f) => f !== field);
+    await tx
+      .update(prospectBases)
+      .set({ hiddenFields: hidden ? [...rest, field] : rest, updatedAt: new Date() })
       .where(eq(prospectBases.id, base.id));
   });
 }

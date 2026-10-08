@@ -59,6 +59,38 @@ export type BaseColumn = {
 export const MAX_COLUMNS = 50;
 
 /**
+ * The fields every row has besides the user's columns. The row's name (the
+ * company, or the person in tables of people) is the only one a table can't
+ * hide: it is how rows are told apart. The rest show or hide like columns.
+ */
+export const SYSTEM_FIELDS = ["person", "company", "web", "fit", "status", "sources"] as const;
+export type SystemField = (typeof SYSTEM_FIELDS)[number];
+
+export const SYSTEM_FIELD_LABELS: Record<SystemField, string> = {
+  person: "Nombre",
+  company: "Empresa",
+  web: "Web",
+  fit: "Encaje",
+  status: "Estado",
+  sources: "Fuentes",
+};
+
+/** The field that names each row. */
+export function primaryField(rowKind: RowKind): SystemField {
+  return rowKind === "person" ? "person" : "company";
+}
+
+/** The fixed fields of a table of this kind (the name first). */
+export function systemFields(rowKind: RowKind): SystemField[] {
+  return rowKind === "person" ? [...SYSTEM_FIELDS] : SYSTEM_FIELDS.filter((f) => f !== "person");
+}
+
+/** A new table shows only the row's name: the rest is added from the table. */
+export function newTableHiddenFields(rowKind: RowKind): SystemField[] {
+  return systemFields(rowKind).filter((f) => f !== primaryField(rowKind));
+}
+
+/**
  * The columns every prospect had before bases existed. Migrated prospects
  * keep their values under these ids, and new company bases start from them.
  */

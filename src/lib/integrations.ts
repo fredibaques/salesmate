@@ -1,5 +1,5 @@
 /**
- * Catalog of external tools shown in «Conexiones». `available` ones have a
+ * Catalog of external tools shown in «Integraciones». `available` ones have a
  * connector; the rest are planned and shown so users know what is coming.
  */
 

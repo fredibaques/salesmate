@@ -141,7 +141,7 @@ export function RowPanel({
   canRun?: boolean;
 }) {
   const person = base.rowKind === "person";
-  const title = row ? (person ? (row.personName ?? row.companyName) : row.companyName) : "Nueva fila";
+  const title = row ? (person ? row.personName || row.companyName : row.companyName) : "Nueva fila";
   return (
     <Drawer
       title={title}
@@ -171,8 +171,8 @@ export function RowPanel({
             <Input name="personName" required defaultValue={row?.personName ?? ""} />
           </Field>
         ) : null}
-        <Field label={person ? "Empresa" : "Nombre de la empresa"}>
-          <Input name="companyName" required defaultValue={row?.companyName ?? ""} />
+        <Field label={person ? "Empresa" : "Nombre de la empresa"} optional={person}>
+          <Input name="companyName" required={!person} defaultValue={row?.companyName ?? ""} />
         </Field>
         <Field label="Web" optional>
           <Input name="website" inputMode="url" defaultValue={row?.website ?? ""} placeholder="https://" />

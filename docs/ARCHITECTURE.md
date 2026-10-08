@@ -119,10 +119,18 @@ aplica a cualquier `ConnectorError`.
   lotes de 10 registros) o una tarjeta/elemento por fila (máx. 100 por
   exportación) con los campos en la descripción. Trello y monday tienen
   además `task.create` en la lista o tablero por defecto de la conexión
-  (`metadata.taskTarget`, se elige en su tarjeta de Conexiones).
+  (`metadata.taskTarget`, se elige en su tarjeta de Integraciones).
 
 ## Conocimiento
 
+- **De la cuenta o de un proyecto.** `knowledge_sources.project_id` nulo es
+  conocimiento de toda la cuenta (sección Conocimiento del menú, `/app/knowledge`):
+  lo usan los agentes de todos los proyectos junto con el propio del proyecto
+  (`knowledgeOf(projectId)` en búsqueda, tablas, «Pregúntale», borradores de
+  proceso y la política de cifras). Se añade igual (fichero, texto, Google) y
+  una fuente se mueve entre la cuenta y un proyecto (`setSourceProject`,
+  «Mover» en su página). La pestaña Conocimiento de un proyecto muestra lo
+  suyo y, aparte, lo de toda la cuenta.
 - Todo lo que se sube cuenta: no hay fuentes «orientativas» ni validación
   aparte. Si algo cambia, se sube la versión nueva y se borra la antigua.
 - **Tablas** (CSV/XLSX): las hojas pensadas para personas (títulos
@@ -140,7 +148,7 @@ aplica a cualquier `ConnectorError`.
   IA usando solo el conocimiento: las tablas pequeñas van enteras en el
   prompt, los documentos se buscan, y devuelve las fuentes usadas.
 - El gateway solo acepta cifras en mensajes salientes si citan una fuente del
-  conocimiento del proyecto.
+  conocimiento del proyecto o de la cuenta.
 - «Desde Google» (`knowledge/google-import.ts`) copia un Google Doc como
   documento o la primera pestaña de un Google Sheet como tabla (vía CSV),
   probando cada cuenta de Google conectada con permiso de lectura; 403/404
@@ -352,15 +360,27 @@ herramienta pasa por el gateway, que registra por proyecto: solo en tablas con
 proyecto.
 
 Las crean los propietarios y administradores con nombre, qué es cada fila y
-proyecto opcional; empiezan con las columnas de siempre de ese tipo. Las
+proyecto opcional. Solo es obligatorio el nombre de cada fila (la empresa, o
+la persona en tablas de personas: es como se distinguen y se detectan
+duplicados); en tablas de personas la empresa es opcional. Los demás campos
+fijos (empresa en tablas de personas, web, encaje, estado, fuentes) se
+muestran u ocultan como columnas (`prospect_bases.hidden_fields`,
+`setFieldHidden`). Una tabla nueva empieza solo con el nombre y sin
+columnas; cuando un agente pasa a rellenarla (`setAgentBase`,
+`ensureAgentBase`) se muestran todos, porque los rellena él. Las
 columnas se gestionan en la cabecera de la tabla, como en una hoja de cálculo
 (`Popover`): el «+» añade una a mano o de las sugerencias de la IA
 (`prospects/propose-columns.ts`, con la oferta del proyecto si lo tiene), y
-cada cabecera abre su menú (editar, ordenar, mover, ocultar, borrar). También cambian las columnas (`saveColumn`,
+cada cabecera abre su menú (editar, ordenar, mover, ocultar, borrar); se
+reordenan arrastrando la cabecera (con el ratón, o manteniéndola pulsada en
+el móvil: `column-drag.ts`, `placeColumn`). También cambian las columnas (`saveColumn`,
 `moveColumn`, `setColumnHidden`, `removeColumn`): el id de una columna sale de
 su nombre la primera vez y no cambia, y al cambiar su tipo u opciones los
-valores que ya no encajan se borran. Cualquier miembro edita y añade filas en
-un panel lateral (`updateProspectRow`, `addProspectRow`): se validan todos los
+valores que ya no encajan se borran. Cualquier miembro escribe en la propia
+rejilla: un clic en una celda la edita (`setProspectCell`) y la última línea
+añade una fila al escribirla (`rowEditFromValues` + `addProspectRow`); el
+panel lateral (icono al pasar por el nombre) muestra la fila entera
+(`updateProspectRow`, `addProspectRow`): se validan todos los
 valores (no se descarta ninguno en silencio, a diferencia de lo que guarda el
 agente), las celdas que cambian quedan marcadas como escritas a mano y no se
 permite que una fila pase a duplicar otra. Al borrar una base, el agente que

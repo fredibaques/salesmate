@@ -249,7 +249,7 @@ export function describeConnectorError(err: ConnectorError | string): string {
   if (!http) return message;
   const [, tool, status] = http;
   if (status === "401" || status === "403")
-    return `${tool} no acepta las credenciales guardadas o no da permiso para esto. Vuelve a conectarla en Configuración → Conexiones.`;
+    return `${tool} no acepta las credenciales guardadas o no da permiso para esto. Vuelve a conectarla en Integraciones.`;
   if (status === "404")
     return `${tool} no encuentra lo que pedimos: puede que se haya borrado o que la cuenta no tenga acceso.`;
   if (status === "429") return `${tool} ha limitado las peticiones. Prueba de nuevo en unos minutos.`;

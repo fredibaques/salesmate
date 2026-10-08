@@ -104,7 +104,7 @@ export function ModalButton({
       >
         {open ? (
           <div className="flex max-h-[90vh] flex-col">
-            <div className="flex items-center justify-between gap-4 border-b border-border px-6 py-4">
+            <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-4 sm:px-6">
               <h2 className="text-base font-semibold">{title}</h2>
               <button
                 type="button"
@@ -118,7 +118,7 @@ export function ModalButton({
                 <X className="size-4" />
               </button>
             </div>
-            <div data-modal-body className="overflow-y-auto px-6 py-5">
+            <div data-modal-body className="overflow-y-auto px-4 py-5 sm:px-6">
               <ModalContext.Provider value={{ close }}>{children}</ModalContext.Provider>
             </div>
           </div>

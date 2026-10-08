@@ -4,7 +4,7 @@ import type { Db } from "../db/client";
 import { projects } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
 import { addAgent, customizeAgent, listSidebarAgents } from "./agents";
-import { getNavPreferences, inOrder, saveNavPreferences } from "./preferences";
+import { getNavPreferences, inOrder, NAV_SECTIONS, saveNavPreferences, sectionOrder } from "./preferences";
 
 let db: Db;
 let close: () => Promise<void>;
@@ -44,6 +44,20 @@ describe("sidebar preferences", () => {
     await customizeAgent(db, tenant, p.id, "outbound", { name: "", icon: "nope", color: "fucsia" });
     expect(await listSidebarAgents(db, tenant)).toEqual([
       expect.objectContaining({ name: null, icon: null, color: null }),
+    ]);
+  });
+});
+
+describe("sectionOrder", () => {
+  it("keeps the person's order and puts sections added later where they go by default", () => {
+    expect(sectionOrder(undefined)).toEqual([...NAV_SECTIONS]);
+    expect(sectionOrder(["inbox", "home", "tables", "settings"])).toEqual([
+      "inbox",
+      "home",
+      "tables",
+      "knowledge",
+      "integrations",
+      "settings",
     ]);
   });
 });

@@ -7,14 +7,7 @@ import { requireRole, requireTenant } from "@/server/auth/session";
 import { getAvailability } from "@/server/calendar/availability";
 import { getDb } from "@/server/db/client";
 import { list, num, runForm, str } from "@/server/form";
-import { importFromGoogle } from "@/server/knowledge/google-import";
 import { answerFromKnowledge } from "@/server/agents/knowledge-answer";
-import {
-  deleteSource,
-  ingestDocumentFile,
-  ingestDocumentText,
-  ingestTableFile,
-} from "@/server/knowledge/service";
 import { LlmProviderError } from "@/server/llm/errors";
 import { orgLlm } from "@/server/llm/org-ai";
 import {
@@ -140,76 +133,6 @@ export async function previewAvailability(
 }
 
 // Knowledge -----------------------------------------------------------------
-
-function fileFrom(form: FormData): File {
-  const file = form.get("file");
-  if (!(file instanceof File) || file.size === 0) throw new Error("Selecciona un fichero.");
-  return file;
-}
-
-/** Imports a Google Doc or Sheet into the project's knowledge (a copy). */
-export async function importGoogleKnowledge(
-  projectId: string,
-  _: FormState,
-  form: FormData,
-): Promise<FormState> {
-  return runForm(async () => {
-    const tenant = await admin();
-    const imported = await importFromGoogle({ db: getDb() }, tenant, {
-      projectId,
-      url: str(form, "url") ?? "",
-      name: str(form, "name"),
-    });
-    refresh(projectId);
-    return imported.kind === "doc"
-      ? `«${imported.name}» añadido.`
-      : `«${imported.name}» añadido: ${imported.tables === 1 ? "1 tabla" : `${imported.tables} tablas`}.`;
-  });
-}
-
-export async function uploadKnowledge(projectId: string, _: FormState, form: FormData): Promise<FormState> {
-  return runForm(async () => {
-    const tenant = await admin();
-    const kind = str(form, "kind");
-    const text = str(form, "text");
-    const name = str(form, "name");
-    if (kind === "text") {
-      if (!text || !name) throw new Error("Escribe un nombre y el texto.");
-      await ingestDocumentText(getDb(), tenant, { projectId, name, text });
-      refresh(projectId);
-      return `«${name}» añadido.`;
-    }
-    const file = fileFrom(form);
-    const data = Buffer.from(await file.arrayBuffer());
-    const title = name ?? file.name.replace(/\.[^.]+$/, "");
-    if (/\.(csv|tsv|xlsx)$/i.test(file.name)) {
-      const { tables } = await ingestTableFile(getDb(), tenant, {
-        projectId,
-        name: title,
-        filename: file.name,
-        data,
-      });
-      refresh(projectId);
-      return `«${title}» añadido: ${tables.length === 1 ? "1 tabla" : `${tables.length} tablas`}.`;
-    }
-    await ingestDocumentFile(getDb(), tenant, {
-      projectId,
-      name: title,
-      kind: kind === "examples" ? "examples" : "document",
-      filename: file.name,
-      data,
-    });
-    refresh(projectId);
-    return `«${title}» añadido.`;
-  });
-}
-
-export async function removeSource(projectId: string, sourceId: string) {
-  const tenant = await admin();
-  await deleteSource(getDb(), tenant, sourceId);
-  refresh(projectId);
-  redirect(`/app/projects/${projectId}/knowledge`);
-}
 
 export type AskState =
   | { question: string; answer: string; sources: { id: string; name: string; kind: string }[] }
