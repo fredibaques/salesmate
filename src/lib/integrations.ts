@@ -65,6 +65,18 @@ export const INTEGRATIONS: Integration[] = [
   { id: "pipedrive", name: "Pipedrive", tagline: "CRM", category: "crm", status: "soon", color: "#1A1A1A" },
   { id: "salesforce", name: "Salesforce", tagline: "CRM", category: "crm", status: "soon", color: "#00A1E0" },
   {
+    id: "slack",
+    name: "Slack",
+    tagline: "Avisos de los agentes en un canal",
+    category: "messaging",
+    status: "available",
+    color: "#4A154B",
+    abilities: [
+      "Avisar en un canal cuando un agente termina, falla o llega a un límite",
+      "Solo escribe en ese canal: no lee mensajes",
+    ],
+  },
+  {
     id: "whatsapp",
     name: "WhatsApp Business",
     tagline: "Mensajes con clientes",

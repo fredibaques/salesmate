@@ -1,4 +1,5 @@
-import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { randomBytes } from "node:crypto";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { audit } from "../audit";
 import { ensureAgentBaseIn } from "../prospects/bases";
@@ -6,6 +7,7 @@ import { mcpToolsOf } from "../connectors/mcp";
 import { connectionCapabilities } from "../connectors/service";
 import type { Db } from "../db/client";
 import {
+  actions,
   agentConfigs,
   agentRuns,
   connections,
@@ -566,6 +568,8 @@ export const instructionsInput = z.object({
       prospectsPerRun: z.number().int().min(1).max(50).optional(),
       mode: z.enum(PROSPECTING_MODES).optional(),
       cellsPerRun: z.number().int().min(1).max(200).optional(),
+      /** "" = the organization's model. */
+      model: z.string().optional(),
     })
     .default({}),
 });
@@ -579,12 +583,14 @@ export async function saveAgentInstructions(
 ) {
   const input = instructionsInput.parse(raw);
   return withTenant(db, tenant, async (tx) => {
+    const current = await findConfig(tx, projectId, agentType);
     const [config] = await tx
       .update(agentConfigs)
       .set({
         instructions: input.instructions.trim() || null,
         schedule: input.schedule,
-        settings: input.settings,
+        // Only the per-run settings: the automation ones are saved apart.
+        settings: { ...current?.settings, ...input.settings },
       })
       .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.agentType, agentType)))
       .returning();
@@ -719,4 +725,197 @@ export async function listAgentRuns(
       .orderBy(desc(agentRuns.startedAt))
       .limit(limit),
   );
+}
+
+// ---------------------------------------------------------------------------
+// Automation: triggers, caps, goal, sources, notices and the next step
+// ---------------------------------------------------------------------------
+
+/** «example.com», «https://www.example.com/x» → «example.com»; null when it isn't a domain. */
+export function cleanDomain(value: string): string | null {
+  const raw = value.trim().toLowerCase();
+  if (!raw) return null;
+  try {
+    const host = new URL(raw.includes("://") ? raw : `https://${raw}`).hostname.replace(/^www\./, "");
+    return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) ? host : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A new secret for an agent's webhook URL. */
+export function newHookToken(): string {
+  return randomBytes(24).toString("base64url");
+}
+
+const money = z.number().min(0.01, "El límite debe ser mayor que 0.").max(10_000);
+
+export const automationInput = z.object({
+  triggers: z.object({ newRows: z.boolean().default(false), webhook: z.boolean().default(false) }).default({
+    newRows: false,
+    webhook: false,
+  }),
+  budget: z
+    .object({
+      maxCostPerRunUsd: money.optional(),
+      maxCostPerMonthUsd: money.optional(),
+      maxSearchesPerRun: z.number().int().min(1).max(500).optional(),
+    })
+    .default({}),
+  goal: z
+    .object({
+      rows: z.number().int().min(1).max(100_000),
+      minFit: z.number().int().min(0).max(100).optional(),
+    })
+    .nullable()
+    .default(null),
+  sources: z
+    .object({
+      allow: z.array(z.string()).default([]),
+      block: z.array(z.string()).default([]),
+      prefer: z.enum(["data", "web"]).nullable().default(null),
+    })
+    .default({ allow: [], block: [], prefer: null }),
+  notify: z
+    .object({
+      slackConnectionId: z.string().uuid().nullable().default(null),
+      emails: z.array(z.string().email("Revisa los emails de aviso.")).max(20).default([]),
+      onFinish: z.boolean().default(false),
+      onProblem: z.boolean().default(false),
+    })
+    .default({ slackConnectionId: null, emails: [], onFinish: false, onProblem: false }),
+  /** Mailbox it writes from (first contacts and email notices). */
+  mailboxId: z.string().uuid().nullable().default(null),
+  handoff: z
+    .object({
+      enabled: z.boolean().default(false),
+      minFit: z.number().int().min(0).max(100).optional(),
+      perRun: z.number().int().min(1).max(25).optional(),
+      instructions: z.string().max(4000).optional(),
+    })
+    .default({ enabled: false }),
+});
+
+/**
+ * Saves what makes the agent work besides its schedule, its caps and goal,
+ * where it may look, whom it tells and its next step. A webhook gets its
+ * secret the first time it is turned on and keeps it.
+ */
+export async function saveAgentAutomation(
+  db: Db,
+  tenant: TenantContext,
+  projectId: string,
+  agentType: ProjectAgentType,
+  raw: z.input<typeof automationInput>,
+) {
+  const input = automationInput.parse(raw);
+  const domains = (list: string[]) => {
+    const bad = list.filter((d) => d.trim() && !cleanDomain(d));
+    if (bad.length) throw new Error(`No parecen dominios: ${bad.join(", ")}.`);
+    return [...new Set(list.map(cleanDomain).filter((d): d is string => Boolean(d)))];
+  };
+  const sources = { allow: domains(input.sources.allow), block: domains(input.sources.block) };
+  if (input.handoff.enabled && !input.mailboxId)
+    throw new Error("Elige el buzón desde el que escribirá los primeros emails.");
+  if (input.notify.emails.length && !input.mailboxId)
+    throw new Error("Elige el buzón desde el que enviará los avisos por email.");
+
+  return withTenant(db, tenant, async (tx) => {
+    const current = await findConfig(tx, projectId, agentType);
+    if (!current?.addedAt) throw new Error("Agente no encontrado.");
+    if (input.notify.slackConnectionId) {
+      const [slack] = await tx
+        .select({ id: connections.id })
+        .from(connections)
+        .where(and(eq(connections.id, input.notify.slackConnectionId), eq(connections.provider, "slack")));
+      if (!slack) throw new Error("Conexión de Slack no encontrada.");
+    }
+    if (input.mailboxId) {
+      const [mailbox] = await tx
+        .select({ id: identities.id })
+        .from(identities)
+        .where(and(eq(identities.id, input.mailboxId), eq(identities.kind, "email")));
+      if (!mailbox) throw new Error("Buzón no encontrado.");
+    }
+    const settings: AgentSettings = {
+      ...current.settings,
+      triggers: input.triggers,
+      budget: input.budget,
+      goal: input.goal ?? undefined,
+      sources: { ...sources, ...(input.sources.prefer ? { prefer: input.sources.prefer } : {}) },
+      notify: input.notify,
+      handoff: input.handoff,
+    };
+    const hookToken = input.triggers.webhook ? (current.hookToken ?? newHookToken()) : current.hookToken;
+    const [config] = await tx
+      .update(agentConfigs)
+      .set({
+        settings,
+        hookToken,
+        channels: { ...current.channels, mailboxId: input.mailboxId },
+      })
+      .where(eq(agentConfigs.id, current.id))
+      .returning();
+    await syncProjectChannels(tx, tenant.orgId, projectId);
+    await audit(tx, tenant, {
+      event: "agent.automation_updated",
+      projectId,
+      entityType: "agent_config",
+      entityId: config.id,
+      data: { agentType, ...settings, mailboxId: input.mailboxId },
+    });
+  });
+}
+
+/** A new webhook secret: the old URL stops working. */
+export async function rotateAgentHook(
+  db: Db,
+  tenant: TenantContext,
+  projectId: string,
+  agentType: ProjectAgentType,
+) {
+  return withTenant(db, tenant, async (tx) => {
+    const [config] = await tx
+      .update(agentConfigs)
+      .set({ hookToken: newHookToken() })
+      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.agentType, agentType)))
+      .returning({ id: agentConfigs.id });
+    if (!config) throw new Error("Agente no encontrado.");
+    await audit(tx, tenant, {
+      event: "agent.hook_rotated",
+      projectId,
+      entityType: "agent_config",
+      entityId: config.id,
+      data: { agentType },
+    });
+  });
+}
+
+/** Slack channels connected to the organization, for notices. */
+export async function listSlackConnections(db: Db, tenant: Pick<TenantContext, "orgId">) {
+  return withTenant(db, tenant, (tx) =>
+    tx
+      .select({ id: connections.id, label: connections.label, status: connections.status })
+      .from(connections)
+      .where(eq(connections.provider, "slack"))
+      .orderBy(desc(connections.createdAt)),
+  );
+}
+
+/** First emails the prospecting agent proposed that wait for a person. */
+export async function firstEmailsWaiting(db: Db, tenant: Pick<TenantContext, "orgId">, projectId: string) {
+  const [row] = await withTenant(db, tenant, (tx) =>
+    tx
+      .select({ n: sql<number>`count(*)` })
+      .from(actions)
+      .where(
+        and(
+          eq(actions.projectId, projectId),
+          eq(actions.agentType, "outbound"),
+          eq(actions.type, "email.send"),
+          eq(actions.status, "pending_approval"),
+        ),
+      ),
+  );
+  return Number(row?.n ?? 0);
 }

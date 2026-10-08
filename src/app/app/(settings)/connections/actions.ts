@@ -6,7 +6,12 @@ import { requireRole } from "@/server/auth/session";
 import { createMcpConnection, refreshMcpTools } from "@/server/connectors/mcp";
 import { DATA_PROVIDERS } from "@/server/connectors/data";
 import { ConnectorError } from "@/server/connectors/types";
-import { createDataConnection, createTwentyConnection, openConnection } from "@/server/connectors/service";
+import {
+  createDataConnection,
+  createSlackConnection,
+  createTwentyConnection,
+  openConnection,
+} from "@/server/connectors/service";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/server/db/client";
 import { connections } from "@/server/db/schema";
@@ -77,6 +82,20 @@ export async function addDataSource(provider: string, _: FormState, form: FormDa
   return result?.ok ? { ok: true, message: `Conectado: ${label}` } : result;
 }
 
+/** Connects a Slack channel by its incoming webhook, for the agents' notices. */
+export async function addSlack(_: FormState, form: FormData): Promise<FormState> {
+  const label = str(form, "label") ?? "Slack";
+  const result = await runForm(async () => {
+    const tenant = await requireRole(["owner", "admin"]);
+    await createSlackConnection({ db: getDb() }, tenant, {
+      label,
+      webhookUrl: str(form, "webhookUrl") ?? "",
+    });
+  });
+  revalidatePath("/app/connections");
+  return result?.ok ? { ok: true, message: `Conectado: ${label}` } : result;
+}
+
 export async function testConnection(connectionId: string, _: FormState): Promise<FormState> {
   return runForm(async () => {
     const tenant = await requireRole(["owner", "admin"]);
@@ -109,6 +128,8 @@ export async function testConnection(connectionId: string, _: FormState): Promis
       return `OK · ${busy.length} bloques ocupados en los próximos 7 días.`;
     }
     if (client["data.check"]) return `OK · ${(await client["data.check"]()).detail}.`;
+    // Posting is an effect: it only happens through the gateway, with a real notice.
+    if (client["notify.slack"]) return "Guardada. Se comprobará con el primer aviso de un agente.";
     return "Conexión cargada (sin prueba de lectura disponible para sus permisos).";
   });
 }

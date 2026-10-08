@@ -133,6 +133,8 @@ export type Capabilities = {
   "data.enrich_company": (input: { domain?: string; name?: string }) => Promise<DataCompany | null>;
   /** Checks the key, and the credits left when the provider says. */
   "data.check": () => Promise<{ ok: true; detail: string }>;
+  /** Posts a message to the channel of a Slack incoming webhook. */
+  "notify.slack": (input: { text: string }) => Promise<{ ok: true }>;
   "calendar.book": (input: {
     calendarId: string;
     start: string;

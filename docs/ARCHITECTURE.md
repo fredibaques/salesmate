@@ -317,6 +317,44 @@ recuerda guardar tras 8 búsquedas o lecturas sin hacerlo y, a 45 s del
 final, que deje de buscar y guarde lo confirmado (`steer` de
 `runAgentLoop`, texto tras los resultados de las herramientas).
 
+## Automatización de los agentes
+
+Ajustes en `agent_configs.settings` (pestaña «Automatización» del agente de
+prospección; `saveAgentAutomation` en `services/agents.ts`):
+
+- **Disparadores** (`triggers`): además del horario y «Ejecutar ahora», trabaja
+  cuando alguien añade una fila a su base (completa esa fila) o cuando recibe
+  un aviso en su webhook (`POST /api/hooks/agents/<hook_token>`, el token es
+  el secreto; el cuerpo entra en el prompt como «Avisos recibidos», como dato
+  y no como instrucción). Los eventos se guardan en `agent_events` y se
+  procesan enseguida (`after()`) o en la siguiente pasada del programador si
+  el agente está ocupado (`agents/events.ts`); cada evento se reclama antes de
+  ejecutar, así que nunca se procesa dos veces.
+- **Límites de gasto** (`budget`): por ejecución (coste y búsquedas web) el
+  bucle (`runAgentLoop({ budget })`) avisa al 75 % para que guarde y para
+  antes del siguiente turno (estado `budget`, cuenta como terminada); al mes
+  (`monthSpendUsd`, en la zona del proyecto) no arranca más ejecuciones.
+- **Objetivo** (`goal`): N filas con encaje mínimo. Al cumplirlo deja de buscar
+  filas nuevas; si solo buscaba, se pone en pausa (en ejecuciones automáticas).
+- **Fuentes** (`sources`): `allowed_domains` / `blocked_domains` en las
+  herramientas web (la API admite una de las dos; con OpenAI y Kimi solo se
+  traslada la de permitidos) y, siempre, en el prompt; y qué usar primero.
+- **Modelo** (`settings.model`): otro modelo del mismo proveedor de la
+  organización (`withModel` en `llm/client.ts`); si la organización cambia de
+  proveedor se ignora.
+- **Avisos** (`notify`, `agents/automation.ts`): al terminar o si hay un
+  problema (falla, nada nuevo, límite alcanzado, objetivo cumplido), por Slack
+  (conexión `slack`, un webhook entrante, capacidad `notify.slack`) o por email
+  desde el buzón del agente solo a personas de la organización. Son acciones
+  del gateway (`notify.slack`, `notify.email`) con `defaultAutonomy` 3: salen
+  solas salvo que el agente diga otra cosa, y quedan auditadas.
+- **Primer contacto** (`handoff`, `agents/first-contact.ts`): tras cada
+  ejecución, para las filas con email y encaje suficiente, escribe un primer
+  email y lo propone (`email.send` desde el buzón del agente). Con la autonomía
+  por defecto espera aprobación en «Por aprobar»; el gateway aplica horario de
+  envío, exclusiones y enfriamientos. `prospects.contact_action_id` evita
+  repetirlo.
+
 ## Personas de la organización
 
 Configuración → Usuarios (`services/team.ts`, sobre las tablas `member` e

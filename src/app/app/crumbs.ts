@@ -37,6 +37,8 @@ function agentPageLabel(type: string, page: string) {
       return type === "outbound" ? "Herramientas" : "Canales y herramientas";
     case "approvals":
       return "Aprobaciones";
+    case "automation":
+      return "Automatización";
     default:
       return null;
   }

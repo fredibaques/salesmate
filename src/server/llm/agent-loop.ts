@@ -30,8 +30,11 @@ export function defineTool<S extends z.ZodType>(tool: {
 }
 
 export type AgentLoopResult = {
-  /** "deadline": stopped before a new turn because the time budget ran out. */
-  status: "completed" | "refused" | "max_turns" | "truncated" | "deadline";
+  /**
+   * "deadline": stopped before a new turn because the time budget ran out;
+   * "budget": because the spending cap (cost or searches) was reached.
+   */
+  status: "completed" | "refused" | "max_turns" | "truncated" | "deadline" | "budget";
   finalText: string;
   steps: AgentRunStep[];
   usage: { input: number; output: number; cacheRead: number; cacheWrite: number; webSearches: number };
@@ -78,11 +81,18 @@ export async function runAgentLoop(input: {
   deadline?: number;
   /** Clock for the deadline (tests). */
   now?: () => number;
+  /** Caps checked before each new turn: what has been spent so far, in USD, and web searches. */
+  budget?: { usd?: number; webSearches?: number };
   /**
    * A note for the model after a round of tool results (e.g. "save what you
    * have before searching more"), or null. Sent as text after the results.
    */
-  steer?: (state: { turn: number; steps: readonly AgentRunStep[] }) => string | null;
+  steer?: (state: {
+    turn: number;
+    steps: readonly AgentRunStep[];
+    costUsd: number;
+    webSearches: number;
+  }) => string | null;
 }): Promise<AgentLoopResult> {
   const messages = [...input.messages];
   const steps: AgentRunStep[] = [];
@@ -98,6 +108,15 @@ export async function runAgentLoop(input: {
   for (let turn = 0; turn < (input.maxTurns ?? 12); turn++) {
     if (input.deadline && turn > 0 && (input.now ?? Date.now)() > input.deadline) {
       return { status: "deadline", finalText, steps, usage, costUsd: cost(), model };
+    }
+    const budget = input.budget;
+    if (
+      budget &&
+      turn > 0 &&
+      ((budget.usd !== undefined && cost() >= budget.usd) ||
+        (budget.webSearches !== undefined && usage.webSearches >= budget.webSearches))
+    ) {
+      return { status: "budget", finalText, steps, usage, costUsd: cost(), model };
     }
     const response = await input.llm.create({
       max_tokens: input.maxTokens ?? 16_000,
@@ -181,7 +200,7 @@ export async function runAgentLoop(input: {
       });
     }
     // All results of one turn go back in a single user message, with the note after them.
-    const note = input.steer?.({ turn, steps });
+    const note = input.steer?.({ turn, steps, costUsd: cost(), webSearches: usage.webSearches });
     messages.push({
       role: "user",
       content: note ? [...results, { type: "text", text: note }] : results,

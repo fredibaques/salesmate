@@ -8,6 +8,8 @@ import type {
   CrmUpsertContactPayload,
   EmailPayload,
   McpCallPayload,
+  NotifyEmailPayload,
+  NotifySlackPayload,
 } from "../gateway/definitions";
 import type { ActionExecutor, ActionRow } from "../gateway/gateway";
 import { callStoredMcpTool, type McpDeps } from "./mcp";
@@ -60,6 +62,19 @@ export class ConnectorExecutor implements ActionExecutor {
 
   private async dispatch(client: ConnectorClient, tenant: { orgId: string }, action: ActionRow) {
     switch (action.type) {
+      case "notify.slack":
+        return await require(client, "notify.slack")({ text: (action.payload as NotifySlackPayload).text });
+      case "notify.email": {
+        const p = action.payload as NotifyEmailPayload;
+        const from = await this.identity(tenant, p.identityId);
+        return await require(client, "email.send")({
+          from: { address: from.address, name: from.displayName },
+          to: p.to,
+          cc: [],
+          subject: p.subject,
+          body: p.body,
+        });
+      }
       case "email.send":
       case "email.create_draft": {
         const p = action.payload as EmailPayload;

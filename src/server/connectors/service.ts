@@ -10,6 +10,7 @@ import { googleProvider, grantedScopeSets } from "./google";
 import { getProvider } from "./registry";
 import { createTwentyClient, twentyCredentials } from "./twenty";
 import type { Capability, ConnectorClient } from "./types";
+import { slackCredentials } from "./slack";
 
 export type ConnectionRow = typeof connections.$inferSelect;
 
@@ -175,6 +176,49 @@ export async function createDataConnection(
       entityType: "connection",
       entityId: row.id,
       data: { provider: input.provider, accountRef },
+    });
+    return row;
+  });
+}
+
+/** Connects a Slack channel through its incoming webhook (only for notices). */
+export async function createSlackConnection(
+  deps: ConnectorDeps,
+  tenant: TenantContext,
+  input: { label: string; webhookUrl: string },
+): Promise<ConnectionRow> {
+  const creds = slackCredentials.parse({ webhookUrl: input.webhookUrl });
+  // The end of the URL tells webhooks apart without revealing it.
+  const accountRef = `webhook …${creds.webhookUrl.slice(-6)}`;
+  return withTenant(deps.db, tenant, async (tx) => {
+    const [row] = await tx
+      .insert(connections)
+      .values({
+        orgId: tenant.orgId,
+        provider: "slack",
+        transport: "api",
+        label: input.label,
+        accountRef,
+        credentialsEncrypted: encryptJson(creds),
+        readScopes: [],
+        writeScopes: ["notify"],
+        createdBy: tenant.actorId,
+      })
+      .onConflictDoUpdate({
+        target: [connections.orgId, connections.provider, connections.accountRef],
+        set: {
+          label: input.label,
+          credentialsEncrypted: encryptJson(creds),
+          status: "active",
+          lastError: null,
+        },
+      })
+      .returning();
+    await audit(tx, tenant, {
+      event: "connection.saved",
+      entityType: "connection",
+      entityId: row.id,
+      data: { provider: "slack", accountRef },
     });
     return row;
   });
