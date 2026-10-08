@@ -221,10 +221,13 @@ export function Segmented({
   name,
   options,
   defaultValue,
+  onChange,
 }: {
   name: string;
   options: { value: string; label: ReactNode }[];
   defaultValue?: string;
+  /** Only from client components, to show what depends on the choice. */
+  onChange?: (value: string) => void;
 }) {
   return (
     <div role="radiogroup" className="inline-flex flex-wrap gap-1 rounded-xl bg-ink-100 p-1">
@@ -235,6 +238,7 @@ export function Segmented({
             name={name}
             value={o.value}
             defaultChecked={o.value === defaultValue}
+            onChange={onChange ? (e) => e.target.checked && onChange(o.value) : undefined}
             className="peer sr-only"
           />
           <span className="rounded-lg px-3 py-1.5 text-sm text-muted transition-colors select-none hover:text-foreground peer-checked:bg-surface peer-checked:font-medium peer-checked:text-foreground peer-checked:shadow-sm peer-focus-visible:ring-2 peer-focus-visible:ring-accent/40">

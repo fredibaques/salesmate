@@ -1,14 +1,16 @@
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
+import { ActionForm } from "@/components/action-form";
 import { notFound } from "next/navigation";
 import { ConfirmForm } from "@/components/confirm-form";
+import { ModalButton } from "@/components/modal";
 import { TabLink, Tabs } from "@/components/nav-link";
 import { SwitchButton } from "@/components/switch";
-import { Button, PageHeader } from "@/components/ui";
-import { AGENT_INFO } from "@/lib/agents";
+import { Button, Field, Input, PageHeader } from "@/components/ui";
+import { AGENT_INFO, agentName } from "@/lib/agents";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getAgent, isProjectAgentType } from "@/server/services/agents";
-import { removeAgentAction, toggleAgent } from "../actions";
+import { removeAgentAction, renameAgentAction, toggleAgent } from "../actions";
 import { AGENT_ICONS } from "../agent-cards";
 
 export default async function AgentLayout({
@@ -22,17 +24,43 @@ export default async function AgentLayout({
   if (!agent) notFound();
   const base = `/app/projects/${projectId}/agents/${agentType}`;
   const info = AGENT_INFO[agentType];
+  const name = agentName(agentType, agent.config.name);
 
   return (
     <>
       <PageHeader
         icon={AGENT_ICONS[agentType]}
-        title={info.name}
+        title={name}
+        badge={
+          <ModalButton
+            label="Cambiar el nombre"
+            icon={<Pencil className="size-4" />}
+            title="Nombre del agente"
+            variant="ghost"
+            size="sm"
+            iconOnly
+          >
+            <ActionForm
+              action={renameAgentAction.bind(null, projectId, agentType)}
+              submitLabel="Guardar"
+              className="space-y-4"
+            >
+              <Field label="Nombre" hint={`Vacío para volver a «${info.name}».`}>
+                <Input
+                  name="name"
+                  maxLength={60}
+                  defaultValue={agent.config.name ?? ""}
+                  placeholder={info.name}
+                />
+              </Field>
+            </ActionForm>
+          </ModalButton>
+        }
         actions={
           <>
             <ConfirmForm
               action={removeAgentAction.bind(null, projectId, agentType)}
-              message={`¿Quitar el ${info.name.toLowerCase()} de este proyecto? Dejará de atender contactos. Su proceso se conserva por si lo vuelves a añadir.`}
+              message={`¿Quitar «${name}» de este proyecto? Dejará de atender contactos. Su proceso se conserva por si lo vuelves a añadir.`}
             >
               <Button variant="dangerGhost">
                 <Trash2 className="size-4" />
@@ -46,11 +74,7 @@ export default async function AgentLayout({
               <SwitchButton
                 on={agent.config.enabled}
                 offLabel="En pausa"
-                label={
-                  agent.config.enabled
-                    ? `Pausar el ${info.name.toLowerCase()}`
-                    : `Activar el ${info.name.toLowerCase()}`
-                }
+                label={agent.config.enabled ? `Pausar «${name}»` : `Activar «${name}»`}
               />
             </form>
           </>

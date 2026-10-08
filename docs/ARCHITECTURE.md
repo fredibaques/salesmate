@@ -223,7 +223,16 @@ prospección son plantillas (`AGENT_DEFAULTS` en `services/agents.ts`):
   búsqueda y lectura web de la API (`web_search` / `web_fetch`, herramientas
   del servidor, con tope de usos y coste por búsqueda en `agent_runs`); y las
   herramientas de los servidores MCP de la organización que el usuario marque.
-- **Horario** (`agent_configs.schedule`, hora y días en la zona del proyecto):
+- **Nombre** (`agent_configs.name`): el que le da el usuario; vacío = el de
+  la plantilla (`agentName()` en `lib/agents.ts`). Lo usan la cabecera, el
+  menú lateral, las migas y las tablas.
+- **Cuándo trabaja** (`agent_configs.schedule`, en la zona del proyecto): `null`
+  = solo cuando se lo piden («Ejecutar ahora»); `daily`, `weekly` (días;
+  las filas sin `kind` son semanales), `monthly` (día del mes; si el mes es
+  más corto, el último) u `once` (un momento `YYYY-MM-DDTHH:MM`: se ejecuta
+  una vez a partir de él y vuelve a hacerlo solo si se elige otro momento
+  posterior). Lo leen `isDue` y `describeNextRun` (`agents/scheduler.ts`);
+  el formulario es `ScheduleFields` y `scheduleFromForm` (`lib/schedule.ts`).
   `GET /api/cron/agents` ejecuta los que tocan (`agents/scheduler.ts`), hasta
   tres a la vez en paralelo. Cada franja se reclama con un `UPDATE`
   condicional sobre `last_scheduled_run_at` (comparado al milisegundo:
@@ -307,6 +316,18 @@ pide guardar cada 2 o 3 empresas, y entre vueltas `prospectingSteer` le
 recuerda guardar tras 8 búsquedas o lecturas sin hacerlo y, a 45 s del
 final, que deje de buscar y guarde lo confirmado (`steer` de
 `runAgentLoop`, texto tras los resultados de las herramientas).
+
+## Personas de la organización
+
+Configuración → Usuarios (`services/team.ts`, sobre las tablas `member` e
+`invitation` de Better Auth). Propietarios y administradores invitan por
+email con un rol; la invitación es un enlace (`/invite/<id>`, el id es el
+secreto, 7 días) que se copia y se envía: no hay correo transaccional.
+Quien lo abre se registra o entra con ese email (`?next=` lleva de vuelta)
+y se une con un clic; en el onboarding también ve las invitaciones a su
+email. Invitar de nuevo al mismo email anula el enlace anterior. Solo un
+propietario da o quita el rol de propietario, siempre queda al menos uno y
+nadie se quita a sí mismo. Todo queda en auditoría (`member.*`).
 
 ## Pendiente
 

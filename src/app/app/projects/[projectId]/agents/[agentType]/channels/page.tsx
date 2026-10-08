@@ -20,7 +20,7 @@ import { ToolsCard } from "../tools-card";
 
 function ConnectLink({ children }: { children: React.ReactNode }) {
   return (
-    <Link href="/app/connections/new" className="text-accent hover:underline">
+    <Link href="/app/connections?add=1" className="text-accent hover:underline">
       {children}
     </Link>
   );
@@ -67,7 +67,7 @@ export default async function AgentChannelsPage({
               title="Tu organización no ha conectado ninguna cuenta"
               description="Conecta primero tu correo y calendario (por ejemplo Google Workspace) o tu CRM. Solo se hace una vez y sirve para todos tus proyectos."
               action={
-                <LinkButton href="/app/connections/new" variant="primary">
+                <LinkButton href="/app/connections?add=1" variant="primary">
                   <Plus className="size-4" />
                   Conectar una cuenta
                 </LinkButton>

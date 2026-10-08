@@ -14,7 +14,7 @@ import { Tooltip } from "@/components/ui";
 import { listMemberships, requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { AGENT_ICONS } from "@/components/agent-icons";
-import { AGENT_INFO } from "@/lib/agents";
+import { agentName } from "@/lib/agents";
 import { listSidebarAgents } from "@/server/services/agents";
 import { listActions, listProjects } from "@/server/services/projects";
 import { signOut, switchOrganization } from "./actions";
@@ -77,7 +77,7 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
                   .map((a) => ({
                     href: `/app/projects/${p.id}/agents/${a.agentType}`,
                     icon: AGENT_ICONS[a.agentType],
-                    label: AGENT_INFO[a.agentType].name,
+                    label: agentName(a.agentType, a.name),
                     badge: a.enabled ? null : (
                       <Tooltip content="En pausa" align="end">
                         <span className="size-1.5 rounded-full bg-ink-300" aria-label="En pausa" />

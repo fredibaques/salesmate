@@ -2,6 +2,7 @@ import { and, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { agentConfigs, agentRuns, projects, type AgentSchedule } from "../db/schema";
 import { withSystem, withTenant } from "../db/tenant";
 import type { LlmClient } from "../llm/client";
+import { dayInWords } from "@/lib/schedule";
 import { runProspecting, type AgentRunDeps, type ProspectingResult } from "./prospector";
 
 const WEEKDAYS: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
@@ -29,10 +30,41 @@ export function localClock(at: Date, timeZone: string) {
   };
 }
 
-/** Due when today is one of its days, its time has passed and it hasn't run today. */
+/** Days in a month (month 1–12). */
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/** The day a monthly schedule runs in a given month: its day, or the last one if the month is shorter. */
+function monthlyDay(schedule: { day: number }, year: number, month: number): number {
+  return Math.min(schedule.day, daysInMonth(year, month));
+}
+
+/** Whether a recurring schedule works on a local calendar date ("YYYY-MM-DD", weekday 1–7). */
+function worksOn(schedule: AgentSchedule, date: string, weekday: number): boolean {
+  if (schedule.kind === "once") return false;
+  if (schedule.kind === "daily") return true;
+  if (schedule.kind === "monthly") {
+    const [y, m, d] = date.split("-").map(Number);
+    return d === monthlyDay(schedule, y, m);
+  }
+  return schedule.days.includes(weekday);
+}
+
+/**
+ * Due when its time has come and it hasn't run for it yet: recurring
+ * schedules once per working day, after their time; a single run once,
+ * from its moment on.
+ */
 export function isDue(schedule: AgentSchedule, lastRunAt: Date | null, now: Date, timeZone: string): boolean {
   const today = localClock(now, timeZone);
-  if (!schedule.days.includes(today.weekday)) return false;
+  if (schedule.kind === "once") {
+    if (`${today.date}T${today.time}` < schedule.at) return false;
+    if (!lastRunAt) return true;
+    const last = localClock(lastRunAt, timeZone);
+    return `${last.date}T${last.time}` < schedule.at;
+  }
+  if (!worksOn(schedule, today.date, today.weekday)) return false;
   if (today.time < schedule.time) return false;
   return !lastRunAt || localClock(lastRunAt, timeZone).date < today.date;
 }
@@ -192,26 +224,48 @@ const WEEKDAY_NAMES = [
   "el domingo",
 ];
 
-/** When a scheduled agent works next, in words ("hoy a las 08:00", "el lunes a las 08:00"). */
+/** The local date `days` after a "YYYY-MM-DD" date, with its weekday (1–7). */
+function addDays(date: string, days: number): { date: string; weekday: number } {
+  const [y, m, d] = date.split("-").map(Number);
+  const at = new Date(Date.UTC(y, m - 1, d + days));
+  return { date: at.toISOString().slice(0, 10), weekday: ((at.getUTCDay() + 6) % 7) + 1 };
+}
+
+/**
+ * When a scheduled agent works next, in words ("hoy a las 08:00", "el
+ * lunes a las 08:00", "el 15 de noviembre a las 08:00"); null when it won't
+ * (no days chosen, or a single run that already happened).
+ */
 export function describeNextRun(
   schedule: AgentSchedule,
   lastRunAt: Date | null,
   now: Date,
   timeZone: string,
 ): string | null {
-  if (!schedule.days.length) return null;
   const today = localClock(now, timeZone);
+  if (schedule.kind === "once") {
+    if (isDue(schedule, lastRunAt, now, timeZone)) return "ahora, en la próxima pasada del programador";
+    // Its moment has passed and it ran.
+    if (`${today.date}T${today.time}` >= schedule.at) return null;
+    const [date, time] = schedule.at.split("T");
+    if (date === today.date) return `hoy a las ${time}`;
+    if (date === addDays(today.date, 1).date) return `mañana a las ${time}`;
+    return `${dayInWords(date)} a las ${time}`;
+  }
+  if (schedule.kind !== "daily" && schedule.kind !== "monthly" && !schedule.days.length) return null;
   const ranToday = lastRunAt ? localClock(lastRunAt, timeZone).date === today.date : false;
-  for (let i = 0; i <= 7; i++) {
-    const weekday = ((today.weekday - 1 + i) % 7) + 1;
-    if (!schedule.days.includes(weekday)) continue;
+  // A month and a bit covers every monthly schedule.
+  for (let i = 0; i <= 62; i++) {
+    const day = i === 0 ? today : addDays(today.date, i);
+    if (!worksOn(schedule, day.date, day.weekday)) continue;
     if (i === 0) {
       if (ranToday) continue;
       if (today.time >= schedule.time) return "ahora, en la próxima pasada del programador";
       return `hoy a las ${schedule.time}`;
     }
     if (i === 1) return `mañana a las ${schedule.time}`;
-    return `${WEEKDAY_NAMES[weekday]} a las ${schedule.time}`;
+    if (i < 7) return `${WEEKDAY_NAMES[day.weekday]} a las ${schedule.time}`;
+    return `${dayInWords(day.date)} a las ${schedule.time}`;
   }
   return null;
 }

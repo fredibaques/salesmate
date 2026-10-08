@@ -61,6 +61,32 @@ describe("schedule", () => {
     expect(isDue(schedule, new Date("2026-10-06T06:00:00Z"), wednesday, "Europe/Madrid")).toBe(true);
     expect(isDue(schedule, null, new Date("2026-10-10T08:00:00Z"), "Europe/Madrid")).toBe(false); // Saturday
   });
+
+  it("works every day, on a day of the month, or once", () => {
+    const tz = "Europe/Madrid";
+    const daily = { kind: "daily" as const, time: "08:00" };
+    expect(isDue(daily, null, new Date("2026-10-10T08:00:00Z"), tz)).toBe(true); // Saturday too
+    const monthly = { kind: "monthly" as const, time: "08:00", day: 7 };
+    expect(isDue(monthly, null, wednesday, tz)).toBe(true);
+    expect(isDue(monthly, null, new Date("2026-10-08T06:30:00Z"), tz)).toBe(false);
+    // Day 31 in a 30-day month: its last day.
+    const endOfMonth = { kind: "monthly" as const, time: "08:00", day: 31 };
+    expect(isDue(endOfMonth, null, new Date("2026-11-30T08:00:00Z"), tz)).toBe(true);
+    expect(isDue(endOfMonth, null, new Date("2026-11-29T08:00:00Z"), tz)).toBe(false);
+    const once = { kind: "once" as const, at: "2026-10-07T08:15" };
+    expect(isDue(once, null, new Date("2026-10-07T06:00:00Z"), tz)).toBe(false); // 08:00, before
+    expect(isDue(once, null, wednesday, tz)).toBe(true);
+    expect(isDue(once, new Date("2026-10-07T06:20:00Z"), new Date("2026-10-09T06:00:00Z"), tz)).toBe(false);
+    // Moved to a later moment: works again then.
+    expect(
+      isDue(
+        { kind: "once", at: "2026-10-09T08:00" },
+        new Date("2026-10-07T06:20:00Z"),
+        new Date("2026-10-09T06:00:00Z"),
+        tz,
+      ),
+    ).toBe(true);
+  });
 });
 
 describe("runDueAgents", () => {
@@ -181,6 +207,19 @@ describe("describeNextRun", () => {
     expect(
       describeNextRun(schedule, new Date("2026-10-09T06:05:00Z"), new Date("2026-10-09T09:00:00Z"), tz),
     ).toBe("el lunes a las 08:00");
+  });
+
+  it("names the date when it's further than a week, and stops after a single run", () => {
+    const now = new Date("2026-10-07T09:00:00Z");
+    expect(describeNextRun({ kind: "monthly", time: "08:00", day: 1 }, null, now, tz)).toBe(
+      "el 1 de noviembre a las 08:00",
+    );
+    expect(describeNextRun({ kind: "daily", time: "08:00" }, now, now, tz)).toBe("mañana a las 08:00");
+    const once = { kind: "once" as const, at: "2026-10-20T10:30" };
+    expect(describeNextRun(once, null, now, tz)).toBe("el 20 de octubre a las 10:30");
+    expect(
+      describeNextRun(once, new Date("2026-10-20T08:31:00Z"), new Date("2026-10-21T09:00:00Z"), tz),
+    ).toBeNull();
   });
 });
 

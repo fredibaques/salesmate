@@ -1,6 +1,5 @@
 import { Building2, Database, Plus, User } from "lucide-react";
 import { CardGrid, EmptyState, EntityCard, LinkButton, Meta, Toolbar } from "@/components/ui";
-import { AGENT_INFO } from "@/lib/agents";
 import { formatDateTime, plural } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
@@ -72,9 +71,7 @@ export default async function ProspectBasesPage({
               />
             }
             description={
-              b.agents.length
-                ? `La rellena: ${b.agents.map((a) => AGENT_INFO[a as keyof typeof AGENT_INFO]?.name ?? a).join(", ")}`
-                : "Ningún agente la rellena"
+              b.agents.length ? `La rellena: ${b.agentNames.join(", ")}` : "Ningún agente la rellena"
             }
           />
         ))}

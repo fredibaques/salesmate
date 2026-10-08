@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { ActionForm } from "@/components/action-form";
 import { Card, LinkButton, Meta } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
@@ -6,6 +7,7 @@ import { getDb } from "@/server/db/client";
 import { listBases } from "@/server/prospects/bases";
 import { countPendingCells } from "@/server/prospects/complete";
 import { getAgent, listAgentRuns } from "@/server/services/agents";
+import { runProspectingNow } from "../actions";
 import { InstructionsCard } from "./instructions-card";
 import { RunStatus } from "./run-status";
 
@@ -39,6 +41,12 @@ export async function OutboundHome({ projectId }: { projectId: string }) {
         <p className="text-sm text-muted">
           filas en «{base?.name ?? "Prospectos"}»{pending ? `, ${pending} celdas por completar` : ""}
         </p>
+        <ActionForm
+          action={runProspectingNow.bind(null, projectId)}
+          submitLabel="Ejecutar ahora"
+          submitVariant="secondary"
+          className="mt-4 flex flex-wrap items-center gap-3"
+        />
         <div className="mt-4 border-t border-border pt-4 text-sm">
           {last ? (
             <>
@@ -61,7 +69,7 @@ export async function OutboundHome({ projectId }: { projectId: string }) {
             </>
           ) : (
             <p className="text-muted">
-              Todavía no ha trabajado. Actívalo o lánzalo a mano desde su base con «Buscar ahora».
+              Todavía no ha trabajado. Lánzalo con «Ejecutar ahora» o elige cuándo trabaja.
             </p>
           )}
         </div>

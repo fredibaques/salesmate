@@ -1,15 +1,6 @@
-import { CalendarDays, Mail, Phone, Plug, Plus } from "lucide-react";
+import { CalendarDays, Mail, Phone, Plug } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
-import {
-  Avatar,
-  Badge,
-  CardGrid,
-  EmptyState,
-  EntityCard,
-  LinkButton,
-  Notice,
-  Toolbar,
-} from "@/components/ui";
+import { Avatar, Badge, CardGrid, EmptyState, EntityCard, Notice, Toolbar } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import { describeScopes, getIntegration } from "@/lib/integrations";
 import { requireTenant } from "@/server/auth/session";
@@ -18,6 +9,7 @@ import { env } from "@/server/env";
 import { listOrgConnections, listOrgIdentities } from "@/server/services/projects";
 import { mcpToolsOf } from "@/server/connectors/mcp";
 import { testConnection } from "./actions";
+import { AddConnectionButton } from "./add-connection";
 
 export const metadata = { title: "Conexiones" };
 
@@ -49,17 +41,16 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/app/
     listOrgIdentities(db, tenant),
   ]);
   const appUrl = env().APP_URL;
+  const setup = {
+    googleReady: Boolean(env().GOOGLE_CLIENT_ID && env().GOOGLE_CLIENT_SECRET),
+    appUrl,
+    // ?add=1 opens the modal, ?add=<tool> straight on that tool.
+    initial: typeof query.add === "string" ? query.add : null,
+  };
 
   return (
     <>
-      <Toolbar>
-        {connections.length > 0 ? (
-          <LinkButton href="/app/connections/new" variant="primary">
-            <Plus className="size-4" />
-            Añadir conexión
-          </LinkButton>
-        ) : null}
-      </Toolbar>
+      <Toolbar>{connections.length > 0 ? <AddConnectionButton {...setup} /> : null}</Toolbar>
 
       {query.connected || query.error ? (
         <div className="mb-6">
@@ -78,12 +69,7 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/app/
           icon={<Plug />}
           title="Todavía no has conectado ninguna herramienta"
           description="Conecta tu CRM, tu correo y tu calendario para que los agentes puedan consultar tu información y actuar por ti, siempre con tu aprobación."
-          action={
-            <LinkButton href="/app/connections/new" variant="primary">
-              <Plus className="size-4" />
-              Conectar una herramienta
-            </LinkButton>
-          }
+          action={<AddConnectionButton label="Conectar una herramienta" {...setup} />}
         />
       ) : (
         <CardGrid className="xl:grid-cols-2">

@@ -1,21 +1,12 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
-import { Card, Chip, Field, Input, Segmented, Select, Textarea } from "@/components/ui";
+import { ScheduleFields } from "@/components/schedule-fields";
+import { Card, Field, Input, Segmented, Select, Textarea } from "@/components/ui";
 import { DEFAULT_CELLS_PER_RUN } from "@/server/agents/prospector";
 import type { agentConfigs } from "@/server/db/schema";
 import { SCHEDULED_AGENT_TYPES, type ProjectAgentType } from "@/server/services/agents";
 import { saveInstructions } from "../actions";
 import { ScheduleStatus } from "./schedule-status";
-
-const DAYS = [
-  [1, "L"],
-  [2, "M"],
-  [3, "X"],
-  [4, "J"],
-  [5, "V"],
-  [6, "S"],
-  [7, "D"],
-] as const;
 
 const MODES = [
   { value: "find", label: "Buscar nuevos" },
@@ -45,7 +36,6 @@ export function InstructionsCard({
   bases?: { id: string; name: string }[];
 }) {
   const scheduled = SCHEDULED_AGENT_TYPES.includes(agentType);
-  const schedule = config.schedule ?? { time: "08:00", days: [1, 2, 3, 4, 5] };
   return (
     <Card
       title="Instrucciones"
@@ -81,6 +71,8 @@ export function InstructionsCard({
         </Field>
         {scheduled ? (
           <>
+            <ScheduleFields schedule={config.schedule} />
+            <ScheduleStatus projectId={projectId} config={config} />
             <Field
               label="En cada ejecución"
               group
@@ -88,23 +80,6 @@ export function InstructionsCard({
             >
               <Segmented name="mode" options={MODES} defaultValue={config.settings.mode ?? "find"} />
             </Field>
-            <div className="grid gap-4 sm:grid-cols-[auto_1fr]">
-              <Field
-                label="Hora"
-                tip="Hora del proyecto. Trabaja solo a partir de esa hora, los días marcados, mientras esté activo: el programador pasa cada 15 minutos de día y cada hora de noche."
-              >
-                <Input name="time" type="time" defaultValue={schedule.time} required className="w-32" />
-              </Field>
-              <Field label="Días" group>
-                <div className="flex flex-wrap gap-1.5">
-                  {DAYS.map(([n, label]) => (
-                    <Chip key={n} name="days" value={n} defaultChecked={schedule.days.includes(n)}>
-                      {label}
-                    </Chip>
-                  ))}
-                </div>
-              </Field>
-            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
                 label="Filas nuevas por ejecución"
@@ -133,7 +108,6 @@ export function InstructionsCard({
                 />
               </Field>
             </div>
-            <ScheduleStatus projectId={projectId} config={config} />
           </>
         ) : null}
       </ActionForm>

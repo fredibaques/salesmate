@@ -21,3 +21,8 @@ export const AGENT_INFO = {
 } as const;
 
 export type ProjectAgentKey = keyof typeof AGENT_INFO;
+
+/** The agent's name: the one the user gave it, or its template's. */
+export function agentName(type: ProjectAgentKey, name?: string | null): string {
+  return name?.trim() || AGENT_INFO[type].name;
+}

@@ -18,7 +18,10 @@ export async function ScheduleStatus({
   config: typeof agentConfigs.$inferSelect;
 }) {
   const project = await getProject(getDb(), await requireTenant(), projectId);
-  if (!project || !config.schedule) return null;
+  if (!project) return null;
+  if (!config.schedule) {
+    return <p className="text-sm text-muted">Solo trabaja cuando pulsas «Ejecutar ahora».</p>;
+  }
   const now = new Date();
   const working = config.enabled && !project.agentsPaused;
   const next = working
@@ -42,6 +45,8 @@ export async function ScheduleStatus({
               <span key="next">
                 <span className="text-muted">Próxima ejecución:</span> {next}
               </span>
+            ) : config.schedule.kind === "once" && config.lastScheduledRunAt ? (
+              `Ya trabajó el ${formatDateTime(config.lastScheduledRunAt)}; elige otro momento para repetir`
             ) : (
               "Elige al menos un día"
             ),
