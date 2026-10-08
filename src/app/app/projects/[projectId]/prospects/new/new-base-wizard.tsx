@@ -2,7 +2,7 @@
 
 import { Building2, Loader2, RefreshCw, User } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
-import { Badge, Button, Choice, Field, Input, Notice, Textarea } from "@/components/ui";
+import { Badge, Button, Choice, Field, Input, Notice, Select, Textarea } from "@/components/ui";
 import { Wizard, type WizardStep } from "@/components/wizard";
 import { COLUMN_TYPE_LABELS, type ColumnDraft, type RowKind } from "@/lib/prospect-columns";
 import type { ProposedColumn } from "@/server/prospects/propose-columns";
@@ -45,7 +45,15 @@ function ReviewRow({ label, children }: { label: string; children: ReactNode }) 
  * Creating a base: what each row is, the columns (proposed by the AI from the
  * project's offer and ideal customer) and a last look before creating it.
  */
-export function NewBaseWizard({ projectId }: { projectId: string }) {
+export function NewBaseWizard({
+  projectId: fixedProject,
+  projects = [],
+}: {
+  /** The project it belongs to; without it, the first step asks which. */
+  projectId?: string;
+  projects?: { id: string; name: string }[];
+}) {
+  const [projectId, setProjectId] = useState(fixedProject ?? projects[0]?.id ?? "");
   const [name, setName] = useState("");
   const [rowKind, setRowKind] = useState<RowKind>("company");
   const [brief, setBrief] = useState("");
@@ -53,7 +61,7 @@ export function NewBaseWizard({ projectId }: { projectId: string }) {
   const [loading, setLoading] = useState(false);
   const request = useRef(0);
 
-  const answers = JSON.stringify([rowKind, name.trim(), brief.trim()]);
+  const answers = JSON.stringify([projectId, rowKind, name.trim(), brief.trim()]);
 
   async function propose() {
     const id = ++request.current;
@@ -81,6 +89,25 @@ export function NewBaseWizard({ projectId }: { projectId: string }) {
       title: "Qué guardas",
       content: (
         <>
+          {fixedProject ? null : (
+            <Field
+              label="Proyecto"
+              tip="Sus agentes podrán trabajar en ella y la IA usa su oferta y su cliente ideal."
+            >
+              <Select
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+                required
+                className="max-w-sm"
+              >
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
           <Field label="Nombre de la tabla">
             <Input
               name="name"
@@ -225,7 +252,7 @@ export function NewBaseWizard({ projectId }: { projectId: string }) {
   return (
     <Wizard
       steps={steps}
-      action={createBaseAction.bind(null, projectId)}
+      action={(state, form) => createBaseAction(projectId, state, form)}
       submitLabel="Crear tabla"
       cancelHref={`/app/projects/${projectId}/prospects`}
       onStepChange={(index) => {

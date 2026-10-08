@@ -53,7 +53,9 @@ export default async function AgentChannelsPage({
   // The prospecting agent doesn't write to anyone: it only needs its tools.
   if (agentType === "outbound") return <div className="max-w-3xl">{toolsCard}</div>;
   const channels = agent.config.channels;
-  const nothingConnected = options.mailboxes.length + options.calendars.length + options.crms.length === 0;
+  const nothingConnected =
+    options.mailboxes.length + options.calendars.length + options.crms.length + options.whatsapps.length ===
+    0;
   const endpoint = `${env().APP_URL}/api/inbound/form/${projectId}`;
 
   return (
@@ -108,6 +110,34 @@ export default async function AgentChannelsPage({
                   label="Atender también los emails que llegan a este buzón"
                   description="Cada email nuevo se trata como un contacto entrante. Necesita que la cuenta tenga permiso de lectura."
                 />
+              ) : null}
+              {agentType === "inbound" ? (
+                <Field
+                  label="WhatsApp"
+                  hint={
+                    options.whatsapps.length === 0 ? (
+                      <>
+                        No hay ningún número de WhatsApp Business conectado.{" "}
+                        <Link href="/app/connections?add=whatsapp" className="text-accent hover:underline">
+                          Conecta uno
+                        </Link>
+                        .
+                      </>
+                    ) : (
+                      "Atiende los mensajes que llegan a este número y responde por WhatsApp."
+                    )
+                  }
+                >
+                  <Select name="whatsappId" defaultValue={channels.whatsappId ?? ""}>
+                    <option value="">— Ninguno —</option>
+                    {options.whatsapps.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.address}
+                        {w.name ? ` · ${w.name}` : ""}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
               ) : null}
               <Field
                 label="Calendario donde agenda"

@@ -21,6 +21,7 @@ export function ActionForm({
   className,
   confirm,
   cancel = true,
+  stayOpen = false,
 }: {
   action: FormAction;
   children?: ReactNode;
@@ -30,6 +31,8 @@ export function ActionForm({
   cancel?: boolean;
   className?: string;
   confirm?: string;
+  /** Inside a modal, keep it open after saving (a form among others in it). */
+  stayOpen?: boolean;
 }) {
   const modal = useModal();
   const toast = useToast();
@@ -46,7 +49,7 @@ export function ActionForm({
       form.current?.reset();
       if (toast) {
         toast({ ok: true, message: result.message });
-        modal?.close();
+        if (!stayOpen) modal?.close();
       }
     }
     return result;

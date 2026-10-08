@@ -57,7 +57,7 @@ export async function InstructionsCard({
         {bases?.length ? (
           <Field
             label="Trabaja sobre"
-            tip="La tabla de prospectos del proyecto donde guarda lo que encuentra. Recoge los datos de sus columnas."
+            tip="La tabla del proyecto donde guarda lo que encuentra. Recoge los datos de sus columnas."
             hint={
               <Link href={`/app/projects/${projectId}/prospects/new`} className="text-accent hover:underline">
                 Crear otra tabla

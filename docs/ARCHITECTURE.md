@@ -355,6 +355,20 @@ prospección; `saveAgentAutomation` en `services/agents.ts`):
   envío, exclusiones y enfriamientos. `prospects.contact_action_id` evita
   repetirlo.
 
+## WhatsApp Business
+
+Conexión `whatsapp` (`connectors/whatsapp.ts`, API Cloud de Meta): número,
+token permanente de un usuario del sistema y secreto de la app. Al conectar
+se comprueba el número y se crea su identidad `whatsapp`. Meta envía los
+mensajes a `/api/webhooks/whatsapp/<connectionId>` (verificación con nuestro
+token y firma `X-Hub-Signature-256` con el secreto de la app); se encolan como
+`inbound_events` (`source: "whatsapp"`) del proyecto cuyo agente inbound
+atiende ese número (`channels.whatsappId`) y siguen el mismo camino que
+formularios y emails. Las respuestas son `whatsapp.send` en el gateway
+(saliente: horario, exclusiones y enfriamientos por teléfono). Fuera de las 24
+horas desde el último mensaje del contacto, Meta exige plantillas aprobadas
+(pendiente).
+
 ## Rendimiento
 
 - Las funciones de Vercel corren en `fra1` (`vercel.json`), junto a Neon

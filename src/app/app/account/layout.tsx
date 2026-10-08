@@ -12,7 +12,6 @@ export default function AccountLayout({ children }: LayoutProps<"/app/account">)
         </TabLink>
         <TabLink href="/app/account/security">Seguridad</TabLink>
         <TabLink href="/app/account/organization">Organización</TabLink>
-        <TabLink href="/app/account/menu">Menú</TabLink>
       </Tabs>
       <div className="max-w-3xl space-y-6">{children}</div>
     </>

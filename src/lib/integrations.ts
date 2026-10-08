@@ -81,8 +81,13 @@ export const INTEGRATIONS: Integration[] = [
     name: "WhatsApp Business",
     tagline: "Mensajes con clientes",
     category: "messaging",
-    status: "soon",
+    status: "available",
     color: "#25D366",
+    abilities: [
+      "Atender los mensajes que llegan a tu número de empresa (agente inbound)",
+      "Responder por WhatsApp, siempre según las reglas del proyecto y con tu aprobación",
+      "Usa la API oficial de Meta (WhatsApp Cloud API)",
+    ],
   },
   {
     id: "phone",

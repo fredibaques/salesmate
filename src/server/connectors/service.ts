@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { audit } from "../audit";
 import { decryptJson, encryptJson } from "../crypto";
@@ -11,6 +12,7 @@ import { getProvider } from "./registry";
 import { createTwentyClient, twentyCredentials } from "./twenty";
 import type { Capability, ConnectorClient } from "./types";
 import { slackCredentials } from "./slack";
+import { createWhatsappClient, whatsappCredentials } from "./whatsapp";
 
 export type ConnectionRow = typeof connections.$inferSelect;
 
@@ -179,6 +181,92 @@ export async function createDataConnection(
     });
     return row;
   });
+}
+
+/**
+ * Connects a WhatsApp Business number (Cloud API): checks the token against
+ * the number, saves the credentials with our webhook verify token, and adds
+ * the number as an identity the agents can write from.
+ */
+export async function createWhatsappConnection(
+  deps: ConnectorDeps,
+  tenant: TenantContext,
+  input: { label: string; accessToken: string; phoneNumberId: string; appSecret: string },
+): Promise<ConnectionRow> {
+  const creds = whatsappCredentials.parse({ ...input, verifyToken: randomBytes(24).toString("base64url") });
+  const number = await createWhatsappClient(creds, { fetch: deps.fetch ?? fetch }).describe();
+  return withTenant(deps.db, tenant, async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(connections)
+      .where(and(eq(connections.provider, "whatsapp"), eq(connections.accountRef, number.number)));
+    // Reconnecting keeps the verify token Meta already knows.
+    const saved = existing?.credentialsEncrypted
+      ? whatsappCredentials.safeParse(decryptJson(existing.credentialsEncrypted))
+      : null;
+    const final = saved?.success ? { ...creds, verifyToken: saved.data.verifyToken } : creds;
+    const [row] = await tx
+      .insert(connections)
+      .values({
+        orgId: tenant.orgId,
+        provider: "whatsapp",
+        transport: "api",
+        label: input.label,
+        accountRef: number.number,
+        credentialsEncrypted: encryptJson(final),
+        readScopes: ["whatsapp"],
+        writeScopes: ["whatsapp"],
+        metadata: { verifiedName: number.name },
+        createdBy: tenant.actorId,
+      })
+      .onConflictDoUpdate({
+        target: [connections.orgId, connections.provider, connections.accountRef],
+        set: {
+          label: input.label,
+          credentialsEncrypted: encryptJson(final),
+          status: "active",
+          lastError: null,
+          metadata: { verifiedName: number.name },
+        },
+      })
+      .returning();
+    await tx
+      .insert(identities)
+      .values({
+        orgId: tenant.orgId,
+        kind: "whatsapp",
+        provider: "whatsapp",
+        address: number.number,
+        displayName: number.name ?? input.label,
+        connectionId: row.id,
+        metadata: { phoneNumberId: final.phoneNumberId },
+      })
+      .onConflictDoUpdate({
+        target: [identities.orgId, identities.kind, identities.address],
+        set: { connectionId: row.id, displayName: number.name ?? input.label },
+      });
+    await audit(tx, tenant, {
+      event: "connection.saved",
+      entityType: "connection",
+      entityId: row.id,
+      data: { provider: "whatsapp", accountRef: number.number },
+    });
+    return row;
+  });
+}
+
+/** The verify token Meta asks for when setting up a WhatsApp connection's webhook. */
+export async function whatsappVerifyToken(
+  deps: ConnectorDeps,
+  tenant: Pick<TenantContext, "orgId">,
+  connectionId: string,
+): Promise<string | null> {
+  const [row] = await withTenant(deps.db, tenant, (tx) =>
+    tx.select().from(connections).where(eq(connections.id, connectionId)),
+  );
+  if (row?.provider !== "whatsapp" || !row.credentialsEncrypted) return null;
+  const creds = whatsappCredentials.safeParse(decryptJson(row.credentialsEncrypted));
+  return creds.success ? creds.data.verifyToken : null;
 }
 
 /** Connects a Slack channel through its incoming webhook (only for notices). */

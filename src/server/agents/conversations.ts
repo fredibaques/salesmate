@@ -10,7 +10,7 @@ export type ContactRow = typeof contacts.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;
 
 export type Lead = {
-  channel: "form" | "email";
+  channel: "form" | "email" | "whatsapp";
   email: string | null;
   phone: string | null;
   firstName: string | null;

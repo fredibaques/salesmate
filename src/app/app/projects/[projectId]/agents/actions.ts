@@ -92,6 +92,7 @@ function channelsFromForm(form: FormData) {
     readMailbox: bool(form, "readMailbox"),
     calendarId: str(form, "calendarId") ?? null,
     crmConnectionId: str(form, "crmConnectionId") ?? null,
+    whatsappId: str(form, "whatsappId") ?? null,
   };
 }
 

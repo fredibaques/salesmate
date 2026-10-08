@@ -389,6 +389,7 @@ export const channelsInput = z.object({
   readMailbox: z.boolean().default(false),
   calendarId: z.string().uuid().nullable().default(null),
   crmConnectionId: z.string().uuid().nullable().default(null),
+  whatsappId: z.string().uuid().nullable().default(null),
 });
 
 export async function saveAgentChannels(
@@ -400,7 +401,9 @@ export async function saveAgentChannels(
 ) {
   const channels: AgentChannels = channelsInput.parse(raw);
   return withTenant(db, tenant, async (tx) => {
-    const ids = [channels.mailboxId, channels.calendarId].filter((x): x is string => Boolean(x));
+    const ids = [channels.mailboxId, channels.calendarId, channels.whatsappId].filter((x): x is string =>
+      Boolean(x),
+    );
     if (ids.length) {
       const found = await tx
         .select({ id: identities.id })
@@ -442,7 +445,9 @@ export async function syncProjectChannels(tx: Tx, orgId: string, projectId: stri
 
   const identityIds = [
     ...new Set(
-      ordered.flatMap((a) => [a.channels.mailboxId, a.channels.calendarId]).filter((x): x is string => !!x),
+      ordered
+        .flatMap((a) => [a.channels.mailboxId, a.channels.calendarId, a.channels.whatsappId])
+        .filter((x): x is string => !!x),
     ),
   ];
   const readMailboxes = new Set(
@@ -531,6 +536,9 @@ export async function listChannelOptions(db: Db, tenant: Pick<TenantContext, "or
           address: i.address,
           canBook: i.connection?.writeScopes.includes("calendar") ?? false,
         })),
+      whatsapps: withConn
+        .filter((i) => i.kind === "whatsapp")
+        .map((i) => ({ id: i.id, address: i.address, name: i.displayName })),
       crms: conns
         .filter((c) => c.provider === "twenty")
         .map((c) => ({ id: c.id, label: c.label, canWrite: c.writeScopes.includes("crm") })),

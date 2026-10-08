@@ -1,10 +1,11 @@
+"use client";
+
 import { Plus } from "lucide-react";
-import { LinkButton, type ButtonSize, type ButtonVariant } from "@/components/ui";
+import { ModalButton } from "@/components/modal";
+import type { ButtonSize, ButtonVariant } from "@/components/ui";
+import { ProjectWizard } from "./new/project-wizard";
 
-export const PROJECT_HELP =
-  "Un proyecto es una empresa, una marca o tu actividad como autónomo. Cada uno tiene su oferta, sus herramientas, su conocimiento y sus reglas, aislados del resto.";
-
-/** «Nuevo proyecto»: opens the step-by-step creation. */
+/** «Nuevo proyecto»: the step-by-step creation, in a modal. */
 export function NewProjectButton({
   variant = "primary",
   size,
@@ -19,16 +20,17 @@ export function NewProjectButton({
   label?: string;
 }) {
   return (
-    <LinkButton
-      href="/app/projects/new"
+    <ModalButton
+      label={label}
+      icon={<Plus className="size-4" />}
+      title="Nuevo proyecto"
       variant={variant}
       size={size}
       iconOnly={iconOnly}
-      aria-label={iconOnly ? label : undefined}
+      width="xl"
       className={className}
     >
-      <Plus />
-      {iconOnly ? null : label}
-    </LinkButton>
+      <ProjectWizard />
+    </ModalButton>
   );
 }

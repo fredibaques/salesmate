@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, ChevronsUpDown, Check, LogOut, PanelLeft, UserRound } from "lucide-react";
+import { ChevronRight, ChevronsUpDown, Check, LogOut, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -19,18 +19,34 @@ export function Sidebar({ children }: { children: ReactNode }) {
   );
 }
 
-export function SidebarBrand({ href, title, subtitle }: { href: string; title: string; subtitle?: string }) {
+export function SidebarBrand({
+  href,
+  title,
+  subtitle,
+  action,
+}: {
+  href: string;
+  title: string;
+  subtitle?: string;
+  /** A control on the right of the brand (e.g. the menu's settings). */
+  action?: ReactNode;
+}) {
   return (
-    <Link
-      href={href}
-      className="mx-3 mt-3 flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-ink-50"
-    >
-      <Logo size={32} />
-      <span className="min-w-0">
-        <span className="block truncate font-display text-[15px] font-semibold tracking-tight">{title}</span>
-        {subtitle ? <span className="block truncate text-xs text-muted">{subtitle}</span> : null}
-      </span>
-    </Link>
+    <div className="mx-3 mt-3 flex items-center gap-1">
+      <Link
+        href={href}
+        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-ink-50"
+      >
+        <Logo size={32} />
+        <span className="min-w-0">
+          <span className="block truncate font-display text-[15px] font-semibold tracking-tight">
+            {title}
+          </span>
+          {subtitle ? <span className="block truncate text-xs text-muted">{subtitle}</span> : null}
+        </span>
+      </Link>
+      {action}
+    </div>
   );
 }
 
@@ -277,10 +293,6 @@ export function UserMenu({
           <Link href="/app/account" role="menuitem" className={item}>
             <UserRound />
             Mi cuenta
-          </Link>
-          <Link href="/app/account/menu" role="menuitem" className={item}>
-            <PanelLeft />
-            Personalizar el menú
           </Link>
           {organizations.length > 1 ? (
             <>

@@ -9,6 +9,7 @@ import {
   SidebarSection,
   UserMenu,
 } from "@/components/sidebar";
+import { MenuSettingsButton } from "@/components/menu-settings";
 import { ToastProvider } from "@/components/toast";
 import { Tooltip } from "@/components/ui";
 import { listMemberships, requireTenant } from "@/server/auth/session";
@@ -65,7 +66,26 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
     <ToastProvider>
       <div className="flex min-h-screen">
         <Sidebar>
-          <SidebarBrand href="/app" title="SalesMate" />
+          <SidebarBrand
+            href="/app"
+            title="SalesMate"
+            action={
+              <MenuSettingsButton
+                sections={inOrder([...NAV_SECTIONS], (k) => k, nav.sections)}
+                canEditAgents={tenant.role !== "member"}
+                projects={projects.map((p) => ({
+                  id: p.id,
+                  name: p.name,
+                  paused: p.agentsPaused,
+                  agents: inOrder(
+                    agents.filter((a) => a.projectId === p.id),
+                    (a) => a.agentType,
+                    nav.agents?.[p.id],
+                  ).map((a) => ({ type: a.agentType, name: a.name, icon: a.icon, color: a.color })),
+                }))}
+              />
+            }
+          />
           <SidebarSection>
             {inOrder([...NAV_SECTIONS], (k) => k, nav.sections).map((k) => sections[k])}
           </SidebarSection>

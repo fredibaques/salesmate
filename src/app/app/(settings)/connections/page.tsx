@@ -1,6 +1,7 @@
 import { CalendarDays, Mail, Phone, Plug } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
-import { Avatar, Badge, CardGrid, EmptyState, EntityCard, Notice, Toolbar } from "@/components/ui";
+import { IntegrationLogo } from "@/components/integration-logo";
+import { Badge, CardGrid, EmptyState, EntityCard, Notice, Toolbar } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import { describeScopes, getIntegration } from "@/lib/integrations";
 import { requireTenant } from "@/server/auth/session";
@@ -8,6 +9,7 @@ import { getDb } from "@/server/db/client";
 import { env } from "@/server/env";
 import { listOrgConnections, listOrgIdentities } from "@/server/services/projects";
 import { mcpToolsOf } from "@/server/connectors/mcp";
+import { whatsappVerifyToken } from "@/server/connectors/service";
 import { testConnection } from "./actions";
 import { AddConnectionButton } from "./add-connection";
 
@@ -41,6 +43,17 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/app/
     listOrgIdentities(db, tenant),
   ]);
   const appUrl = env().APP_URL;
+  const canEdit = tenant.role !== "member";
+  // What Meta asks for to set up each WhatsApp webhook (only for those who manage connections).
+  const whatsappTokens = new Map(
+    canEdit
+      ? await Promise.all(
+          connections
+            .filter((c) => c.provider === "whatsapp")
+            .map(async (c) => [c.id, await whatsappVerifyToken({ db }, tenant, c.id)] as const),
+        )
+      : [],
+  );
   const setup = {
     googleReady: Boolean(env().GOOGLE_CLIENT_ID && env().GOOGLE_CLIENT_SECRET),
     appUrl,
@@ -80,7 +93,13 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/app/
             return (
               <EntityCard
                 key={c.id}
-                media={<Avatar label={integration?.name ?? c.provider} color={integration?.color} />}
+                media={
+                  <IntegrationLogo
+                    id={c.provider}
+                    name={integration?.name ?? c.provider}
+                    color={integration?.color}
+                  />
+                }
                 title={c.label}
                 meta={`${integration?.name ?? c.provider} · ${c.accountRef}`}
                 badge={<Badge tone={STATUS[c.status].tone}>{STATUS[c.status].label}</Badge>}
@@ -144,6 +163,22 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/app/
                         </li>
                       ))}
                     </ul>
+                  </div>
+                ) : null}
+
+                {c.provider === "whatsapp" && canEdit ? (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-xs font-medium tracking-wide text-muted uppercase">
+                      Webhook para Meta
+                    </p>
+                    <p className="text-xs text-muted">
+                      En tu app de Meta → WhatsApp → Configuración, pega esta URL y el token, y suscríbete a
+                      «messages».
+                    </p>
+                    <code className="block text-xs break-all">{`${appUrl}/api/webhooks/whatsapp/${c.id}`}</code>
+                    <code className="block text-xs break-all text-muted">
+                      Token de verificación: {whatsappTokens.get(c.id) ?? "—"}
+                    </code>
                   </div>
                 ) : null}
 

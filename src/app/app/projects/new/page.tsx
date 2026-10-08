@@ -1,9 +1,11 @@
 import { PageHeader } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
-import { PROJECT_HELP } from "../new-project";
 import { ProjectWizard } from "./project-wizard";
 
 export const metadata = { title: "Nuevo proyecto" };
+
+const PROJECT_HELP =
+  "Un proyecto es una empresa, una marca o tu actividad como autónomo. Cada uno tiene su oferta, sus herramientas, su conocimiento y sus reglas, aislados del resto.";
 
 export default async function NewProjectPage() {
   await requireTenant();
