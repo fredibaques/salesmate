@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import type { FormState } from "@/components/action-form";
 import { requireRole } from "@/server/auth/session";
 import { createMcpConnection, refreshMcpTools } from "@/server/connectors/mcp";
@@ -26,9 +25,8 @@ export async function addTwenty(_: FormState, form: FormData): Promise<FormState
       allowWrite: bool(form, "allowWrite"),
     });
   });
-  if (!result?.ok) return result;
   revalidatePath("/app/connections");
-  redirect(`/app/connections?connected=${encodeURIComponent(label)}`);
+  return result?.ok ? { ok: true, message: `Conectado: ${label}` } : result;
 }
 
 export async function addMcp(_: FormState, form: FormData): Promise<FormState> {
@@ -48,9 +46,8 @@ export async function addMcp(_: FormState, form: FormData): Promise<FormState> {
       );
     }
   });
-  if (!result?.ok) return result;
   revalidatePath("/app/connections");
-  redirect(`/app/connections?connected=${encodeURIComponent(label)}`);
+  return result?.ok ? { ok: true, message: `Conectado: ${label}` } : result;
 }
 
 /** Connects Apollo or Lusha with an API key (checked before saving). */
@@ -76,9 +73,8 @@ export async function addDataSource(provider: string, _: FormState, form: FormDa
       throw err;
     }
   });
-  if (!result?.ok) return result;
   revalidatePath("/app/connections");
-  redirect(`/app/connections?connected=${encodeURIComponent(label)}`);
+  return result?.ok ? { ok: true, message: `Conectado: ${label}` } : result;
 }
 
 export async function testConnection(connectionId: string, _: FormState): Promise<FormState> {

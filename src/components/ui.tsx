@@ -40,7 +40,8 @@ export function PageHeader({
     <header className={cx(level === "page" ? "mb-6" : "mb-5", className)}>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex min-w-0 flex-1 basis-72 items-center gap-3">
-          {media ?? (icon ? <IconTile size="lg">{icon}</IconTile> : null)}
+          {/* As tall as the title's line, never taller. */}
+          {media ?? (icon ? <IconTile size={level === "page" ? "title" : "sm"}>{icon}</IconTile> : null)}
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <Heading
@@ -59,6 +60,15 @@ export function PageHeader({
   );
 }
 
+const tileSizes = {
+  /** Next to a section title (text-xl, 28px line). */
+  sm: "size-7 rounded-md [&_svg]:size-4",
+  /** Next to a page title (text-2xl, 32px line). */
+  title: "size-8 rounded-md [&_svg]:size-[18px]",
+  md: "size-9 rounded-lg [&_svg]:size-[18px]",
+  lg: "size-11 rounded-lg [&_svg]:size-5",
+};
+
 const tileTones = {
   accent: "bg-brand-100 text-accent",
   success: "bg-success/10 text-success",
@@ -74,16 +84,12 @@ export function IconTile({
 }: {
   children: ReactNode;
   tone?: keyof typeof tileTones;
-  size?: "md" | "lg";
+  size?: keyof typeof tileSizes;
 }) {
   return (
     <span
       aria-hidden
-      className={cx(
-        "flex shrink-0 items-center justify-center rounded-lg",
-        size === "lg" ? "size-11 [&_svg]:size-5" : "size-9 [&_svg]:size-[18px]",
-        tileTones[tone],
-      )}
+      className={cx("flex shrink-0 items-center justify-center", tileSizes[size], tileTones[tone])}
     >
       {children}
     </span>

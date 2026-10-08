@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { redirect } from "next/navigation";
 import type { FormState } from "@/components/action-form";
+import { scheduleFromForm } from "@/lib/schedule";
 import { requireRole } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { PROSPECTING_MODES, SALES_MOTIONS, type ProspectingMode, type SalesMotion } from "@/server/db/schema";
@@ -22,6 +23,7 @@ import {
   isProjectAgentType,
   listAgentRuns,
   removeAgent,
+  renameAgent,
   saveAgentChannels,
   saveAgentInstructions,
   saveAgentProcess,
@@ -54,7 +56,7 @@ function salesMotion(form: FormData): SalesMotion {
 function instructionsFromForm(form: FormData, scheduled: boolean) {
   return {
     instructions: str(form, "instructions") ?? "",
-    schedule: scheduled ? { time: str(form, "time") ?? "08:00", days: list(form, "days").map(Number) } : null,
+    schedule: scheduled ? scheduleFromForm(form) : null,
     settings: scheduled
       ? {
           prospectsPerRun: num(form, "prospectsPerRun") ?? 10,
@@ -142,6 +144,20 @@ export async function removeAgentAction(projectId: string, type: string) {
   await removeAgent(getDb(), tenant, projectId, agentType(type));
   refresh(projectId);
   redirect(`/app/projects/${projectId}`);
+}
+
+export async function renameAgentAction(
+  projectId: string,
+  type: string,
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const result = await runForm(async () => {
+    const tenant = await admin();
+    await renameAgent(getDb(), tenant, projectId, agentType(type), str(form, "name") ?? "");
+  }, "Nombre guardado.");
+  revalidatePath("/app", "layout");
+  return result;
 }
 
 export async function toggleAgent(projectId: string, type: string, enabled: boolean) {

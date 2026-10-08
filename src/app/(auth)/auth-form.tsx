@@ -11,7 +11,10 @@ import { authClient } from "@/lib/auth-client";
 
 export function AuthForm({ mode, googleEnabled }: { mode: "sign-in" | "sign-up"; googleEnabled: boolean }) {
   const router = useRouter();
-  const next = useSearchParams().get("next") ?? "/app";
+  const params = useSearchParams();
+  // Only paths inside the app (an invitation link, the page that sent here).
+  const asked = params.get("next");
+  const next = asked?.startsWith("/") && !asked.startsWith("//") ? asked : null;
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -29,7 +32,7 @@ export function AuthForm({ mode, googleEnabled }: { mode: "sign-in" | "sign-up";
       setError(result.error.message ?? "No se ha podido completar la operación.");
       return;
     }
-    router.push(mode === "sign-up" ? "/onboarding" : next);
+    router.push(next ?? (mode === "sign-up" ? "/onboarding" : "/app"));
     router.refresh();
   }
 
@@ -44,7 +47,14 @@ export function AuthForm({ mode, googleEnabled }: { mode: "sign-in" | "sign-up";
           </Field>
         ) : null}
         <Field label="Email">
-          <Input name="email" type="email" required autoComplete="email" icon={<Mail />} />
+          <Input
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            defaultValue={params.get("email") ?? undefined}
+            icon={<Mail />}
+          />
         </Field>
         <Field label="Contraseña" hint={mode === "sign-up" ? "Al menos 10 caracteres." : undefined}>
           <PasswordInput
@@ -61,7 +71,7 @@ export function AuthForm({ mode, googleEnabled }: { mode: "sign-in" | "sign-up";
       </form>
       {googleEnabled ? (
         <button
-          onClick={() => authClient.signIn.social({ provider: "google", callbackURL: next })}
+          onClick={() => authClient.signIn.social({ provider: "google", callbackURL: next ?? "/app" })}
           className={cx(buttonClass({ variant: "secondary", size: "lg", block: true }), "mt-3")}
         >
           Continuar con Google
@@ -71,14 +81,14 @@ export function AuthForm({ mode, googleEnabled }: { mode: "sign-in" | "sign-up";
         {mode === "sign-in" ? (
           <>
             ¿No tienes cuenta?{" "}
-            <Link href="/sign-up" className="text-accent hover:underline">
+            <Link href={`/sign-up${params.size ? `?${params}` : ""}`} className="text-accent hover:underline">
               Regístrate
             </Link>
           </>
         ) : (
           <>
             ¿Ya tienes cuenta?{" "}
-            <Link href="/sign-in" className="text-accent hover:underline">
+            <Link href={`/sign-in${params.size ? `?${params}` : ""}`} className="text-accent hover:underline">
               Entra
             </Link>
           </>

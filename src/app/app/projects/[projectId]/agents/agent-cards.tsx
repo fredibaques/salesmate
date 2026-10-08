@@ -3,7 +3,8 @@ import { AGENT_ICONS } from "@/components/agent-icons";
 import { SwitchButton } from "@/components/switch";
 import { ModalButton } from "@/components/modal";
 import { Badge, CardGrid, EntityCard } from "@/components/ui";
-import { AGENT_INFO } from "@/lib/agents";
+import { AGENT_INFO, agentName } from "@/lib/agents";
+import { describeSchedule } from "@/lib/schedule";
 import { NEXT_STEP_LABELS, SALES_MOTION_LABELS } from "@/server/playbooks/spec";
 import {
   AVAILABLE_AGENT_TYPES,
@@ -62,15 +63,6 @@ export function AddAgentButton({
   );
 }
 
-const DAY_NAMES = ["", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
-
-function scheduleDays(days: number[]) {
-  const sorted = [...days].sort();
-  if (sorted.join() === "1,2,3,4,5") return "día laborable";
-  if (sorted.length === 7) return "día";
-  return sorted.map((d) => DAY_NAMES[d]).join(", ");
-}
-
 function missingSetup(type: ProjectAgentType, channels: { mailboxId?: string | null }) {
   if (type === "inbound" && !channels.mailboxId) return "Elige con qué buzón responde";
   return null;
@@ -102,12 +94,10 @@ export function AgentCards({ projectId, agents }: { projectId: string; agents: A
             href={href}
             icon={AGENT_ICONS[type]}
             iconTone={agent.config.enabled ? "success" : "neutral"}
-            title={info.name}
+            title={agentName(type, agent.config.name)}
             meta={
               type === "outbound"
-                ? schedule
-                  ? `Cada ${scheduleDays(schedule.days)} a las ${schedule.time}`
-                  : "Sin horario"
+                ? describeSchedule(schedule)
                 : agent.playbook
                   ? SALES_MOTION_LABELS[agent.playbook.salesMotion]
                   : null
@@ -134,8 +124,8 @@ export function AgentCards({ projectId, agents }: { projectId: string; agents: A
                     offLabel="En pausa"
                     label={
                       agent.config.enabled
-                        ? `Pausar el ${info.name.toLowerCase()}`
-                        : `Activar el ${info.name.toLowerCase()}`
+                        ? `Pausar «${agentName(type, agent.config.name)}»`
+                        : `Activar «${agentName(type, agent.config.name)}»`
                     }
                   />
                 </form>

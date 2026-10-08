@@ -3,8 +3,10 @@
 import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
-import { Badge, Chip, Choice, Field, Input, Notice, Segmented, Select, Textarea } from "@/components/ui";
+import { Badge, Choice, Field, Input, Notice, Segmented, Select, Textarea } from "@/components/ui";
+import { ScheduleFields } from "@/components/schedule-fields";
 import { Wizard, type WizardStep } from "@/components/wizard";
+import { describeSchedule, scheduleFromForm } from "@/lib/schedule";
 import type { SalesMotion } from "@/server/db/schema";
 import {
   NEXT_STEP_DESCRIPTIONS,
@@ -38,18 +40,6 @@ const AUTONOMY = [
   },
   { value: 0, label: "Solo sugiere", description: "Te propone qué hacer, pero lo haces tú." },
 ];
-
-const DAYS = [
-  [1, "L"],
-  [2, "M"],
-  [3, "X"],
-  [4, "J"],
-  [5, "V"],
-  [6, "S"],
-  [7, "D"],
-] as const;
-
-const DAY_NAMES = ["", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
 
 /** One line of the review step. */
 function ReviewRow({ label, children }: { label: string; children: ReactNode }) {
@@ -189,7 +179,7 @@ export function InboundWizard({
               tone="warning"
               action={
                 <Link
-                  href="/app/connections/new"
+                  href="/app/connections?add=1"
                   target="_blank"
                   className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
                 >
@@ -335,7 +325,6 @@ export function OutboundWizard({
   defaults: (typeof AGENT_DEFAULTS)["outbound"];
   servers: Servers;
 }) {
-  const schedule = defaults.schedule ?? { time: "08:00", days: [1, 2, 3, 4, 5] };
   const steps: WizardStep[] = [
     {
       id: "what",
@@ -400,23 +389,11 @@ export function OutboundWizard({
     {
       id: "when",
       title: "Cuándo trabaja",
-      summary:
-        "Trabaja solo, a esta hora del proyecto, mientras esté activo. También puedes lanzarlo a mano.",
+      summary: "Solo cuando se lo pidas, una vez o de forma recurrente. Siempre en la hora del proyecto.",
       content: (
         <>
-          <Field label="Días" group>
-            <div className="flex flex-wrap gap-1.5">
-              {DAYS.map(([n, label]) => (
-                <Chip key={n} name="days" value={n} defaultChecked={schedule.days.includes(n)}>
-                  {label}
-                </Chip>
-              ))}
-            </div>
-          </Field>
+          <ScheduleFields schedule={defaults.schedule} />
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Hora">
-              <Input name="time" type="time" required defaultValue={schedule.time} />
-            </Field>
             <Field
               label="Prospectos por ejecución"
               tip="Mejor pocos y buenos: cada ejecución busca hasta este número de empresas nuevas."
@@ -439,7 +416,7 @@ export function OutboundWizard({
       title: "Revisar",
       summary: "Así empezará a trabajar. Todo se puede cambiar en su ficha.",
       content: (values) => {
-        const days = values.getAll("days").map(Number);
+        const schedule = scheduleFromForm(values);
         const tools = [
           values.get("web") ? "búsqueda en internet" : null,
           ...values.getAll("mcp").map((v) => String(v).split("::").slice(1).join("::")),
@@ -456,10 +433,10 @@ export function OutboundWizard({
                 {tools.length ? tools.join(", ") : <Badge tone="warning">Ninguna: no podrá buscar</Badge>}
               </ReviewRow>
               <ReviewRow label="Cuándo">
-                {days.length ? (
-                  `${days.map((d) => DAY_NAMES[d]).join(", ")} a las ${values.get("time")}`
-                ) : (
+                {schedule && "days" in schedule && !schedule.days.length ? (
                   <Badge tone="danger">Elige al menos un día</Badge>
+                ) : (
+                  describeSchedule(schedule)
                 )}
               </ReviewRow>
               <ReviewRow label="Por ejecución">{`${values.get("prospectsPerRun")} prospectos nuevos`}</ReviewRow>

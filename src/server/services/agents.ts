@@ -63,7 +63,7 @@ export const AGENT_DEFAULTS: Record<
       "No incluyas empresas que ya sean clientes ni las que estén fuera de nuestra zona.",
     ].join("\n"),
     tools: { web: true },
-    schedule: { time: "08:00", days: [1, 2, 3, 4, 5] },
+    schedule: { kind: "weekly", time: "08:00", days: [1, 2, 3, 4, 5] },
     settings: { prospectsPerRun: 10, mode: "both", cellsPerRun: 20 },
   },
   account_manager: { instructions: "", tools: {}, schedule: null, settings: {} },
@@ -123,6 +123,7 @@ export async function listSidebarAgents(db: Db, tenant: Pick<TenantContext, "org
       .select({
         projectId: agentConfigs.projectId,
         agentType: agentConfigs.agentType,
+        name: agentConfigs.name,
         enabled: agentConfigs.enabled,
       })
       .from(agentConfigs)
@@ -280,6 +281,39 @@ export async function setAgentEnabled(
       entityType: "agent_config",
       entityId: config.id,
       data: { agentType },
+    });
+  });
+}
+
+/** Gives the agent its own name; empty goes back to the template's. */
+export async function renameAgent(
+  db: Db,
+  tenant: TenantContext,
+  projectId: string,
+  agentType: ProjectAgentType,
+  name: string,
+) {
+  const clean = name.trim().replace(/\s+/g, " ");
+  if (clean.length > 60) throw new Error("El nombre puede tener hasta 60 caracteres.");
+  return withTenant(db, tenant, async (tx) => {
+    const [config] = await tx
+      .update(agentConfigs)
+      .set({ name: clean || null })
+      .where(
+        and(
+          eq(agentConfigs.projectId, projectId),
+          eq(agentConfigs.agentType, agentType),
+          isNotNull(agentConfigs.addedAt),
+        ),
+      )
+      .returning();
+    if (!config) throw new Error("Agente no encontrado.");
+    await audit(tx, tenant, {
+      event: "agent.renamed",
+      projectId,
+      entityType: "agent_config",
+      entityId: config.id,
+      data: { agentType, name: config.name },
     });
   });
 }
@@ -500,14 +534,32 @@ export async function listChannelOptions(db: Db, tenant: Pick<TenantContext, "or
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+const scheduleInput = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("daily"), time: z.string().regex(TIME, "Hora no válida (HH:MM).") }),
+  z.object({
+    kind: z.literal("weekly"),
+    time: z.string().regex(TIME, "Hora no válida (HH:MM)."),
+    days: z.array(z.number().int().min(1).max(7)).min(1, "Elige al menos un día."),
+  }),
+  z.object({
+    kind: z.literal("monthly"),
+    time: z.string().regex(TIME, "Hora no válida (HH:MM)."),
+    day: z.number().int().min(1, "Elige un día del mes.").max(31, "Elige un día del mes."),
+  }),
+  z.object({
+    kind: z.literal("once"),
+    at: z.string().regex(/^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d$/, "Elige el día y la hora."),
+  }),
+]);
+
 export const instructionsInput = z.object({
   instructions: z.string().max(10_000).default(""),
+  /** null = only when someone asks. Without `kind`, weekly (as saved before there were others). */
   schedule: z
-    .object({
-      time: z.string().regex(TIME, "Hora no válida (HH:MM)."),
-      days: z.array(z.number().int().min(1).max(7)).min(1, "Elige al menos un día."),
-    })
-    .nullable()
+    .preprocess(
+      (v) => (v && typeof v === "object" && !("kind" in v) ? { ...v, kind: "weekly" } : v),
+      scheduleInput.nullable(),
+    )
     .default(null),
   settings: z
     .object({

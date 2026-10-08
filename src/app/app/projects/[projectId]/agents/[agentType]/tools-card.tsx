@@ -61,11 +61,11 @@ export function ToolsCard({
               description="Con ellos el agente encuentra a la persona que decide en cada empresa y su email y teléfono de trabajo."
               action={
                 <>
-                  <LinkButton href="/app/connections/new/apollo">
+                  <LinkButton href="/app/connections?add=apollo">
                     <Plus className="size-4" />
                     Conectar Apollo
                   </LinkButton>
-                  <LinkButton href="/app/connections/new/lusha" variant="ghost">
+                  <LinkButton href="/app/connections?add=lusha" variant="ghost">
                     Conectar Lusha
                   </LinkButton>
                 </>
@@ -100,7 +100,7 @@ export function ToolsCard({
               title="No hay servidores MCP conectados"
               description="Conecta cualquier herramienta que ofrezca MCP (un CRM, un directorio de empresas, tu base de datos…) y elige aquí qué puede usar este agente."
               action={
-                <LinkButton href="/app/connections/new/mcp">
+                <LinkButton href="/app/connections?add=mcp">
                   <Plus className="size-4" />
                   Conectar un servidor MCP
                 </LinkButton>

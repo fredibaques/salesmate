@@ -33,6 +33,8 @@ export function ModalButton({
   size = "md",
   iconOnly = false,
   width = "md",
+  defaultOpen = false,
+  onClose,
   className,
 }: {
   label: ReactNode;
@@ -46,15 +48,24 @@ export function ModalButton({
   iconOnly?: boolean;
   /** Width of the modal. */
   width?: "md" | "lg";
+  /** Open on arrival, e.g. when a link asks for it (?add=…). */
+  defaultOpen?: boolean;
+  onClose?: () => void;
   className?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const close = useCallback(() => dialog.current?.close(), []);
   const pathname = usePathname();
 
   // A form that redirects (e.g. creating a project) navigates away: close behind it.
-  useEffect(() => close(), [pathname, close]);
+  // Only on a real change: a modal open on arrival must stay open.
+  const shownAt = useRef(pathname);
+  useEffect(() => {
+    if (shownAt.current === pathname) return;
+    shownAt.current = pathname;
+    close();
+  }, [pathname, close]);
 
   useEffect(() => {
     if (open && dialog.current && !dialog.current.open) dialog.current.showModal();
@@ -73,7 +84,10 @@ export function ModalButton({
       </button>
       <dialog
         ref={dialog}
-        onClose={() => setOpen(false)}
+        onClose={() => {
+          setOpen(false);
+          onClose?.();
+        }}
         // A click on the backdrop lands on the dialog element itself.
         onClick={(e) => {
           if (e.target === dialog.current) close();

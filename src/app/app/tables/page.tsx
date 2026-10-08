@@ -2,7 +2,6 @@ import { Building2, Sheet, User } from "lucide-react";
 import Link from "next/link";
 import { ModalButton } from "@/components/modal";
 import { Card, EmptyState, EntityCard, PageHeader, Table, Td } from "@/components/ui";
-import { AGENT_INFO } from "@/lib/agents";
 import { formatDateTime, plural } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
@@ -79,11 +78,7 @@ export default async function TablesPage() {
                 <Td className="tabular-nums">
                   {pending[i] ? pending[i] : <span className="text-muted">—</span>}
                 </Td>
-                <Td className="text-muted">
-                  {b.agents.length
-                    ? b.agents.map((a) => AGENT_INFO[a as keyof typeof AGENT_INFO]?.name ?? a).join(", ")
-                    : "A mano"}
-                </Td>
+                <Td className="text-muted">{b.agents.length ? b.agentNames.join(", ") : "A mano"}</Td>
                 <Td className="whitespace-nowrap text-muted">{formatDateTime(b.lastActivity)}</Td>
               </tr>
             ))}

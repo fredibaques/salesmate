@@ -334,13 +334,19 @@ export type AgentTools = {
   data?: string[];
 };
 
-/** When the agent works on its own, in the project's time zone. */
-export type AgentSchedule = {
-  /** "HH:MM" */
-  time: string;
-  /** 1 = Monday … 7 = Sunday */
-  days: number[];
-};
+/**
+ * When the agent works on its own, in the project's time zone. Times are
+ * "HH:MM". Rows saved before `kind` existed are weekly. No schedule (null)
+ * means it works only when someone asks («Ejecutar ahora»).
+ */
+export type AgentSchedule =
+  | { kind: "daily"; time: string }
+  /** days: 1 = Monday … 7 = Sunday */
+  | { kind?: "weekly"; time: string; days: number[] }
+  /** day: 1–31; months without that day run on their last day. */
+  | { kind: "monthly"; time: string; day: number }
+  /** A single run at "YYYY-MM-DDTHH:MM". */
+  | { kind: "once"; at: string };
 
 /** Settings that only make sense for some templates. */
 export const PROSPECTING_MODES = ["find", "complete", "both"] as const;
@@ -374,6 +380,8 @@ export const agentConfigs = pgTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     agentType: text("agent_type", { enum: AGENT_TYPES }).notNull(),
+    /** The name the user gave it; null = the template's name. */
+    name: text("name"),
     /** When the user added this agent to the project; null = not part of the project. */
     addedAt: timestamp("added_at", { withTimezone: true }),
     enabled: boolean("enabled").notNull().default(false),

@@ -6,6 +6,7 @@ const names: NameLookup = {
   source: async () => "Tarifas 2026.xlsx",
   conversation: async () => "Ana García",
   base: async () => "Concesionarios",
+  agent: async (_, type) => (type === "inbound" ? "Recepción web" : null),
 };
 const labels = async (path: string) => (await crumbsFor(path.split("/"), names)).map((c) => c.label);
 
@@ -13,12 +14,6 @@ describe("crumbsFor", () => {
   it("places settings pages under their section", async () => {
     // A settings page has the section's header and tabs: no trail.
     expect(await labels("connections")).toEqual([]);
-    expect(await labels("connections/new/google")).toEqual([
-      "Configuración",
-      "Conexiones",
-      "Nueva conexión",
-      "Google Workspace",
-    ]);
     expect(await labels("ai/connect")).toEqual(["Configuración", "IA", "Conectar"]);
     // Top-level pages: their title is enough, no trail.
     expect(await labels("inbox")).toEqual([]);
@@ -31,10 +26,11 @@ describe("crumbsFor", () => {
     expect(await labels("projects/p1")).toEqual([]);
     expect(await labels("projects/p1/prospects")).toEqual([]);
     expect(await labels("projects/p1/rules")).toEqual([]);
-    expect(await labels("projects/p1/agents/inbound")).toEqual(["Swipoo", "Agente inbound"]);
+    expect(await labels("projects/p1/agents/outbound")).toEqual(["Swipoo", "Agente outbound"]);
+    // An agent the user renamed shows its own name.
     expect(await labels("projects/p1/agents/inbound/channels")).toEqual([
       "Swipoo",
-      "Agente inbound",
+      "Recepción web",
       "Canales y herramientas",
     ]);
     expect(await labels("projects/p1/agents/new/outbound")).toEqual(["Swipoo", "Añadir el agente outbound"]);

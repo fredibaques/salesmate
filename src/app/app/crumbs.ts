@@ -1,12 +1,13 @@
 import type { Crumb } from "@/components/breadcrumbs";
 import { AGENT_INFO } from "@/lib/agents";
-import { getIntegration } from "@/lib/integrations";
 
 export type NameLookup = {
   project: (id: string) => Promise<string | null>;
   source: (id: string) => Promise<string | null>;
   conversation: (id: string) => Promise<string | null>;
   base: (id: string) => Promise<string | null>;
+  /** The name the user gave an agent, if any. */
+  agent: (projectId: string, type: string) => Promise<string | null>;
 };
 
 const SETTINGS = { label: "Configuración", href: "/app/connections" };
@@ -14,6 +15,7 @@ const SETTINGS = { label: "Configuración", href: "/app/connections" };
 const SECTION_PAGES: Record<string, { parent: Crumb; label: string }> = {
   connections: { parent: SETTINGS, label: "Conexiones" },
   ai: { parent: SETTINGS, label: "IA" },
+  users: { parent: SETTINGS, label: "Usuarios" },
   exclusions: { parent: SETTINGS, label: "Exclusiones" },
   audit: { parent: SETTINGS, label: "Auditoría" },
 };
@@ -52,11 +54,6 @@ export async function crumbsFor(segments: string[], names: NameLookup): Promise<
   const section = SECTION_PAGES[first];
   if (section) {
     const here = { label: section.label, href: `/app/${first}` };
-    if (first === "connections" && rest[0] === "new") {
-      const out: Crumb[] = [section.parent, here, { label: "Nueva conexión", href: "/app/connections/new" }];
-      if (rest[1]) out.push({ label: getIntegration(rest[1])?.name ?? rest[1] });
-      return out;
-    }
     if (first === "ai" && rest[0] === "connect") return [section.parent, here, { label: "Conectar" }];
     return [];
   }
@@ -79,7 +76,10 @@ export async function crumbsFor(segments: string[], names: NameLookup): Promise<
         return [project, { label: info ? `Añadir el ${info.name.toLowerCase()}` : "Añadir agente" }];
       }
       const info = AGENT_INFO[sub as keyof typeof AGENT_INFO];
-      const agent = { label: info?.name ?? sub, href: `${base}/agents/${sub}` };
+      const agent = {
+        label: (await names.agent(id, sub)) ?? info?.name ?? sub,
+        href: `${base}/agents/${sub}`,
+      };
       const page = subsub ? agentPageLabel(sub, subsub) : null;
       return page ? [project, agent, { label: page }] : [project, agent];
     }

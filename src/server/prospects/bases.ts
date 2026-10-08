@@ -1,5 +1,6 @@
 import { and, asc, count, eq, isNotNull, max, or, sql } from "drizzle-orm";
 import { z } from "zod";
+import { AGENT_INFO, agentName, type ProjectAgentKey } from "@/lib/agents";
 import {
   checkCell,
   columnDraft,
@@ -31,6 +32,13 @@ export async function getBase(db: Db, tenant: Pick<TenantContext, "orgId">, base
   return row ?? null;
 }
 
+/** How the agents that fill a base are called. */
+function agentNames(agents: { agentType: string; name: string | null }[]): string[] {
+  return agents.map((a) =>
+    a.agentType in AGENT_INFO ? agentName(a.agentType as ProjectAgentKey, a.name) : a.agentType,
+  );
+}
+
 /** The project's bases with their row counts and the agents that fill them. */
 export async function listBases(db: Db, tenant: Pick<TenantContext, "orgId">, projectId: string) {
   return withTenant(db, tenant, async (tx) => {
@@ -45,7 +53,11 @@ export async function listBases(db: Db, tenant: Pick<TenantContext, "orgId">, pr
       .where(eq(prospects.projectId, projectId))
       .groupBy(prospects.baseId);
     const agents = await tx
-      .select({ baseId: agentConfigs.prospectBaseId, agentType: agentConfigs.agentType })
+      .select({
+        baseId: agentConfigs.prospectBaseId,
+        agentType: agentConfigs.agentType,
+        name: agentConfigs.name,
+      })
       .from(agentConfigs)
       .where(
         and(
@@ -58,6 +70,7 @@ export async function listBases(db: Db, tenant: Pick<TenantContext, "orgId">, pr
       ...b,
       rows: Number(counts.find((c) => c.baseId === b.id)?.n ?? 0),
       agents: agents.filter((a) => a.baseId === b.id).map((a) => a.agentType),
+      agentNames: agentNames(agents.filter((a) => a.baseId === b.id)),
     }));
   });
 }
@@ -78,7 +91,11 @@ export async function listAllBases(db: Db, tenant: Pick<TenantContext, "orgId">)
       .from(prospects)
       .groupBy(prospects.baseId);
     const agents = await tx
-      .select({ baseId: agentConfigs.prospectBaseId, agentType: agentConfigs.agentType })
+      .select({
+        baseId: agentConfigs.prospectBaseId,
+        agentType: agentConfigs.agentType,
+        name: agentConfigs.name,
+      })
       .from(agentConfigs)
       .where(and(isNotNull(agentConfigs.addedAt), isNotNull(agentConfigs.prospectBaseId)));
     return bases
@@ -90,6 +107,7 @@ export async function listAllBases(db: Db, tenant: Pick<TenantContext, "orgId">)
           projectName,
           rows: Number(stat?.n ?? 0),
           agents: agents.filter((a) => a.baseId === base.id).map((a) => a.agentType),
+          agentNames: agentNames(agents.filter((a) => a.baseId === base.id)),
           lastActivity: last && last > base.updatedAt ? last : base.updatedAt,
         };
       })

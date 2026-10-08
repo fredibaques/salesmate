@@ -77,7 +77,7 @@ export default async function DashboardPage() {
           Una tabla de prospectos
         </LinkButton>
         <NewProjectButton variant="secondary" label="Un proyecto nuevo" />
-        <LinkButton href="/app/connections/new" variant="secondary">
+        <LinkButton href="/app/connections?add=1" variant="secondary">
           <Plug />
           Conectar herramientas
         </LinkButton>

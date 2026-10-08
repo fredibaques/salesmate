@@ -1,6 +1,13 @@
-import { eq } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { contacts, conversations, knowledgeSources, projects, prospectBases } from "../db/schema";
+import { and, eq } from "drizzle-orm";
+import {
+  agentConfigs,
+  contacts,
+  conversations,
+  knowledgeSources,
+  projects,
+  prospectBases,
+} from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
 
 /** Display names for breadcrumbs: one light query each, null when not found. */
@@ -35,6 +42,22 @@ export async function conversationName(db: Db, tenant: Pick<TenantContext, "orgI
 export async function baseName(db: Db, tenant: Pick<TenantContext, "orgId">, id: string) {
   const rows = await withTenant(db, tenant, (tx) =>
     tx.select({ name: prospectBases.name }).from(prospectBases).where(eq(prospectBases.id, id)),
+  );
+  return rows[0]?.name ?? null;
+}
+
+/** The name the user gave an agent; null when it keeps its template's. */
+export async function agentCustomName(
+  db: Db,
+  tenant: Pick<TenantContext, "orgId">,
+  projectId: string,
+  agentType: string,
+) {
+  const rows = await withTenant(db, tenant, (tx) =>
+    tx
+      .select({ name: agentConfigs.name })
+      .from(agentConfigs)
+      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.agentType, agentType as "outbound"))),
   );
   return rows[0]?.name ?? null;
 }

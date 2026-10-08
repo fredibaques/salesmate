@@ -47,8 +47,10 @@ screen needs something new, add it here and as a component, not inline.
     fill), most recently active first, and «Nueva tabla» (pick the project).
   - **Por aprobar**: what the agents want to do and waits for a person, with
     its count. Its own entry, because deciding is the daily job.
-  - **Configuración**: Conexiones, IA, Exclusiones and Auditoría, shared by
-    every project.
+  - **Configuración**: Conexiones, IA, Usuarios, Exclusiones and Auditoría,
+    shared by every project. «Añadir conexión» is one modal: a grid of every
+    tool and, once one is picked, what the agents can do with it and its
+    form (`?add=1` or `?add=<tool>` opens it from a link).
 - A project has five tabs: **Resumen** (its home: what is left to set it up,
   its agents and «Añadir agente»), **Prospectos**, **Conocimiento**
   (documents and tables), **Conversaciones** and **Ajustes** (General:
@@ -286,7 +288,8 @@ between fields; between sections `space-y-6`; page margins `px-8 py-8`;
 ### Details
 
 - Icons: lucide, `size-4` in buttons and rows, inside an `IconTile` for
-  entities.
+  entities. The tile next to a page title is as tall as the title's line
+  (`PageHeader` picks the size), never taller.
 - Everything clickable has `cursor-pointer` (global) and a visible hover
   state; focus is a 2px accent ring. Transitions are 150 ms.
 - Logo: `Logo`, «Mate»: two overlapping circles (you and your agent) in
