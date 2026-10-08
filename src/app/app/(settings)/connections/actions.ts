@@ -9,6 +9,7 @@ import { ConnectorError } from "@/server/connectors/types";
 import {
   createDataConnection,
   createSlackConnection,
+  createWhatsappConnection,
   createTwentyConnection,
   openConnection,
 } from "@/server/connectors/service";
@@ -82,6 +83,31 @@ export async function addDataSource(provider: string, _: FormState, form: FormDa
   return result?.ok ? { ok: true, message: `Conectado: ${label}` } : result;
 }
 
+/** Connects a WhatsApp Business number (Meta's Cloud API). */
+export async function addWhatsapp(_: FormState, form: FormData): Promise<FormState> {
+  const label = str(form, "label") ?? "WhatsApp";
+  const result = await runForm(async () => {
+    const tenant = await requireRole(["owner", "admin"]);
+    try {
+      await createWhatsappConnection({ db: getDb() }, tenant, {
+        label,
+        accessToken: str(form, "accessToken") ?? "",
+        phoneNumberId: str(form, "phoneNumberId") ?? "",
+        appSecret: str(form, "appSecret") ?? "",
+      });
+    } catch (err) {
+      if (err instanceof ConnectorError && (err.status === 401 || err.status === 403 || err.status === 400)) {
+        throw new Error(`Meta no acepta estos datos: ${err.message.replace(/^WhatsApp: /, "")}`);
+      }
+      throw err;
+    }
+  });
+  revalidatePath("/app/connections");
+  return result?.ok
+    ? { ok: true, message: `Conectado: ${label}. Configura el webhook en Meta con los datos de su tarjeta.` }
+    : result;
+}
+
 /** Connects a Slack channel by its incoming webhook, for the agents' notices. */
 export async function addSlack(_: FormState, form: FormData): Promise<FormState> {
   const label = str(form, "label") ?? "Slack";
@@ -129,6 +155,8 @@ export async function testConnection(connectionId: string, _: FormState): Promis
     }
     if (client["data.check"]) return `OK · ${(await client["data.check"]()).detail}.`;
     // Posting is an effect: it only happens through the gateway, with a real notice.
+    if (client["whatsapp.send"])
+      return "Conexión cargada. Se comprobará al recibir o enviar el primer mensaje.";
     if (client["notify.slack"]) return "Guardada. Se comprobará con el primer aviso de un agente.";
     return "Conexión cargada (sin prueba de lectura disponible para sus permisos).";
   });

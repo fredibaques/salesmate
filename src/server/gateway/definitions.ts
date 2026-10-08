@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { emailTargets } from "./targets";
+import { emailTargets, phoneTargets } from "./targets";
 
 /**
  * Everything an agent (or a person, or an MCP client) can do in the outside
@@ -87,6 +87,14 @@ const mcpCallPayload = z.object({
   arguments: z.record(z.string(), z.unknown()).default({}),
 });
 export type McpCallPayload = z.infer<typeof mcpCallPayload>;
+
+const whatsappPayload = z.object({
+  identityId: z.string().uuid(),
+  /** The contact's number, with country code. */
+  to: z.string().regex(/^\+?[\d\s()-]{8,20}$/, "Número de teléfono no válido."),
+  body: z.string().min(1).max(4_000),
+});
+export type WhatsappPayload = z.infer<typeof whatsappPayload>;
 
 const notifySlackPayload = z.object({
   connectionId: z.string().uuid(),
@@ -178,6 +186,18 @@ export const ACTION_DEFINITIONS = {
     targetKeys: () => [],
     textOf: (p) => `${p.title}\n${p.body}`,
     summary: (p) => `Nota «${p.title}»`,
+  }),
+  "whatsapp.send": define<WhatsappPayload>({
+    type: "whatsapp.send",
+    capability: "whatsapp.send",
+    label: "Enviar un WhatsApp",
+    maxAutonomy: 3,
+    outbound: true,
+    connectionVia: "identity",
+    payloadSchema: whatsappPayload,
+    targetKeys: (p) => phoneTargets([p.to.trim().startsWith("+") ? p.to : `+${p.to}`]),
+    textOf: (p) => p.body,
+    summary: (p) => `WhatsApp a ${p.to}: ${p.body.slice(0, 80)}`,
   }),
   "notify.slack": define<NotifySlackPayload>({
     type: "notify.slack",

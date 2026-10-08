@@ -56,8 +56,9 @@ screen needs something new, add it here and as a component, not inline.
   sources, mailbox, notices, first contact; one form in `FormSection`s) and
   Aprobaciones.
 - Each person orders the sidebar (sections, projects, each project's agents)
-  in Mi cuenta → Menú (`user_preferences.nav`, applied with `inOrder`); new
-  items go after the ordered ones. Agents have an icon and a colour the team
+  from the gear next to the brand (`MenuSettingsButton`; saved in
+  `user_preferences.nav`, applied with `inOrder`); new items go after the
+  ordered ones. The same modal edits each agent inline. Agents have an icon and a colour the team
   picks (`lib/agent-look.tsx`: `AgentTile`, `AgentIcon`, `AgentLookFields`),
   shown in the sidebar, their header and their card.
 - A project has five tabs: **Resumen** (its home: what is left to set it up,
@@ -204,7 +205,11 @@ Remove actions on a row are a `dangerGhost` icon button with an
 - A choice of a few related actions (Exportar → nuevos / todo) is one
   `MenuButton`, not several buttons. Page actions stay on the title's line
   (`PageHeader` truncates long titles instead of wrapping the actions).
-- Creating opens a modal from a button (`ModalButton` + `ActionForm`): the
+- Tools show their logo (`IntegrationLogo`: simple-icons marks, Microsoft and
+  Slack drawn, an initial in the brand colour when there is no mark).
+- Creating opens a modal from a button; creations with several steps (a
+  project, a table) open a `Wizard` in a wide modal, with the steps across
+  the top (`ModalButton` + `ActionForm`): the
   modal closes and a toast confirms on success; errors stay next to the
   button and keep what was typed (forms and wizards are submitted by hand,
   so React doesn't reset them when the server says no). Modals have a title

@@ -47,7 +47,7 @@ export function ModalButton({
   /** Show only the icon; `label` (a string) becomes its accessible name. */
   iconOnly?: boolean;
   /** Width of the modal. */
-  width?: "md" | "lg";
+  width?: "md" | "lg" | "xl";
   /** Open on arrival, e.g. when a link asks for it (?add=…). */
   defaultOpen?: boolean;
   onClose?: () => void;
@@ -94,7 +94,7 @@ export function ModalButton({
         }}
         className={cx(
           "m-auto max-h-[90vh] w-[calc(100%-2rem)] overflow-hidden rounded-2xl border border-border bg-surface p-0 text-left font-normal text-foreground shadow-xl",
-          width === "lg" ? "max-w-2xl" : "max-w-lg",
+          width === "xl" ? "max-w-4xl" : width === "lg" ? "max-w-2xl" : "max-w-lg",
         )}
       >
         {open ? (
@@ -113,7 +113,7 @@ export function ModalButton({
                 <X className="size-4" />
               </button>
             </div>
-            <div className="overflow-y-auto px-6 py-5">
+            <div data-modal-body className="overflow-y-auto px-6 py-5">
               <ModalContext.Provider value={{ close }}>{children}</ModalContext.Provider>
             </div>
           </div>

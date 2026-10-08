@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import Link from "next/link";
 import { startTransition, useActionState, useRef, useState, type ReactNode } from "react";
 import type { FormAction, FormState } from "./action-form";
+import { useModal } from "./modal";
 import { cx } from "./cx";
 import { buttonClass } from "./ui";
 
@@ -31,10 +32,12 @@ export function Wizard({
   steps: WizardStep[];
   action: FormAction;
   submitLabel: string;
-  cancelHref: string;
+  /** Where «Cancelar» goes on a page; inside a modal it closes the modal. */
+  cancelHref?: string;
   /** Called when a step opens, e.g. to prepare its content from earlier answers. */
   onStepChange?: (index: number) => void;
 }) {
+  const modal = useModal();
   const form = useRef<HTMLFormElement>(null);
   const panels = useRef<(HTMLDivElement | null)[]>([]);
   const [current, setCurrent] = useState(0);
@@ -48,7 +51,8 @@ export function Wizard({
     setCurrent(index);
     setReached((r) => Math.max(r, index));
     onStepChange?.(index);
-    form.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    if (modal) form.current?.closest("[data-modal-body]")?.scrollTo({ top: 0, behavior: "smooth" });
+    else form.current?.scrollIntoView({ block: "start", behavior: "smooth" });
   }
 
   /** Shows the browser's message on the first invalid field of the current step. */
@@ -69,8 +73,9 @@ export function Wizard({
   }
 
   return (
-    <div className="grid items-start gap-8 lg:grid-cols-[14rem_1fr]">
-      <ol className="space-y-1 lg:sticky lg:top-8">
+    <div className={cx("grid items-start", modal ? "gap-5" : "gap-8 lg:grid-cols-[14rem_1fr]")}>
+      {/* In a modal the steps run across the top; on a page, down the side. */}
+      <ol className={modal ? "flex flex-wrap gap-1" : "space-y-1 lg:sticky lg:top-8"}>
         {steps.map((step, i) => {
           const done = i < current || (i <= reached && i !== current);
           const reachable = i <= reached && !pending;
@@ -82,7 +87,8 @@ export function Wizard({
                 onClick={() => (i < current || currentStepValid()) && go(i)}
                 aria-current={i === current ? "step" : undefined}
                 className={cx(
-                  "flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm transition-colors",
+                  "flex items-center gap-3 rounded-lg px-2 py-2 text-left text-sm transition-colors",
+                  !modal && "w-full",
                   i === current
                     ? "bg-brand-100 font-medium text-accent"
                     : reachable
@@ -127,7 +133,7 @@ export function Wizard({
             next();
           }
         }}
-        className="scroll-mt-8 rounded-xl border border-border bg-surface"
+        className={cx("scroll-mt-8 rounded-xl border border-border bg-surface", modal && "border-0")}
       >
         {steps.map((step, i) => (
           <div
@@ -136,7 +142,7 @@ export function Wizard({
               panels.current[i] = el;
             }}
             hidden={i !== current}
-            className="p-6"
+            className={modal ? "py-2" : "p-6"}
           >
             <p className="text-xs font-medium tracking-wide text-muted uppercase">
               Paso {i + 1} de {steps.length}
@@ -153,11 +159,19 @@ export function Wizard({
           </div>
         ))}
 
-        <div className="flex flex-wrap items-center gap-3 border-t border-border px-6 py-4">
+        <div
+          className={cx("flex flex-wrap items-center gap-3 border-t border-border py-4", !modal && "px-6")}
+        >
           {current === 0 ? (
-            <Link href={cancelHref} className={buttonClass({ variant: "ghost" })}>
-              Cancelar
-            </Link>
+            modal ? (
+              <button type="button" onClick={modal.close} className={buttonClass({ variant: "ghost" })}>
+                Cancelar
+              </button>
+            ) : (
+              <Link href={cancelHref ?? "/app"} className={buttonClass({ variant: "ghost" })}>
+                Cancelar
+              </Link>
+            )
           ) : (
             <button
               type="button"

@@ -4,8 +4,9 @@ import { ArrowLeft, Check, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ActionForm } from "@/components/action-form";
+import { IntegrationLogo } from "@/components/integration-logo";
 import { ModalButton } from "@/components/modal";
-import { Avatar, Badge, Button, Choice, cx, Field, Input, Notice } from "@/components/ui";
+import { Badge, Button, Choice, cx, Field, Input, Notice } from "@/components/ui";
 import {
   getIntegration,
   INTEGRATION_CATEGORIES,
@@ -13,7 +14,7 @@ import {
   type Integration,
   type IntegrationCategory,
 } from "@/lib/integrations";
-import { addDataSource, addMcp, addSlack, addTwenty } from "./actions";
+import { addDataSource, addMcp, addSlack, addTwenty, addWhatsapp } from "./actions";
 
 const GOOGLE_PERMISSIONS = [
   {
@@ -67,7 +68,7 @@ function ToolGrid({ onPick }: { onPick: (id: string) => void }) {
                       : "cursor-not-allowed border-dashed border-border opacity-60",
                   )}
                 >
-                  <Avatar label={i.name} color={i.color} className="size-8" />
+                  <IntegrationLogo id={i.id} name={i.name} color={i.color} size="sm" />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2 text-sm font-medium">
                       {i.name}
@@ -91,7 +92,7 @@ function ToolSetup({ integration, setup }: { integration: Integration; setup: Se
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <Avatar label={integration.name} color={integration.color} />
+        <IntegrationLogo id={integration.id} name={integration.name} color={integration.color} />
         <div className="min-w-0">
           <p className="font-semibold">{integration.name}</p>
           <p className="text-xs text-muted">{integration.tagline}</p>
@@ -183,6 +184,34 @@ function ToolSetup({ integration, setup }: { integration: Integration; setup: Se
               }
             >
               <Input name="apiKey" type="password" required autoComplete="off" />
+            </Field>
+          </ActionForm>
+        ) : null}
+
+        {provider === "whatsapp" ? (
+          <ActionForm action={addWhatsapp} submitLabel="Conectar WhatsApp" className="space-y-4">
+            <Field label="Nombre" hint="Para reconocerlo, p. ej. «WhatsApp ventas».">
+              <Input name="label" defaultValue="WhatsApp" required />
+            </Field>
+            <Field
+              label="Identificador del número de teléfono"
+              tip="En Meta for Developers → tu app → WhatsApp → Configuración de la API: «Phone number ID» (solo cifras)."
+            >
+              <Input name="phoneNumberId" inputMode="numeric" required autoComplete="off" />
+            </Field>
+            <Field
+              label="Token de acceso permanente"
+              hint="Se guarda cifrado."
+              tip="Créalo con un usuario del sistema en Meta Business Suite → Configuración del negocio → Usuarios del sistema, con permisos whatsapp_business_messaging y whatsapp_business_management."
+            >
+              <Input name="accessToken" type="password" required autoComplete="off" />
+            </Field>
+            <Field
+              label="Secreto de la app"
+              hint="Para comprobar que los mensajes vienen de Meta. Se guarda cifrado."
+              tip="Meta for Developers → tu app → Configuración de la app → Básica → «App secret»."
+            >
+              <Input name="appSecret" type="password" required autoComplete="off" />
             </Field>
           </ActionForm>
         ) : null}

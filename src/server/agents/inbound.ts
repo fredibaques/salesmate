@@ -20,7 +20,14 @@ import type { LlmClient } from "../llm/client";
 import { activePlaybookFor, type PlaybookWithSpec } from "../playbooks/service";
 import { parseSalesProfile, renderPlaybook } from "../playbooks/spec";
 import { conversationRef, findOrCreateConversation, upsertContact, type Lead } from "./conversations";
-import { leadFromEmail, leadFromForm, looksAutomated, type GmailInboundPayload } from "./leads";
+import {
+  leadFromEmail,
+  leadFromForm,
+  leadFromWhatsapp,
+  looksAutomated,
+  type GmailInboundPayload,
+  type WhatsappInboundPayload,
+} from "./leads";
 import {
   actionTools,
   calendarTools,
@@ -59,6 +66,9 @@ function leadFromEvent(
   if (source === "gmail") {
     const email = payload as unknown as GmailInboundPayload;
     return { lead: leadFromEmail(email), automated: email.autoSubmitted };
+  }
+  if (source === "whatsapp") {
+    return { lead: leadFromWhatsapp(payload as unknown as WhatsappInboundPayload), automated: false };
   }
   return null;
 }
@@ -139,7 +149,10 @@ function leadMessage(input: {
 
   return [
     `Ahora son las ${local}.`,
-    `Nuevo mensaje por ${lead.channel === "form" ? "formulario web" : "email"} de ${who}.`,
+    `Nuevo mensaje por ${lead.channel === "form" ? "formulario web" : lead.channel === "whatsapp" ? "WhatsApp" : "email"} de ${who}.`,
+    lead.channel === "whatsapp"
+      ? `Responde por WhatsApp (whatsapp.send al ${lead.phone}, desde la identidad de WhatsApp del proyecto): mensajes cortos, en texto plano, sin asunto.`
+      : null,
     lead.subject ? `Asunto: ${lead.subject}` : null,
     `Mensaje:\n${lead.body || "(vacío)"}`,
     extra.length ? `Otros campos:\n${extra.map(([k, v]) => `- ${k}: ${v}`).join("\n")}` : null,
@@ -380,6 +393,7 @@ export async function processInboundEvent(
       leadStateTool({ db: deps.db, orgId, contactId: contact.id, conversationId: conversation.id }),
       actionTools(toolCtx, [
         "email.send",
+        "whatsapp.send",
         "email.create_draft",
         "crm.upsert_contact",
         "crm.create_task",

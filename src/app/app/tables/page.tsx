@@ -1,29 +1,16 @@
 import { Building2, Sheet, User } from "lucide-react";
 import Link from "next/link";
-import { ModalButton } from "@/components/modal";
-import { Card, EmptyState, EntityCard, PageHeader, Table, Td } from "@/components/ui";
+import { Card, EmptyState, PageHeader, Table, Td } from "@/components/ui";
 import { formatDateTime, plural } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { listAllBases } from "@/server/prospects/bases";
 import { countPendingCells } from "@/server/prospects/complete";
 import { listProjects } from "@/server/services/projects";
+import { NewTableButton } from "../projects/[projectId]/prospects/new/new-table-button";
 import { NewProjectButton } from "../projects/new-project";
 
 export const metadata = { title: "Tablas" };
-
-/** «Nueva tabla»: a base belongs to a project, so first pick which. */
-function NewTableButton({ projects }: { projects: { id: string; name: string }[] }) {
-  return (
-    <ModalButton label="Nueva tabla" title="¿En qué proyecto?" variant="primary">
-      <div className="grid gap-2">
-        {projects.map((p) => (
-          <EntityCard key={p.id} href={`/app/projects/${p.id}/prospects/new`} title={p.name} />
-        ))}
-      </div>
-    </ModalButton>
-  );
-}
 
 /**
  * Every table of the organization, from all its projects: the prospect
@@ -44,15 +31,25 @@ export default async function TablesPage() {
         icon={<Sheet />}
         title="Tablas"
         tip="Las tablas de todos tus proyectos: empresas o personas con las columnas que tú decides, que rellenan los agentes de prospección y revisa tu equipo."
-        actions={canEdit && projects.length ? <NewTableButton projects={projects} /> : null}
+        actions={
+          canEdit && projects.length ? (
+            <NewTableButton projects={projects.map((p) => ({ id: p.id, name: p.name }))} />
+          ) : null
+        }
       />
       {bases.length === 0 ? (
         <EmptyState
           icon={<Sheet />}
           title="Todavía no hay tablas"
-          description="Se crean al añadir el agente de prospección a un proyecto, o desde «Nueva tabla». Aquí verás las de todos tus proyectos."
+          description="Créalas con «Nueva tabla» o al añadir un agente que trabaje en una. Aquí verás las de todos tus proyectos."
           action={
-            canEdit ? projects.length ? <NewTableButton projects={projects} /> : <NewProjectButton /> : null
+            canEdit ? (
+              projects.length ? (
+                <NewTableButton projects={projects.map((p) => ({ id: p.id, name: p.name }))} />
+              ) : (
+                <NewProjectButton />
+              )
+            ) : null
           }
         />
       ) : (

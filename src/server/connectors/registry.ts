@@ -2,10 +2,11 @@ import { env } from "../env";
 import { dataProvider } from "./data";
 import { googleProvider } from "./google";
 import { slackProvider } from "./slack";
+import { whatsappProvider } from "./whatsapp";
 import { twentyProvider } from "./twenty";
 import type { ConnectorProvider } from "./types";
 
-export const PROVIDER_IDS = ["twenty", "google", "apollo", "lusha", "slack"] as const;
+export const PROVIDER_IDS = ["twenty", "google", "apollo", "lusha", "slack", "whatsapp"] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
 export function getProvider(id: string): ConnectorProvider<unknown> {
@@ -14,6 +15,8 @@ export function getProvider(id: string): ConnectorProvider<unknown> {
       return twentyProvider as ConnectorProvider<unknown>;
     case "slack":
       return slackProvider as ConnectorProvider<unknown>;
+    case "whatsapp":
+      return whatsappProvider as ConnectorProvider<unknown>;
     case "apollo":
     case "lusha":
       return dataProvider(id) as ConnectorProvider<unknown>;

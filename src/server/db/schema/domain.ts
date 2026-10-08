@@ -322,6 +322,8 @@ export type AgentChannels = {
   calendarId?: string | null;
   /** CRM connection used to look up and record contacts. */
   crmConnectionId?: string | null;
+  /** WhatsApp Business number it answers from (and whose messages it attends). */
+  whatsappId?: string | null;
 };
 
 /** Tools an agent may use beyond the project's knowledge (always available). */

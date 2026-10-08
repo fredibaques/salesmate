@@ -1,14 +1,15 @@
-import { Building2, Database, Plus, User } from "lucide-react";
+import { Building2, Database, User } from "lucide-react";
 import { CardGrid, EmptyState, EntityCard, LinkButton, Meta, Toolbar } from "@/components/ui";
 import { formatDateTime, plural } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { listBases } from "@/server/prospects/bases";
+import { NewTableButton } from "./new/new-table-button";
 import { countPendingCells } from "@/server/prospects/complete";
 
 export const metadata = { title: "Tablas" };
 
-/** The project's prospect bases: tables of companies or people that agents fill and people review. */
+/** The project's tables: companies or people, with the columns the team decides, that agents work on and people review. */
 export default async function ProspectBasesPage({
   params,
 }: PageProps<"/app/projects/[projectId]/prospects">) {
@@ -23,10 +24,7 @@ export default async function ProspectBasesPage({
   const path = `/app/projects/${projectId}/prospects`;
   const canEdit = tenant.role !== "member";
   const newBase = canEdit ? (
-    <LinkButton href={`${path}/new`} variant={bases.length ? "primary" : "secondary"}>
-      <Plus />
-      Nueva tabla
-    </LinkButton>
+    <NewTableButton projectId={projectId} variant={bases.length ? "primary" : "secondary"} />
   ) : null;
 
   if (bases.length === 0) {
@@ -34,7 +32,7 @@ export default async function ProspectBasesPage({
       <EmptyState
         icon={<Database />}
         title="Todavía no hay tablas"
-        description="Una tabla es una tabla de empresas o personas con las columnas que tú decides. El agente de prospección la rellena y tu equipo la revisa y la exporta."
+        description="Una tabla de empresas o personas con las columnas que tú decides. Los agentes del proyecto trabajan en ella (hoy, el de prospección la rellena) y tu equipo la revisa y la exporta."
         action={
           <>
             {canEdit ? (

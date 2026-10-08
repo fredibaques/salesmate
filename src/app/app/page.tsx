@@ -74,7 +74,7 @@ export default async function DashboardPage() {
       <div className="flex flex-wrap justify-center gap-2">
         <LinkButton href="/app/tables" variant="secondary">
           <Sheet />
-          Una tabla de prospectos
+          Una tabla
         </LinkButton>
         <NewProjectButton variant="secondary" label="Un proyecto nuevo" />
         <LinkButton href="/app/connections?add=1" variant="secondary">

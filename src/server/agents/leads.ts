@@ -151,3 +151,34 @@ export function looksAutomated(lead: Lead, autoSubmitted = false): boolean {
     /^(mailer-daemon|postmaster|no-?reply)@/i.test(lead.email ?? "")
   );
 }
+
+/** What our WhatsApp webhook stores for each message received. */
+export type WhatsappInboundPayload = {
+  id: string;
+  from: string;
+  name: string | null;
+  text: string;
+  /** Our business number (the identity it arrived at). */
+  number: string;
+};
+
+/** A WhatsApp message as a lead: the number is the contact, one thread per contact. */
+export function leadFromWhatsapp(payload: WhatsappInboundPayload): Lead {
+  const [firstName, ...rest] = (payload.name ?? "").trim().split(/\s+/).filter(Boolean);
+  const phone = `+${payload.from.replace(/\D/g, "")}`;
+  return {
+    channel: "whatsapp",
+    email: null,
+    phone,
+    firstName: firstName ?? null,
+    lastName: rest.length ? rest.join(" ") : null,
+    companyName: null,
+    subject: null,
+    body: payload.text,
+    extra: {},
+    externalThreadId: `wa:${payload.number}:${payload.from.replace(/\D/g, "")}`,
+    externalMessageId: payload.id || null,
+    rfcMessageId: null,
+    consent: null,
+  };
+}
