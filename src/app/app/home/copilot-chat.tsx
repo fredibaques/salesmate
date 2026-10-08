@@ -30,10 +30,18 @@ const SUGGESTIONS = [
  * «Nueva conversación».
  */
 export function CopilotChat({
+  title,
   projects,
+  unavailable,
+  shortcuts,
   children,
 }: {
+  title: ReactNode;
   projects: { id: string; name: string }[];
+  /** Why it can't answer yet (no AI connected, no project), with the fix. */
+  unavailable?: ReactNode;
+  /** Other ways to start, under the box. */
+  shortcuts?: ReactNode;
   children?: ReactNode;
 }) {
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
@@ -79,20 +87,25 @@ export function CopilotChat({
     return (
       <>
         <ChatHero
-          title="¿En qué te ayudo?"
+          title={title}
+          notice={unavailable}
+          disabled={Boolean(unavailable)}
+          footer={shortcuts}
           value={draft}
           onChange={setDraft}
           onSend={send}
           pending={pending}
           placeholder="Pregunta sobre tu oferta, tus tarifas o tus contactos, o pide que prepare un email o una tarea…"
           controls={
-            <>
-              {projectSelect}
-              <InfoTip>
-                Responde con el conocimiento del proyecto y cita sus fuentes. Lo que proponga hacer (un email,
-                una tarea…) espera tu aprobación en «Por aprobar».
-              </InfoTip>
-            </>
+            projects.length === 0 ? null : (
+              <>
+                {projectSelect}
+                <InfoTip>
+                  Responde con el conocimiento del proyecto y cita sus fuentes. Lo que proponga hacer (un
+                  email, una tarea…) espera tu aprobación en «Por aprobar».
+                </InfoTip>
+              </>
+            )
           }
           suggestions={SUGGESTIONS}
         />
