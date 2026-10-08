@@ -11,6 +11,7 @@ import {
   deleteBase,
   ensureAgentBase,
   getBase,
+  listAllBases,
   listBases,
   moveColumn,
   removeColumn,
@@ -303,5 +304,34 @@ describe("proposeColumns", () => {
     const prompt = JSON.stringify(requests[0].messages);
     expect(prompt).toContain("Transferencias de vehículos");
     expect(prompt).toContain("Si tienen gestoría propia");
+  });
+});
+
+describe("listAllBases", () => {
+  it("lists the bases of every project, the most recently active first", async () => {
+    const [other] = await withTenant(db, tenant, (tx) =>
+      tx.insert(projects).values({ orgId: tenant.orgId, name: "Otro proyecto" }).returning(),
+    );
+    const quiet = await createBase(db, tenant, other.id, {
+      name: "Sin movimiento",
+      rowKind: "company",
+      columns: [],
+    });
+    const busy = await createBase(db, tenant, projectId, {
+      name: "Con filas",
+      rowKind: "person",
+      columns: [],
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    await saveProspects(db, tenant, {
+      baseId: busy.id,
+      items: [{ companyName: "Autos García", personName: "Luis García" }],
+    });
+    const all = await listAllBases(db, tenant);
+    const mine = all.filter((b) => b.id === quiet.id || b.id === busy.id);
+    expect(mine.map((b) => [b.name, b.projectName, b.rows])).toEqual([
+      ["Con filas", "Swipoo", 1],
+      ["Sin movimiento", "Otro proyecto", 0],
+    ]);
   });
 });

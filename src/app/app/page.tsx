@@ -1,4 +1,4 @@
-import { Activity, Bot, CheckCircle2, Circle, FolderKanban, Inbox } from "lucide-react";
+import { Activity, Bot, Building2, CheckCircle2, Circle, FolderKanban, Inbox, User } from "lucide-react";
 import Link from "next/link";
 import {
   Badge,
@@ -9,27 +9,37 @@ import {
   LinkButton,
   PageHeader,
   RowLink,
+  Table,
+  Td,
 } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getActionDefinition } from "@/server/gateway/definitions";
 import { listActions, listAudit, listOrgConnections, listProjects } from "@/server/services/projects";
-import { describeEvent, formatDateTime } from "@/lib/format";
-import { AI_CONNECT_HREF, currentAi } from "./ai-notice";
+import { describeEvent, formatDateTime, plural } from "@/lib/format";
+import { listAllBases } from "@/server/prospects/bases";
+import { AI_CONNECT_HREF, AiNotice, currentAi } from "./ai-notice";
+import { CopilotChat } from "./home/copilot-chat";
 import { NewProjectButton } from "./projects/new-project";
 
 export const metadata = { title: "Panel" };
 
+/**
+ * The home: Copilot to ask or ask for anything, and below it the latest
+ * tables, the projects, what waits for approval and the latest activity.
+ */
 export default async function DashboardPage() {
   const tenant = await requireTenant();
   const db = getDb();
-  const [projects, pending, connections, events, ai] = await Promise.all([
+  const [projects, pending, connections, events, ai, bases] = await Promise.all([
     listProjects(db, tenant),
     listActions(db, tenant, { statuses: ["pending_approval"], limit: 5 }),
     listOrgConnections(db, tenant),
     listAudit(db, tenant, { limit: 8 }),
     currentAi(),
+    listAllBases(db, tenant),
   ]);
+  const copilotReady = Boolean(ai) && projects.length > 0;
 
   const steps = [
     { done: Boolean(ai), label: "Conecta tu IA (Anthropic, OpenAI o Kimi)", href: AI_CONNECT_HREF },
@@ -41,10 +51,8 @@ export default async function DashboardPage() {
     { done: projects.length > 0, label: "Crea tu primer proyecto", href: "/app/projects/new" },
   ];
 
-  return (
+  const home = (
     <>
-      <PageHeader title={`Hola, ${tenant.user.name.split(" ")[0]}`} actions={<NewProjectButton />} />
-
       {steps.some((s) => !s.done) ? (
         <Card title="Primeros pasos" className="mb-6">
           <ol className="space-y-1 text-sm">
@@ -64,6 +72,41 @@ export default async function DashboardPage() {
               </li>
             ))}
           </ol>
+        </Card>
+      ) : null}
+
+      {bases.length > 0 ? (
+        <Card
+          title="Tablas recientes"
+          className="mb-8"
+          actions={
+            <LinkButton href="/app/tables" variant="ghost">
+              Ver todas
+            </LinkButton>
+          }
+        >
+          <Table head={["Tabla", "Proyecto", "Filas", "Última actividad"]}>
+            {bases.slice(0, 5).map((b) => (
+              <tr key={b.id} className="relative transition-colors hover:bg-ink-25">
+                <Td>
+                  <Link
+                    href={`/app/projects/${b.projectId}/prospects/${b.id}`}
+                    className="inline-flex items-center gap-2 font-medium after:absolute after:inset-0 hover:text-accent"
+                  >
+                    {b.rowKind === "person" ? (
+                      <User className="size-4 text-muted" aria-hidden />
+                    ) : (
+                      <Building2 className="size-4 text-muted" aria-hidden />
+                    )}
+                    {b.name}
+                  </Link>
+                </Td>
+                <Td className="text-muted">{b.projectName}</Td>
+                <Td className="tabular-nums">{plural(b.rows, "fila", "filas")}</Td>
+                <Td className="whitespace-nowrap text-muted">{formatDateTime(b.lastActivity)}</Td>
+              </tr>
+            ))}
+          </Table>
         </Card>
       ) : null}
 
@@ -169,9 +212,25 @@ export default async function DashboardPage() {
       </div>
     </>
   );
+
+  return (
+    <>
+      <PageHeader title={`Hola, ${tenant.user.name.split(" ")[0]}`} actions={<NewProjectButton />} />
+      {copilotReady ? (
+        <>
+          <div className="mb-4 empty:hidden">
+            <AiNotice feature="Copilot" />
+          </div>
+          <CopilotChat projects={projects.map((p) => ({ id: p.id, name: p.name }))}>{home}</CopilotChat>
+        </>
+      ) : (
+        home
+      )}
+    </>
+  );
 }
 
 function summarize(data: Record<string, unknown>) {
-  const s = (data.summary ?? data.name ?? data.type ?? "") as string;
+  const s = (data.summary ?? data.name ?? data.column ?? data.base ?? data.type ?? "") as string;
   return typeof s === "string" ? s : "";
 }
