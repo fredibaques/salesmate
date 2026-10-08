@@ -127,6 +127,13 @@
       "when": 1791479516594,
       "tag": "0017_meetings",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791481187571,
+      "tag": "0018_project_color",
+      "breakpoints": true
     }
   ]
 }

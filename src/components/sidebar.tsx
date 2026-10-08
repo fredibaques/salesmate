@@ -1,5 +1,6 @@
 "use client";
 
+import { colorLook } from "@/lib/agent-look";
 import { ChevronRight, ChevronsUpDown, Check, LogOut, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -221,13 +222,22 @@ export function SidebarGroup({
 }
 
 /** Letter avatar for an entity in the sidebar (a project). */
-export function SidebarDot({ label, muted = false }: { label: string; muted?: boolean }) {
+export function SidebarDot({
+  label,
+  muted = false,
+  color,
+}: {
+  label: string;
+  muted?: boolean;
+  /** The project's colour (a palette key). */
+  color?: string | null;
+}) {
   return (
     <span
       aria-hidden
       className={cx(
         "flex size-5 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold",
-        muted ? "bg-border text-muted" : "bg-brand-100 text-accent",
+        muted ? "bg-border text-muted" : colorLook(color).tile,
       )}
     >
       {label.slice(0, 1).toUpperCase()}

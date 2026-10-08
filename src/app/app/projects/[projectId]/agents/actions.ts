@@ -19,10 +19,12 @@ import { requireOrgLlm } from "@/server/llm/org-ai";
 import { setAgentBase } from "@/server/prospects/bases";
 import {
   addAgent,
+  addAgentTool,
   getAgent,
   isProjectAgentType,
   listAgentRuns,
   removeAgent,
+  removeAgentTool,
   customizeAgent,
   rotateAgentHook,
   saveAgentAutomation,
@@ -32,6 +34,8 @@ import {
   saveAgentTools,
   SCHEDULED_AGENT_TYPES,
   setAgentEnabled,
+  setAgentMcpTools,
+  type AgentToolKey,
   updateAgentAutonomy,
   type ProjectAgentType,
 } from "@/server/services/agents";
@@ -381,16 +385,51 @@ export async function rotateHook(projectId: string, type: string, _: FormState):
   return result;
 }
 
-export async function saveTools(
+/** «Añadir» in the available tools: the agent can use it from now on. */
+export async function addToolAction(
   projectId: string,
   type: string,
+  key: AgentToolKey,
+  label: string,
+  _: FormState,
+): Promise<FormState> {
+  const result = await runForm(async () => {
+    const tenant = await admin();
+    await addAgentTool(getDb(), tenant, projectId, agentType(type), key);
+    return `${label}: añadida.`;
+  });
+  refresh(projectId);
+  return result;
+}
+
+export async function removeToolAction(
+  projectId: string,
+  type: string,
+  key: AgentToolKey,
+  label: string,
+  _: FormState,
+): Promise<FormState> {
+  const result = await runForm(async () => {
+    const tenant = await admin();
+    await removeAgentTool(getDb(), tenant, projectId, agentType(type), key);
+    return `${label}: quitada.`;
+  });
+  refresh(projectId);
+  return result;
+}
+
+/** The functions of an MCP server the agent may call. */
+export async function saveMcpToolsAction(
+  projectId: string,
+  type: string,
+  connectionId: string,
   _: FormState,
   form: FormData,
 ): Promise<FormState> {
   const result = await runForm(async () => {
     const tenant = await admin();
-    await saveAgentTools(getDb(), tenant, projectId, agentType(type), toolsFromForm(form));
-  }, "Herramientas guardadas.");
+    await setAgentMcpTools(getDb(), tenant, projectId, agentType(type), connectionId, list(form, "tool"));
+  }, "Funciones guardadas.");
   refresh(projectId);
   return result;
 }

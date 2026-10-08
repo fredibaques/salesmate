@@ -90,6 +90,12 @@ export const AGENT_COLORS: Record<string, { label: string; tile: string; text: s
   gris: { label: "Gris", tile: "bg-ink-100 text-ink-700", text: "text-ink-600", swatch: "bg-ink-500" },
 };
 
+/** A colour of the palette (agents and projects), the default when unknown. */
+export function colorLook(color?: string | null) {
+  const key = color && AGENT_COLORS[color] ? color : "lima";
+  return { key, ...AGENT_COLORS[key] };
+}
+
 const DEFAULT_ICON: Record<string, string> = { inbound: "reply", outbound: "send", account_manager: "care" };
 
 /** The agent's icon and colour: its own, or its template's. */

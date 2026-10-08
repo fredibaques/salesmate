@@ -11,6 +11,7 @@ export function projectFromForm(form: FormData) {
     website: str(form, "website") ?? "",
     timezone: str(form, "timezone") ?? "Europe/Madrid",
     languages: languages.length ? languages : ["es"],
+    color: str(form, "color"),
   };
 }
 

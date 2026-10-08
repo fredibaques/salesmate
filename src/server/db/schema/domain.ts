@@ -75,6 +75,8 @@ export const projects = pgTable(
     name: text("name").notNull(),
     description: text("description"),
     website: text("website"),
+    /** Colour of its icon (a key of AGENT_COLORS); null is the default. */
+    color: text("color"),
     languages: text("languages")
       .array()
       .notNull()

@@ -3,10 +3,11 @@
 import { ArrowDown, ArrowUp, Inbox, LayoutDashboard, Pencil, Settings, Settings2, Sheet } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { resetMenu, saveMenu } from "@/app/app/account/actions";
+import { setProjectColorAction } from "@/app/app/projects/[projectId]/actions";
 import { customizeAgentAction } from "@/app/app/projects/[projectId]/agents/actions";
 import { AGENT_INFO, agentName, type ProjectAgentKey } from "@/lib/agents";
 import { ActionForm } from "./action-form";
-import { AgentIcon, AgentLookFields } from "./agent-look-fields";
+import { AgentIcon, AgentLookFields, ColorField } from "./agent-look-fields";
 import { ModalButton } from "./modal";
 import { SidebarDot } from "./sidebar";
 import { buttonClass, cx, Field, Input } from "./ui";
@@ -17,7 +18,13 @@ export type MenuAgent = {
   icon: string | null;
   color: string | null;
 };
-export type MenuProject = { id: string; name: string; paused: boolean; agents: MenuAgent[] };
+export type MenuProject = {
+  id: string;
+  name: string;
+  color: string | null;
+  paused: boolean;
+  agents: MenuAgent[];
+};
 
 const SECTIONS: Record<string, { label: string; icon: ReactNode }> = {
   home: { label: "Panel", icon: <LayoutDashboard className="size-4 text-muted" /> },
@@ -140,11 +147,26 @@ function MenuEditor({
         {projectIds.map((id, i) => {
           const project = projects.find((p) => p.id === id)!;
           const agents = agentsOf(project);
+          const projectOpen = editing === id;
           return (
             <div key={id}>
               <div className={rowClass}>
-                <SidebarDot label={project.name} muted={project.paused} />
+                <SidebarDot label={project.name} muted={project.paused} color={project.color} />
                 <span className="min-w-0 flex-1 truncate text-sm">{project.name}</span>
+                {canEditAgents ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditing(projectOpen ? null : id)}
+                    aria-expanded={projectOpen}
+                    aria-label={`Personalizar ${project.name}`}
+                    className={cx(
+                      buttonClass({ variant: "ghost", size: "sm", iconOnly: true }),
+                      projectOpen && "bg-ink-100",
+                    )}
+                  >
+                    <Pencil className="size-4" />
+                  </button>
+                ) : null}
                 <Arrows
                   label={project.name}
                   index={i}
@@ -152,6 +174,21 @@ function MenuEditor({
                   onMove={(to) => setProjectOrder(move(projectIds, i, to))}
                 />
               </div>
+              {projectOpen ? (
+                <div className="my-2 ml-9 rounded-lg border border-border p-4">
+                  <ActionForm
+                    key={project.color ?? ""}
+                    action={setProjectColorAction.bind(null, id)}
+                    submitLabel="Guardar el color"
+                    submitVariant="secondary"
+                    cancel={false}
+                    stayOpen
+                    className="space-y-4"
+                  >
+                    <ColorField label="Color del proyecto" color={project.color} />
+                  </ActionForm>
+                </div>
+              ) : null}
               {agents.map((agent, j) => {
                 const name = agentName(agent.type, agent.name);
                 const editKey = `${id}:${agent.type}`;

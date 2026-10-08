@@ -1,4 +1,4 @@
-import { AGENT_COLORS, AGENT_ICON_CHOICES, agentLook } from "@/lib/agent-look";
+import { AGENT_COLORS, AGENT_ICON_CHOICES, agentLook, colorLook } from "@/lib/agent-look";
 import { cx, Field, IconTile } from "./ui";
 
 /** The agent's tile with its icon and colour. */
@@ -81,30 +81,38 @@ export function AgentLookFields({
           ))}
         </div>
       </Field>
-      <Field label="Color" group>
-        <div className="flex flex-wrap gap-2">
-          {Object.entries(AGENT_COLORS).map(([key, c]) => (
-            <label key={key} className="inline-flex" title={c.label}>
-              <input
-                type="radio"
-                name="color"
-                value={key}
-                defaultChecked={key === look.colorKey}
-                className="peer sr-only"
-              />
-              <span
-                aria-label={c.label}
-                className={cx(
-                  "size-7 cursor-pointer rounded-full ring-offset-2 ring-offset-surface transition-shadow",
-                  "hover:ring-2 hover:ring-border-strong peer-checked:ring-2 peer-checked:ring-foreground",
-                  "peer-focus-visible:ring-2 peer-focus-visible:ring-accent/60",
-                  c.swatch,
-                )}
-              />
-            </label>
-          ))}
-        </div>
-      </Field>
+      <ColorField color={look.colorKey} />
     </>
+  );
+}
+
+/** Colour swatches of the palette (inside a form: field «color»). Agents and projects. */
+export function ColorField({ color, label = "Color" }: { color?: string | null; label?: string }) {
+  const current = colorLook(color).key;
+  return (
+    <Field label={label} group>
+      <div className="flex flex-wrap gap-2">
+        {Object.entries(AGENT_COLORS).map(([key, c]) => (
+          <label key={key} className="inline-flex" title={c.label}>
+            <input
+              type="radio"
+              name="color"
+              value={key}
+              defaultChecked={key === current}
+              className="peer sr-only"
+            />
+            <span
+              aria-label={c.label}
+              className={cx(
+                "size-7 cursor-pointer rounded-full ring-offset-2 ring-offset-surface transition-shadow",
+                "hover:ring-2 hover:ring-border-strong peer-checked:ring-2 peer-checked:ring-foreground",
+                "peer-focus-visible:ring-2 peer-focus-visible:ring-accent/60",
+                c.swatch,
+              )}
+            />
+          </label>
+        ))}
+      </div>
+    </Field>
   );
 }

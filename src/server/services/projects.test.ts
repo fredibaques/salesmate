@@ -18,6 +18,7 @@ import {
   normalizeSuppression,
   setProjectState,
   updateProject,
+  setProjectColor,
 } from "./projects";
 
 let db: Db;
@@ -127,5 +128,15 @@ describe("projects service", () => {
     expect(left.prospects).toHaveLength(0);
     // The audit log keeps the project's history, deletion included.
     expect(left.audit.map((a) => a.event)).toContain("project.deleted");
+  });
+});
+
+describe("project colour", () => {
+  it("is chosen on creation, changed later, and unknown colours fall back to the default", async () => {
+    const project = await createProject(db, tenant, { name: "Con color", color: "azul" });
+    expect(project.color).toBe("azul");
+    expect((await setProjectColor(db, tenant, project.id, "violeta")).color).toBe("violeta");
+    expect((await setProjectColor(db, tenant, project.id, "rojo-fuego")).color).toBeNull();
+    expect((await createProject(db, tenant, { name: "Sin color", color: "nada" })).color).toBeNull();
   });
 });

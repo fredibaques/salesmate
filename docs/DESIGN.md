@@ -171,8 +171,14 @@ independently clickable. Variants:
   anyway so people know it is coming.
 
 Show the full set of possible entities when it is small and fixed (all
-agent types, all tools), so what is active, what can be added and what is
-coming are visible together.
+agent types), so what is active, what can be added and what is coming are
+visible together. When the set is open (an agent's tools), show what is in
+use as cards and the rest in an «available» modal whose tiles add with one
+click (the modal closes and the card appears); an empty set is an
+`EmptyState` with that button.
+
+Colours people choose (agents, projects) come from one palette
+(`AGENT_COLORS`, picked with `ColorField`).
 
 ## 8. Records are rows
 

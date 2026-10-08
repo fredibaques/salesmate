@@ -288,6 +288,15 @@ prospección son plantillas (`AGENT_DEFAULTS` en `services/agents.ts`):
   búsqueda y lectura web de la API (`web_search` / `web_fetch`, herramientas
   del servidor, con tope de usos y coste por búsqueda en `agent_runs`); y las
   herramientas de los servidores MCP de la organización que el usuario marque.
+  En la pestaña se ven como tarjetas («En uso»); «Herramientas disponibles»
+  abre un modal con lo que se puede añadir (web, Apollo/Lusha/Hunter y
+  servidores MCP conectados) y lo que falta por conectar. Añadir un servidor
+  MCP le da todas sus funciones; «Elegir funciones» las limita
+  (`addAgentTool`, `removeAgentTool`, `setAgentMcpTools`).
+- **Color del proyecto** (`projects.color`, migración 0018): una clave de la
+  paleta de los agentes (`AGENT_COLORS`, `colorLook`); se elige al crearlo,
+  en Ajustes o en el engranaje del menú. Pinta su inicial en el menú y el
+  icono de su cabecera.
 - **Nombre** (`agent_configs.name`): el que le da el usuario; vacío = el de
   la plantilla (`agentName()` en `lib/agents.ts`). Lo usan la cabecera, el
   menú lateral, las migas y las tablas.

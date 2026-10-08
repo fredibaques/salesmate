@@ -1,4 +1,5 @@
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { AGENT_COLORS } from "@/lib/agent-look";
 import { z } from "zod";
 import { audit } from "../audit";
 import type { Db } from "../db/client";
@@ -37,6 +38,11 @@ export const projectInput = z.object({
     .or(z.literal("").transform(() => undefined)),
   timezone: z.string().trim().min(3).default("Europe/Madrid"),
   languages: z.array(z.string().trim().min(2).max(5)).min(1).default(["es"]),
+  /** Unknown colours fall back to the default. */
+  color: z
+    .string()
+    .nullish()
+    .transform((c) => (c && AGENT_COLORS[c] ? c : c === undefined ? undefined : null)),
 });
 
 export const projectSettingsInput = z.object({
@@ -114,6 +120,32 @@ export async function createProject(db: Db, tenant: TenantContext, raw: z.input<
       entityType: "project",
       entityId: row.id,
       data: { name: row.name },
+    });
+    return row;
+  });
+}
+
+/** The colour of the project's icon (sidebar and header). */
+export async function setProjectColor(
+  db: Db,
+  tenant: TenantContext,
+  projectId: string,
+  color: string | null,
+) {
+  const value = color && AGENT_COLORS[color] ? color : null;
+  return withTenant(db, tenant, async (tx) => {
+    const [row] = await tx
+      .update(projects)
+      .set({ color: value })
+      .where(eq(projects.id, projectId))
+      .returning();
+    if (!row) throw new Error("Proyecto no encontrado.");
+    await audit(tx, tenant, {
+      event: "project.updated",
+      projectId,
+      entityType: "project",
+      entityId: projectId,
+      data: { color: value },
     });
     return row;
   });

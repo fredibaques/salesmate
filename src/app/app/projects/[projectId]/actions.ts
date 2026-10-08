@@ -25,6 +25,7 @@ import {
   deleteMeetingType,
   removeComplianceRule,
   removeSuppression,
+  setProjectColor,
   setProjectState,
   updateProject,
 } from "@/server/services/projects";
@@ -68,6 +69,20 @@ export async function deleteProjectAction(
     refreshSidebar();
     redirect("/app");
   }
+  return result;
+}
+
+/** The colour of the project's icon, from the sidebar settings. */
+export async function setProjectColorAction(
+  projectId: string,
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const result = await runForm(async () => {
+    const tenant = await admin();
+    await setProjectColor(getDb(), tenant, projectId, str(form, "color") ?? null);
+  }, "Color guardado.");
+  refreshSidebar();
   return result;
 }
 
