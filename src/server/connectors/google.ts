@@ -22,6 +22,7 @@ export const GOOGLE_SCOPE_SETS = {
   gmail_read: ["https://www.googleapis.com/auth/gmail.readonly"],
   docs_read: ["https://www.googleapis.com/auth/documents.readonly"],
   sheets: ["https://www.googleapis.com/auth/spreadsheets"],
+  meet_read: ["https://www.googleapis.com/auth/meetings.space.readonly"],
 } as const;
 export type GoogleScopeSet = keyof typeof GOOGLE_SCOPE_SETS;
 
@@ -235,6 +236,22 @@ function docText(elements: DocElement[]): string {
     .join("");
 }
 
+type MeetParticipant = {
+  name: string;
+  signedinUser?: { displayName?: string };
+  anonymousUser?: { displayName?: string };
+  phoneUser?: { displayName?: string };
+};
+
+/** Most transcript entries read from one call (100 per page). */
+const MAX_TRANSCRIPT_PAGES = 30;
+
+/** «https://meet.google.com/abc-defg-hij?authuser=0» or «abc-defg-hij» → «abc-defg-hij». */
+export function meetCodeOf(value: string | null | undefined): string | null {
+  const m = value?.trim().match(/(?:^|meet\.google\.com\/)([a-z]{3}-[a-z]{4}-[a-z]{3})(?:$|[/?#\s])/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
 export function createGoogleClient(
   creds: GoogleCredentials,
   ctx: ConnectorContext & { oauth: Pick<GoogleOAuthClient, "clientId" | "clientSecret"> },
@@ -397,6 +414,84 @@ export function createGoogleClient(
       };
     },
 
+    /**
+     * The transcript of a Meet call held between `from` and `to` (Meet REST
+     * API: conference records → transcripts → entries). Calls with several
+     * sessions (people leaving and coming back) are joined in order.
+     */
+    async "meet.transcript"({ meetCode, from, to }: { meetCode: string; from: string; to: string }) {
+      const filter = `space.meeting_code = "${meetCode}" AND start_time >= "${from}" AND start_time <= "${to}"`;
+      const listed = (await call(
+        `https://meet.googleapis.com/v2/conferenceRecords?${new URLSearchParams({ filter, pageSize: "10" })}`,
+      )) as { conferenceRecords?: { name: string; startTime?: string; endTime?: string }[] };
+      const records = (listed.conferenceRecords ?? []).sort((a, b) =>
+        (a.startTime ?? "").localeCompare(b.startTime ?? ""),
+      );
+      if (!records.length) return { status: "not_found" as const };
+      // A record without an end is a call still going on.
+      if (records.some((r) => !r.endTime)) return { status: "in_progress" as const };
+
+      const lines: { speaker: string; text: string; at: string | null }[] = [];
+      let docUrl: string | null = null;
+      let found = false;
+      for (const record of records) {
+        const { transcripts = [] } = (await call(
+          `https://meet.googleapis.com/v2/${record.name}/transcripts`,
+        )) as {
+          transcripts?: {
+            name: string;
+            state?: string;
+            docsDestination?: { document?: string; exportUri?: string };
+          }[];
+        };
+        if (!transcripts.length) continue;
+        found = true;
+        // The entries are complete once the transcript has ended.
+        if (transcripts.some((t) => t.state === "STARTED")) return { status: "in_progress" as const };
+
+        const people = new Map<string, string>();
+        let pageToken = "";
+        do {
+          const page = (await call(
+            `https://meet.googleapis.com/v2/${record.name}/participants?${new URLSearchParams({ pageSize: "100", ...(pageToken ? { pageToken } : {}) })}`,
+          )) as { participants?: MeetParticipant[]; nextPageToken?: string };
+          for (const p of page.participants ?? []) {
+            const name =
+              p.signedinUser?.displayName ?? p.anonymousUser?.displayName ?? p.phoneUser?.displayName;
+            if (name) people.set(p.name, name);
+          }
+          pageToken = page.nextPageToken ?? "";
+        } while (pageToken);
+
+        for (const transcript of transcripts) {
+          docUrl ??= transcript.docsDestination?.exportUri ?? null;
+          let token = "";
+          let pages = 0;
+          do {
+            const page = (await call(
+              `https://meet.googleapis.com/v2/${transcript.name}/entries?${new URLSearchParams({ pageSize: "100", ...(token ? { pageToken: token } : {}) })}`,
+            )) as {
+              transcriptEntries?: { participant?: string; text?: string; startTime?: string }[];
+              nextPageToken?: string;
+            };
+            for (const e of page.transcriptEntries ?? []) {
+              if (!e.text?.trim()) continue;
+              lines.push({
+                speaker: (e.participant && people.get(e.participant)) || "Participante",
+                text: e.text.trim(),
+                at: e.startTime ?? null,
+              });
+            }
+            token = page.nextPageToken ?? "";
+          } while (token && ++pages < MAX_TRANSCRIPT_PAGES);
+        }
+      }
+      if (!found) return { status: "none" as const };
+      // Meet writes the entries a little after the transcript ends.
+      if (!lines.length) return { status: "in_progress" as const };
+      return { status: "ready" as const, lines, docUrl };
+    },
+
     /** A new spreadsheet with the table: header and rows. */
     async "table.export"(input: { name: string; header: string[]; rows: string[][] }) {
       const created = (await call("https://sheets.googleapis.com/v4/spreadsheets", {
@@ -432,6 +527,7 @@ export function googleProvider(
       if (read.includes("docs")) caps.push("docs.read");
       if (read.includes("sheets")) caps.push("sheets.read");
       if (write.includes("sheets")) caps.push("table.export");
+      if (read.includes("meet")) caps.push("meet.transcript");
       return caps;
     },
     create: (creds, ctx) => createGoogleClient(creds, { ...ctx, oauth }),

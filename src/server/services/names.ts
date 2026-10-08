@@ -7,6 +7,7 @@ import {
   knowledgeSources,
   projects,
   prospectBases,
+  meetings,
 } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
 
@@ -37,6 +38,13 @@ export async function conversationName(db: Db, tenant: Pick<TenantContext, "orgI
   const c = rows[0];
   if (!c) return null;
   return [c.first, c.last].filter(Boolean).join(" ") || c.email || "Contacto";
+}
+
+export async function meetingName(db: Db, tenant: Pick<TenantContext, "orgId">, id: string) {
+  const rows = await withTenant(db, tenant, (tx) =>
+    tx.select({ title: meetings.title }).from(meetings).where(eq(meetings.id, id)),
+  );
+  return rows[0]?.title ?? null;
 }
 
 export async function baseName(db: Db, tenant: Pick<TenantContext, "orgId">, id: string) {
