@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import { TabLink, Tabs } from "@/components/nav-link";
 import { FolderKanban, OctagonPause, Play } from "lucide-react";
 import { SectionChrome } from "@/components/section-chrome";
-import { Badge, Button, Notice, PageHeader } from "@/components/ui";
+import { Badge, Button, IconTile, Notice, PageHeader } from "@/components/ui";
+import { colorLook } from "@/lib/agent-look";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getProject } from "@/server/services/projects";
@@ -30,7 +31,11 @@ export default async function ProjectLayout({ children, params }: LayoutProps<"/
       >
         <PageHeader
           className="mb-4"
-          icon={<FolderKanban />}
+          media={
+            <IconTile size="title" colors={colorLook(project.color).tile}>
+              <FolderKanban />
+            </IconTile>
+          }
           title={project.name}
           badge={project.agentsPaused ? <Badge tone="warning">En pausa: ningún agente actúa</Badge> : null}
           actions={

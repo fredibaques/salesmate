@@ -4,20 +4,23 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, seedOrg } from "../../../tests/helpers/db";
 import { saveGoogleConnection } from "../connectors/service";
 import type { Db } from "../db/client";
-import { identities, projectConnections, projectIdentities, projects } from "../db/schema";
+import { connections, identities, projectConnections, projectIdentities, projects } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
 import { activePlaybookFor } from "../playbooks/service";
 import { renderPlaybook } from "../playbooks/spec";
 import {
   addAgent,
+  addAgentTool,
   getAgent,
   getSalesProfile,
   listProjectAgents,
   removeAgent,
+  removeAgentTool,
   saveAgentChannels,
   saveAgentProcess,
   saveSalesProfile,
   setAgentEnabled,
+  setAgentMcpTools,
 } from "./agents";
 
 let db: Db;
@@ -159,5 +162,64 @@ describe("agents", () => {
     const agent = await getAgent(db, tenant, projectId, "inbound");
     expect(agent?.config.enabled).toBe(false);
     expect(agent?.process?.currentVersion).toBe(2);
+  });
+});
+
+describe("agent tools", () => {
+  it("adds and removes tools one by one, with the functions of an MCP server", async () => {
+    await addAgent(db, tenant, projectId, "outbound", "b2b_consultative");
+    const [mcp, hunter] = await withTenant(db, tenant, (tx) =>
+      tx
+        .insert(connections)
+        .values([
+          {
+            orgId: tenant.orgId,
+            provider: "mcp",
+            transport: "mcp",
+            label: "Directorio",
+            accountRef: "https://mcp.example.com/mcp",
+            credentialsEncrypted: "x",
+            metadata: {
+              tools: [
+                { name: "buscar", description: "", readOnly: true },
+                { name: "crear", description: "", readOnly: false },
+              ],
+            },
+          },
+          {
+            orgId: tenant.orgId,
+            provider: "hunter",
+            transport: "api",
+            label: "Hunter",
+            accountRef: "hunter",
+            credentialsEncrypted: "x",
+            readScopes: ["data"],
+          },
+        ])
+        .returning(),
+    );
+    const tools = async () => (await getAgent(db, tenant, projectId, "outbound"))!.config.tools;
+
+    await addAgentTool(db, tenant, projectId, "outbound", "web");
+    await addAgentTool(db, tenant, projectId, "outbound", `data:${hunter.id}`);
+    await addAgentTool(db, tenant, projectId, "outbound", `mcp:${mcp.id}`);
+    expect(await tools()).toMatchObject({
+      web: true,
+      data: [hunter.id],
+      mcp: [{ connectionId: mcp.id, tools: ["buscar", "crear"] }],
+    });
+
+    await setAgentMcpTools(db, tenant, projectId, "outbound", mcp.id, ["buscar", "inventada"]);
+    expect((await tools()).mcp).toEqual([{ connectionId: mcp.id, tools: ["buscar"] }]);
+    await expect(setAgentMcpTools(db, tenant, projectId, "outbound", mcp.id, [])).rejects.toThrow(
+      "al menos una",
+    );
+
+    await removeAgentTool(db, tenant, projectId, "outbound", `mcp:${mcp.id}`);
+    await removeAgentTool(db, tenant, projectId, "outbound", "web");
+    expect(await tools()).toEqual({ web: false, mcp: [], data: [hunter.id] });
+    await expect(
+      addAgentTool(db, tenant, projectId, "outbound", "data:00000000-0000-0000-0000-000000000000"),
+    ).rejects.toThrow("no encontrada");
   });
 });

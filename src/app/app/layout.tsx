@@ -76,6 +76,7 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
                 projects={projects.map((p) => ({
                   id: p.id,
                   name: p.name,
+                  color: p.color,
                   paused: p.agentsPaused,
                   agents: inOrder(
                     agents.filter((a) => a.projectId === p.id),
@@ -99,7 +100,7 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
               <SidebarGroup
                 key={p.id}
                 href={`/app/projects/${p.id}`}
-                icon={<SidebarDot label={p.name} muted={p.agentsPaused} />}
+                icon={<SidebarDot label={p.name} muted={p.agentsPaused} color={p.color} />}
                 label={p.name}
                 badge={
                   p.agentsPaused ? (

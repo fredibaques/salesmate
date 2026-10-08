@@ -682,6 +682,86 @@ export async function saveAgentTools(
   });
 }
 
+/** One tool an agent uses: the web, a data provider or an MCP server (by connection). */
+export type AgentToolKey = "web" | `data:${string}` | `mcp:${string}`;
+
+async function currentTools(db: Db, tenant: TenantContext, projectId: string, agentType: ProjectAgentType) {
+  const agent = await getAgent(db, tenant, projectId, agentType);
+  if (!agent) throw new Error("Agente no encontrado.");
+  return agent.config.tools;
+}
+
+/** Gives the agent a tool; an MCP server comes with all its functions. */
+export async function addAgentTool(
+  db: Db,
+  tenant: TenantContext,
+  projectId: string,
+  agentType: ProjectAgentType,
+  key: AgentToolKey,
+) {
+  const tools = await currentTools(db, tenant, projectId, agentType);
+  if (key === "web") return saveAgentTools(db, tenant, projectId, agentType, { ...tools, web: true });
+  const [kind, id] = key.split(":") as ["data" | "mcp", string];
+  if (kind === "data") {
+    if (!(await listDataSources(db, tenant)).some((s) => s.id === id))
+      throw new Error("Conexión no encontrada.");
+    return saveAgentTools(db, tenant, projectId, agentType, {
+      ...tools,
+      data: [...new Set([...(tools.data ?? []), id])],
+    });
+  }
+  const server = (await listMcpServers(db, tenant)).find((s) => s.id === id);
+  if (!server) throw new Error("Servidor MCP no encontrado.");
+  if (!server.tools.length)
+    throw new Error(
+      "Este servidor no ofrece herramientas. Pulsa «Probar conexión» en Conexiones para actualizarlo.",
+    );
+  return saveAgentTools(db, tenant, projectId, agentType, {
+    ...tools,
+    mcp: [
+      ...(tools.mcp ?? []).filter((m) => m.connectionId !== id),
+      { connectionId: id, tools: server.tools.map((t) => t.name) },
+    ],
+  });
+}
+
+export async function removeAgentTool(
+  db: Db,
+  tenant: TenantContext,
+  projectId: string,
+  agentType: ProjectAgentType,
+  key: AgentToolKey,
+) {
+  const tools = await currentTools(db, tenant, projectId, agentType);
+  if (key === "web") return saveAgentTools(db, tenant, projectId, agentType, { ...tools, web: false });
+  const [kind, id] = key.split(":");
+  return saveAgentTools(db, tenant, projectId, agentType, {
+    ...tools,
+    data: kind === "data" ? (tools.data ?? []).filter((d) => d !== id) : tools.data,
+    mcp: kind === "mcp" ? (tools.mcp ?? []).filter((m) => m.connectionId !== id) : tools.mcp,
+  });
+}
+
+/** Which functions of an MCP server the agent may call. */
+export async function setAgentMcpTools(
+  db: Db,
+  tenant: TenantContext,
+  projectId: string,
+  agentType: ProjectAgentType,
+  connectionId: string,
+  names: string[],
+) {
+  if (!names.length) throw new Error("Elige al menos una función. Para que no lo use, quita la herramienta.");
+  const tools = await currentTools(db, tenant, projectId, agentType);
+  return saveAgentTools(db, tenant, projectId, agentType, {
+    ...tools,
+    mcp: [
+      ...(tools.mcp ?? []).filter((m) => m.connectionId !== connectionId),
+      { connectionId, tools: names },
+    ],
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Sales profile: what the project sells and to whom (shared by its agents)
 // ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ColorField } from "@/components/agent-look-fields";
 import { ListInput, PairListInput } from "@/components/list-input";
 import { Chip, ChipSelect, Choice, Field, Input, Select, Textarea } from "@/components/ui";
 import { DECISION_MAKERS, GEOGRAPHIES, LANGUAGES, TIMEZONES, TONES } from "@/lib/profile-options";
@@ -17,6 +18,7 @@ export type ProjectBasics = {
   website: string | null;
   timezone: string;
   languages: string[];
+  color?: string | null;
 };
 
 export function ProjectBasicsFields({ project }: { project?: ProjectBasics }) {
@@ -36,6 +38,7 @@ export function ProjectBasicsFields({ project }: { project?: ProjectBasics }) {
       >
         <Textarea name="description" defaultValue={project?.description ?? ""} />
       </Field>
+      <ColorField label="Color del proyecto" color={project?.color} />
       <Field label="Web" optional>
         <Input name="website" type="url" defaultValue={project?.website ?? ""} placeholder="https://" />
       </Field>
