@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronsUpDown, Check, LogOut, UserRound } from "lucide-react";
+import { ChevronRight, ChevronsUpDown, Check, LogOut, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -115,6 +115,92 @@ export function SidebarItem({
       <span className="min-w-0 flex-1 truncate">{children}</span>
       {badge}
     </Link>
+  );
+}
+
+/**
+ * An entry with entries of its own one level down (a project and its
+ * agents). A chevron shows or hides them; it opens by itself on its pages.
+ */
+export function SidebarGroup({
+  href,
+  icon,
+  label,
+  badge,
+  items,
+}: {
+  href: string;
+  icon?: ReactNode;
+  label: ReactNode;
+  badge?: ReactNode;
+  items: { href: string; icon?: ReactNode; label: ReactNode; badge?: ReactNode }[];
+}) {
+  const pathname = usePathname();
+  const under = (base: string) => pathname === base || pathname.startsWith(`${base}/`);
+  const inside = under(href);
+  const childActive = items.some((i) => under(i.href));
+  // Open while on its pages; the chevron overrides it until the next navigation into it.
+  const [toggled, setToggled] = useState<{ at: boolean; open: boolean } | null>(null);
+  const open = toggled && toggled.at === inside ? toggled.open : inside;
+  const active = inside && !childActive;
+  return (
+    <div>
+      <div
+        className={cx(
+          "group/row flex h-9 items-center rounded-lg text-sm transition-colors",
+          active
+            ? "bg-ink-100 font-medium text-foreground"
+            : "text-ink-700 hover:bg-ink-50 hover:text-foreground",
+        )}
+      >
+        <Link
+          href={href}
+          aria-current={active ? "page" : undefined}
+          className="flex h-full min-w-0 flex-1 items-center gap-2.5 pl-2.5"
+        >
+          {icon}
+          <span className="min-w-0 flex-1 truncate">{label}</span>
+          {badge}
+        </Link>
+        {items.length ? (
+          <button
+            type="button"
+            onClick={() => setToggled({ at: inside, open: !open })}
+            aria-expanded={open}
+            aria-label={open ? "Ocultar agentes" : "Mostrar agentes"}
+            className="mr-1 ml-1 flex size-7 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-ink-100 hover:text-foreground"
+          >
+            <ChevronRight className={cx("size-3.5 transition-transform", open && "rotate-90")} />
+          </button>
+        ) : (
+          <span className="w-2" />
+        )}
+      </div>
+      {open && items.length ? (
+        <div className="mt-0.5 mb-1 ml-[1.15rem] space-y-0.5 border-l border-border pl-2">
+          {items.map((item) => {
+            const current = under(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={current ? "page" : undefined}
+                className={cx(
+                  "flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] transition-colors [&>svg]:size-3.5 [&>svg]:shrink-0",
+                  current
+                    ? "bg-ink-100 font-medium text-foreground [&>svg]:text-accent"
+                    : "text-ink-700 hover:bg-ink-50 hover:text-foreground [&>svg]:text-muted",
+                )}
+              >
+                {item.icon}
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                {item.badge}
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

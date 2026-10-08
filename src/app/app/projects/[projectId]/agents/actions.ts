@@ -77,6 +77,7 @@ function toolsFromForm(form: FormData) {
   return {
     web: bool(form, "web"),
     mcp: [...byServer].map(([connectionId, tools]) => ({ connectionId, tools })),
+    data: list(form, "data"),
   };
 }
 

@@ -116,6 +116,23 @@ export async function listProjectAgents(db: Db, tenant: Pick<TenantContext, "org
   });
 }
 
+/** The added agents of every project, for the sidebar. */
+export async function listSidebarAgents(db: Db, tenant: Pick<TenantContext, "orgId">) {
+  const rows = await withTenant(db, tenant, (tx) =>
+    tx
+      .select({
+        projectId: agentConfigs.projectId,
+        agentType: agentConfigs.agentType,
+        enabled: agentConfigs.enabled,
+      })
+      .from(agentConfigs)
+      .where(isNotNull(agentConfigs.addedAt)),
+  );
+  return rows
+    .filter((r): r is typeof r & { agentType: ProjectAgentType } => isProjectAgentType(r.agentType))
+    .sort((a, b) => PROJECT_AGENT_TYPES.indexOf(a.agentType) - PROJECT_AGENT_TYPES.indexOf(b.agentType));
+}
+
 /** One added agent with its process (current version and history). */
 export async function getAgent(
   db: Db,
@@ -542,6 +559,18 @@ export async function listMcpServers(db: Db, tenant: Pick<TenantContext, "orgId"
   });
 }
 
+/** B2B data providers (Apollo, Lusha) connected to the organization. */
+export async function listDataSources(db: Db, tenant: Pick<TenantContext, "orgId">) {
+  return withTenant(db, tenant, async (tx) => {
+    const rows = await tx
+      .select()
+      .from(connections)
+      .where(inArray(connections.provider, ["apollo", "lusha"]))
+      .orderBy(desc(connections.createdAt));
+    return rows.map((c) => ({ id: c.id, label: c.label, provider: c.provider, status: c.status }));
+  });
+}
+
 export async function saveAgentTools(
   db: Db,
   tenant: TenantContext,
@@ -559,7 +588,9 @@ export async function saveAgentTools(
       return { connectionId: server.id, tools: m.tools.filter((t) => names.has(t)) };
     })
     .filter((m): m is { connectionId: string; tools: string[] } => Boolean(m && m.tools.length));
-  const tools: AgentTools = { web: Boolean(input.web), mcp };
+  const sources = await listDataSources(db, tenant);
+  const data = (input.data ?? []).filter((id) => sources.some((s) => s.id === id));
+  const tools: AgentTools = { web: Boolean(input.web), mcp, ...(data.length ? { data } : {}) };
   return withTenant(db, tenant, async (tx) => {
     const [config] = await tx
       .update(agentConfigs)

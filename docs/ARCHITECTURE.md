@@ -35,7 +35,7 @@ src/
     db/                     Esquema Drizzle, cliente, migraciones, withTenant()
     auth/                   Better Auth y helpers de sesión/tenant
     gateway/                Action Gateway: definiciones, políticas, flujo
-    connectors/             Capacidades, Twenty, Google, ejecutor, servicio de conexiones
+    connectors/             Capacidades, Twenty, Google, Apollo y Lusha, MCP, ejecutor, servicio de conexiones
     calendar/               Cálculo de huecos y disponibilidad global
     knowledge/              Ingesta de tablas y documentos, consulta y búsqueda
     services/               Casos de uso de la UI (proyectos, reglas, listados)
@@ -86,6 +86,18 @@ cifradas; si un proveedor devuelve 401/403 la conexión pasa a `error`.
   (incluidos los personalizados) y verificación HMAC de webhooks.
 - **Google**: OAuth con permisos a elegir (disponibilidad, reuniones, envío,
   lectura), refresco de tokens persistido, Gmail (MIME UTF-8) y Calendar.
+- **Apollo y Lusha** (`connectors/data.ts`): proveedores de datos B2B con API
+  key, solo lectura (permiso `data`). Capacidades `data.search_people` y
+  `data.search_companies` (Apollo), `data.enrich_person` y
+  `data.enrich_company` (los dos) y `data.check` para validar la clave antes
+  de guardarla. Apollo por `https://api.apollo.io/api/v1` (`x-api-key`;
+  buscar personas no gasta créditos y no da contacto); Lusha por su API v2
+  (`api_key`; un 404 es «sin resultado», sin gasto). Solo datos de contacto
+  profesionales: Apollo sin emails personales, Lusha sin emails privados ni
+  teléfonos marcados «no llamar». Como solo leen, el agente los usa
+  directamente (`dataTools`), no por el gateway; el agente de prospección los
+  recibe si se marcan en su pestaña Herramientas (`agent_configs.tools.data`)
+  y cita como fuente la ficha del registro en el proveedor.
 
 ## Conocimiento
 

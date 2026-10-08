@@ -5,7 +5,9 @@ import { redirect } from "next/navigation";
 import type { FormState } from "@/components/action-form";
 import { requireRole } from "@/server/auth/session";
 import { createMcpConnection, refreshMcpTools } from "@/server/connectors/mcp";
-import { createTwentyConnection, openConnection } from "@/server/connectors/service";
+import { DATA_PROVIDERS } from "@/server/connectors/data";
+import { ConnectorError } from "@/server/connectors/types";
+import { createDataConnection, createTwentyConnection, openConnection } from "@/server/connectors/service";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/server/db/client";
 import { connections } from "@/server/db/schema";
@@ -51,6 +53,34 @@ export async function addMcp(_: FormState, form: FormData): Promise<FormState> {
   redirect(`/app/connections?connected=${encodeURIComponent(label)}`);
 }
 
+/** Connects Apollo or Lusha with an API key (checked before saving). */
+export async function addDataSource(provider: string, _: FormState, form: FormData): Promise<FormState> {
+  const id = DATA_PROVIDERS.find((p) => p === provider);
+  const name = id === "apollo" ? "Apollo" : "Lusha";
+  const label = str(form, "label") ?? name;
+  const result = await runForm(async () => {
+    if (!id) throw new Error("Herramienta desconocida.");
+    const tenant = await requireRole(["owner", "admin"]);
+    try {
+      await createDataConnection({ db: getDb() }, tenant, {
+        provider: id,
+        label,
+        apiKey: str(form, "apiKey") ?? "",
+      });
+    } catch (err) {
+      if (err instanceof ConnectorError && (err.status === 401 || err.status === 403)) {
+        throw new Error(
+          `${name} no acepta esta API key. Cópiala de nuevo y comprueba que tu plan incluye acceso a la API.`,
+        );
+      }
+      throw err;
+    }
+  });
+  if (!result?.ok) return result;
+  revalidatePath("/app/connections");
+  redirect(`/app/connections?connected=${encodeURIComponent(label)}`);
+}
+
 export async function testConnection(connectionId: string, _: FormState): Promise<FormState> {
   return runForm(async () => {
     const tenant = await requireRole(["owner", "admin"]);
@@ -82,6 +112,7 @@ export async function testConnection(connectionId: string, _: FormState): Promis
       if (errors.length) throw new Error(errors.join("; "));
       return `OK · ${busy.length} bloques ocupados en los próximos 7 días.`;
     }
+    if (client["data.check"]) return `OK · ${(await client["data.check"]()).detail}.`;
     return "Conexión cargada (sin prueba de lectura disponible para sus permisos).";
   });
 }

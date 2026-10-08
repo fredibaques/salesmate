@@ -94,6 +94,34 @@ export const INTEGRATIONS: Integration[] = [
     ],
   },
   {
+    id: "apollo",
+    name: "Apollo",
+    tagline: "Base de datos de empresas y contactos B2B",
+    category: "data",
+    status: "available",
+    color: "#2C2A9C",
+    abilities: [
+      "Encontrar empresas por sector, zona y tamaño",
+      "Encontrar a quién decide en cada empresa (por cargo), sin gastar créditos",
+      "Obtener su email de trabajo y teléfono para completar la base de prospectos",
+      "Solo lee: no escribe nada en tu cuenta de Apollo",
+    ],
+  },
+  {
+    id: "lusha",
+    name: "Lusha",
+    tagline: "Datos de contacto B2B",
+    category: "data",
+    status: "available",
+    color: "#5A4BFF",
+    abilities: [
+      "Obtener el email de trabajo y el teléfono de una persona concreta",
+      "Completar los datos de una empresa: sector, tamaño, ubicación y LinkedIn",
+      "No usa los teléfonos marcados como «no llamar»",
+      "Solo lee: no escribe nada en tu cuenta de Lusha",
+    ],
+  },
+  {
     id: "database",
     name: "Base de datos",
     tagline: "Postgres, MySQL… como fuente de datos",
@@ -116,6 +144,7 @@ export function describeScopes(read: string[], write: string[]): string[] {
   if (write.includes("email")) out.push("Redactar y enviar emails");
   if (read.includes("crm")) out.push("Leer el CRM");
   if (write.includes("crm")) out.push("Escribir en el CRM");
+  if (read.includes("data")) out.push("Buscar empresas y datos de contacto");
   return out;
 }
 
@@ -131,4 +160,9 @@ export const CAPABILITY_LABELS: Record<string, string> = {
   "email.create_draft": "Crear borradores",
   "calendar.free_busy": "Consultar disponibilidad",
   "calendar.book": "Crear reuniones",
+  "data.check": "Comprobar la cuenta",
+  "data.search_people": "Buscar personas",
+  "data.search_companies": "Buscar empresas",
+  "data.enrich_person": "Datos de contacto de una persona",
+  "data.enrich_company": "Datos de una empresa",
 };

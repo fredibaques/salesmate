@@ -19,7 +19,7 @@ import {
 import { ensureAgentBase } from "../prospects/bases";
 import { completeProspects, rowsToComplete } from "../prospects/complete";
 import { knownProspects, prospectInput, recentProspectNames, saveProspects } from "../prospects/service";
-import { knowledgeTools, mcpTools, webTools, type AgentToolContext } from "./tools";
+import { dataTools, knowledgeTools, mcpTools, webTools, type AgentToolContext } from "./tools";
 
 export type AgentRunDeps = {
   db: Db;
@@ -306,7 +306,13 @@ export async function runProspecting(
       ...(finds ? findTools : []),
       ...(completes ? completeTools : []),
       ...(await mcpTools(ctx, agent.tools.mcp ?? [])),
+      ...(await dataTools(ctx, agent.tools.data ?? [])),
     ];
+    const dataProviders = [
+      ...new Set(tools.map((t) => t.name.split("_")[0]).filter((n) => n === "apollo" || n === "lusha")),
+    ]
+      .map((n) => (n === "apollo" ? "Apollo" : "Lusha"))
+      .join(" y ");
 
     const what = base.rowKind === "person" ? "personas" : "empresas";
     const task = [
@@ -340,7 +346,12 @@ ${[
   finds
     ? "- Puntúa el encaje de cada fila nueva (fitScore 0-100) y explica en una frase por qué encaja (fitReason)."
     : "",
-  "- Datos de contacto: solo los que se publican para ser contactado (email y teléfono generales o de ventas). No recojas datos personales privados.",
+  dataProviders
+    ? `- Tienes ${dataProviders} para encontrar empresas y a quién decide en ellas, y sus datos de contacto profesionales. Los datos de contacto gastan créditos de la cuenta: pídelos solo de filas que ya encajan y de las columnas que la base pide. Lo que guardes de ahí, cítalo con su sourceUrl.`
+    : "",
+  dataProviders
+    ? "- Datos de contacto: los que la empresa publica para ser contactada o los profesionales que den esas herramientas (email de trabajo y teléfonos que se pueden usar). No recojas datos personales privados."
+    : "- Datos de contacto: solo los que se publican para ser contactado (email y teléfono generales o de ventas). No recojas datos personales privados.",
   "- Cuando termines o no encuentres más, acaba con un resumen breve: qué has guardado o completado y qué fuentes han funcionado mejor.",
 ]
   .filter(Boolean)

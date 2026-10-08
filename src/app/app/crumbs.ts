@@ -10,7 +10,6 @@ export type NameLookup = {
 };
 
 const SETTINGS = { label: "Configuración", href: "/app/connections" };
-const ACCOUNT = { label: "Mi cuenta", href: "/app/account" };
 
 const SECTION_PAGES: Record<string, { parent: Crumb; label: string }> = {
   connections: { parent: SETTINGS, label: "Conexiones" },
@@ -19,10 +18,7 @@ const SECTION_PAGES: Record<string, { parent: Crumb; label: string }> = {
   audit: { parent: SETTINGS, label: "Auditoría" },
 };
 
-const ACCOUNT_PAGES: Record<string, string> = { security: "Seguridad", organization: "Organización" };
-
 const PROJECT_TABS: Record<string, string> = {
-  agents: "Agentes",
   prospects: "Prospectos",
   knowledge: "Conocimiento",
   conversations: "Conversaciones",
@@ -47,6 +43,8 @@ function agentPageLabel(type: string, page: string) {
 /**
  * The trail for a path under /app (`segments` are the parts after it). A
  * section's first page links back to the section; the last crumb is the page.
+ * A section's own pages (a project and its tabs, a settings page) have its
+ * header and tabs, so they get no trail: it starts one level deeper.
  */
 export async function crumbsFor(segments: string[], names: NameLookup): Promise<Crumb[]> {
   const [first, ...rest] = segments;
@@ -60,30 +58,30 @@ export async function crumbsFor(segments: string[], names: NameLookup): Promise<
       return out;
     }
     if (first === "ai" && rest[0] === "connect") return [section.parent, here, { label: "Conectar" }];
-    return [section.parent, here];
+    return [];
   }
 
-  if (first === "account") {
-    return [ACCOUNT, { label: rest[0] ? (ACCOUNT_PAGES[rest[0]] ?? rest[0]) : "Perfil" }];
-  }
+  // Mi cuenta: its pages are tabs of one section.
+  if (first === "account") return [];
 
   if (first === "projects") {
     const [id, tab, sub, subsub] = rest;
     if (!id) return [];
     if (id === "new") return [{ label: "Panel", href: "/app" }, { label: "Nuevo proyecto" }];
+    // The project and its tabs show the project's header.
+    if (!sub) return [];
     const base = `/app/projects/${id}`;
     const project = { label: (await names.project(id)) ?? "Proyecto", href: base };
-    if (!tab || tab === "agents") {
-      const agents = { label: "Agentes", href: base };
-      if (tab !== "agents" || !sub) return [project, agents];
+    // Agents hang from the project (as in the sidebar): no «Agentes» step.
+    if (tab === "agents") {
       if (sub === "new") {
         const info = subsub ? AGENT_INFO[subsub as keyof typeof AGENT_INFO] : undefined;
-        return [project, agents, { label: info ? `Añadir el ${info.name.toLowerCase()}` : "Añadir agente" }];
+        return [project, { label: info ? `Añadir el ${info.name.toLowerCase()}` : "Añadir agente" }];
       }
       const info = AGENT_INFO[sub as keyof typeof AGENT_INFO];
       const agent = { label: info?.name ?? sub, href: `${base}/agents/${sub}` };
       const page = subsub ? agentPageLabel(sub, subsub) : null;
-      return page ? [project, agents, agent, { label: page }] : [project, agents, agent];
+      return page ? [project, agent, { label: page }] : [project, agent];
     }
     const tabLabel = PROJECT_TABS[tab];
     if (!tabLabel) return [project];
@@ -91,7 +89,6 @@ export async function crumbsFor(segments: string[], names: NameLookup): Promise<
       label: tabLabel,
       href: tab === "rules" || tab === "offer" ? `${base}/settings` : `${base}/${tab}`,
     };
-    if (tab === "rules") return [project, tabCrumb, { label: "Reglas y exclusiones" }];
     if (tab === "knowledge" && sub)
       return [project, tabCrumb, { label: (await names.source(sub)) ?? "Documento" }];
     if (tab === "prospects" && sub) {
