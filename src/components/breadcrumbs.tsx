@@ -3,11 +3,18 @@ import Link from "next/link";
 
 export type Crumb = { label: string; href?: string };
 
-/** Where you are, top left of every sub-page. The last crumb is the current page. */
+/**
+ * Where you are, in a bar across the top of the content. Only on pages one
+ * level below a section (an agent, a document, a base): the section's own
+ * pages have its header. The last crumb is the current page.
+ */
 export function Breadcrumbs({ items }: { items: Crumb[] }) {
   if (items.length < 2) return null;
   return (
-    <nav aria-label="Ruta" className="mb-4">
+    <nav
+      aria-label="Ruta"
+      className="sticky top-0 z-30 flex h-12 items-center border-b border-border bg-background/90 px-8 backdrop-blur"
+    >
       <ol className="flex flex-wrap items-center gap-1 text-sm text-muted">
         {items.map((item, i) => {
           const last = i === items.length - 1;

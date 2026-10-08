@@ -25,6 +25,61 @@ export type CrmObjectInfo = {
 
 export type BusyInterval = { start: string; end: string };
 
+/** A person from a B2B data provider (Apollo, Lusha). Only professional contact data. */
+export type DataPerson = {
+  /** The provider's id, to enrich the person later. */
+  id: string | null;
+  name: string;
+  title: string | null;
+  /** Work email, when the provider has it (search results never include it). */
+  email: string | null;
+  /** Phones the provider has, without the ones marked «do not call». */
+  phones: string[];
+  linkedinUrl: string | null;
+  city: string | null;
+  country: string | null;
+  companyName: string | null;
+  companyDomain: string | null;
+  /** Page of the record in the provider, to cite as the source of the data. */
+  sourceUrl: string;
+};
+
+/** A company from a B2B data provider. */
+export type DataCompany = {
+  id: string | null;
+  name: string;
+  domain: string | null;
+  website: string | null;
+  phone: string | null;
+  industry: string | null;
+  employees: number | null;
+  city: string | null;
+  country: string | null;
+  linkedinUrl: string | null;
+  description: string | null;
+  sourceUrl: string;
+};
+
+export type PeopleSearch = {
+  titles?: string[];
+  keywords?: string;
+  /** Where the people are: cities, regions or countries. */
+  locations?: string[];
+  companyDomains?: string[];
+  companyLocations?: string[];
+  /** Employee ranges as "min,max", e.g. "11,50". */
+  employeeRanges?: string[];
+  limit?: number;
+};
+
+export type CompanySearch = {
+  name?: string;
+  keywords?: string[];
+  locations?: string[];
+  employeeRanges?: string[];
+  limit?: number;
+};
+
 export type Capabilities = {
   "crm.search_people": (input: { query?: string; email?: string; limit?: number }) => Promise<CrmPerson[]>;
   "crm.describe": () => Promise<CrmObjectInfo[]>;
@@ -59,6 +114,25 @@ export type Capabilities = {
     timeMin: string;
     timeMax: string;
   }) => Promise<{ busy: BusyInterval[]; errors: string[] }>;
+  /** Finds people by title, company and place, without contact details. */
+  "data.search_people": (input: PeopleSearch) => Promise<DataPerson[]>;
+  /** Finds companies by name, keywords, place and size. */
+  "data.search_companies": (input: CompanySearch) => Promise<DataCompany[]>;
+  /** Contact details of one person (spends the provider's credits). */
+  "data.enrich_person": (input: {
+    name?: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    companyName?: string;
+    companyDomain?: string;
+    linkedinUrl?: string;
+    providerId?: string;
+  }) => Promise<DataPerson | null>;
+  /** Details of one company by its domain (spends the provider's credits). */
+  "data.enrich_company": (input: { domain?: string; name?: string }) => Promise<DataCompany | null>;
+  /** Checks the key, and the credits left when the provider says. */
+  "data.check": () => Promise<{ ok: true; detail: string }>;
   "calendar.book": (input: {
     calendarId: string;
     start: string;

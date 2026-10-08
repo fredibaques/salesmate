@@ -1,7 +1,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getAvailability } from "../calendar/availability";
-import { openConnection, type ConnectorDeps } from "../connectors/service";
+import { connectionCapabilities, openConnection, type ConnectorDeps } from "../connectors/service";
 import type { Db } from "../db/client";
 import {
   identities,
@@ -333,6 +333,125 @@ export async function mcpTools(
           }
         },
       });
+    }
+  }
+  return out;
+}
+
+const DATA_PROVIDER_NAMES: Record<string, string> = { apollo: "Apollo", lusha: "Lusha" };
+
+/**
+ * Tools of the B2B data providers the agent may use (Apollo, Lusha): find
+ * companies and people and get their professional contact details. They
+ * only read, so they run directly; enriching spends the provider's credits,
+ * which the descriptions say so the agent uses them sparingly.
+ */
+export async function dataTools(ctx: AgentToolContext, connectionIds: string[]): Promise<AgentTool[]> {
+  if (connectionIds.length === 0) return [];
+  const tenant = { orgId: ctx.orgId };
+  const rows = await withTenant(ctx.db, tenant, (tx) =>
+    tx.select().from(connections).where(inArray(connections.id, connectionIds)),
+  );
+  const out: AgentTool[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const label = DATA_PROVIDER_NAMES[row.provider];
+    // One account per provider: tool names must be unique.
+    if (!label || row.status !== "active" || seen.has(row.provider)) continue;
+    seen.add(row.provider);
+    const open = async () => (await openConnection({ db: ctx.db, ...ctx.connectors }, tenant, row.id)).client;
+    const call = async <T>(fn: (client: Awaited<ReturnType<typeof open>>) => Promise<T> | undefined) => {
+      try {
+        const result = await fn(await open());
+        return result === undefined ? { error: `${label} no ofrece esta función.` } : result;
+      } catch (err) {
+        return { error: `${label}: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    };
+    const caps = connectionCapabilities(row);
+    const source = `Cada resultado trae sourceUrl: úsalo como fuente (fieldSources) de los datos que guardes de ${label}.`;
+    if (caps.includes("data.search_people")) {
+      out.push(
+        defineTool({
+          name: `${row.provider}_search_people`,
+          description: `[${label}] Busca personas por cargo, empresa (dominio) y zona. No gasta créditos, pero no da email ni teléfono: para eso usa ${row.provider}_enrich_person con quien encaje. ${source}`,
+          input: z.object({
+            titles: z
+              .array(z.string())
+              .max(10)
+              .optional()
+              .describe("Cargos, p. ej. «Gerente», «Director comercial»"),
+            keywords: z.string().optional(),
+            locations: z
+              .array(z.string())
+              .max(10)
+              .optional()
+              .describe("Dónde está la persona: ciudad, región o país"),
+            companyDomains: z
+              .array(z.string())
+              .max(25)
+              .optional()
+              .describe("Webs de las empresas, p. ej. autosgarcia.es"),
+            companyLocations: z.array(z.string()).max(10).optional(),
+            employeeRanges: z
+              .array(z.string())
+              .max(5)
+              .optional()
+              .describe("Rangos de empleados «min,max», p. ej. «11,50»"),
+            limit: z.number().int().min(1).max(25).optional(),
+          }),
+          run: (input) => call((c) => c["data.search_people"]?.(input)),
+        }),
+      );
+    }
+    if (caps.includes("data.search_companies")) {
+      out.push(
+        defineTool({
+          name: `${row.provider}_search_companies`,
+          description: `[${label}] Busca empresas por nombre, palabras clave del sector, zona y tamaño. Gasta créditos por página: búscalas con filtros concretos. ${source}`,
+          input: z.object({
+            name: z.string().optional(),
+            keywords: z
+              .array(z.string())
+              .max(10)
+              .optional()
+              .describe("Palabras del sector, p. ej. «concesionario»"),
+            locations: z.array(z.string()).max(10).optional(),
+            employeeRanges: z.array(z.string()).max(5).optional().describe("Rangos de empleados «min,max»"),
+            limit: z.number().int().min(1).max(25).optional(),
+          }),
+          run: (input) => call((c) => c["data.search_companies"]?.(input)),
+        }),
+      );
+    }
+    if (caps.includes("data.enrich_person")) {
+      out.push(
+        defineTool({
+          name: `${row.provider}_enrich_person`,
+          description: `[${label}] Datos de contacto profesionales de una persona concreta (email de trabajo, teléfonos que se pueden usar, cargo, LinkedIn). Gasta créditos: úsalo solo con quien ya encaja. Identifícala por nombre y empresa (mejor su web), email, LinkedIn o el id que te dio la búsqueda. ${source}`,
+          input: z.object({
+            name: z.string().optional(),
+            firstName: z.string().optional(),
+            lastName: z.string().optional(),
+            companyName: z.string().optional(),
+            companyDomain: z.string().optional(),
+            email: z.string().optional(),
+            linkedinUrl: z.string().optional(),
+            providerId: z.string().optional().describe("Id de la persona en la búsqueda anterior"),
+          }),
+          run: (input) => call((c) => c["data.enrich_person"]?.(input)),
+        }),
+      );
+    }
+    if (caps.includes("data.enrich_company")) {
+      out.push(
+        defineTool({
+          name: `${row.provider}_enrich_company`,
+          description: `[${label}] Datos de una empresa por su web: sector, tamaño, ubicación, teléfono y LinkedIn. Gasta créditos. ${source}`,
+          input: z.object({ domain: z.string().optional(), name: z.string().optional() }),
+          run: (input) => call((c) => c["data.enrich_company"]?.(input)),
+        }),
+      );
     }
   }
   return out;

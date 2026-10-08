@@ -5,7 +5,7 @@ import { Avatar, Button, Card, Choice, Field, Input, PageHeader } from "@/compon
 import { getIntegration } from "@/lib/integrations";
 import { requireTenant } from "@/server/auth/session";
 import { env } from "@/server/env";
-import { addMcp, addTwenty } from "../../actions";
+import { addDataSource, addMcp, addTwenty } from "../../actions";
 
 export async function generateMetadata({ params }: PageProps<"/app/connections/new/[provider]">) {
   const { provider } = await params;
@@ -123,6 +123,30 @@ export default async function ConnectProviderPage({ params }: PageProps<"/app/co
                 hint="Se envía como «Authorization: Bearer …». Se guarda cifrado."
               >
                 <Input name="token" type="password" autoComplete="off" />
+              </Field>
+            </ActionForm>
+          </Card>
+        ) : null}
+
+        {provider === "apollo" || provider === "lusha" ? (
+          <Card
+            title="API key"
+            tip={
+              provider === "apollo"
+                ? "Créala en Apollo → Settings → Integrations → API → API Keys. Si quieres que busque personas, dale acceso a todas las funciones o créala como master key."
+                : "La encuentras en Lusha → API (dashboard.lusha.com). El acceso a la API depende de tu plan de Lusha."
+            }
+          >
+            <ActionForm
+              action={addDataSource.bind(null, provider)}
+              submitLabel={`Conectar ${integration.name}`}
+              className="space-y-4"
+            >
+              <Field label="Nombre" hint="Para reconocerla en los agentes.">
+                <Input name="label" defaultValue={integration.name} required />
+              </Field>
+              <Field label="API key" hint="Comprobaremos que funciona antes de guardarla. Se guarda cifrada.">
+                <Input name="apiKey" type="password" required autoComplete="off" />
               </Field>
             </ActionForm>
           </Card>

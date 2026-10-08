@@ -6,7 +6,13 @@ import { Button, Card, Choice, EmptyState, Field, LinkButton, Select } from "@/c
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { env } from "@/server/env";
-import { getAgent, isProjectAgentType, listChannelOptions, listMcpServers } from "@/server/services/agents";
+import {
+  getAgent,
+  isProjectAgentType,
+  listChannelOptions,
+  listDataSources,
+  listMcpServers,
+} from "@/server/services/agents";
 import { getProject } from "@/server/services/projects";
 import { rotateKey } from "../../../conversations/actions";
 import { saveChannels } from "../../actions";
@@ -27,15 +33,22 @@ export default async function AgentChannelsPage({
   if (!isProjectAgentType(agentType)) notFound();
   const tenant = await requireTenant();
   const db = getDb();
-  const [agent, options, project, servers] = await Promise.all([
+  const [agent, options, project, servers, sources] = await Promise.all([
     getAgent(db, tenant, projectId, agentType),
     listChannelOptions(db, tenant),
     getProject(db, tenant, projectId),
     listMcpServers(db, tenant),
+    listDataSources(db, tenant),
   ]);
   if (!agent || !project) notFound();
   const toolsCard = (
-    <ToolsCard projectId={projectId} agentType={agentType} tools={agent.config.tools} servers={servers} />
+    <ToolsCard
+      projectId={projectId}
+      agentType={agentType}
+      tools={agent.config.tools}
+      servers={servers}
+      sources={sources}
+    />
   );
   // The prospecting agent doesn't write to anyone: it only needs its tools.
   if (agentType === "outbound") return <div className="max-w-3xl">{toolsCard}</div>;

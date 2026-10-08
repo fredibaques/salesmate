@@ -1,12 +1,16 @@
-import { CheckCircle2, ChevronRight, Circle } from "lucide-react";
+import { Bot, CheckCircle2, ChevronRight, Circle } from "lucide-react";
 import Link from "next/link";
-import { Badge, Card } from "@/components/ui";
+import { Badge, Card, EmptyState, Toolbar } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getSalesProfile, listProjectAgents } from "@/server/services/agents";
 import { listKnowledge } from "@/server/services/projects";
-import { AgentCards } from "./agents/agent-cards";
+import { AddAgentButton, AgentCards } from "./agents/agent-cards";
 
+/**
+ * The project's summary: what is left to set it up and its agents. Each
+ * agent also has its own entry under the project in the sidebar.
+ */
 export default async function ProjectOverviewPage({ params }: PageProps<"/app/projects/[projectId]">) {
   const { projectId } = await params;
   const tenant = await requireTenant();
@@ -54,9 +58,15 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/app/pr
     },
   ];
   const pending = steps.filter((x) => !x.done).length;
+  const canEdit = tenant.role !== "member";
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {canEdit && agents.length > 0 ? (
+        <Toolbar>
+          <AddAgentButton projectId={projectId} agents={agents} />
+        </Toolbar>
+      ) : null}
       {pending > 0 ? (
         <Card
           title="Puesta en marcha"
@@ -89,7 +99,16 @@ export default async function ProjectOverviewPage({ params }: PageProps<"/app/pr
       ) : null}
 
       <section id="agentes" className="scroll-mt-6">
-        <AgentCards projectId={projectId} agents={agents} />
+        {agents.length > 0 ? (
+          <AgentCards projectId={projectId} agents={agents} />
+        ) : (
+          <EmptyState
+            icon={<Bot />}
+            title="Este proyecto todavía no tiene agentes"
+            description="Añade uno para que atienda a quien te contacta o busque clientes nuevos. Después lo encontrarás bajo el proyecto, en el menú de la izquierda."
+            action={canEdit ? <AddAgentButton projectId={projectId} agents={agents} /> : null}
+          />
+        )}
       </section>
     </div>
   );

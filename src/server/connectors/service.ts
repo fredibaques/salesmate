@@ -4,6 +4,7 @@ import { decryptJson, encryptJson } from "../crypto";
 import type { Db } from "../db/client";
 import { connections, identities, projectConnections, projectIdentities } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
+import { dataProvider, type DataProviderId } from "./data";
 import type { GoogleCredentials } from "./google";
 import { googleProvider, grantedScopeSets } from "./google";
 import { getProvider } from "./registry";
@@ -121,6 +122,59 @@ export async function createTwentyConnection(
       entityType: "connection",
       entityId: row.id,
       data: { provider: "twenty", accountRef: row.accountRef, write: input.allowWrite },
+    });
+    return row;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// B2B data (Apollo, Lusha)
+// ---------------------------------------------------------------------------
+
+/** Connects a data provider with its API key, after checking the key works. */
+export async function createDataConnection(
+  deps: ConnectorDeps,
+  tenant: TenantContext,
+  input: { provider: DataProviderId; label: string; apiKey: string },
+): Promise<ConnectionRow> {
+  const provider = dataProvider(input.provider);
+  const creds = provider.credentialsSchema.parse({ apiKey: input.apiKey });
+  const client = provider.create(creds, { fetch: deps.fetch ?? fetch });
+  const check = await client["data.check"]!();
+  // One connection per key; the end of the key tells them apart without revealing it.
+  const accountRef = `clave …${creds.apiKey.slice(-4)}`;
+
+  return withTenant(deps.db, tenant, async (tx) => {
+    const [row] = await tx
+      .insert(connections)
+      .values({
+        orgId: tenant.orgId,
+        provider: input.provider,
+        transport: "api",
+        label: input.label,
+        accountRef,
+        credentialsEncrypted: encryptJson(creds),
+        readScopes: ["data"],
+        writeScopes: [],
+        metadata: { check: check.detail },
+        createdBy: tenant.actorId,
+      })
+      .onConflictDoUpdate({
+        target: [connections.orgId, connections.provider, connections.accountRef],
+        set: {
+          label: input.label,
+          credentialsEncrypted: encryptJson(creds),
+          status: "active",
+          lastError: null,
+          metadata: { check: check.detail },
+        },
+      })
+      .returning();
+    await audit(tx, tenant, {
+      event: "connection.saved",
+      entityType: "connection",
+      entityId: row.id,
+      data: { provider: input.provider, accountRef },
     });
     return row;
   });

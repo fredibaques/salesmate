@@ -10,7 +10,9 @@ screen needs something new, add it here and as a component, not inline.
   `UserMenu` in `src/components/sidebar.tsx`) is exactly one screen tall and
   never scrolls with the page. Only its project list (`grow`) scrolls inside
   it. Counts use `CountBadge`; projects show a `SidebarDot` with their
-  initial. The person's own settings live in the `UserMenu` at the bottom:
+  initial. Each project is a `SidebarGroup`: its agents hang below it, one
+  level down, and a chevron shows or hides them (open by itself while on the
+  project's pages; a paused agent shows a grey dot). The person's own settings live in the `UserMenu` at the bottom:
   **Mi cuenta** (Perfil, Seguridad, Organización), switching organization and
   «Salir».
 - Content takes the full width of the window (`px-8`); forms keep a reading
@@ -23,9 +25,13 @@ screen needs something new, add it here and as a component, not inline.
   deeper pages (an agent, a document, a new connection) bring their own
   header. Tab pages don't repeat the tab's name: their actions go in a
   `Toolbar`.
-- **Breadcrumbs** sit top left on every sub-page (`@crumbs` slot in
-  `src/app/app`, rules in `src/app/app/crumbs.ts`). There are no «back»
-  buttons.
+- **Breadcrumbs** go in a bar across the top of the content, sticky, and
+  only one level below a section: an agent, a document, a base, a new
+  connection. A section's own pages (a project and its tabs, a settings
+  page) have its header and tabs instead, so they get no bar (`@crumbs`
+  slot in `src/app/app`, rules in `src/app/app/crumbs.ts`). Agents hang
+  straight from their project in the trail, as in the sidebar. There are
+  no «back» buttons.
 - **Loading**: every main route has a `loading.tsx` with skeletons
   (`src/components/skeleton.tsx`) shaped like the page that is coming.
 - The sidebar has four entries and the projects:
@@ -35,9 +41,12 @@ screen needs something new, add it here and as a component, not inline.
     its count. Its own entry, because deciding is the daily job.
   - **Configuración**: Conexiones, IA, Exclusiones and Auditoría, shared by
     every project.
-- A project has four tabs: **Agentes** (its home), **Conocimiento** (documents
-  and tables), **Conversaciones** and **Ajustes** (General: project data,
-  «Oferta y cliente» and contact hours; and Reglas y exclusiones).
+- A project has five tabs: **Resumen** (its home: what is left to set it up,
+  its agents and «Añadir agente»), **Prospectos**, **Conocimiento**
+  (documents and tables), **Conversaciones** and **Ajustes** (General:
+  project data, «Oferta y cliente» and contact hours; and Reglas y
+  exclusiones). The summary shows only the agents the project has; adding
+  one picks its kind in a modal.
 - Light theme only.
 
 ## 2. Page anatomy

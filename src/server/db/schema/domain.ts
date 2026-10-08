@@ -330,6 +330,8 @@ export type AgentTools = {
   web?: boolean;
   /** MCP servers connected to the organization and the tools allowed from each. */
   mcp?: { connectionId: string; tools: string[] }[];
+  /** B2B data providers (Apollo, Lusha) connected to the organization. */
+  data?: string[];
 };
 
 /** When the agent works on its own, in the project's time zone. */
