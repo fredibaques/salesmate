@@ -230,8 +230,11 @@ export function ChatHero({
   placeholder = "Escribe tu mensaje…",
   controls,
   suggestions = [],
+  notice,
+  disabled = false,
+  footer,
 }: {
-  title: string;
+  title: ReactNode;
   value: string;
   onChange: (value: string) => void;
   onSend: (value: string) => void;
@@ -240,14 +243,20 @@ export function ChatHero({
   /** Next to the send button, e.g. a project selector. */
   controls?: ReactNode;
   suggestions?: string[];
+  /** Under the box: why it can't answer yet and how to fix it. */
+  notice?: ReactNode;
+  /** It can't answer yet (no AI connected…): the box shows but doesn't send. */
+  disabled?: boolean;
+  /** Under the questions, e.g. other ways to start. */
+  footer?: ReactNode;
 }) {
-  const canSend = !pending && value.trim() !== "";
+  const canSend = !pending && !disabled && value.trim() !== "";
   return (
     <div className="mx-auto max-w-3xl py-6">
-      <h2 className="flex items-center justify-center gap-2 text-center font-display text-xl font-semibold tracking-tight">
-        <Sparkles className="size-5 text-accent" aria-hidden />
+      <h1 className="flex items-center justify-center gap-2 text-center font-display text-2xl font-semibold tracking-tight">
+        <Sparkles className="size-6 text-accent" aria-hidden />
         {title}
-      </h2>
+      </h1>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -265,6 +274,7 @@ export function ChatHero({
             }
           }}
           rows={3}
+          disabled={disabled}
           placeholder={placeholder}
           aria-label={placeholder}
           className="block max-h-60 min-h-20 w-full resize-none bg-transparent px-1.5 py-1 text-base outline-none [field-sizing:content] placeholder:text-muted/70"
@@ -281,7 +291,8 @@ export function ChatHero({
           </button>
         </div>
       </form>
-      {suggestions.length ? (
+      {notice ? <div className="mt-3">{notice}</div> : null}
+      {suggestions.length && !disabled ? (
         <div className="mt-4 flex flex-wrap justify-center gap-2">
           {suggestions.map((s) => (
             <button
@@ -296,6 +307,7 @@ export function ChatHero({
           ))}
         </div>
       ) : null}
+      {footer ? <div className="mt-8">{footer}</div> : null}
     </div>
   );
 }

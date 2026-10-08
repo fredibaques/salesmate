@@ -35,9 +35,12 @@ screen needs something new, add it here and as a component, not inline.
 - **Loading**: every main route has a `loading.tsx` with skeletons
   (`src/components/skeleton.tsx`) shaped like the page that is coming.
 - The sidebar has four entries and the projects:
-  - **Panel**: the home. Copilot comes first, as a large box to ask or ask
-    for something (`ChatHero`, with the project to talk about and ready-made
-    questions); once a conversation starts it takes the page. Below it: the
+  - **Panel**: the home. Copilot comes first, always: the greeting is the
+    page's title and a large box to ask or ask for something (`ChatHero`,
+    with the project to talk about, ready-made questions and «O empieza por»
+    shortcuts). Until it can answer (no AI connected, no project) the box
+    shows disabled with a notice that says how to fix it. Once a
+    conversation starts it takes the page. Below it: the
     first steps, recent tables, projects, what waits for approval and the
     latest activity. Copilot has no entry of its own.
   - **Tablas**: every table of every project (the prospect bases the agents

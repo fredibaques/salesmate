@@ -1,4 +1,15 @@
-import { Activity, Bot, Building2, CheckCircle2, Circle, FolderKanban, Inbox, User } from "lucide-react";
+import {
+  Activity,
+  Bot,
+  Building2,
+  CheckCircle2,
+  Circle,
+  FolderKanban,
+  Inbox,
+  Plug,
+  Sheet,
+  User,
+} from "lucide-react";
 import Link from "next/link";
 import {
   Badge,
@@ -7,7 +18,7 @@ import {
   EmptyState,
   EntityCard,
   LinkButton,
-  PageHeader,
+  Notice,
   RowLink,
   Table,
   Td,
@@ -39,7 +50,40 @@ export default async function DashboardPage() {
     currentAi(),
     listAllBases(db, tenant),
   ]);
-  const copilotReady = Boolean(ai) && projects.length > 0;
+  const first = tenant.user.name.split(" ")[0];
+  // Copilot is always the top of the home; until it can answer, it says why and how to fix it.
+  const unavailable = !ai ? (
+    <Notice
+      tone="warning"
+      action={
+        <LinkButton href={AI_CONNECT_HREF} size="sm">
+          Conectar IA
+        </LinkButton>
+      }
+    >
+      Copilot usa la cuenta de IA de tu organización (Anthropic, OpenAI o Kimi). Conéctala para empezar.
+    </Notice>
+  ) : projects.length === 0 ? (
+    <Notice action={<NewProjectButton size="sm" />}>
+      Copilot responde con la información de tus proyectos: crea el primero.
+    </Notice>
+  ) : null;
+  const shortcuts = (
+    <div className="flex flex-col items-center gap-3">
+      <p className="text-sm text-muted">O empieza por</p>
+      <div className="flex flex-wrap justify-center gap-2">
+        <LinkButton href="/app/tables" variant="secondary">
+          <Sheet />
+          Una tabla de prospectos
+        </LinkButton>
+        <NewProjectButton variant="secondary" label="Un proyecto nuevo" />
+        <LinkButton href="/app/connections/new" variant="secondary">
+          <Plug />
+          Conectar herramientas
+        </LinkButton>
+      </div>
+    </div>
+  );
 
   const steps = [
     { done: Boolean(ai), label: "Conecta tu IA (Anthropic, OpenAI o Kimi)", href: AI_CONNECT_HREF },
@@ -111,7 +155,10 @@ export default async function DashboardPage() {
       ) : null}
 
       <section className="mb-8">
-        <h2 className="mb-3 text-base font-semibold">Proyectos</h2>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold">Proyectos</h2>
+          {projects.length ? <NewProjectButton variant="ghost" /> : null}
+        </div>
         {projects.length === 0 ? (
           <EmptyState
             icon={<FolderKanban />}
@@ -215,17 +262,14 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <PageHeader title={`Hola, ${tenant.user.name.split(" ")[0]}`} actions={<NewProjectButton />} />
-      {copilotReady ? (
-        <>
-          <div className="mb-4 empty:hidden">
-            <AiNotice feature="Copilot" />
-          </div>
-          <CopilotChat projects={projects.map((p) => ({ id: p.id, name: p.name }))}>{home}</CopilotChat>
-        </>
-      ) : (
-        home
-      )}
+      <CopilotChat
+        title={`Hola, ${first}. ¿En qué te ayudo?`}
+        projects={projects.map((p) => ({ id: p.id, name: p.name }))}
+        unavailable={unavailable ?? (ai?.status === "active" ? null : <AiNotice feature="Copilot" />)}
+        shortcuts={shortcuts}
+      >
+        {home}
+      </CopilotChat>
     </>
   );
 }
