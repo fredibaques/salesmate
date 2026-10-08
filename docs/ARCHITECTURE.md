@@ -330,25 +330,33 @@ agente directamente; el resto se proponen al gateway como `mcp.call_tool`
 auditoría se aplican igual que a un email. La plataforma hace de cliente MCP a
 propósito: con el conector MCP de la API las llamadas no pasarían por el gateway.
 
-**Bases de prospectos** (`prospects/`, `lib/prospect-columns.ts`). Una base
-es una tabla del proyecto (`prospect_bases`), no del agente: el usuario define
+**Tablas** (`prospects/`, `lib/prospect-columns.ts`). Una tabla
+(`prospect_bases`) puede ir con un proyecto o sola (`project_id` nulo,
+migración 0019; al borrar un proyecto sus tablas se quedan, sin proyecto, y
+`setBaseProject` las mueve con sus filas). No es del agente: el usuario define
 sus columnas (`columns`, JSONB con id, nombre, tipo, opciones, instrucciones y
 quién la rellena: agente, persona o ambos) y si cada fila es una empresa o una
-persona (`row_kind`). Cualquier agente del proyecto puede trabajar sobre
-cualquier base; el agente de prospección rellena la de
+persona (`row_kind`). Un agente trabaja sobre las tablas de su proyecto y las
+que no tienen proyecto (`listBases(…, { standalone: true })`); el agente de prospección rellena la de
 `agent_configs.prospect_base_id` (si no tiene, la primera del proyecto, o una
 «Prospectos» nueva con columnas por defecto). Cada fila (`prospects`) guarda
 los campos fijos (empresa, persona, web, encaje, fuentes, estado) y los valores
 de las columnas en `data` por id de columna, con quién y cuándo escribió cada
 celda en `cell_meta`. No hay duplicados por base (`base_id, dedupe_key`:
 dominio de la web, o nombre y ciudad; en bases de personas, persona y empresa).
-Se ven en la pestaña «Prospectos» del proyecto: tabla con filtros, orden por
-cualquier columna, búsqueda y exportación a CSV con las columnas de la base.
+Cada tabla vive en `/app/tables/<id>` (las rutas antiguas bajo el proyecto
+redirigen); la sección Tablas y la pestaña Tablas del proyecto las listan
+igual (`TablesList`). La rejilla se ve siempre, también vacía, con filtros,
+orden por cualquier columna, búsqueda y exportación a CSV. Exportar a otra
+herramienta pasa por el gateway, que registra por proyecto: solo en tablas con
+proyecto.
 
-Las crean los propietarios y administradores con un asistente: qué es cada
-fila, columnas propuestas por la IA a partir de la oferta y el cliente ideal
-del proyecto (`prospects/propose-columns.ts`, salida estructurada; sin IA,
-las de siempre) y revisión. También cambian las columnas (`saveColumn`,
+Las crean los propietarios y administradores con nombre, qué es cada fila y
+proyecto opcional; empiezan con las columnas de siempre de ese tipo. Las
+columnas se gestionan en la cabecera de la tabla, como en una hoja de cálculo
+(`Popover`): el «+» añade una a mano o de las sugerencias de la IA
+(`prospects/propose-columns.ts`, con la oferta del proyecto si lo tiene), y
+cada cabecera abre su menú (editar, ordenar, mover, ocultar, borrar). También cambian las columnas (`saveColumn`,
 `moveColumn`, `setColumnHidden`, `removeColumn`): el id de una columna sale de
 su nombre la primera vez y no cambia, y al cambiar su tipo u opciones los
 valores que ya no encajan se borran. Cualquier miembro edita y añade filas en
@@ -357,6 +365,18 @@ valores (no se descarta ninguno en silencio, a diferencia de lo que guarda el
 agente), las celdas que cambian quedan marcadas como escritas a mano y no se
 permite que una fila pase a duplicar otra. Al borrar una base, el agente que
 la rellenaba pasa a la primera que quede en el proyecto.
+
+**Formularios** (`prospects/intake.ts`, `POST /api/tables/<id>/rows`). Cada
+tabla puede abrirse a formularios externos con su propia clave
+(`prospect_bases.intake_key`, cabecera `x-salesmate-key`, campo `_key` o
+`?key=`; «Conectar formulario» en la tabla). JSON, urlencoded o multipart,
+CORS abierto, `_redirect` y `_gotcha` como en el formulario del agente
+inbound. Los campos se emparejan con las columnas por nombre o id (sin
+acentos ni mayúsculas); empresa, nombre, web, email y teléfono por sus nombres
+habituales; lo que no encaja vuelve en `ignored`. Cada envío es una fila (con
+la misma deduplicación) y avisa al agente que complete filas nuevas. Es
+distinto del formulario del proyecto (`/api/inbound/form/<projectId>`), que
+abre una conversación con el agente inbound.
 
 **Completar vacíos** (`prospects/complete.ts`). Una celda está «por completar»
 si su columna la rellena el agente, no tiene valor y nadie la ha tocado

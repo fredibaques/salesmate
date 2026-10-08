@@ -134,6 +134,13 @@
       "when": 1791481187571,
       "tag": "0018_project_color",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791489263605,
+      "tag": "0019_standalone_tables",
+      "breakpoints": true
     }
   ]
 }

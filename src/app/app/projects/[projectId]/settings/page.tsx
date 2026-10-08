@@ -138,8 +138,9 @@ export default async function ProjectSettingsPage({
           <Card title="Eliminar el proyecto">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <p className="max-w-xl text-sm text-muted">
-                Se borran sus agentes, conocimiento, conversaciones, prospectos y reglas. Las conexiones de tu
-                organización y el registro de auditoría se conservan. No se puede deshacer.
+                Se borran sus agentes, conocimiento, conversaciones y reglas. Sus tablas se quedan, sin
+                proyecto; las conexiones de tu organización y el registro de auditoría también. No se puede
+                deshacer.
               </p>
               <ModalButton
                 label="Eliminar proyecto"

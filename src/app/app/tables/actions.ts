@@ -31,8 +31,10 @@ import {
   removeColumn,
   renameBase,
   saveColumn,
+  setBaseProject,
   setColumnHidden,
 } from "@/server/prospects/bases";
+import { setIntakeKey } from "@/server/prospects/intake";
 import { proposeColumns, type ProposedColumn } from "@/server/prospects/propose-columns";
 import {
   addProspectRow,
@@ -41,31 +43,28 @@ import {
   type RowEdit,
 } from "@/server/prospects/service";
 
-/** Only owners and admins change the shape of bases; any member edits rows. */
+/** Only owners and admins change the shape of tables; any member edits rows. */
 const admin = () => requireRole(["owner", "admin"]);
-const basesPath = (projectId: string) => `/app/projects/${projectId}/prospects`;
-const refresh = (projectId: string) => revalidatePath(basesPath(projectId), "layout");
+const tablePath = (baseId: string) => `/app/tables/${baseId}`;
+/** Lists and project tabs show tables too: refresh everything under /app. */
+const refresh = () => revalidatePath("/app", "layout");
 
 /** Discards a row, or brings it back. Any member of the organization can. */
-export async function changeProspectStatus(
-  projectId: string,
-  baseId: string,
-  ids: string[],
-  status: "new" | "discarded",
-) {
+export async function changeProspectStatus(baseId: string, ids: string[], status: "new" | "discarded") {
   const tenant = await requireTenant();
   await setProspectStatus(getDb(), tenant, baseId, ids, status);
-  revalidatePath(`${basesPath(projectId)}/${baseId}`);
+  revalidatePath(tablePath(baseId));
 }
 
 // ---- Bases ------------------------------------------------------------------
 
 /**
- * Columns for a new base: proposed by the AI from the project's offer and
- * ideal customer, or the default ones when the AI isn't connected.
+ * Columns for a table: proposed by the AI (from its project's offer and
+ * ideal customer, when it has a project), or the default ones when the AI
+ * isn't connected.
  */
 export async function proposeColumnsAction(
-  projectId: string,
+  projectId: string | null,
   input: { rowKind: RowKind; name: string; brief: string },
 ): Promise<{ ok: boolean; message?: string; columns: ProposedColumn[] }> {
   const tenant = await admin();
@@ -98,41 +97,58 @@ export async function proposeColumnsAction(
   }
 }
 
-/** Creates a base from the wizard and opens it. */
-export async function createBaseAction(projectId: string, _: FormState, form: FormData): Promise<FormState> {
+/**
+ * Creates a table with the usual columns for what its rows are, and opens
+ * it: the columns are then changed on the table itself.
+ */
+export async function createBaseAction(_: FormState, form: FormData): Promise<FormState> {
   let baseId = "";
   const result = await runForm(async () => {
     const tenant = await admin();
-    const columns = JSON.parse(str(form, "columns") ?? "[]") as ColumnDraft[];
-    const base = await createBase(getDb(), tenant, projectId, {
+    const rowKind = (str(form, "rowKind") === "person" ? "person" : "company") as RowKind;
+    const base = await createBase(getDb(), tenant, str(form, "projectId") ?? null, {
       name: str(form, "name") ?? "",
-      rowKind: str(form, "rowKind") ?? "company",
-      columns,
+      rowKind,
+      columns: DEFAULT_COLUMNS[rowKind].map(({ id: _id, ...draft }): ColumnDraft => draft),
     });
     baseId = base.id;
   });
   if (!result?.ok) return result;
-  refresh(projectId);
-  redirect(`${basesPath(projectId)}/${baseId}`);
+  refresh();
+  redirect(tablePath(baseId));
 }
 
-export async function renameBaseAction(
-  projectId: string,
-  baseId: string,
-  _: FormState,
-  form: FormData,
-): Promise<FormState> {
+export async function renameBaseAction(baseId: string, _: FormState, form: FormData): Promise<FormState> {
   const result = await runForm(async () => {
     await renameBase(getDb(), await admin(), baseId, str(form, "name") ?? "");
   }, "Nombre guardado.");
-  refresh(projectId);
+  refresh();
   return result;
 }
 
-export async function deleteBaseAction(projectId: string, baseId: string) {
-  await deleteBase(getDb(), await admin(), baseId);
-  refresh(projectId);
-  redirect(basesPath(projectId));
+/** Moves a table to a project, or leaves it on its own. */
+export async function moveBaseAction(baseId: string, _: FormState, form: FormData): Promise<FormState> {
+  const result = await runForm(async () => {
+    await setBaseProject(getDb(), await admin(), baseId, str(form, "projectId") ?? null);
+  }, "Proyecto guardado.");
+  refresh();
+  return result;
+}
+
+/** Opens the table to web forms with a new key (or replaces the key), or closes it. */
+export async function intakeAction(baseId: string, open: boolean, _: FormState): Promise<FormState> {
+  const result = await runForm(async () => {
+    await setIntakeKey(getDb(), await admin(), baseId, open);
+    return open ? "Listo: usa la dirección y la clave nuevas en tu formulario." : "Formulario desconectado.";
+  });
+  revalidatePath(tablePath(baseId));
+  return result;
+}
+
+export async function deleteBaseAction(baseId: string) {
+  const base = await deleteBase(getDb(), await admin(), baseId);
+  refresh();
+  redirect(base.projectId ? `/app/projects/${base.projectId}/prospects` : "/app/tables");
 }
 
 // ---- Columns ----------------------------------------------------------------
@@ -150,7 +166,6 @@ function columnFromForm(form: FormData): ColumnDraft {
 
 /** Adds a column (no `columnId`) or changes one. */
 export async function saveColumnAction(
-  projectId: string,
   baseId: string,
   columnId: string | null,
   _: FormState,
@@ -168,40 +183,29 @@ export async function saveColumnAction(
       ? `Columna guardada. ${cleared === 1 ? "Se ha borrado 1 valor que ya no encajaba" : `Se han borrado ${cleared} valores que ya no encajaban`} con su tipo.`
       : "Columna guardada.";
   });
-  refresh(projectId);
+  refresh();
   return result;
 }
 
-export async function moveColumnAction(
-  projectId: string,
-  baseId: string,
-  columnId: string,
-  direction: -1 | 1,
-) {
+export async function moveColumnAction(baseId: string, columnId: string, direction: -1 | 1) {
   await moveColumn(getDb(), await admin(), baseId, columnId, direction);
-  refresh(projectId);
+  refresh();
 }
 
-export async function toggleColumnAction(
-  projectId: string,
-  baseId: string,
-  columnId: string,
-  hidden: boolean,
-) {
+export async function toggleColumnAction(baseId: string, columnId: string, hidden: boolean) {
   await setColumnHidden(getDb(), await admin(), baseId, columnId, hidden);
-  refresh(projectId);
+  refresh();
 }
 
-export async function removeColumnAction(projectId: string, baseId: string, columnId: string) {
+export async function removeColumnAction(baseId: string, columnId: string) {
   await removeColumn(getDb(), await admin(), baseId, columnId);
-  refresh(projectId);
+  refresh();
 }
 
 // ---- Rows -------------------------------------------------------------------
 
 /** Adds a row by hand (no `rowId`) or saves the changes made in the row panel. */
 export async function saveRowAction(
-  projectId: string,
   baseId: string,
   rowId: string | null,
   _: FormState,
@@ -246,7 +250,7 @@ export async function saveRowAction(
     const { changed } = await updateProspectRow(db, tenant, baseId, rowId, edit);
     return changed ? "Cambios guardados." : "No había cambios.";
   });
-  revalidatePath(`${basesPath(projectId)}/${baseId}`);
+  revalidatePath(tablePath(baseId));
   return result;
 }
 
@@ -254,15 +258,13 @@ export async function saveRowAction(
  * «Exportar → a otra herramienta»: copies the table to Google Sheets,
  * Airtable, Trello or monday.com, through the gateway (as the person).
  */
-export async function sendTableAction(
-  projectId: string,
-  baseId: string,
-  _: FormState,
-  form: FormData,
-): Promise<FormState> {
+export async function sendTableAction(baseId: string, _: FormState, form: FormData): Promise<FormState> {
   const result = await runForm(async () => {
     const tenant = await admin();
     const db = getDb();
+    // Actions are recorded per project: a table without one exports to CSV only.
+    const projectId = (await getBase(db, tenant, baseId))?.projectId;
+    if (!projectId) throw new Error("Esta tabla no es de ningún proyecto: expórtala a Excel (CSV).");
     const connectionId = str(form, "connectionId");
     if (!connectionId) throw new Error("Elige a dónde exportar.");
     const [connection] = await withTenant(db, tenant, (tx) =>
@@ -296,6 +298,6 @@ export async function sendTableAction(
       ? `Exportadas ${out.count} filas a ${connection.label}${out.url ? `: ${out.url}` : "."}`
       : "No había filas que exportar.";
   });
-  revalidatePath(`${basesPath(projectId)}/${baseId}`);
+  revalidatePath(tablePath(baseId));
   return result;
 }

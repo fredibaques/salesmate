@@ -59,7 +59,7 @@ export default async function AgentAutomationPage({
   if (!agent || !project) notFound();
   const config = agent.config;
   const s = config.settings;
-  const bases = await listBases(db, tenant, projectId);
+  const bases = await listBases(db, tenant, projectId, { standalone: true });
   const base = bases.find((b) => b.id === config.prospectBaseId) ?? bases[0];
   const [spent, goal] = await Promise.all([
     monthSpendUsd(db, tenant, { projectId, timezone: project.timezone }),

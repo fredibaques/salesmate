@@ -1,4 +1,4 @@
-import { and, asc, count, eq, isNotNull, max, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, isNull, max, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { AGENT_INFO, agentName, type ProjectAgentKey } from "@/lib/agents";
 import {
@@ -18,9 +18,10 @@ import { withTenant, type TenantContext, type Tx } from "../db/tenant";
 import { foldText } from "../knowledge/normalize";
 
 /**
- * Prospect bases are tables of the project: the user decides their columns,
- * prospecting agents fill them and people review and export them. Any agent
- * of the project can work on any base.
+ * Tables («bases»): the user decides their columns; agents, people and
+ * external forms fill them; people review and export them. A table may
+ * belong to a project or stand on its own. An agent works on a table of its
+ * project or on one without a project.
  */
 
 export type ProspectBase = typeof prospectBases.$inferSelect;
@@ -39,19 +40,39 @@ function agentNames(agents: { agentType: string; name: string | null }[]): strin
   );
 }
 
-/** The project's bases with their row counts and the agents that fill them. */
-export async function listBases(db: Db, tenant: Pick<TenantContext, "orgId">, projectId: string) {
+/**
+ * The tables an agent of the project may work on, with their row counts and
+ * the agents that fill them: the project's own and, with `standalone`, those
+ * without a project.
+ */
+export async function listBases(
+  db: Db,
+  tenant: Pick<TenantContext, "orgId">,
+  projectId: string,
+  options: { standalone?: boolean } = {},
+) {
   return withTenant(db, tenant, async (tx) => {
     const bases = await tx
       .select()
       .from(prospectBases)
-      .where(eq(prospectBases.projectId, projectId))
+      .where(
+        options.standalone
+          ? or(eq(prospectBases.projectId, projectId), isNull(prospectBases.projectId))
+          : eq(prospectBases.projectId, projectId),
+      )
       .orderBy(asc(prospectBases.createdAt));
-    const counts = await tx
-      .select({ baseId: prospects.baseId, n: count() })
-      .from(prospects)
-      .where(eq(prospects.projectId, projectId))
-      .groupBy(prospects.baseId);
+    const counts = bases.length
+      ? await tx
+          .select({ baseId: prospects.baseId, n: count() })
+          .from(prospects)
+          .where(
+            inArray(
+              prospects.baseId,
+              bases.map((b) => b.id),
+            ),
+          )
+          .groupBy(prospects.baseId)
+      : [];
     const agents = await tx
       .select({
         baseId: agentConfigs.prospectBaseId,
@@ -76,16 +97,21 @@ export async function listBases(db: Db, tenant: Pick<TenantContext, "orgId">, pr
 }
 
 /**
- * Every base of the organization, from all its projects, most recently
- * active first: the «Tablas» section. Activity is the last row added or
- * changed, or the last change to the base itself.
+ * Every table of the organization (or of one project), most recently active
+ * first: the «Tablas» section and a project's tab. Activity is the last row
+ * added or changed, or the last change to the table itself.
  */
-export async function listAllBases(db: Db, tenant: Pick<TenantContext, "orgId">) {
+export async function listAllBases(
+  db: Db,
+  tenant: Pick<TenantContext, "orgId">,
+  filter: { projectId?: string } = {},
+) {
   return withTenant(db, tenant, async (tx) => {
     const bases = await tx
       .select({ base: prospectBases, projectName: projects.name })
       .from(prospectBases)
-      .innerJoin(projects, eq(projects.id, prospectBases.projectId));
+      .leftJoin(projects, eq(projects.id, prospectBases.projectId))
+      .where(filter.projectId ? eq(prospectBases.projectId, filter.projectId) : undefined);
     const stats = await tx
       .select({ baseId: prospects.baseId, n: count(), last: max(prospects.updatedAt) })
       .from(prospects)
@@ -112,6 +138,53 @@ export async function listAllBases(db: Db, tenant: Pick<TenantContext, "orgId">)
         };
       })
       .sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
+  });
+}
+
+/** The agents that fill a table (from any project), with how they are called. */
+export async function baseAgents(db: Db, tenant: Pick<TenantContext, "orgId">, baseId: string) {
+  const rows = await withTenant(db, tenant, (tx) =>
+    tx
+      .select({
+        projectId: agentConfigs.projectId,
+        agentType: agentConfigs.agentType,
+        name: agentConfigs.name,
+      })
+      .from(agentConfigs)
+      .where(and(eq(agentConfigs.prospectBaseId, baseId), isNotNull(agentConfigs.addedAt))),
+  );
+  const labels = agentNames(rows);
+  return rows.map((a, i) => ({ ...a, label: labels[i] }));
+}
+
+/** Moves a table to a project, or leaves it on its own (null). */
+export async function setBaseProject(
+  db: Db,
+  tenant: TenantContext,
+  baseId: string,
+  projectId: string | null,
+) {
+  return withTenant(db, tenant, async (tx) => {
+    if (projectId) {
+      const [project] = await tx.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId));
+      if (!project) throw new Error("Proyecto no encontrado.");
+    }
+    const [base] = await tx
+      .update(prospectBases)
+      .set({ projectId, updatedAt: new Date() })
+      .where(eq(prospectBases.id, baseId))
+      .returning();
+    if (!base) throw new Error("Tabla no encontrada.");
+    // Its rows follow it.
+    await tx.update(prospects).set({ projectId }).where(eq(prospects.baseId, baseId));
+    await audit(tx, tenant, {
+      event: "prospect_base.moved",
+      projectId,
+      entityType: "prospect_base",
+      entityId: base.id,
+      data: { projectId },
+    });
+    return base;
   });
 }
 
@@ -172,7 +245,7 @@ export async function ensureAgentBaseIn(
   return base;
 }
 
-/** Points an agent at one of the project's bases. */
+/** Points an agent at a table of its project, or at one without a project. */
 export async function setAgentBase(
   db: Db,
   tenant: TenantContext,
@@ -184,8 +257,13 @@ export async function setAgentBase(
     const [base] = await tx
       .select({ id: prospectBases.id, name: prospectBases.name })
       .from(prospectBases)
-      .where(and(eq(prospectBases.id, baseId), eq(prospectBases.projectId, projectId)));
-    if (!base) throw new Error("Esa base no es de este proyecto.");
+      .where(
+        and(
+          eq(prospectBases.id, baseId),
+          or(eq(prospectBases.projectId, projectId), isNull(prospectBases.projectId)),
+        ),
+      );
+    if (!base) throw new Error("Esa tabla es de otro proyecto.");
     const [agent] = await tx
       .update(agentConfigs)
       .set({ prospectBaseId: base.id })
@@ -230,11 +308,11 @@ function assertFreeName(columns: BaseColumn[], name: string, except?: string) {
   }
 }
 
-/** A new base of the project, with the columns chosen when creating it. */
+/** A new table, of a project or on its own (`projectId` null), with its first columns. */
 export async function createBase(
   db: Db,
   tenant: TenantContext,
-  projectId: string,
+  projectId: string | null,
   input: { name: string; rowKind: string; columns: ColumnDraft[] },
 ): Promise<ProspectBase> {
   const name = baseName.parse(input.name);

@@ -37,7 +37,7 @@ export async function InstructionsCard({
   agentType: ProjectAgentType;
   config: typeof agentConfigs.$inferSelect;
   /** The project's prospect bases, for agents that fill one. */
-  bases?: { id: string; name: string }[];
+  bases?: { id: string; name: string; projectId: string | null }[];
 }) {
   const scheduled = SCHEDULED_AGENT_TYPES.includes(agentType);
   const ai = scheduled ? await getOrgAi(getDb(), await requireTenant()) : null;
@@ -57,7 +57,7 @@ export async function InstructionsCard({
         {bases?.length ? (
           <Field
             label="Trabaja sobre"
-            tip="La tabla del proyecto donde guarda lo que encuentra. Recoge los datos de sus columnas."
+            tip="La tabla donde guarda lo que encuentra: una del proyecto o una sin proyecto. Recoge los datos de sus columnas."
             hint={
               <Link href={`/app/projects/${projectId}/prospects/new`} className="text-accent hover:underline">
                 Crear otra tabla
@@ -68,6 +68,7 @@ export async function InstructionsCard({
               {bases.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
+                  {b.projectId ? "" : " (sin proyecto)"}
                 </option>
               ))}
             </Select>

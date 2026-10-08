@@ -252,7 +252,7 @@ describe("the agent's view of a base", () => {
     await setAgentBase(db, tenant, project.id, config.id, second.id);
     expect((await ensureAgentBase(db, tenant, config.id)).id).toBe(second.id);
     await expect(setAgentBase(db, tenant, project.id, config.id, baseId)).rejects.toThrow(
-      /no es de este proyecto/,
+      /es de otro proyecto/,
     );
   });
 });

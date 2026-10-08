@@ -15,5 +15,5 @@ export default async function AgentProspectsPage({
   const agent = await getAgent(db, tenant, projectId, "outbound");
   if (!agent) notFound();
   const base = await ensureAgentBase(db, tenant, agent.config.id);
-  redirect(`/app/projects/${projectId}/prospects/${base.id}`);
+  redirect(`/app/tables/${base.id}`);
 }

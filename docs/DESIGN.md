@@ -187,7 +187,12 @@ exclusions) are rows in a list or `Table`. A row that opens a detail uses
 `RowLink` (or a link with `after:absolute after:inset-0` in a table row).
 Records with many user-defined columns (prospect bases) use `DataGrid`
 (`components/data-grid.tsx`): it scrolls inside its own box, keeps the header
-and the first column in place, and each column header sorts by link.
+and the first column in place, and is shown even with no rows (a few empty
+rows under the header). Columns are managed on the grid, as in a spreadsheet:
+a header opens its menu and «+» adds one, both in a `Popover`
+(`components/popover.tsx`: anchored, drawn above scrolling boxes, it acts as
+the forms' modal so `ActionForm` closes it on save). No separate «Columnas»
+modal.
 Remove actions on a row are a `dangerGhost` icon button with an
 `aria-label`.
 
