@@ -8,7 +8,7 @@ import { isPendingCell, type BaseColumn } from "@/lib/prospect-columns";
 import type { CellMeta } from "@/server/db/schema";
 import type { ProspectBase } from "@/server/prospects/bases";
 import { normalizeDomain, type ProspectRow } from "@/server/prospects/service";
-import { completeProspectsNow } from "../../agents/actions";
+import { completeProspectsNow } from "../../projects/[projectId]/agents/actions";
 import { changeProspectStatus, saveRowAction } from "../actions";
 import { COLUMN_ICONS } from "../column-icons";
 
@@ -126,19 +126,17 @@ const STATUS = {
  * editable by any member. Without `row`, the same form adds a row by hand.
  */
 export function RowPanel({
-  projectId,
+  agentProjectId,
   base,
   row,
   closeHref,
-  agentFills = false,
   canRun = false,
 }: {
-  projectId: string;
+  /** Project of the prospecting agent that fills this table, if one does. */
+  agentProjectId: string | null;
   base: ProspectBase;
   row: ProspectRow | null;
   closeHref: string;
-  /** The prospecting agent fills this base. */
-  agentFills?: boolean;
   /** The person can start the agent (owners and admins). */
   canRun?: boolean;
 }) {
@@ -164,7 +162,7 @@ export function RowPanel({
       }
     >
       <ActionForm
-        action={saveRowAction.bind(null, projectId, base.id, row?.id ?? null)}
+        action={saveRowAction.bind(null, base.id, row?.id ?? null)}
         submitLabel={row ? "Guardar" : "Añadir fila"}
         className="space-y-5"
       >
@@ -215,7 +213,7 @@ export function RowPanel({
                           c,
                           row.data[c.id],
                           row.cellMeta[c.id],
-                          agentFills && c.filledBy !== "person",
+                          Boolean(agentProjectId) && c.filledBy !== "person",
                         )
                       : c.instructions
                   }
@@ -248,7 +246,6 @@ export function RowPanel({
           <form
             action={changeProspectStatus.bind(
               null,
-              projectId,
               base.id,
               [row.id],
               row.status === "discarded" ? "new" : "discarded",
@@ -266,9 +263,9 @@ export function RowPanel({
               </Button>
             )}
           </form>
-          {agentFills && canRun && row.status !== "discarded" ? (
+          {agentProjectId && canRun && row.status !== "discarded" ? (
             <ActionForm
-              action={completeProspectsNow.bind(null, projectId, [row.id])}
+              action={completeProspectsNow.bind(null, agentProjectId, [row.id])}
               submitLabel="Completar esta fila"
               submitVariant="secondary"
               cancel={false}

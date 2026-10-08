@@ -3,10 +3,7 @@ import { getDb } from "@/server/db/client";
 import { exportProspectsCsv } from "@/server/prospects/service";
 
 /** CSV of a prospect base with its columns (?include=pending for the rows not exported yet). */
-export async function GET(
-  request: Request,
-  ctx: RouteContext<"/app/projects/[projectId]/prospects/[baseId]/export">,
-) {
+export async function GET(request: Request, ctx: RouteContext<"/app/tables/[baseId]/export">) {
   const { baseId } = await ctx.params;
   const tenant = await requireTenant();
   const include = new URL(request.url).searchParams.get("include") === "pending" ? "pending" : "all";

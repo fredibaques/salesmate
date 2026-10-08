@@ -903,14 +903,15 @@ export const prospectBases = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     orgId: orgId(),
-    projectId: uuid("project_id")
-      .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
+    /** The project it belongs to, if any: a table can stand on its own. */
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
     name: text("name").notNull(),
     /** What each row is: decides how duplicates are found. */
     rowKind: text("row_kind", { enum: ROW_KINDS }).notNull().default("company"),
     /** The user's columns, in order (the system ones are not here). */
     columns: jsonb("columns").$type<BaseColumn[]>().notNull().default([]),
+    /** Secret that external forms send to add rows (POST /api/tables/:id/rows); null = closed. */
+    intakeKey: text("intake_key"),
     createdBy: text("created_by"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -923,9 +924,7 @@ export const prospects = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     orgId: orgId(),
-    projectId: uuid("project_id")
-      .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
     baseId: uuid("base_id")
       .notNull()
       .references(() => prospectBases.id, { onDelete: "cascade" }),

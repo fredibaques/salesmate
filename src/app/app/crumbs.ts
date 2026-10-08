@@ -65,6 +65,13 @@ export async function crumbsFor(segments: string[], names: NameLookup): Promise<
   // Mi cuenta: its pages are tabs of one section.
   if (first === "account") return [];
 
+  // A table, with a project or on its own: under «Tablas».
+  if (first === "tables") {
+    const [id] = rest;
+    if (!id) return [];
+    return [{ label: "Tablas", href: "/app/tables" }, { label: (await names.base(id)) ?? "Tabla" }];
+  }
+
   if (first === "projects") {
     const [id, tab, sub, subsub] = rest;
     if (!id) return [];

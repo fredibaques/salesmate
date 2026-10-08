@@ -7,6 +7,7 @@ import { projects } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
 import { addAgent } from "../services/agents";
 import {
+  baseAgents,
   createBase,
   deleteBase,
   ensureAgentBase,
@@ -17,6 +18,8 @@ import {
   removeColumn,
   renameBase,
   saveColumn,
+  setAgentBase,
+  setBaseProject,
   setColumnHidden,
 } from "./bases";
 import { proposeColumns } from "./propose-columns";
@@ -333,5 +336,39 @@ describe("listAllBases", () => {
       ["Con filas", "Swipoo", 1],
       ["Sin movimiento", "Otro proyecto", 0],
     ]);
+  });
+});
+
+describe("tables on their own", () => {
+  it("exist without a project, join one later with their rows, and agents of any project can use them", async () => {
+    const solo = await createBase(db, tenant, null, {
+      name: "Contactos web",
+      rowKind: "person",
+      columns: [],
+    });
+    expect(solo.projectId).toBeNull();
+    await saveProspects(db, tenant, {
+      baseId: solo.id,
+      items: [{ companyName: "Autos García", personName: "Luis García" }],
+    });
+    const listed = (await listAllBases(db, tenant)).find((b) => b.id === solo.id)!;
+    expect([listed.projectName, listed.rows]).toEqual([null, 1]);
+    expect((await listBases(db, tenant, projectId)).some((b) => b.id === solo.id)).toBe(false);
+    expect((await listBases(db, tenant, projectId, { standalone: true })).some((b) => b.id === solo.id)).toBe(
+      true,
+    );
+
+    const agent = await addAgent(db, tenant, projectId, "outbound", "b2b_consultative");
+    await setAgentBase(db, tenant, projectId, agent.id, solo.id);
+    expect(await baseAgents(db, tenant, solo.id)).toEqual([
+      expect.objectContaining({ projectId, agentType: "outbound", label: "Agente outbound" }),
+    ]);
+
+    await setBaseProject(db, tenant, solo.id, projectId);
+    expect((await listAllBases(db, tenant, { projectId })).map((b) => b.id)).toContain(solo.id);
+    const [row] = (await listProspects(db, tenant, solo.id, {})).rows;
+    expect(row.projectId).toBe(projectId);
+    await setBaseProject(db, tenant, solo.id, null);
+    expect((await getBase(db, tenant, solo.id))!.projectId).toBeNull();
   });
 });

@@ -30,13 +30,11 @@ const LOGO: Record<string, string> = {
  * menu (?send=1).
  */
 export function SendTableModal({
-  projectId,
   baseId,
   destinations,
   pending,
   total,
 }: {
-  projectId: string;
   baseId: string;
   destinations: Destination[];
   pending: number;
@@ -65,11 +63,7 @@ export function SendTableModal({
           allí tus tablas.
         </Notice>
       ) : (
-        <ActionForm
-          action={sendTableAction.bind(null, projectId, baseId)}
-          submitLabel="Exportar"
-          className="space-y-5"
-        >
+        <ActionForm action={sendTableAction.bind(null, baseId)} submitLabel="Exportar" className="space-y-5">
           <Field label="A dónde" group>
             <div className="grid gap-2 sm:grid-cols-2">
               {destinations.map((d) => (

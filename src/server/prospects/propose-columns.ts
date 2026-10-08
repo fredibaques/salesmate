@@ -55,17 +55,24 @@ const proposalOutput = z.object({
 export async function proposeColumns(
   deps: { db: Db; llm: LlmClient },
   tenant: { orgId: string },
-  input: { projectId: string; rowKind: RowKind; name: string; brief?: string },
+  /** Without a project (a table on its own) the proposal relies on the name and the brief. */
+  input: { projectId: string | null; rowKind: RowKind; name: string; brief?: string },
 ): Promise<ProposedColumn[]> {
-  const [project] = await withTenant(deps.db, tenant, (tx) =>
-    tx.select().from(projects).where(eq(projects.id, input.projectId)),
-  );
-  if (!project) throw new Error("Proyecto no encontrado.");
+  const [project] = input.projectId
+    ? await withTenant(deps.db, tenant, (tx) =>
+        tx.select().from(projects).where(eq(projects.id, input.projectId!)),
+      )
+    : [];
+  if (input.projectId && !project) throw new Error("Proyecto no encontrado.");
   const rows = input.rowKind === "person" ? "personas (con la empresa donde trabajan)" : "empresas";
   const prompt = [
-    `Propón las columnas de una base de prospectos llamada «${input.name}» del proyecto «${project.name}». Cada fila es una de estas ${rows}. Un agente de IA rellenará las columnas buscando en fuentes públicas (webs de empresas, directorios, registros, noticias) y el equipo de ventas las usará para decidir a quién contactar y cómo.`,
-    `## El proyecto\n${project.description ?? "(sin descripción)"}\nWeb: ${project.website ?? "—"}`,
-    `## Oferta y cliente ideal\n${renderSalesProfile(parseSalesProfile(project.salesProfile))}`,
+    `Propón las columnas de una tabla llamada «${input.name}»${project ? ` del proyecto «${project.name}»` : ""}. Cada fila es una de estas ${rows}. Un agente de IA rellenará las columnas buscando en fuentes públicas (webs de empresas, directorios, registros, noticias) y el equipo de ventas las usará para decidir a quién contactar y cómo.`,
+    project
+      ? `## El proyecto\n${project.description ?? "(sin descripción)"}\nWeb: ${project.website ?? "—"}`
+      : "",
+    project
+      ? `## Oferta y cliente ideal\n${renderSalesProfile(parseSalesProfile(project.salesProfile))}`
+      : "",
     input.brief ? `## Qué quiere saber la persona\n${input.brief}` : "",
     `## Cómo proponerlas
 - Entre 6 y ${MAX_PROPOSALS} columnas, de las más útiles para cualificar y contactar a las menos.

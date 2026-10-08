@@ -15,7 +15,13 @@ import { foldText } from "../knowledge/normalize";
 
 export type ProspectRow = typeof prospects.$inferSelect;
 export type ProspectStatus = (typeof PROSPECT_STATUSES)[number];
-type BaseInfo = { id: string; name: string; projectId: string; rowKind: RowKind; columns: BaseColumn[] };
+type BaseInfo = {
+  id: string;
+  name: string;
+  projectId: string | null;
+  rowKind: RowKind;
+  columns: BaseColumn[];
+};
 
 /** One row as an agent or a person sends it: the system fields plus the column values. */
 export const prospectInput = z.object({
@@ -549,7 +555,7 @@ export async function tableForExport(
   include: "pending" | "all" = "all",
 ): Promise<{
   name: string;
-  projectId: string;
+  projectId: string | null;
   header: string[];
   rows: string[][];
   /** Row ids, in the order of `rows`. */
@@ -613,7 +619,7 @@ export async function tableForExport(
 export async function markExported(
   db: Db,
   tenant: TenantContext,
-  input: { baseId: string; projectId: string; ids: string[]; count: number; destination?: string },
+  input: { baseId: string; projectId: string | null; ids: string[]; count: number; destination?: string },
 ) {
   await withTenant(db, tenant, async (tx) => {
     if (input.ids.length) {

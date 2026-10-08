@@ -109,7 +109,7 @@ describe("projects service", () => {
     ).rejects.toThrow(/anterior/);
   });
 
-  it("deletes a project with everything in it, only when its name is confirmed", async () => {
+  it("deletes a project with its agents, only when its name is confirmed; its tables stay, on their own", async () => {
     const project = await createProject(db, tenant, { name: "Para borrar" });
     const agent = await addAgent(db, tenant, project.id, "outbound", "b2b_consultative");
     const base = await ensureAgentBase(db, tenant, agent.id);
@@ -126,6 +126,10 @@ describe("projects service", () => {
     }));
     expect(left.agents).toHaveLength(0);
     expect(left.prospects).toHaveLength(0);
+    const kept = await withSystem(db, (tx) =>
+      tx.select().from(prospects).where(eq(prospects.baseId, base.id)),
+    );
+    expect(kept.map((r) => [r.companyName, r.projectId])).toEqual([["Talleres Pérez", null]]);
     // The audit log keeps the project's history, deletion included.
     expect(left.audit.map((a) => a.event)).toContain("project.deleted");
   });

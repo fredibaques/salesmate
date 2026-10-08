@@ -134,7 +134,7 @@ export default async function DashboardPage() {
               <tr key={b.id} className="relative transition-colors hover:bg-ink-25">
                 <Td>
                   <Link
-                    href={`/app/projects/${b.projectId}/prospects/${b.id}`}
+                    href={`/app/tables/${b.id}`}
                     className="inline-flex items-center gap-2 font-medium after:absolute after:inset-0 hover:text-accent"
                   >
                     {b.rowKind === "person" ? (
@@ -145,7 +145,7 @@ export default async function DashboardPage() {
                     {b.name}
                   </Link>
                 </Td>
-                <Td className="text-muted">{b.projectName}</Td>
+                <Td className="text-muted">{b.projectName ?? "Sin proyecto"}</Td>
                 <Td className="tabular-nums">{plural(b.rows, "fila", "filas")}</Td>
                 <Td className="whitespace-nowrap text-muted">{formatDateTime(b.lastActivity)}</Td>
               </tr>

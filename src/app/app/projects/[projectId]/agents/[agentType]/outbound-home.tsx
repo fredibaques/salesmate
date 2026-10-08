@@ -19,7 +19,7 @@ export async function OutboundHome({ projectId }: { projectId: string }) {
   const [agent, runs, bases] = await Promise.all([
     getAgent(db, tenant, projectId, "outbound"),
     listAgentRuns(db, tenant, projectId, "outbound", 1),
-    listBases(db, tenant, projectId),
+    listBases(db, tenant, projectId, { standalone: true }),
   ]);
   if (!agent) notFound();
   const last = runs[0];
@@ -35,7 +35,7 @@ export async function OutboundHome({ projectId }: { projectId: string }) {
         title="Resultados"
         actions={
           base ? (
-            <LinkButton href={`/app/projects/${projectId}/prospects/${base.id}`} variant="ghost">
+            <LinkButton href={`/app/tables/${base.id}`} variant="ghost">
               Abrir la tabla
             </LinkButton>
           ) : null
