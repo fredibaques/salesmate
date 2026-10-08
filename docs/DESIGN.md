@@ -51,6 +51,10 @@ screen needs something new, add it here and as a component, not inline.
     shared by every project. «Añadir conexión» is one modal: a grid of every
     tool and, once one is picked, what the agents can do with it and its
     form (`?add=1` or `?add=<tool>` opens it from a link).
+- The prospecting agent has four tabs: Instrucciones (what, when, per run,
+  model), Herramientas, Automatización (triggers, goal, spending caps,
+  sources, mailbox, notices, first contact; one form in `FormSection`s) and
+  Aprobaciones.
 - A project has five tabs: **Resumen** (its home: what is left to set it up,
   its agents and «Añadir agente»), **Prospectos**, **Conocimiento**
   (documents and tables), **Conversaciones** and **Ajustes** (General:

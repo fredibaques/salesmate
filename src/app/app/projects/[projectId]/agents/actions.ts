@@ -24,6 +24,8 @@ import {
   listAgentRuns,
   removeAgent,
   renameAgent,
+  rotateAgentHook,
+  saveAgentAutomation,
   saveAgentChannels,
   saveAgentInstructions,
   saveAgentProcess,
@@ -62,6 +64,7 @@ function instructionsFromForm(form: FormData, scheduled: boolean) {
           prospectsPerRun: num(form, "prospectsPerRun") ?? 10,
           mode: PROSPECTING_MODES.find((m) => m === str(form, "mode")) ?? "both",
           cellsPerRun: num(form, "cellsPerRun") ?? DEFAULT_CELLS_PER_RUN,
+          model: str(form, "model") ?? "",
         }
       : {},
   };
@@ -305,6 +308,70 @@ export async function saveInstructions(
       }
     }
   }, "Instrucciones guardadas.");
+  refresh(projectId);
+  return result;
+}
+
+/** Domains typed one per line or separated by commas. */
+const domainList = (form: FormData, key: string) =>
+  (str(form, key) ?? "")
+    .split(/[\n,]+/)
+    .map((d) => d.trim())
+    .filter(Boolean);
+
+/** Money typed with a comma or a point; empty = no cap. */
+const amount = (form: FormData, key: string) => {
+  const v = str(form, key);
+  return v === undefined ? undefined : Number(v.replace(",", "."));
+};
+
+export async function saveAutomation(
+  projectId: string,
+  type: string,
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const result = await runForm(async () => {
+    const tenant = await admin();
+    const goalRows = num(form, "goalRows");
+    const prefer = str(form, "sourcesPrefer");
+    await saveAgentAutomation(getDb(), tenant, projectId, agentType(type), {
+      triggers: { newRows: bool(form, "triggerNewRows"), webhook: bool(form, "triggerWebhook") },
+      budget: {
+        maxCostPerRunUsd: amount(form, "maxCostPerRunUsd"),
+        maxCostPerMonthUsd: amount(form, "maxCostPerMonthUsd"),
+        maxSearchesPerRun: num(form, "maxSearchesPerRun"),
+      },
+      goal: goalRows ? { rows: goalRows, minFit: num(form, "goalMinFit") } : null,
+      sources: {
+        allow: domainList(form, "sourcesAllow"),
+        block: domainList(form, "sourcesBlock"),
+        prefer: prefer === "data" || prefer === "web" ? prefer : null,
+      },
+      notify: {
+        slackConnectionId: str(form, "slackConnectionId") ?? null,
+        emails: list(form, "notifyEmails"),
+        onFinish: bool(form, "notifyOnFinish"),
+        onProblem: bool(form, "notifyOnProblem"),
+      },
+      mailboxId: str(form, "mailboxId") ?? null,
+      handoff: {
+        enabled: bool(form, "handoffEnabled"),
+        minFit: num(form, "handoffMinFit"),
+        perRun: num(form, "handoffPerRun"),
+        instructions: str(form, "handoffInstructions"),
+      },
+    });
+  }, "Automatización guardada.");
+  refresh(projectId);
+  return result;
+}
+
+export async function rotateHook(projectId: string, type: string, _: FormState): Promise<FormState> {
+  const result = await runForm(async () => {
+    const tenant = await admin();
+    await rotateAgentHook(getDb(), tenant, projectId, agentType(type));
+  }, "Nueva dirección creada: la anterior ya no funciona.");
   refresh(projectId);
   return result;
 }

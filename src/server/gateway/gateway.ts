@@ -82,7 +82,11 @@ export async function resolveAutonomy(
     .select()
     .from(agentConfigs)
     .where(and(eq(agentConfigs.projectId, input.projectId), eq(agentConfigs.agentType, input.agentType)));
-  const configured = config?.autonomy.actions?.[definition.type] ?? config?.autonomy.default ?? 1;
+  const configured =
+    config?.autonomy.actions?.[definition.type] ??
+    definition.defaultAutonomy ??
+    config?.autonomy.default ??
+    1;
   return {
     level: Math.max(0, Math.min(configured, definition.maxAutonomy)),
     limits: config?.limits ?? {},

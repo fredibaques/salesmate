@@ -107,8 +107,14 @@ function toTools(tools: BetaToolUnion[]): Tool[] {
       });
     } else if (tool.type.startsWith("web_search") && !search) {
       // One search tool; it also opens pages, so web_fetch has no counterpart.
+      // Only an allow list carries over (blocked domains stay in the prompt).
       search = true;
-      out.push({ type: "web_search" });
+      const allowed = "allowed_domains" in tool ? tool.allowed_domains : null;
+      out.push(
+        allowed?.length
+          ? { type: "web_search", filters: { allowed_domains: allowed } }
+          : { type: "web_search" },
+      );
     }
   }
   return out;

@@ -359,6 +359,35 @@ export type AgentSettings = {
   mode?: ProspectingMode;
   /** Prospecting: empty cells to fill in each run (complete mode). */
   cellsPerRun?: number;
+  /** Model of the organization's provider for this agent; none = the organization's. */
+  model?: string;
+  /** What else makes it work, besides its schedule and «Ejecutar ahora». */
+  triggers?: {
+    /** A row added to its base by someone else: it completes that row. */
+    newRows?: boolean;
+    /** A POST to its webhook (agent_configs.hook_token): it works with that notice. */
+    webhook?: boolean;
+  };
+  /** Spending caps; a run stops (keeping what it saved) when it reaches one. */
+  budget?: {
+    maxCostPerRunUsd?: number;
+    maxCostPerMonthUsd?: number;
+    maxSearchesPerRun?: number;
+  };
+  /** Stop looking for new rows once the base has this many that fit (fit ≥ minFit). */
+  goal?: { rows: number; minFit?: number };
+  /** Where it may look: only these domains, never these, and which tools first. */
+  sources?: { allow?: string[]; block?: string[]; prefer?: "data" | "web" };
+  /** Messages to the team (through the gateway) when a run ends or has a problem. */
+  notify?: {
+    slackConnectionId?: string | null;
+    /** Emails of members of the organization, sent from the agent's mailbox. */
+    emails?: string[];
+    onFinish?: boolean;
+    onProblem?: boolean;
+  };
+  /** Next step: a first email for rows that fit, proposed for approval from its mailbox. */
+  handoff?: { enabled?: boolean; minFit?: number; perRun?: number; instructions?: string };
 };
 
 export type AutonomyConfig = {
@@ -395,6 +424,8 @@ export const agentConfigs = pgTable(
     /** Null = works only when something arrives or when asked. */
     schedule: jsonb("schedule").$type<AgentSchedule | null>(),
     settings: jsonb("settings").$type<AgentSettings>().notNull().default({}),
+    /** Secret of its webhook URL (/api/hooks/agents/<token>); null = no webhook. */
+    hookToken: text("hook_token").unique(),
     /** Prospect base the agent fills (outbound agents). */
     prospectBaseId: uuid("prospect_base_id").references((): AnyPgColumn => prospectBases.id, {
       onDelete: "set null",
@@ -412,6 +443,35 @@ export const agentConfigs = pgTable(
     unique("agent_configs_project_agent_uq").on(t.projectId, t.agentType),
     tenantPolicy("agent_configs"),
   ],
+);
+
+export const AGENT_EVENT_KINDS = ["new_rows", "webhook"] as const;
+export type AgentEventKind = (typeof AGENT_EVENT_KINDS)[number];
+
+/**
+ * Something that should make an agent work: rows added to its base, a
+ * notice on its webhook. Processed in order by the next run of the agent,
+ * which marks them (processed_at, run_id).
+ */
+export const agentEvents = pgTable(
+  "agent_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: orgId(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    agentConfigId: uuid("agent_config_id")
+      .notNull()
+      .references(() => agentConfigs.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: AGENT_EVENT_KINDS }).notNull(),
+    /** new_rows: { rowIds }; webhook: { body } (what was posted). */
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: createdAt(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    runId: uuid("run_id"),
+  },
+  (t) => [index("agent_events_pending_idx").on(t.agentConfigId, t.processedAt), tenantPolicy("agent_events")],
 );
 
 export const suppressions = pgTable(
@@ -864,6 +924,8 @@ export const prospects = pgTable(
     /** Who set each value and when, by column id. */
     cellMeta: jsonb("cell_meta").$type<Record<string, CellMeta>>().notNull().default({}),
     status: text("status", { enum: PROSPECT_STATUSES }).notNull().default("new"),
+    /** The first email the agent proposed for this row (gateway action), once it did. */
+    contactActionId: uuid("contact_action_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -991,7 +1053,7 @@ export const agentRuns = pgTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     agentType: text("agent_type", { enum: AGENT_TYPES }).notNull(),
-    trigger: text("trigger", { enum: ["inbound_event", "copilot", "manual", "schedule"] }).notNull(),
+    trigger: text("trigger", { enum: ["inbound_event", "copilot", "manual", "schedule", "event"] }).notNull(),
     triggerRef: text("trigger_ref"),
     playbookVersionId: uuid("playbook_version_id").references(() => playbookVersions.id, {
       onDelete: "set null",

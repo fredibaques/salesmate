@@ -462,9 +462,23 @@ export async function dataTools(ctx: AgentToolContext, connectionIds: string[]):
  * apply to each request, so they also bound how long one turn of the agent
  * can run before the loop gets control back.
  */
-export function webTools(maxSearches: number): ServerTool[] {
+/**
+ * Web search and page reading. With `allow`, only those domains (and their
+ * subdomains); otherwise never the `block` ones. The API takes one list or
+ * the other, so when both are set the allowed list wins (the blocked ones
+ * are still named in the prompt).
+ */
+export function webTools(
+  maxSearches: number,
+  domains: { allow?: string[]; block?: string[] } = {},
+): ServerTool[] {
+  const filter = domains.allow?.length
+    ? { allowed_domains: domains.allow }
+    : domains.block?.length
+      ? { blocked_domains: domains.block }
+      : {};
   return [
-    { type: "web_search_20260209", name: "web_search", max_uses: maxSearches },
-    { type: "web_fetch_20260209", name: "web_fetch", max_uses: maxSearches * 2 },
+    { type: "web_search_20260209", name: "web_search", max_uses: maxSearches, ...filter },
+    { type: "web_fetch_20260209", name: "web_fetch", max_uses: maxSearches * 2, ...filter },
   ];
 }

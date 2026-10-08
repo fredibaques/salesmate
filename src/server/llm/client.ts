@@ -66,3 +66,18 @@ export function estimateCostUsd(
     (usage.webSearches ?? 0) * AI_PROVIDER_INFO[found.provider].webSearchUsd
   );
 }
+
+/**
+ * The same client answering with another model of its provider (an agent's
+ * own choice). A model of another provider, or unknown, is ignored: the
+ * organization may have changed provider since it was chosen.
+ */
+export function withModel(llm: LlmClient, model: string | undefined | null): LlmClient {
+  if (!model || model === llm.model) return llm;
+  if (!AI_PROVIDER_INFO[llm.provider].models.some((m) => m.id === model)) return llm;
+  return {
+    provider: llm.provider,
+    model,
+    create: (request) => llm.create({ ...request, model: request.model ?? model }),
+  };
+}

@@ -2,7 +2,11 @@ import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
 import { ScheduleFields } from "@/components/schedule-fields";
 import { Card, Field, Input, Segmented, Select, Textarea } from "@/components/ui";
+import { AI_PROVIDER_INFO } from "@/lib/ai-providers";
 import { DEFAULT_CELLS_PER_RUN } from "@/server/agents/prospector";
+import { requireTenant } from "@/server/auth/session";
+import { getDb } from "@/server/db/client";
+import { getOrgAi } from "@/server/llm/org-ai";
 import type { agentConfigs } from "@/server/db/schema";
 import { SCHEDULED_AGENT_TYPES, type ProjectAgentType } from "@/server/services/agents";
 import { saveInstructions } from "../actions";
@@ -23,7 +27,7 @@ const HINTS: Record<ProjectAgentType, string> = {
 };
 
 /** What the agent must do, in the user's words, and when it works on its own. */
-export function InstructionsCard({
+export async function InstructionsCard({
   projectId,
   agentType,
   config,
@@ -36,6 +40,9 @@ export function InstructionsCard({
   bases?: { id: string; name: string }[];
 }) {
   const scheduled = SCHEDULED_AGENT_TYPES.includes(agentType);
+  const ai = scheduled ? await getOrgAi(getDb(), await requireTenant()) : null;
+  const models = ai ? AI_PROVIDER_INFO[ai.provider].models : [];
+  const orgModel = models.find((m) => m.id === ai?.model);
   return (
     <Card
       title="Instrucciones"
@@ -108,6 +115,27 @@ export function InstructionsCard({
                 />
               </Field>
             </div>
+            {models.length ? (
+              <Field
+                label="Modelo de IA"
+                tip="Uno más económico para tareas repetitivas (completar datos), el más capaz para investigar. Del mismo proveedor que la organización."
+              >
+                <Select
+                  name="model"
+                  defaultValue={
+                    models.some((m) => m.id === config.settings.model) ? config.settings.model : ""
+                  }
+                  className="max-w-sm"
+                >
+                  <option value="">El de la organización ({orgModel?.label ?? ai?.model})</option>
+                  {models.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : null}
           </>
         ) : null}
       </ActionForm>

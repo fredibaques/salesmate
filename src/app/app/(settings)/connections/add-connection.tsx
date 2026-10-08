@@ -13,7 +13,7 @@ import {
   type Integration,
   type IntegrationCategory,
 } from "@/lib/integrations";
-import { addDataSource, addMcp, addTwenty } from "./actions";
+import { addDataSource, addMcp, addSlack, addTwenty } from "./actions";
 
 const GOOGLE_PERMISSIONS = [
   {
@@ -183,6 +183,27 @@ function ToolSetup({ integration, setup }: { integration: Integration; setup: Se
               }
             >
               <Input name="apiKey" type="password" required autoComplete="off" />
+            </Field>
+          </ActionForm>
+        ) : null}
+
+        {provider === "slack" ? (
+          <ActionForm action={addSlack} submitLabel="Conectar Slack" className="space-y-4">
+            <Field label="Nombre" hint="Para reconocerlo en los agentes, p. ej. «#ventas».">
+              <Input name="label" placeholder="#ventas" required />
+            </Field>
+            <Field
+              label="URL del webhook"
+              hint="Se guarda cifrada."
+              tip="En Slack: Apps → Incoming Webhooks → Add to Slack, elige el canal y copia la URL (https://hooks.slack.com/services/…)."
+            >
+              <Input
+                name="webhookUrl"
+                type="url"
+                required
+                autoComplete="off"
+                placeholder="https://hooks.slack.com/services/…"
+              />
             </Field>
           </ActionForm>
         ) : null}

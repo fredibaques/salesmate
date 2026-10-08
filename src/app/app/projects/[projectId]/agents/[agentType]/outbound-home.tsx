@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { Card, LinkButton, Meta } from "@/components/ui";
@@ -6,7 +7,7 @@ import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { listBases } from "@/server/prospects/bases";
 import { countPendingCells } from "@/server/prospects/complete";
-import { getAgent, listAgentRuns } from "@/server/services/agents";
+import { firstEmailsWaiting, getAgent, listAgentRuns } from "@/server/services/agents";
 import { runProspectingNow } from "../actions";
 import { InstructionsCard } from "./instructions-card";
 import { RunStatus } from "./run-status";
@@ -23,7 +24,10 @@ export async function OutboundHome({ projectId }: { projectId: string }) {
   if (!agent) notFound();
   const last = runs[0];
   const base = bases.find((b) => b.id === agent.config.prospectBaseId) ?? bases[0];
-  const pending = base ? await countPendingCells(db, tenant, base.id) : 0;
+  const [pending, waiting] = await Promise.all([
+    base ? countPendingCells(db, tenant, base.id) : 0,
+    firstEmailsWaiting(db, tenant, projectId),
+  ]);
   return (
     <div className="grid items-start gap-6 xl:grid-cols-[2fr_1fr]">
       <InstructionsCard projectId={projectId} agentType="outbound" config={agent.config} bases={bases} />
@@ -41,6 +45,13 @@ export async function OutboundHome({ projectId }: { projectId: string }) {
         <p className="text-sm text-muted">
           filas en «{base?.name ?? "Prospectos"}»{pending ? `, ${pending} celdas por completar` : ""}
         </p>
+        {waiting ? (
+          <p className="mt-2 text-sm">
+            <Link href="/app/inbox" className="text-accent hover:underline">
+              {waiting === 1 ? "1 primer email espera" : `${waiting} primeros emails esperan`} tu aprobación
+            </Link>
+          </p>
+        ) : null}
         <ActionForm
           action={runProspectingNow.bind(null, projectId)}
           submitLabel="Ejecutar ahora"
@@ -58,7 +69,11 @@ export async function OutboundHome({ projectId }: { projectId: string }) {
                 <Meta
                   items={[
                     formatDateTime(last.startedAt),
-                    last.trigger === "schedule" ? "programada" : "manual",
+                    last.trigger === "schedule"
+                      ? "programada"
+                      : last.trigger === "event"
+                        ? "por un aviso"
+                        : "manual",
                     last.costUsd ? `${Number(last.costUsd).toFixed(2)} $` : null,
                   ]}
                 />

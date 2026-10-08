@@ -12,6 +12,11 @@ export type ActionDefinition<P = Record<string, unknown>> = {
   label: string;
   /** Highest autonomy level allowed for this action whatever the project config says. */
   maxAutonomy: 0 | 1 | 2 | 3;
+  /**
+   * Level when the agent has no setting for this action type, instead of its
+   * default. Messages to the team itself (notices) go out on their own.
+   */
+  defaultAutonomy?: 0 | 1 | 2 | 3;
   /** Reaches a person outside the organization (send windows, cooldowns, notices apply). */
   outbound: boolean;
   /**
@@ -82,6 +87,20 @@ const mcpCallPayload = z.object({
   arguments: z.record(z.string(), z.unknown()).default({}),
 });
 export type McpCallPayload = z.infer<typeof mcpCallPayload>;
+
+const notifySlackPayload = z.object({
+  connectionId: z.string().uuid(),
+  text: z.string().min(1).max(4_000),
+});
+export type NotifySlackPayload = z.infer<typeof notifySlackPayload>;
+
+const notifyEmailPayload = z.object({
+  identityId: z.string().uuid(),
+  to: z.array(z.string().email()).min(1).max(20),
+  subject: z.string().min(1).max(300),
+  body: z.string().min(1).max(20_000),
+});
+export type NotifyEmailPayload = z.infer<typeof notifyEmailPayload>;
 
 function define<P>(def: ActionDefinition<P>): ActionDefinition<P> {
   return def;
@@ -159,6 +178,33 @@ export const ACTION_DEFINITIONS = {
     targetKeys: () => [],
     textOf: (p) => `${p.title}\n${p.body}`,
     summary: (p) => `Nota «${p.title}»`,
+  }),
+  "notify.slack": define<NotifySlackPayload>({
+    type: "notify.slack",
+    capability: "notify.slack",
+    label: "Avisar al equipo por Slack",
+    maxAutonomy: 3,
+    defaultAutonomy: 3,
+    outbound: false,
+    connectionVia: "payload",
+    payloadSchema: notifySlackPayload,
+    targetKeys: () => [],
+    textOf: (p) => p.text,
+    summary: (p) => `Aviso en Slack: ${p.text.slice(0, 80)}`,
+  }),
+  /** Only to members of the organization (the notifier filters the addresses). */
+  "notify.email": define<NotifyEmailPayload>({
+    type: "notify.email",
+    capability: "email.send",
+    label: "Avisar al equipo por email",
+    maxAutonomy: 3,
+    defaultAutonomy: 3,
+    outbound: false,
+    connectionVia: "identity",
+    payloadSchema: notifyEmailPayload,
+    targetKeys: () => [],
+    textOf: (p) => `${p.subject}\n${p.body}`,
+    summary: (p) => `Aviso por email a ${p.to.join(", ")}: ${p.subject}`,
   }),
   "mcp.call_tool": define<McpCallPayload>({
     type: "mcp.call_tool",

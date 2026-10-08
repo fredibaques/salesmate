@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import type { FormState } from "@/components/action-form";
 import {
   COLUMN_TYPES,
@@ -10,6 +11,8 @@ import {
   type ColumnDraft,
   type RowKind,
 } from "@/lib/prospect-columns";
+import { processAgentEvents, rowsAdded } from "@/server/agents/events";
+import { agentRunDeps } from "@/server/agents/runtime";
 import { requireRole, requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { list, num, runForm, str } from "@/server/form";
@@ -218,7 +221,20 @@ export async function saveRowAction(
       ),
     };
     if (!rowId) {
-      await addProspectRow(db, tenant, baseId, edit);
+      const row = await addProspectRow(db, tenant, baseId, edit);
+      // The agent that fills the base completes it, if it listens to new rows.
+      const agentId = await rowsAdded(db, tenant, { baseId, rowIds: [row.id] });
+      if (agentId) {
+        after(async () => {
+          try {
+            const llm = await orgLlm(db, tenant);
+            if (llm) await processAgentEvents(agentRunDeps(llm), tenant, agentId);
+          } catch (err) {
+            console.error("new-row run failed", err);
+          }
+        });
+        return "Fila añadida. El agente la completará.";
+      }
       return "Fila añadida.";
     }
     const { changed } = await updateProspectRow(db, tenant, baseId, rowId, edit);
