@@ -6,7 +6,7 @@ import { getDb } from "@/server/db/client";
 import { listBases } from "@/server/prospects/bases";
 import { countPendingCells } from "@/server/prospects/complete";
 
-export const metadata = { title: "Prospectos" };
+export const metadata = { title: "Tablas" };
 
 /** The project's prospect bases: tables of companies or people that agents fill and people review. */
 export default async function ProspectBasesPage({
@@ -25,7 +25,7 @@ export default async function ProspectBasesPage({
   const newBase = canEdit ? (
     <LinkButton href={`${path}/new`} variant={bases.length ? "primary" : "secondary"}>
       <Plus />
-      Nueva base
+      Nueva tabla
     </LinkButton>
   ) : null;
 
@@ -33,8 +33,8 @@ export default async function ProspectBasesPage({
     return (
       <EmptyState
         icon={<Database />}
-        title="Todavía no hay bases de prospectos"
-        description="Una base es una tabla de empresas o personas con las columnas que tú decides. El agente de prospección la rellena y tu equipo la revisa y la exporta."
+        title="Todavía no hay tablas"
+        description="Una tabla es una tabla de empresas o personas con las columnas que tú decides. El agente de prospección la rellena y tu equipo la revisa y la exporta."
         action={
           <>
             {canEdit ? (

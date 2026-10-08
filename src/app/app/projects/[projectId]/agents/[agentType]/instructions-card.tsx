@@ -57,10 +57,10 @@ export async function InstructionsCard({
         {bases?.length ? (
           <Field
             label="Trabaja sobre"
-            tip="La base de prospectos del proyecto donde guarda lo que encuentra. Recoge los datos de sus columnas."
+            tip="La tabla de prospectos del proyecto donde guarda lo que encuentra. Recoge los datos de sus columnas."
             hint={
               <Link href={`/app/projects/${projectId}/prospects/new`} className="text-accent hover:underline">
-                Crear otra base
+                Crear otra tabla
               </Link>
             }
           >
@@ -83,7 +83,7 @@ export async function InstructionsCard({
             <Field
               label="En cada ejecución"
               group
-              tip="Completar rellena las celdas vacías de filas que ya están en la base, empezando por las de mejor encaje. No toca lo que ha escrito una persona."
+              tip="Completar rellena las celdas vacías de filas que ya están en la tabla, empezando por las de mejor encaje. No toca lo que ha escrito una persona."
             >
               <Segmented name="mode" options={MODES} defaultValue={config.settings.mode ?? "find"} />
             </Field>

@@ -89,7 +89,7 @@ export default async function AgentAutomationPage({
               card
               name="triggerNewRows"
               defaultChecked={Boolean(s.triggers?.newRows)}
-              label="Cuando alguien añade una fila a su base"
+              label="Cuando alguien añade una fila a su tabla"
               description={base ? `Completa esa fila (en «${base.name}»).` : "Completa esa fila."}
             />
             <Choice

@@ -38,14 +38,17 @@ export function PageHeader({
   const Heading = level === "page" ? "h1" : "h2";
   return (
     <header className={cx(level === "page" ? "mb-6" : "mb-5", className)}>
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex min-w-0 flex-1 basis-72 items-center gap-3">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           {/* As tall as the title's line, never taller. */}
           {media ?? (icon ? <IconTile size={level === "page" ? "title" : "sm"}>{icon}</IconTile> : null)}
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <Heading
-                className={cx("font-semibold tracking-tight", level === "page" ? "text-2xl" : "text-xl")}
+                className={cx(
+                  "min-w-0 truncate font-semibold tracking-tight",
+                  level === "page" ? "text-2xl" : "text-xl",
+                )}
               >
                 {title}
               </Heading>
@@ -54,7 +57,9 @@ export function PageHeader({
             </div>
           </div>
         </div>
-        {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+        {actions ? (
+          <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-nowrap">{actions}</div>
+        ) : null}
       </div>
     </header>
   );
@@ -81,15 +86,18 @@ export function IconTile({
   children,
   tone = "accent",
   size = "md",
+  colors,
 }: {
   children: ReactNode;
   tone?: keyof typeof tileTones;
   size?: keyof typeof tileSizes;
+  /** Background and text classes chosen by the user (an agent's colour), instead of `tone`. */
+  colors?: string;
 }) {
   return (
     <span
       aria-hidden
-      className={cx("flex shrink-0 items-center justify-center", tileSizes[size], tileTones[tone])}
+      className={cx("flex shrink-0 items-center justify-center", tileSizes[size], colors ?? tileTones[tone])}
     >
       {children}
     </span>

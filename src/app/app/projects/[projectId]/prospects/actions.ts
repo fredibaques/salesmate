@@ -205,7 +205,7 @@ export async function saveRowAction(
     const tenant = await requireTenant();
     const db = getDb();
     const base = await getBase(db, tenant, baseId);
-    if (!base) throw new Error("Base de prospectos no encontrada.");
+    if (!base) throw new Error("Tabla de prospectos no encontrada.");
     const fit = str(form, "fitScore");
     const edit: RowEdit = {
       companyName: str(form, "companyName") ?? "",

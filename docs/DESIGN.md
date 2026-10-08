@@ -55,8 +55,13 @@ screen needs something new, add it here and as a component, not inline.
   model), Herramientas, Automatización (triggers, goal, spending caps,
   sources, mailbox, notices, first contact; one form in `FormSection`s) and
   Aprobaciones.
+- Each person orders the sidebar (sections, projects, each project's agents)
+  in Mi cuenta → Menú (`user_preferences.nav`, applied with `inOrder`); new
+  items go after the ordered ones. Agents have an icon and a colour the team
+  picks (`lib/agent-look.tsx`: `AgentTile`, `AgentIcon`, `AgentLookFields`),
+  shown in the sidebar, their header and their card.
 - A project has five tabs: **Resumen** (its home: what is left to set it up,
-  its agents and «Añadir agente»), **Prospectos**, **Conocimiento**
+  its agents and «Añadir agente»), **Tablas** (its prospect tables), **Conocimiento**
   (documents and tables), **Conversaciones** and **Ajustes** (General:
   project data, «Oferta y cliente» and contact hours; and Reglas y
   exclusiones). The summary shows only the agents the project has; adding
@@ -196,6 +201,9 @@ Remove actions on a row are a `dangerGhost` icon button with an
 
 ## 10. Creating, editing, removing
 
+- A choice of a few related actions (Exportar → nuevos / todo) is one
+  `MenuButton`, not several buttons. Page actions stay on the title's line
+  (`PageHeader` truncates long titles instead of wrapping the actions).
 - Creating opens a modal from a button (`ModalButton` + `ActionForm`): the
   modal closes and a toast confirms on success; errors stay next to the
   button and keep what was typed (forms and wizards are submitted by hand,

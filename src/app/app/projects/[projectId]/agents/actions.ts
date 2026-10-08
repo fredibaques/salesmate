@@ -23,7 +23,7 @@ import {
   isProjectAgentType,
   listAgentRuns,
   removeAgent,
-  renameAgent,
+  customizeAgent,
   rotateAgentHook,
   saveAgentAutomation,
   saveAgentChannels,
@@ -149,7 +149,7 @@ export async function removeAgentAction(projectId: string, type: string) {
   redirect(`/app/projects/${projectId}`);
 }
 
-export async function renameAgentAction(
+export async function customizeAgentAction(
   projectId: string,
   type: string,
   _: FormState,
@@ -157,8 +157,12 @@ export async function renameAgentAction(
 ): Promise<FormState> {
   const result = await runForm(async () => {
     const tenant = await admin();
-    await renameAgent(getDb(), tenant, projectId, agentType(type), str(form, "name") ?? "");
-  }, "Nombre guardado.");
+    await customizeAgent(getDb(), tenant, projectId, agentType(type), {
+      name: str(form, "name") ?? "",
+      icon: str(form, "icon"),
+      color: str(form, "color"),
+    });
+  }, "Agente guardado.");
   revalidatePath("/app", "layout");
   return result;
 }

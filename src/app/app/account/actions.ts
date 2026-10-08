@@ -9,6 +9,7 @@ import { requireRole, requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { organization } from "@/server/db/schema";
 import { bool, runForm, str } from "@/server/form";
+import { saveNavPreferences } from "@/server/services/preferences";
 
 export async function updateProfile(_: FormState, form: FormData): Promise<FormState> {
   const result = await runForm(async () => {
@@ -56,6 +57,31 @@ export async function renameOrganization(_: FormState, form: FormData): Promise<
     if (!name || name.length < 2) throw new Error("Escribe el nombre de la organización.");
     await getDb().update(organization).set({ name }).where(eq(organization.id, tenant.orgId));
   }, "Organización guardada.");
+  revalidatePath("/app", "layout");
+  return result;
+}
+
+/** The order of the sidebar, for the signed-in person. */
+export async function saveMenu(_: FormState, form: FormData): Promise<FormState> {
+  const result = await runForm(async () => {
+    const tenant = await requireTenant();
+    let nav: unknown;
+    try {
+      nav = JSON.parse(str(form, "nav") ?? "{}");
+    } catch {
+      throw new Error("No se ha podido leer el orden.");
+    }
+    await saveNavPreferences(getDb(), tenant, nav as Parameters<typeof saveNavPreferences>[2]);
+  }, "Orden guardado.");
+  revalidatePath("/app", "layout");
+  return result;
+}
+
+export async function resetMenu(_: FormState): Promise<FormState> {
+  const result = await runForm(async () => {
+    const tenant = await requireTenant();
+    await saveNavPreferences(getDb(), tenant, {});
+  }, "Orden por defecto.");
   revalidatePath("/app", "layout");
   return result;
 }

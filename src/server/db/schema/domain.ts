@@ -411,6 +411,9 @@ export const agentConfigs = pgTable(
     agentType: text("agent_type", { enum: AGENT_TYPES }).notNull(),
     /** The name the user gave it; null = the template's name. */
     name: text("name"),
+    /** Icon and colour chosen for it (keys of lib/agent-look.ts); null = the template's. */
+    icon: text("icon"),
+    color: text("color"),
     /** When the user added this agent to the project; null = not part of the project. */
     addedAt: timestamp("added_at", { withTimezone: true }),
     enabled: boolean("enabled").notNull().default(false),
@@ -443,6 +446,25 @@ export const agentConfigs = pgTable(
     unique("agent_configs_project_agent_uq").on(t.projectId, t.agentType),
     tenantPolicy("agent_configs"),
   ],
+);
+
+/** How each person arranges the sidebar: order of sections, projects and each project's agents. */
+export type NavPreferences = {
+  sections?: string[];
+  projects?: string[];
+  agents?: Record<string, string[]>;
+};
+
+/** Per person and organization preferences (the sidebar, for now). */
+export const userPreferences = pgTable(
+  "user_preferences",
+  {
+    orgId: orgId(),
+    userId: text("user_id").notNull(),
+    nav: jsonb("nav").$type<NavPreferences>().notNull().default({}),
+    updatedAt: updatedAt(),
+  },
+  (t) => [primaryKey({ columns: [t.orgId, t.userId] }), tenantPolicy("user_preferences")],
 );
 
 export const AGENT_EVENT_KINDS = ["new_rows", "webhook"] as const;

@@ -36,7 +36,7 @@ export async function OutboundHome({ projectId }: { projectId: string }) {
         actions={
           base ? (
             <LinkButton href={`/app/projects/${projectId}/prospects/${base.id}`} variant="ghost">
-              Abrir la base
+              Abrir la tabla
             </LinkButton>
           ) : null
         }

@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
+import { AGENT_COLORS, AGENT_ICON_CHOICES } from "@/lib/agent-look";
 import { audit } from "../audit";
 import { ensureAgentBaseIn } from "../prospects/bases";
 import { mcpToolsOf } from "../connectors/mcp";
@@ -126,6 +127,8 @@ export async function listSidebarAgents(db: Db, tenant: Pick<TenantContext, "org
         projectId: agentConfigs.projectId,
         agentType: agentConfigs.agentType,
         name: agentConfigs.name,
+        icon: agentConfigs.icon,
+        color: agentConfigs.color,
         enabled: agentConfigs.enabled,
       })
       .from(agentConfigs)
@@ -287,20 +290,25 @@ export async function setAgentEnabled(
   });
 }
 
-/** Gives the agent its own name; empty goes back to the template's. */
-export async function renameAgent(
+/**
+ * The agent's own name, icon and colour; an empty name (or an unknown icon
+ * or colour) goes back to the template's.
+ */
+export async function customizeAgent(
   db: Db,
   tenant: TenantContext,
   projectId: string,
   agentType: ProjectAgentType,
-  name: string,
+  input: { name: string; icon?: string | null; color?: string | null },
 ) {
-  const clean = name.trim().replace(/\s+/g, " ");
+  const clean = input.name.trim().replace(/\s+/g, " ");
   if (clean.length > 60) throw new Error("El nombre puede tener hasta 60 caracteres.");
+  const icon = input.icon && AGENT_ICON_CHOICES[input.icon] ? input.icon : null;
+  const color = input.color && AGENT_COLORS[input.color] ? input.color : null;
   return withTenant(db, tenant, async (tx) => {
     const [config] = await tx
       .update(agentConfigs)
-      .set({ name: clean || null })
+      .set({ name: clean || null, icon, color })
       .where(
         and(
           eq(agentConfigs.projectId, projectId),
@@ -315,7 +323,7 @@ export async function renameAgent(
       projectId,
       entityType: "agent_config",
       entityId: config.id,
-      data: { agentType, name: config.name },
+      data: { agentType, name: config.name, icon, color },
     });
   });
 }

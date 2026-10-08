@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/ui";
 import { requireRole } from "@/server/auth/session";
 import { NewBaseWizard } from "./new-base-wizard";
 
-export const metadata = { title: "Nueva base de prospectos" };
+export const metadata = { title: "Nueva tabla de prospectos" };
 
 /** Creating a base of the project, step by step. */
 export default async function NewBasePage({ params }: PageProps<"/app/projects/[projectId]/prospects/new">) {
@@ -13,7 +13,7 @@ export default async function NewBasePage({ params }: PageProps<"/app/projects/[
     <>
       <PageHeader
         icon={<Database />}
-        title="Nueva base de prospectos"
+        title="Nueva tabla de prospectos"
         tip="Una tabla de empresas o personas con las columnas que tú decides. Los agentes del proyecto la rellenan y tu equipo la revisa, la completa y la exporta."
       />
       <NewBaseWizard projectId={projectId} />
