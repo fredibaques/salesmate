@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, seedOrg } from "../../../tests/helpers/db";
 import { scriptedLlm } from "../../../tests/helpers/fake-llm";
-import { columnId } from "@/lib/prospect-columns";
+import { columnId, newTableHiddenFields } from "@/lib/prospect-columns";
 import type { Db } from "../db/client";
 import { projects } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
@@ -15,15 +15,25 @@ import {
   listAllBases,
   listBases,
   moveColumn,
+  placeColumn,
   removeColumn,
   renameBase,
   saveColumn,
   setAgentBase,
   setBaseProject,
   setColumnHidden,
+  setFieldHidden,
 } from "./bases";
 import { proposeColumns } from "./propose-columns";
-import { addProspectRow, getProspect, listProspects, saveProspects, updateProspectRow } from "./service";
+import {
+  addProspectRow,
+  getProspect,
+  listProspects,
+  rowEditFromValues,
+  saveProspects,
+  setProspectCell,
+  updateProspectRow,
+} from "./service";
 
 let db: Db;
 let close: () => Promise<void>;
@@ -370,5 +380,74 @@ describe("tables on their own", () => {
     expect(row.projectId).toBe(projectId);
     await setBaseProject(db, tenant, solo.id, null);
     expect((await getBase(db, tenant, solo.id))!.projectId).toBeNull();
+  });
+});
+
+describe("tables like a spreadsheet", () => {
+  it("start with only the row's name, and show the fixed fields an agent fills once it works on them", async () => {
+    const base = await createBase(db, tenant, null, {
+      name: "Leads",
+      rowKind: "person",
+      columns: [],
+      hiddenFields: [...newTableHiddenFields("person"), "person"],
+    });
+    // The person's name can't be hidden; everything else starts hidden.
+    expect(base.hiddenFields.sort()).toEqual(["company", "fit", "sources", "status", "web"]);
+    await expect(setFieldHidden(db, tenant, base.id, "person", true)).rejects.toThrow(/no se puede ocultar/);
+    await setFieldHidden(db, tenant, base.id, "web", false);
+    expect((await getBase(db, tenant, base.id))!.hiddenFields).not.toContain("web");
+
+    // A person without a company is a row too, in a table of people.
+    const row = await addProspectRow(db, tenant, base.id, rowEditFromValues({ person: "Ana Ruiz" }));
+    expect([row.personName, row.companyName]).toEqual(["Ana Ruiz", ""]);
+    await expect(
+      addProspectRow(db, tenant, base.id, rowEditFromValues({ company: "Sin persona" })),
+    ).rejects.toThrow(/nombre de la persona/);
+
+    const agent = await addAgent(db, tenant, projectId, "outbound", "b2b_consultative");
+    await setAgentBase(db, tenant, projectId, agent.id, base.id);
+    expect((await getBase(db, tenant, base.id))!.hiddenFields).toEqual([]);
+  });
+
+  it("take values typed in one cell, and move columns dropped next to another", async () => {
+    const base = await createBase(db, tenant, null, {
+      name: "Talleres",
+      rowKind: "company",
+      columns: [
+        { name: "Ciudad", type: "text" },
+        { name: "Empleados", type: "number" },
+        { name: "Cliente", type: "bool" },
+      ],
+    });
+    const row = await addProspectRow(
+      db,
+      tenant,
+      base.id,
+      rowEditFromValues({ company: "Talleres Pérez", ciudad: "Sevilla" }),
+    );
+    await setProspectCell(db, tenant, base.id, row.id, "empleados", "12");
+    await setProspectCell(db, tenant, base.id, row.id, "web", "talleresperez.es");
+    await setProspectCell(db, tenant, base.id, row.id, "cliente", true);
+    const saved = (await getProspect(db, tenant, base.id, row.id))!;
+    expect(saved.data).toEqual({ ciudad: "Sevilla", empleados: 12, cliente: true });
+    expect([saved.companyName, saved.website]).toEqual(["Talleres Pérez", "talleresperez.es"]);
+    expect(saved.cellMeta.empleados).toMatchObject({ by: "user" });
+    await expect(setProspectCell(db, tenant, base.id, row.id, "empleados", "muchos")).rejects.toThrow(
+      /número/,
+    );
+    await expect(setProspectCell(db, tenant, base.id, row.id, "company", "  ")).rejects.toThrow(/empresa/);
+
+    await placeColumn(db, tenant, base.id, "cliente", { id: "ciudad", side: "before" });
+    expect((await getBase(db, tenant, base.id))!.columns.map((c) => c.id)).toEqual([
+      "cliente",
+      "ciudad",
+      "empleados",
+    ]);
+    await placeColumn(db, tenant, base.id, "cliente", { id: "empleados", side: "after" });
+    expect((await getBase(db, tenant, base.id))!.columns.map((c) => c.id)).toEqual([
+      "ciudad",
+      "empleados",
+      "cliente",
+    ]);
   });
 });

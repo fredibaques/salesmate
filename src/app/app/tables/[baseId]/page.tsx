@@ -6,7 +6,6 @@ import {
   ChevronRight,
   Download,
   Lock,
-  Plus,
   Search,
   Undo2,
   User,
@@ -19,9 +18,16 @@ import { MenuButton } from "@/components/menu-button";
 import { connectionCapabilities } from "@/server/connectors/service";
 import { listOrgConnections } from "@/server/services/projects";
 import { DataGrid, GridCell, GridHead, GridRow } from "@/components/data-grid";
-import { Badge, Button, buttonClass, cx, Input, LinkButton, Notice, PageHeader } from "@/components/ui";
+import { Badge, Button, cx, Input, LinkButton, Notice, PageHeader } from "@/components/ui";
 import { plural } from "@/lib/format";
-import { isPendingCell } from "@/lib/prospect-columns";
+import {
+  isPendingCell,
+  primaryField,
+  SYSTEM_FIELD_LABELS,
+  systemFields,
+  type BaseColumn,
+  type SystemField,
+} from "@/lib/prospect-columns";
 import { PROSPECT_STATUSES } from "@/server/db/schema";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
@@ -33,15 +39,20 @@ import { listProjects } from "@/server/services/projects";
 import { AiNotice } from "../../ai-notice";
 import { completeProspectsNow, runProspectingNow } from "../../projects/[projectId]/agents/actions";
 import {
+  addRowAction,
   changeProspectStatus,
   moveColumnAction,
+  placeColumnAction,
   proposeColumnsAction,
   removeColumnAction,
+  saveCellAction,
   saveColumnAction,
   toggleColumnAction,
+  toggleFieldAction,
 } from "../actions";
 import { CellState, cellTitle, COLUMN_ICONS, NotFound, Pending, ScoreBar, WebLink } from "../cells";
-import { AddColumnHeader, ColumnHeader, HiddenColumns } from "./column-header";
+import { AddColumnHeader, ColumnHeader, FieldHeader, HiddenColumns } from "./column-header";
+import { EditableCell, ExpandRow, NewRow, type CellEditor, type NewRowField } from "./grid-editing";
 import { env } from "@/server/env";
 import { TableIntake, TableSettings } from "./table-settings";
 import { SendTableModal } from "./send-table";
@@ -65,6 +76,26 @@ const FILTERS: { key?: ProspectStatus; label: string }[] = [
   { key: "exported", label: "Exportados" },
   { key: "discarded", label: "Descartados" },
 ];
+
+type GridField = { kind: "system"; key: SystemField } | { kind: "column"; column: BaseColumn };
+const system = (key: SystemField): GridField => ({ kind: "system", key });
+
+/** How the table sorts by each fixed field (the sources don't sort). */
+const SORT_KEYS: Partial<Record<SystemField, string>> = {
+  person: "person",
+  company: "name",
+  web: "web",
+  fit: "fit",
+  status: "status",
+};
+
+/** The fixed fields people type in the table. */
+const SYSTEM_EDITORS: Partial<Record<SystemField, CellEditor>> = {
+  person: { type: "text" },
+  company: { type: "text" },
+  web: { type: "url" },
+  fit: { type: "score" },
+};
 
 /** A run cut off by the platform stays "running"; after 10 minutes it isn't really searching. */
 function isRecent(startedAt: Date) {
@@ -107,8 +138,24 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
   const filledByAgent = Boolean(filler);
   const running = filledByAgent && runs[0]?.status === "running" && isRecent(runs[0].startedAt);
   const columns = base.columns.filter((c) => !c.hidden);
-  const hidden = base.columns.filter((c) => c.hidden);
   const person = base.rowKind === "person";
+  const primary = primaryField(base.rowKind);
+  const hiddenFields = systemFields(base.rowKind).filter(
+    (f) => f !== primary && base.hiddenFields.includes(f),
+  );
+  const shown = (f: SystemField) => systemFields(base.rowKind).includes(f) && !hiddenFields.includes(f);
+  // The row's name first, then the people's columns between the web and the fit.
+  const fields: GridField[] = [
+    { kind: "system", key: primary },
+    ...(["company", "web"] as const).filter((f) => f !== primary && shown(f)).map(system),
+    ...columns.map((column) => ({ kind: "column" as const, column })),
+    ...(["fit", "status", "sources"] as const).filter(shown).map(system),
+  ];
+  const hidden = [
+    ...hiddenFields.map((f) => ({ id: `field:${f}`, name: SYSTEM_FIELD_LABELS[f] })),
+    ...base.columns.filter((c) => c.hidden),
+  ];
+  const saveCell = saveCellAction.bind(null, baseId);
   const path = `/app/tables/${baseId}`;
   const href = (changes: Record<string, string | number | undefined>) => {
     const params = new URLSearchParams();
@@ -140,16 +187,6 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
   const pendingExport = (data.byStatus.new ?? 0) + (data.byStatus.accepted ?? 0);
   const pages = Math.max(1, Math.ceil(data.matching / PAGE_SIZE));
   const exportUrl = `${path}/export`;
-  const addRow = (
-    <Link
-      href={href({ row: "new" })}
-      scroll={false}
-      className={buttonClass({ variant: "ghost", size: "sm" })}
-    >
-      <Plus />
-      Añadir fila
-    </Link>
-  );
 
   const destinations = sending
     ? (await listOrgConnections(db, tenant))
@@ -170,7 +207,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
       <PageHeader
         icon={person ? <User /> : <Building2 />}
         title={base.name}
-        tip={`Cada fila es ${person ? "una persona" : "una empresa"}. ${filledByAgent ? `La rellena ${filler!.label} y la revisáis las personas del equipo.` : "La rellenáis a mano o desde un formulario; también puede rellenarla un agente."} Las columnas se cambian desde su cabecera. Exportar descarga un Excel (CSV) con sus columnas.`}
+        tip={`Cada fila es ${person ? "una persona" : "una empresa"}. ${filledByAgent ? `La rellena ${filler!.label} y la revisáis las personas del equipo.` : "La rellenáis a mano o desde un formulario; también puede rellenarla un agente."} Haz clic en una celda para escribir en ella. Las columnas se cambian desde su cabecera y se mueven manteniéndola pulsada. Exportar descarga un Excel (CSV) con sus columnas.`}
         actions={
           <>
             {filledByAgent && canEdit && pendingCells > 0 ? (
@@ -290,13 +327,14 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
               {canEdit && hidden.length ? (
                 <HiddenColumns
                   columns={hidden}
-                  show={async (columnId: string) => {
+                  show={async (id: string) => {
                     "use server";
-                    await toggleColumnAction(baseId, columnId, false);
+                    if (id.startsWith("field:"))
+                      await toggleFieldAction(baseId, id.slice(6) as SystemField, false);
+                    else await toggleColumnAction(baseId, id, false);
                   }}
                 />
               ) : null}
-              {addRow}
             </span>
           </div>
 
@@ -306,21 +344,49 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
             <DataGrid
               head={
                 <>
-                  {person ? <GridHead sticky>{sortLink("person", "Nombre")}</GridHead> : null}
-                  <GridHead sticky={!person}>{sortLink("name", "Empresa")}</GridHead>
-                  <GridHead>{sortLink("web", "Web")}</GridHead>
-                  <GridHead>{sortLink("fit", "Encaje")}</GridHead>
-                  <GridHead>{sortLink("status", "Estado")}</GridHead>
-                  {columns.map((c, i) => {
+                  {fields.map((f, i) => {
+                    if (f.kind === "system") {
+                      const key = SORT_KEYS[f.key];
+                      const label = SYSTEM_FIELD_LABELS[f.key];
+                      return (
+                        <GridHead key={f.key} sticky={i === 0} align={f.key === "fit" ? "end" : "start"}>
+                          {canEdit ? (
+                            <FieldHeader
+                              label={label}
+                              sorted={key && sort === key ? (dir ?? "asc") : null}
+                              sortHrefs={
+                                key
+                                  ? {
+                                      asc: href({ sort: key, dir: "asc", page: undefined }),
+                                      desc: href({ sort: key, dir: "desc", page: undefined }),
+                                    }
+                                  : undefined
+                              }
+                              hide={
+                                f.key === primary
+                                  ? undefined
+                                  : toggleFieldAction.bind(null, baseId, f.key, true)
+                              }
+                            />
+                          ) : key ? (
+                            sortLink(key, label)
+                          ) : (
+                            label
+                          )}
+                        </GridHead>
+                      );
+                    }
+                    const c = f.column;
                     const Icon = COLUMN_ICONS[c.type];
                     const end = c.type === "number";
+                    const at = columns.indexOf(c);
                     return (
-                      <GridHead key={c.id} align={end ? "end" : "start"}>
+                      <GridHead key={c.id} align={end ? "end" : "start"} dropId={canEdit ? c.id : undefined}>
                         {canEdit ? (
                           <ColumnHeader
                             column={c}
-                            first={i === 0}
-                            last={i === columns.length - 1}
+                            first={at === 0}
+                            last={at === columns.length - 1}
                             sorted={sort === c.id ? (dir ?? "asc") : null}
                             sortHrefs={{
                               asc: href({ sort: c.id, dir: "asc", page: undefined }),
@@ -328,6 +394,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                             }}
                             save={saveColumnAction.bind(null, baseId, c.id)}
                             move={moveColumnAction.bind(null, baseId, c.id)}
+                            place={placeColumnAction.bind(null, baseId, c.id)}
                             hide={toggleColumnAction.bind(null, baseId, c.id, true)}
                             remove={removeColumnAction.bind(null, baseId, c.id)}
                           />
@@ -344,7 +411,6 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                       </GridHead>
                     );
                   })}
-                  <GridHead>Fuentes</GridHead>
                   <GridHead>
                     {canEdit ? (
                       <AddColumnHeader
@@ -361,75 +427,120 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                 </>
               }
             >
-              {data.total === 0
-                ? [0, 1, 2].map((i) => (
-                    <GridRow key={`empty-${i}`}>
-                      {person ? <GridCell sticky /> : null}
-                      <GridCell sticky={!person} />
-                      <GridCell />
-                      <GridCell />
-                      <GridCell />
-                      {columns.map((c) => (
-                        <GridCell key={c.id} />
-                      ))}
-                      <GridCell />
-                      <GridCell />
-                    </GridRow>
-                  ))
-                : null}
               {data.rows.map((r) => {
-                const name = person ? (r.personName ?? "") : r.companyName;
+                const name = (person ? r.personName : r.companyName) || "esta fila";
                 return (
                   <GridRow key={r.id}>
-                    {person ? (
-                      <GridCell sticky>
-                        <RowLink href={href({ row: r.id })}>{r.personName}</RowLink>
-                      </GridCell>
-                    ) : null}
-                    <GridCell sticky={!person}>
-                      {person ? r.companyName : <RowLink href={href({ row: r.id })}>{r.companyName}</RowLink>}
-                    </GridCell>
-                    <GridCell>{r.website ? <WebLink href={r.website} /> : null}</GridCell>
-                    <GridCell title={r.fitReason ?? undefined}>
-                      {r.fitScore != null ? <ScoreBar value={r.fitScore} /> : null}
-                    </GridCell>
-                    <GridCell>
-                      <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge>
-                    </GridCell>
-                    {columns.map((c) => (
-                      <GridCell
-                        key={c.id}
-                        align={c.type === "number" ? "end" : "start"}
-                        title={cellTitle(r.cellMeta[c.id])}
-                      >
-                        <CellState
-                          column={c}
-                          value={r.data[c.id]}
-                          meta={r.cellMeta[c.id]}
-                          pending={
-                            filledByAgent &&
-                            r.status !== "discarded" &&
-                            isPendingCell(c, r.data[c.id], r.cellMeta[c.id])
-                          }
-                        />
-                      </GridCell>
-                    ))}
-                    <GridCell>
-                      <span className="inline-flex gap-2">
-                        {r.sources.map((src, i) => (
-                          <a
-                            key={src}
-                            href={src}
-                            target="_blank"
-                            rel="noreferrer"
-                            title={src}
-                            className="text-accent hover:underline"
+                    {fields.map((f, i) => {
+                      if (f.kind === "column") {
+                        const c = f.column;
+                        return (
+                          <GridCell
+                            key={c.id}
+                            align={c.type === "number" ? "end" : "start"}
+                            title={filledByAgent ? cellTitle(r.cellMeta[c.id]) : undefined}
                           >
-                            {i + 1}
-                          </a>
-                        ))}
-                      </span>
-                    </GridCell>
+                            <EditableCell
+                              rowId={r.id}
+                              field={c.id}
+                              editor={{ type: c.type, options: c.options }}
+                              value={r.data[c.id]}
+                              save={saveCell}
+                              label={`${c.name} de ${name}`}
+                            >
+                              <CellState
+                                column={c}
+                                value={r.data[c.id]}
+                                meta={r.cellMeta[c.id]}
+                                agent={filledByAgent}
+                                pending={
+                                  filledByAgent &&
+                                  r.status !== "discarded" &&
+                                  isPendingCell(c, r.data[c.id], r.cellMeta[c.id])
+                                }
+                              />
+                            </EditableCell>
+                          </GridCell>
+                        );
+                      }
+                      const label = `${SYSTEM_FIELD_LABELS[f.key]} de ${name}`;
+                      switch (f.key) {
+                        case "person":
+                        case "company": {
+                          const value = f.key === "person" ? r.personName : r.companyName;
+                          return (
+                            <GridCell key={f.key} sticky={i === 0} className={i === 0 ? "pr-8" : undefined}>
+                              <EditableCell
+                                rowId={r.id}
+                                field={f.key}
+                                editor={{ type: "text" }}
+                                value={value}
+                                save={saveCell}
+                                label={label}
+                              >
+                                {value}
+                              </EditableCell>
+                              {i === 0 ? <ExpandRow href={href({ row: r.id })} label={name} /> : null}
+                            </GridCell>
+                          );
+                        }
+                        case "web":
+                          return (
+                            <GridCell key={f.key}>
+                              <EditableCell
+                                rowId={r.id}
+                                field="web"
+                                editor={{ type: "url" }}
+                                value={r.website}
+                                save={saveCell}
+                                label={label}
+                              >
+                                {r.website ? <WebLink href={r.website} /> : null}
+                              </EditableCell>
+                            </GridCell>
+                          );
+                        case "fit":
+                          return (
+                            <GridCell key={f.key} title={r.fitReason ?? undefined}>
+                              <EditableCell
+                                rowId={r.id}
+                                field="fit"
+                                editor={{ type: "score" }}
+                                value={r.fitScore}
+                                save={saveCell}
+                                label={label}
+                              >
+                                {r.fitScore != null ? <ScoreBar value={r.fitScore} /> : null}
+                              </EditableCell>
+                            </GridCell>
+                          );
+                        case "status":
+                          return (
+                            <GridCell key={f.key}>
+                              <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge>
+                            </GridCell>
+                          );
+                        case "sources":
+                          return (
+                            <GridCell key={f.key}>
+                              <span className="inline-flex gap-2">
+                                {r.sources.map((src, n) => (
+                                  <a
+                                    key={src}
+                                    href={src}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    title={src}
+                                    className="text-accent hover:underline"
+                                  >
+                                    {n + 1}
+                                  </a>
+                                ))}
+                              </span>
+                            </GridCell>
+                          );
+                      }
+                    })}
                     <GridCell>
                       <form
                         action={changeProspectStatus.bind(
@@ -465,6 +576,42 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                   </GridRow>
                 );
               })}
+              <NewRow
+                startOpen={data.total === 0}
+                add={addRowAction.bind(null, baseId)}
+                fields={[
+                  ...fields.map((f, i): NewRowField => {
+                    if (f.kind === "column") {
+                      return {
+                        key: f.column.id,
+                        editor: { type: f.column.type, options: f.column.options },
+                        label: f.column.name,
+                      };
+                    }
+                    const editor = SYSTEM_EDITORS[f.key];
+                    return editor
+                      ? {
+                          key: f.key,
+                          editor,
+                          label: SYSTEM_FIELD_LABELS[f.key],
+                          sticky: i === 0,
+                          required: f.key === primary,
+                        }
+                      : { key: f.key, editor: null };
+                  }),
+                  { key: "_actions", editor: null },
+                ]}
+              />
+              {data.total === 0
+                ? [0, 1].map((n) => (
+                    <GridRow key={`empty-${n}`}>
+                      {fields.map((f, i) => (
+                        <GridCell key={f.kind === "system" ? f.key : f.column.id} sticky={i === 0} />
+                      ))}
+                      <GridCell />
+                    </GridRow>
+                  ))
+                : null}
             </DataGrid>
           )}
 
@@ -518,14 +665,5 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
         />
       ) : null}
     </>
-  );
-}
-
-/** Opens a row in the side panel, keeping the table's filters and page. */
-function RowLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link href={href} scroll={false} className="hover:text-accent hover:underline">
-      {children}
-    </Link>
   );
 }

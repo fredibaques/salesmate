@@ -18,7 +18,7 @@ import { ACTION_DEFINITIONS } from "../gateway/definitions";
 import { GatewayError, proposeAction, type GatewayDeps } from "../gateway/gateway";
 import { callStoredMcpTool, mcpToolsOf, type McpDeps } from "../connectors/mcp";
 import { connections } from "../db/schema";
-import { queryTable, searchKnowledge, tableQuerySchema } from "../knowledge/service";
+import { knowledgeOf, queryTable, searchKnowledge, tableQuerySchema } from "../knowledge/service";
 import { defineTool, type AgentTool, type ServerTool } from "../llm/agent-loop";
 
 export type AgentToolContext = {
@@ -79,7 +79,7 @@ export function knowledgeTools(ctx: Pick<AgentToolContext, "db" | "orgId" | "pro
             })
             .from(knowledgeTables)
             .innerJoin(knowledgeSources, eq(knowledgeSources.id, knowledgeTables.sourceId))
-            .where(eq(knowledgeSources.projectId, ctx.projectId));
+            .where(knowledgeOf(ctx.projectId));
           return rows;
         }),
     }),

@@ -1,179 +1,77 @@
-import { BookOpen, ClipboardType, FileInput, Upload } from "lucide-react";
-import { ActionForm } from "@/components/action-form";
-import { ModalButton } from "@/components/modal";
-import {
-  Card,
-  CardGrid,
-  EmptyState,
-  EntityCard,
-  Field,
-  Input,
-  Meta,
-  Textarea,
-  Toolbar,
-} from "@/components/ui";
-import { formatDate } from "@/lib/format";
+import { BookOpen } from "lucide-react";
+import Link from "next/link";
+import { InfoTip } from "@/components/tooltip";
+import { Card, EmptyState, Toolbar } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { listKnowledge } from "@/server/services/projects";
-import { askKnowledge, importGoogleKnowledge, uploadKnowledge } from "../actions";
+import { AddKnowledge, SourceCards } from "../../../knowledge/knowledge-view";
+import { askKnowledge } from "../actions";
 import { AskBox } from "./ask-box";
-import { describeSource } from "./sources";
 
 export const metadata = { title: "Conocimiento" };
 
-function UploadButton({
-  projectId,
-  variant = "primary",
-}: {
-  projectId: string;
-  variant?: "primary" | "secondary";
-}) {
-  return (
-    <ModalButton
-      label="Subir fichero"
-      icon={<Upload className="size-4" />}
-      title="Subir fichero"
-      variant={variant}
-    >
-      <ActionForm action={uploadKnowledge.bind(null, projectId)} submitLabel="Subir" className="space-y-4">
-        <input type="hidden" name="kind" value="document" />
-        <Field label="Fichero" hint="Hasta 4 MB.">
-          <Input
-            name="file"
-            type="file"
-            accept=".csv,.tsv,.xlsx,.pdf,.docx,.md,.txt,.html"
-            required
-            className="file:mr-3 file:rounded-md file:border-0 file:bg-brand-100 file:px-2 file:py-1 file:text-accent hover:file:bg-brand-200"
-          />
-        </Field>
-        <Field label="Nombre" optional hint="Si lo dejas vacío, se usa el nombre del fichero.">
-          <Input name="name" />
-        </Field>
-      </ActionForm>
-    </ModalButton>
-  );
-}
-
-function PasteButton({ projectId }: { projectId: string }) {
-  return (
-    <ModalButton
-      label="Pegar texto"
-      icon={<ClipboardType className="size-4" />}
-      title="Pegar texto"
-      variant="secondary"
-      width="lg"
-    >
-      <ActionForm action={uploadKnowledge.bind(null, projectId)} submitLabel="Añadir" className="space-y-4">
-        <input type="hidden" name="kind" value="text" />
-        <Field label="Nombre">
-          <Input name="name" required placeholder="p. ej. Respuestas a objeciones" />
-        </Field>
-        <Field label="Texto">
-          <Textarea name="text" required className="min-h-56" />
-        </Field>
-      </ActionForm>
-    </ModalButton>
-  );
-}
-
-function GoogleImportButton({ projectId }: { projectId: string }) {
-  return (
-    <ModalButton
-      label="Desde Google"
-      icon={<FileInput className="size-4" />}
-      title="Importar desde Google Docs o Sheets"
-      variant="secondary"
-    >
-      <ActionForm
-        action={importGoogleKnowledge.bind(null, projectId)}
-        submitLabel="Importar"
-        className="space-y-4"
-      >
-        <Field
-          label="Enlace"
-          hint="Un documento se añade como documento; una hoja, como tabla (su primera pestaña)."
-          tip="Se importa una copia con la cuenta de Google conectada que tenga acceso. Si cambia en Google, vuelve a importarlo."
-        >
-          <Input name="url" type="url" required placeholder="https://docs.google.com/…" />
-        </Field>
-        <Field label="Nombre" optional hint="Si lo dejas vacío, se usa el título del fichero.">
-          <Input name="name" />
-        </Field>
-      </ActionForm>
-    </ModalButton>
-  );
-}
-
+/** What the project's agents know: the project's own knowledge and the account's. */
 export default async function KnowledgePage({ params }: PageProps<"/app/projects/[projectId]/knowledge">) {
   const { projectId } = await params;
   const tenant = await requireTenant();
-  const sources = await listKnowledge(getDb(), tenant, projectId);
+  const db = getDb();
+  const [sources, account] = await Promise.all([
+    listKnowledge(db, tenant, projectId),
+    listKnowledge(db, tenant, null),
+  ]);
+  const accountSection =
+    account.length > 0 ? (
+      <section className="space-y-3">
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+          De toda la cuenta
+          <InfoTip>Lo usan todos los proyectos. Se gestiona en Conocimiento, en el menú.</InfoTip>
+          <Link href="/app/knowledge" className="ml-auto text-xs font-normal text-accent hover:underline">
+            Gestionar
+          </Link>
+        </h2>
+        <SourceCards sources={account} />
+      </section>
+    ) : null;
 
   return (
     <>
-      <Toolbar>
-        {sources.length > 0 ? (
-          <>
-            <PasteButton projectId={projectId} />
-            <GoogleImportButton projectId={projectId} />
-            <UploadButton projectId={projectId} />
-          </>
-        ) : null}
-      </Toolbar>
+      <Toolbar>{sources.length > 0 ? <AddKnowledge projectId={projectId} /> : null}</Toolbar>
 
-      {sources.length === 0 ? (
+      {sources.length === 0 && account.length === 0 ? (
         <EmptyState
           icon={<BookOpen />}
           title="Los agentes todavía no saben nada de este proyecto"
-          description="Sube tus tarifas, presentaciones, condiciones o ejemplos de emails. Con eso responden con datos reales y citan de dónde los sacan."
-          action={
-            <>
-              <UploadButton projectId={projectId} />
-              <PasteButton projectId={projectId} />
-              <GoogleImportButton projectId={projectId} />
-            </>
-          }
+          description="Sube tus tarifas, presentaciones, condiciones o ejemplos de emails. Con eso responden con datos reales y citan de dónde los sacan. Lo que valga para todos los proyectos, súbelo en Conocimiento, en el menú."
+          action={<AddKnowledge projectId={projectId} />}
         />
       ) : (
         <div className="space-y-6">
           <Card
             title="Pregúntale al conocimiento"
-            tip="Comprueba qué respondería un agente: contesta solo con lo que has subido y te dice de dónde sale."
+            tip="Comprueba qué respondería un agente: contesta solo con lo que hay aquí (del proyecto y de toda la cuenta) y te dice de dónde sale."
           >
             <AskBox projectId={projectId} action={askKnowledge.bind(null, projectId)} />
           </Card>
 
-          <CardGrid>
-            {sources.map((s) => {
-              const kind = describeSource(s);
-              const rows = s.tables.reduce((n, t) => n + t.rowCount, 0);
-              return (
-                <EntityCard
-                  key={s.id}
-                  href={`/app/projects/${projectId}/knowledge/${s.id}`}
-                  icon={kind.icon}
-                  title={s.name}
-                  meta={
-                    <Meta
-                      items={[
-                        kind.label,
-                        s.tables.length > 0
-                          ? `${s.tables.length === 1 ? "1 tabla" : `${s.tables.length} tablas`}, ${rows} filas`
-                          : kind.detail,
-                      ]}
-                    />
-                  }
-                  description={
-                    s.tables.length > 0
-                      ? s.tables.map((t) => t.name).join(" · ")
-                      : (s.description ?? undefined)
-                  }
-                  footer={<span className="text-xs text-muted">Añadido el {formatDate(s.createdAt)}</span>}
-                />
-              );
-            })}
-          </CardGrid>
+          <section className="space-y-3">
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+              De este proyecto
+              <InfoTip>Solo lo usan los agentes de este proyecto.</InfoTip>
+            </h2>
+            {sources.length > 0 ? (
+              <SourceCards sources={sources} />
+            ) : (
+              <EmptyState
+                compact
+                title="Nada propio todavía"
+                description="Los agentes usan el conocimiento de toda la cuenta. Añade aquí lo que sea solo de este proyecto."
+                action={<AddKnowledge projectId={projectId} />}
+              />
+            )}
+          </section>
+
+          {accountSection}
         </div>
       )}
     </>

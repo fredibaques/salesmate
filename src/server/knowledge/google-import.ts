@@ -28,7 +28,7 @@ function csvCell(value: string): string {
 export async function importFromGoogle(
   deps: { db: Db; connectors?: Omit<ConnectorDeps, "db"> },
   tenant: TenantContext,
-  input: { projectId: string; url: string; name?: string },
+  input: { projectId: string | null; url: string; name?: string },
 ): Promise<{ name: string; kind: "doc" | "sheet"; tables?: number }> {
   const file = parseGoogleUrl(input.url);
   if (!file) throw new Error("Pega el enlace de un documento de Google Docs o de una hoja de Google Sheets.");
@@ -40,7 +40,7 @@ export async function importFromGoogle(
   ).filter((c) => c.status === "active" && connectionCapabilities(c).includes(capability));
   if (!candidates.length) {
     throw new Error(
-      `Conecta ${file.kind === "doc" ? "Google Docs" : "Google Sheets"} en Configuración → Conexiones para importar desde Google.`,
+      `Conecta ${file.kind === "doc" ? "Google Docs" : "Google Sheets"} en Integraciones para importar desde Google.`,
     );
   }
 

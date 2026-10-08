@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, asc, desc, eq, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { audit } from "../audit";
 import type { Db } from "../db/client";
@@ -25,6 +25,39 @@ import {
 } from "./tabular";
 
 export type SourceRow = typeof knowledgeSources.$inferSelect;
+
+/**
+ * What a project's agents know: its own knowledge and the account's (the
+ * sources without a project, which every project uses).
+ */
+export function knowledgeOf(projectId: string): SQL {
+  return or(eq(knowledgeSources.projectId, projectId), isNull(knowledgeSources.projectId))!;
+}
+
+/** Moves a source to a project, or to the whole account (null). */
+export async function setSourceProject(
+  db: Db,
+  tenant: TenantContext,
+  sourceId: string,
+  projectId: string | null,
+) {
+  return withTenant(db, tenant, async (tx) => {
+    const [row] = await tx
+      .update(knowledgeSources)
+      .set({ projectId, updatedAt: new Date() })
+      .where(eq(knowledgeSources.id, sourceId))
+      .returning();
+    if (!row) throw new Error("Fuente no encontrada.");
+    await audit(tx, tenant, {
+      event: "knowledge.source_moved",
+      projectId,
+      entityType: "knowledge_source",
+      entityId: row.id,
+      data: { name: row.name, scope: projectId ? "project" : "account" },
+    });
+    return row;
+  });
+}
 type Tx = Parameters<Parameters<typeof withTenant>[2]>[0];
 
 const INSERT_BATCH = 500;
@@ -155,7 +188,8 @@ export async function ingestTableFile(
   db: Db,
   tenant: TenantContext,
   input: {
-    projectId: string;
+    /** null = the whole account. */
+    projectId: string | null;
     name: string;
     description?: string;
     filename: string;
@@ -258,7 +292,8 @@ export async function ingestDocumentFile(
   db: Db,
   tenant: TenantContext,
   input: {
-    projectId: string;
+    /** null = the whole account. */
+    projectId: string | null;
     name: string;
     description?: string;
     kind?: "document" | "examples";
@@ -279,7 +314,8 @@ export async function ingestDocumentText(
   db: Db,
   tenant: TenantContext,
   input: {
-    projectId: string;
+    /** null = the whole account. */
+    projectId: string | null;
     name: string;
     description?: string;
     kind?: "document" | "examples";
@@ -561,7 +597,7 @@ export async function searchKnowledge(
       .from(kbChunks)
       .innerJoin(knowledgeSources, eq(knowledgeSources.id, kbChunks.sourceId))
       .innerJoin(kbDocuments, eq(kbDocuments.id, kbChunks.documentId))
-      .where(and(eq(knowledgeSources.projectId, input.projectId), sql`${kbChunks.tsv} @@ ${tsquery}`))
+      .where(and(knowledgeOf(input.projectId), sql`${kbChunks.tsv} @@ ${tsquery}`))
       .orderBy(desc(rank))
       .limit(input.limit ?? 8);
 
@@ -588,7 +624,7 @@ export async function searchKnowledge(
           .from(kbChunks)
           .innerJoin(knowledgeSources, eq(knowledgeSources.id, kbChunks.sourceId))
           .innerJoin(kbDocuments, eq(kbDocuments.id, kbChunks.documentId))
-          .where(and(eq(knowledgeSources.projectId, input.projectId), sql`${kbChunks.tsv} @@ ${anyQuery}`))
+          .where(and(knowledgeOf(input.projectId), sql`${kbChunks.tsv} @@ ${anyQuery}`))
           .orderBy(desc(anyRank))
           .limit(input.limit ?? 8);
       }

@@ -3,10 +3,7 @@ import { getDb } from "@/server/db/client";
 import { getSourceFile } from "@/server/knowledge/service";
 
 /** The original uploaded file: inline (for the preview) or as a download with ?download. */
-export async function GET(
-  request: Request,
-  ctx: RouteContext<"/app/projects/[projectId]/knowledge/[sourceId]/file">,
-) {
+export async function GET(request: Request, ctx: RouteContext<"/app/knowledge/[sourceId]/file">) {
   const { sourceId } = await ctx.params;
   const tenant = await requireTenant();
   const file = await getSourceFile(getDb(), tenant, sourceId).catch(() => null);

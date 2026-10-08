@@ -5,7 +5,7 @@ import { withTenant } from "../db/tenant";
 import { eq, and } from "drizzle-orm";
 
 /** The sidebar's sections, in their default order. */
-export const NAV_SECTIONS = ["home", "tables", "inbox", "settings"] as const;
+export const NAV_SECTIONS = ["home", "tables", "knowledge", "integrations", "inbox", "settings"] as const;
 export type NavSection = (typeof NAV_SECTIONS)[number];
 
 const navInput = z.object({
@@ -53,4 +53,20 @@ export function inOrder<T>(items: T[], key: (item: T) => string, order: string[]
     .map((item, i) => ({ item, i, r: rank.get(key(item)) }))
     .sort((a, b) => (a.r ?? Infinity) - (b.r ?? Infinity) || a.i - b.i)
     .map((x) => x.item);
+}
+
+/**
+ * The sidebar's sections in the person's order. Sections added to the app
+ * after they arranged it go where they are by default (after the section
+ * that precedes them), not at the end.
+ */
+export function sectionOrder(saved: string[] | undefined): NavSection[] {
+  const order = (saved ?? []).filter((k): k is NavSection => (NAV_SECTIONS as readonly string[]).includes(k));
+  if (!order.length) return [...NAV_SECTIONS];
+  for (const [i, key] of NAV_SECTIONS.entries()) {
+    if (order.includes(key)) continue;
+    const before = NAV_SECTIONS.slice(0, i).findLast((k) => order.includes(k));
+    order.splice(before ? order.indexOf(before) + 1 : 0, 0, key);
+  }
+  return order;
 }

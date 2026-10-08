@@ -28,7 +28,7 @@ export function Popover({
   align?: "start" | "end";
 }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const button = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
@@ -37,10 +37,11 @@ export function Popover({
   useLayoutEffect(() => {
     if (!open || !button.current) return;
     const r = button.current.getBoundingClientRect();
-    const left = align === "end" ? r.right - px : r.left;
-    // The visible width, without the scrollbar.
+    // The visible width, without the scrollbar; on a phone the panel takes it all.
     const room = document.documentElement.clientWidth;
-    setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(left, room - px - 8)) });
+    const width = Math.min(px, room - 16);
+    const left = align === "end" ? r.right - width : r.left;
+    setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(left, room - width - 8)), width });
   }, [open, align, px]);
 
   useEffect(() => {
@@ -55,17 +56,23 @@ export function Popover({
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     const onScroll = (e: Event) => {
       if (panel.current?.contains(e.target as Node)) return;
+      // Bringing a focused field into view (a phone's keyboard) scrolls the page.
+      if (panel.current?.contains(document.activeElement)) return;
       setOpen(false);
+    };
+    // A phone's keyboard opening (typing in the panel) resizes the window too.
+    const onResize = () => {
+      if (!panel.current?.contains(document.activeElement)) setOpen(false);
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     window.addEventListener("scroll", onScroll, true);
-    window.addEventListener("resize", close);
+    window.addEventListener("resize", onResize);
     return () => {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
       window.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("resize", close);
+      window.removeEventListener("resize", onResize);
     };
   }, [open, close]);
 
@@ -87,7 +94,7 @@ export function Popover({
             <div
               ref={panel}
               role="dialog"
-              style={{ top: pos.top, left: pos.left, width: px }}
+              style={{ top: pos.top, left: pos.left, width: pos.width }}
               className={cx(
                 "fixed z-50 max-h-[min(36rem,calc(100vh-6rem))] overflow-y-auto rounded-xl border border-border bg-surface p-4 text-left text-sm font-normal whitespace-normal text-foreground shadow-lg",
               )}

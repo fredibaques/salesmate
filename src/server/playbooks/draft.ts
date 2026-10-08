@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Db } from "../db/client";
 import { knowledgeSources, knowledgeTables, projects, type SalesMotion } from "../db/schema";
 import { withTenant } from "../db/tenant";
-import { searchKnowledge } from "../knowledge/service";
+import { knowledgeOf, searchKnowledge } from "../knowledge/service";
 import type { LlmClient } from "../llm/client";
 import {
   NEXT_STEPS,
@@ -112,7 +112,7 @@ export async function draftPlaybook(
       .select({ name: knowledgeTables.name, columns: knowledgeTables.columns, source: knowledgeSources.name })
       .from(knowledgeTables)
       .innerJoin(knowledgeSources, eq(knowledgeSources.id, knowledgeTables.sourceId))
-      .where(eq(knowledgeSources.projectId, input.projectId));
+      .where(knowledgeOf(input.projectId));
     return { project, tables };
   });
   if (!context.project) throw new Error("Proyecto no encontrado.");

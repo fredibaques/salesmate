@@ -111,7 +111,9 @@ export async function intakeRow(
       {
         // Without any name the row still arrives, and isn't taken for another one.
         companyName:
-          system.company ?? person ?? email ?? `Formulario ${new Date().toISOString().slice(0, 19)}`,
+          base.rowKind === "person"
+            ? (system.company ?? "")
+            : (system.company ?? person ?? email ?? `Formulario ${new Date().toISOString().slice(0, 19)}`),
         personName: base.rowKind === "person" ? (person ?? email ?? "Sin nombre") : undefined,
         website: system.website,
         fields: values,

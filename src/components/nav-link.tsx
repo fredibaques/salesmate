@@ -8,7 +8,14 @@ import { useActive } from "./sidebar";
 /** Main tabs of a page (project, agent, settings). They wrap instead of scrolling. */
 export function Tabs({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <nav className={cx("mb-6 flex flex-wrap gap-x-1 border-b border-border", className)}>{children}</nav>
+    <nav
+      className={cx(
+        "mb-6 flex gap-x-1 overflow-x-auto border-b border-border [scrollbar-width:none] [&>*]:shrink-0",
+        className,
+      )}
+    >
+      {children}
+    </nav>
   );
 }
 

@@ -81,14 +81,17 @@ export function CellState({
   value,
   meta,
   pending,
+  agent = true,
 }: {
   column: BaseColumn;
   value: unknown;
   meta: CellMeta | undefined;
   pending: boolean;
+  /** An agent fills the table: hand-written values show a lock (it won't change them). */
+  agent?: boolean;
 }) {
   if (value !== null && value !== undefined && value !== "") {
-    return meta?.by === "user" ? (
+    return agent && meta?.by === "user" ? (
       <span className="inline-flex items-center gap-1.5">
         <CellValue column={column} value={value} />
         <Lock className="size-3 shrink-0 text-ink-400" aria-label="Escrito a mano" />

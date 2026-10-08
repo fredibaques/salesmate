@@ -25,7 +25,8 @@ type BaseInfo = {
 
 /** One row as an agent or a person sends it: the system fields plus the column values. */
 export const prospectInput = z.object({
-  companyName: z.string().trim().min(1).max(300),
+  /** Required in tables of companies; optional in tables of people. */
+  companyName: z.string().trim().max(300).default(""),
   personName: z
     .string()
     .trim()
@@ -168,8 +169,13 @@ export async function saveProspects(
 
   const rows = input.items.flatMap((raw) => {
     const result = prospectInput.safeParse(raw);
-    const label = String((raw as { companyName?: unknown }).companyName ?? "(sin nombre)");
-    if (!result.success || (base.rowKind === "person" && !result.data.personName)) {
+    const named = raw as { companyName?: unknown; personName?: unknown };
+    const label = String(
+      (base.rowKind === "person" && named.personName) || (named.companyName ?? "(sin nombre)"),
+    );
+    const nameless =
+      result.success && (base.rowKind === "person" ? !result.data.personName : !result.data.companyName);
+    if (!result.success || nameless) {
       invalid.push(label);
       return [];
     }
@@ -214,7 +220,9 @@ export async function saveProspects(
       .onConflictDoNothing({ target: [prospects.baseId, prospects.dedupeKey] })
       .returning();
     const addedKeys = new Set(added.map((a) => a.dedupeKey));
-    const duplicates = [...unique].filter(([key]) => !addedKeys.has(key)).map(([, p]) => p.companyName);
+    const duplicates = [...unique]
+      .filter(([key]) => !addedKeys.has(key))
+      .map(([, p]) => p.personName || p.companyName);
     if (added.length > 0) {
       await audit(tx, tenant, {
         event: "prospects.added",
@@ -260,9 +268,9 @@ const DUPLICATE_ROW = "Ya hay otra fila igual en esta base (misma web, o mismo n
 /** Checks a person's edit: every value must fit its column (nothing is dropped silently). */
 function checkEdit(base: BaseInfo, edit: RowEdit) {
   const companyName = edit.companyName.trim();
-  if (!companyName) throw new Error("Falta el nombre de la empresa.");
   const personName = edit.personName?.trim() || null;
   if (base.rowKind === "person" && !personName) throw new Error("Falta el nombre de la persona.");
+  if (base.rowKind === "company" && !companyName) throw new Error("Falta el nombre de la empresa.");
   const fitScore = edit.fitScore ?? null;
   if (fitScore !== null && (!Number.isInteger(fitScore) || fitScore < 0 || fitScore > 100)) {
     throw new Error("El encaje debe ser un número de 0 a 100.");
@@ -314,6 +322,43 @@ export async function addProspectRow(
   const [added] = result.added;
   if (!added) throw new Error(result.fieldErrors[0] ?? "No se ha podido añadir la fila.");
   return added;
+}
+
+/** The keys of a row's fixed fields that people can type in the table. */
+const TYPED_FIELDS = ["company", "person", "web", "fit"] as const;
+
+/**
+ * A row as typed in the table (a new row, or one cell): the fixed fields by
+ * their key (company, person, web, fit) and the columns by id.
+ */
+export function rowEditFromValues(values: Record<string, unknown>, current?: ProspectRow): RowEdit {
+  const text = (v: unknown) => (v === null || v === undefined ? "" : String(v));
+  const has = (k: string) => Object.hasOwn(values, k);
+  const fit = has("fit") ? text(values.fit).trim() : undefined;
+  return {
+    companyName: has("company") ? text(values.company) : (current?.companyName ?? ""),
+    personName: has("person") ? text(values.person) : (current?.personName ?? undefined),
+    website: has("web") ? text(values.web) : (current?.website ?? undefined),
+    fitScore: fit === undefined ? (current?.fitScore ?? null) : fit === "" ? null : Number(fit),
+    fitReason: current?.fitReason ?? undefined,
+    fields: Object.fromEntries(
+      Object.entries(values).filter(([k]) => !(TYPED_FIELDS as readonly string[]).includes(k)),
+    ),
+  };
+}
+
+/** One cell typed in the table: a fixed field (company, person, web, fit) or a column. */
+export async function setProspectCell(
+  db: Db,
+  tenant: TenantContext,
+  baseId: string,
+  rowId: string,
+  key: string,
+  value: unknown,
+) {
+  const row = await getProspect(db, tenant, baseId, rowId);
+  if (!row) throw new Error("Esa fila ya no existe.");
+  return updateProspectRow(db, tenant, baseId, rowId, rowEditFromValues({ [key]: value }, row));
 }
 
 /**
@@ -380,7 +425,7 @@ export async function updateProspectRow(
       projectId: base.projectId,
       entityType: "prospect",
       entityId: id,
-      data: { base: baseId, changed },
+      data: { base: baseId, changed, name: next.personName || next.companyName },
     });
     return { changed };
   });

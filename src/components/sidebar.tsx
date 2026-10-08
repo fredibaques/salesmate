@@ -1,7 +1,7 @@
 "use client";
 
 import { colorLook } from "@/lib/agent-look";
-import { ChevronRight, ChevronsUpDown, Check, LogOut, UserRound } from "lucide-react";
+import { ChevronRight, ChevronsUpDown, Check, LogOut, Menu, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -10,13 +10,66 @@ import { Logo } from "./logo";
 
 /**
  * The app's side navigation. Always one screen tall: only a section marked
- * `grow` scrolls inside it (the project list).
+ * `grow` scrolls inside it (the project list). On phones it hides behind a
+ * top bar and slides in from the left; going anywhere closes it.
  */
-export function Sidebar({ children }: { children: ReactNode }) {
+export function Sidebar({ children, title }: { children: ReactNode; title: string }) {
+  const pathname = usePathname();
+  // Remember where it was opened: navigating anywhere closes it.
+  const [openAt, setOpenAt] = useState<string | null>(null);
+  const open = openAt === pathname;
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpenAt(null);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
   return (
-    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-border bg-sidebar">
-      {children}
-    </aside>
+    <>
+      <div className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-border bg-sidebar px-3 md:hidden">
+        <button
+          type="button"
+          onClick={() => setOpenAt(pathname)}
+          aria-label="Abrir el menú"
+          aria-expanded={open}
+          className="rounded-lg p-2 text-ink-700 transition-colors hover:bg-ink-100"
+        >
+          <Menu className="size-5" />
+        </button>
+        <Link href="/app" className="flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-ink-50">
+          <Logo size={26} />
+          <span className="font-display text-[15px] font-semibold tracking-tight">{title}</span>
+        </Link>
+      </div>
+      {open ? (
+        <div
+          aria-hidden
+          onClick={() => setOpenAt(null)}
+          className="fixed inset-0 z-40 bg-ink-900/30 md:hidden"
+        />
+      ) : null}
+      <aside
+        className={cx(
+          "fixed inset-y-0 left-0 z-50 flex h-dvh w-72 max-w-[85vw] shrink-0 flex-col border-r border-border bg-sidebar transition-transform duration-200",
+          "md:sticky md:top-0 md:z-auto md:h-screen md:w-64 md:max-w-none md:translate-x-0 md:transition-none",
+          open ? "translate-x-0 shadow-xl" : "-translate-x-full",
+        )}
+      >
+        {open ? (
+          <button
+            type="button"
+            onClick={() => setOpenAt(null)}
+            aria-label="Cerrar el menú"
+            className="absolute top-4 -right-12 rounded-lg bg-surface p-2 shadow md:hidden"
+          >
+            <X className="size-5" />
+          </button>
+        ) : null}
+        {children}
+      </aside>
+    </>
   );
 }
 

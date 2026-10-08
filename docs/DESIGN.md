@@ -15,6 +15,11 @@ screen needs something new, add it here and as a component, not inline.
   project's pages; a paused agent shows a grey dot). The person's own settings live in the `UserMenu` at the bottom:
   **Mi cuenta** (Perfil, Seguridad, Organización), switching organization and
   «Salir».
+- **Phones** (below `md`): the sidebar hides behind a top bar with the logo
+  and a menu button and slides in from the left (it closes on navigating,
+  Escape or a tap outside). Content uses `px-4`, tabs scroll sideways,
+  modals and drawers use the full width, popovers shrink to the screen and
+  tooltips stay out of the layout until shown: no page scrolls sideways.
 - Content takes the full width of the window (`px-8`); forms keep a reading
   width (`max-w-3xl`). The page reserves the scrollbar's space
   (`scrollbar-gutter: stable`) so nothing shifts when a page gets long.
@@ -34,7 +39,7 @@ screen needs something new, add it here and as a component, not inline.
   no «back» buttons.
 - **Loading**: every main route has a `loading.tsx` with skeletons
   (`src/components/skeleton.tsx`) shaped like the page that is coming.
-- The sidebar has four entries and the projects:
+- The sidebar has six entries and the projects:
   - **Panel**: the home. Copilot comes first, always: the greeting is the
     page's title and a large box to ask or ask for something (`ChatHero`,
     with the project to talk about, ready-made questions and «O empieza por»
@@ -45,20 +50,23 @@ screen needs something new, add it here and as a component, not inline.
     latest activity. Copilot has no entry of its own.
   - **Tablas**: every table of every project (the prospect bases the agents
     fill), most recently active first, and «Nueva tabla» (pick the project).
-  - **Por aprobar**: what the agents want to do and waits for a person, with
-    its count. Its own entry, because deciding is the daily job.
-  - **Configuración**: Conexiones, IA, Usuarios, Exclusiones and Auditoría,
-    shared by every project. «Añadir conexión» is one modal: a grid of every
+  - **Conocimiento**: the account's knowledge, used by every project (each
+    project's tab adds its own).
+  - **Integraciones** (`/app/connections`): the connected tools, shared by
+    every project. «Añadir conexión» is one modal: a grid of every
     tool and, once one is picked, what the agents can do with it and its
     form (`?add=1` or `?add=<tool>` opens it from a link).
+  - **Por aprobar**: what the agents want to do and waits for a person, with
+    its count. Its own entry, because deciding is the daily job.
+  - **Configuración**: IA, Usuarios, Exclusiones and Auditoría.
 - The prospecting agent has four tabs: Instrucciones (what, when, per run,
   model), Herramientas, Automatización (triggers, goal, spending caps,
   sources, mailbox, notices, first contact; one form in `FormSection`s) and
   Aprobaciones.
 - Each person orders the sidebar (sections, projects, each project's agents)
   from the gear next to the brand (`MenuSettingsButton`; saved in
-  `user_preferences.nav`, applied with `inOrder`); new items go after the
-  ordered ones. The same modal edits each agent inline. Agents have an icon and a colour the team
+  `user_preferences.nav`, applied with `inOrder`); new projects and agents go
+  after the ordered ones, new sections where they go by default (`sectionOrder`). The same modal edits each agent inline. Agents have an icon and a colour the team
   picks (`lib/agent-look.tsx`: `AgentTile`, `AgentIcon`, `AgentLookFields`),
   shown in the sidebar, their header and their card.
 - A project has five tabs: **Resumen** (its home: what is left to set it up,
@@ -192,7 +200,12 @@ rows under the header). Columns are managed on the grid, as in a spreadsheet:
 a header opens its menu and «+» adds one, both in a `Popover`
 (`components/popover.tsx`: anchored, drawn above scrolling boxes, it acts as
 the forms' modal so `ActionForm` closes it on save). No separate «Columnas»
-modal.
+modal. Headers are dragged to reorder (mouse drag, or press and hold on
+touch). People type in the grid: a click edits a cell in place (Enter or
+leaving saves, Escape cancels; choices open a `Popover` with the options),
+and the last line adds a row as it is typed (Enter saves and leaves a new
+empty line). Only the row's name is required; the other fixed fields hide
+and show like columns.
 Remove actions on a row are a `dangerGhost` icon button with an
 `aria-label`.
 

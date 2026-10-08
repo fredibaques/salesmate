@@ -18,7 +18,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { AI_PROVIDERS } from "../../../lib/ai-providers";
-import { ROW_KINDS, type BaseColumn } from "../../../lib/prospect-columns";
+import { ROW_KINDS, type BaseColumn, type SystemField } from "../../../lib/prospect-columns";
 import { organization } from "./auth";
 
 /**
@@ -528,9 +528,8 @@ export const knowledgeSources = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     orgId: orgId(),
-    projectId: uuid("project_id")
-      .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
+    /** The project it belongs to; null = the whole account (every project uses it). */
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
     kind: text("kind", { enum: ["document", "table", "live", "examples"] }).notNull(),
     name: text("name").notNull(),
     description: text("description"),
@@ -910,6 +909,12 @@ export const prospectBases = pgTable(
     rowKind: text("row_kind", { enum: ROW_KINDS }).notNull().default("company"),
     /** The user's columns, in order (the system ones are not here). */
     columns: jsonb("columns").$type<BaseColumn[]>().notNull().default([]),
+    /** The fixed fields (web, fit…) hidden from the table; the row's name always shows. */
+    hiddenFields: text("hidden_fields")
+      .array()
+      .$type<SystemField[]>()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     /** Secret that external forms send to add rows (POST /api/tables/:id/rows); null = closed. */
     intakeKey: text("intake_key"),
     createdBy: text("created_by"),

@@ -22,6 +22,7 @@ import { COLUMN_TYPE_LABELS, type BaseColumn, type RowKind } from "@/lib/prospec
 import type { ProposedColumn } from "@/server/prospects/propose-columns";
 import { COLUMN_ICONS } from "../column-icons";
 import { ColumnForm } from "../column-form";
+import { useColumnDrag, type DropTarget } from "./column-drag";
 
 const FILLED_BY_LABELS = {
   agent: "La rellena el agente",
@@ -70,6 +71,7 @@ function ActionItem({
 /**
  * A column's header: clicking it opens its menu, as in a spreadsheet —
  * sort, edit (name, type, options, how it's filled), move, hide or delete.
+ * Press and hold (or drag with the mouse) to move it to another place.
  */
 export function ColumnHeader({
   column,
@@ -79,6 +81,7 @@ export function ColumnHeader({
   sortHrefs,
   save,
   move,
+  place,
   hide,
   remove,
 }: {
@@ -90,74 +93,138 @@ export function ColumnHeader({
   sortHrefs: { asc: string; desc: string };
   save: FormAction;
   move: (direction: -1 | 1) => Promise<void>;
+  place: (target: DropTarget) => Promise<void>;
   hide: () => Promise<void>;
   remove: () => Promise<void>;
 }) {
   const [view, setView] = useState<"menu" | "edit">("menu");
+  const [, start] = useTransition();
+  const drag = useColumnDrag(column.id, column.name, (target) => start(() => place(target)));
   const Icon = COLUMN_ICONS[column.type];
   return (
+    <span {...drag} className="inline-flex touch-manipulation select-none [-webkit-touch-callout:none]">
+      <Popover
+        triggerLabel={`Opciones de la columna «${column.name}»`}
+        triggerClassName="-mx-1 inline-flex cursor-grab items-center gap-1.5 rounded px-1 py-0.5 hover:bg-ink-100 hover:text-foreground active:cursor-grabbing [&_svg]:size-3.5 [&_svg]:text-muted"
+        trigger={
+          <>
+            <Icon />
+            {column.name}
+            {sorted === "asc" ? <ArrowUp /> : sorted === "desc" ? <ArrowDown /> : null}
+          </>
+        }
+      >
+        {(close) =>
+          view === "edit" ? (
+            <div className="space-y-4">
+              <p className="font-semibold">Editar «{column.name}»</p>
+              <ColumnForm action={save} column={column} />
+            </div>
+          ) : (
+            <div className="-m-2 space-y-1">
+              <div className="px-2 pt-1 pb-2">
+                <p className="font-semibold">{column.name}</p>
+                <p className="text-xs text-muted">
+                  {COLUMN_TYPE_LABELS[column.type]} · {FILLED_BY_LABELS[column.filledBy]}
+                </p>
+              </div>
+              <button type="button" className={item} onClick={() => setView("edit")}>
+                <Pencil />
+                Editar columna
+              </button>
+              <Link href={sortHrefs.asc} className={item} onClick={close} scroll={false}>
+                <ArrowUp />
+                Ordenar de menor a mayor
+              </Link>
+              <Link href={sortHrefs.desc} className={item} onClick={close} scroll={false}>
+                <ArrowDown />
+                Ordenar de mayor a menor
+              </Link>
+              <ActionItem run={() => move(-1)} close={close} disabled={first}>
+                <ArrowLeft />
+                Mover a la izquierda
+              </ActionItem>
+              <ActionItem run={() => move(1)} close={close} disabled={last}>
+                <ArrowRight />
+                Mover a la derecha
+              </ActionItem>
+              <ActionItem run={hide} close={close}>
+                <EyeOff />
+                Ocultar (sus valores se conservan)
+              </ActionItem>
+              <div className="my-1 border-t border-border" />
+              <ActionItem
+                run={remove}
+                close={close}
+                danger
+                confirm={`¿Borrar la columna «${column.name}» y todos sus valores? No se puede deshacer.`}
+              >
+                <Trash2 />
+                Borrar columna
+              </ActionItem>
+            </div>
+          )
+        }
+      </Popover>
+    </span>
+  );
+}
+
+/**
+ * The header of a fixed field (name, web, fit…): sort it, or hide it unless
+ * it's the row's name.
+ */
+export function FieldHeader({
+  label,
+  sorted,
+  sortHrefs,
+  hide,
+}: {
+  label: string;
+  sorted: "asc" | "desc" | null;
+  sortHrefs?: { asc: string; desc: string };
+  /** Absent for the row's name, which always shows. */
+  hide?: () => Promise<void>;
+}) {
+  return (
     <Popover
-      triggerLabel={`Opciones de la columna «${column.name}»`}
+      triggerLabel={`Opciones de «${label}»`}
       triggerClassName="-mx-1 inline-flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-ink-100 hover:text-foreground [&_svg]:size-3.5 [&_svg]:text-muted"
       trigger={
         <>
-          <Icon />
-          {column.name}
+          {label}
           {sorted === "asc" ? <ArrowUp /> : sorted === "desc" ? <ArrowDown /> : null}
         </>
       }
     >
-      {(close) =>
-        view === "edit" ? (
-          <div className="space-y-4">
-            <p className="font-semibold">Editar «{column.name}»</p>
-            <ColumnForm action={save} column={column} />
+      {(close) => (
+        <div className="-m-2 space-y-1">
+          <div className="px-2 pt-1 pb-2">
+            <p className="font-semibold">{label}</p>
+            <p className="text-xs text-muted">
+              {hide ? "Campo de SalesMate" : "El nombre de cada fila: no se puede ocultar"}
+            </p>
           </div>
-        ) : (
-          <div className="-m-2 space-y-1">
-            <div className="px-2 pt-1 pb-2">
-              <p className="font-semibold">{column.name}</p>
-              <p className="text-xs text-muted">
-                {COLUMN_TYPE_LABELS[column.type]} · {FILLED_BY_LABELS[column.filledBy]}
-              </p>
-            </div>
-            <button type="button" className={item} onClick={() => setView("edit")}>
-              <Pencil />
-              Editar columna
-            </button>
-            <Link href={sortHrefs.asc} className={item} onClick={close} scroll={false}>
-              <ArrowUp />
-              Ordenar de menor a mayor
-            </Link>
-            <Link href={sortHrefs.desc} className={item} onClick={close} scroll={false}>
-              <ArrowDown />
-              Ordenar de mayor a menor
-            </Link>
-            <ActionItem run={() => move(-1)} close={close} disabled={first}>
-              <ArrowLeft />
-              Mover a la izquierda
-            </ActionItem>
-            <ActionItem run={() => move(1)} close={close} disabled={last}>
-              <ArrowRight />
-              Mover a la derecha
-            </ActionItem>
+          {sortHrefs ? (
+            <>
+              <Link href={sortHrefs.asc} className={item} onClick={close} scroll={false}>
+                <ArrowUp />
+                Ordenar de menor a mayor
+              </Link>
+              <Link href={sortHrefs.desc} className={item} onClick={close} scroll={false}>
+                <ArrowDown />
+                Ordenar de mayor a menor
+              </Link>
+            </>
+          ) : null}
+          {hide ? (
             <ActionItem run={hide} close={close}>
               <EyeOff />
               Ocultar (sus valores se conservan)
             </ActionItem>
-            <div className="my-1 border-t border-border" />
-            <ActionItem
-              run={remove}
-              close={close}
-              danger
-              confirm={`¿Borrar la columna «${column.name}» y todos sus valores? No se puede deshacer.`}
-            >
-              <Trash2 />
-              Borrar columna
-            </ActionItem>
-          </div>
-        )
-      }
+          ) : null}
+        </div>
+      )}
     </Popover>
   );
 }
@@ -292,13 +359,13 @@ export function AddColumnHeader({
   );
 }
 
-/** Columns hidden from the table, to bring back. */
+/** Columns (and fixed fields) hidden from the table, to bring back. */
 export function HiddenColumns({
   columns,
   show,
 }: {
-  columns: BaseColumn[];
-  show: (columnId: string) => Promise<void>;
+  columns: { id: string; name: string }[];
+  show: (id: string) => Promise<void>;
 }) {
   return (
     <Popover

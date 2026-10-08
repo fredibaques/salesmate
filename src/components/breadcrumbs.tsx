@@ -13,7 +13,7 @@ export function Breadcrumbs({ items }: { items: Crumb[] }) {
   return (
     <nav
       aria-label="Ruta"
-      className="sticky top-0 z-30 flex h-12 items-center border-b border-border bg-background/90 px-8 backdrop-blur"
+      className="sticky top-14 z-30 flex min-h-12 items-center border-b border-border bg-background/90 px-4 backdrop-blur md:top-0 md:px-8"
     >
       <ol className="flex flex-wrap items-center gap-1 text-sm text-muted">
         {items.map((item, i) => {
@@ -24,14 +24,14 @@ export function Breadcrumbs({ items }: { items: Crumb[] }) {
               {item.href && !last ? (
                 <Link
                   href={item.href}
-                  className="max-w-56 truncate rounded px-1 py-0.5 transition-colors hover:bg-ink-100 hover:text-foreground"
+                  className="max-w-36 truncate rounded px-1 sm:max-w-56 py-0.5 transition-colors hover:bg-ink-100 hover:text-foreground"
                 >
                   {item.label}
                 </Link>
               ) : (
                 <span
                   aria-current={last ? "page" : undefined}
-                  className="max-w-72 truncate px-1 font-medium text-foreground"
+                  className="max-w-48 truncate px-1 font-medium text-foreground sm:max-w-72"
                 >
                   {item.label}
                 </span>
