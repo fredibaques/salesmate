@@ -15,7 +15,7 @@ import { foldText } from "../knowledge/normalize";
 
 export type ProspectRow = typeof prospects.$inferSelect;
 export type ProspectStatus = (typeof PROSPECT_STATUSES)[number];
-type BaseInfo = { id: string; projectId: string; rowKind: RowKind; columns: BaseColumn[] };
+type BaseInfo = { id: string; name: string; projectId: string; rowKind: RowKind; columns: BaseColumn[] };
 
 /** One row as an agent or a person sends it: the system fields plus the column values. */
 export const prospectInput = z.object({
@@ -134,6 +134,7 @@ export async function baseInfo(
     tx
       .select({
         id: prospectBases.id,
+        name: prospectBases.name,
         projectId: prospectBases.projectId,
         rowKind: prospectBases.rowKind,
         columns: prospectBases.columns,
@@ -540,15 +541,24 @@ function csvCell(value: unknown): string {
  * A base as CSV with its columns (BOM so Excel reads accents). Exporting
  * marks the new rows as exported.
  */
-export async function exportProspectsCsv(
+/** A table's rows as text, in its column order, for exports (CSV or another tool). */
+export async function tableForExport(
   db: Db,
-  tenant: TenantContext,
+  tenant: Pick<TenantContext, "orgId">,
   baseId: string,
   include: "pending" | "all" = "all",
-): Promise<{ csv: string; count: number }> {
+): Promise<{
+  name: string;
+  projectId: string;
+  header: string[];
+  rows: string[][];
+  /** Row ids, in the order of `rows`. */
+  ids: string[];
+  pendingIds: string[];
+}> {
   const base = await baseInfo(db, tenant, baseId);
-  return withTenant(db, tenant, async (tx) => {
-    const rows = await tx
+  const rows = await withTenant(db, tenant, (tx) =>
+    tx
       .select()
       .from(prospects)
       .where(
@@ -557,8 +567,20 @@ export async function exportProspectsCsv(
           include === "pending" ? inArray(prospects.status, ["new", "accepted"]) : sql`true`,
         ),
       )
-      .orderBy(asc(prospects.createdAt));
-    const header = [
+      .orderBy(asc(prospects.createdAt)),
+  );
+  const text = (v: unknown) =>
+    v === null || v === undefined
+      ? ""
+      : Array.isArray(v)
+        ? v.join(" ")
+        : v instanceof Date
+          ? v.toISOString()
+          : String(v);
+  return {
+    name: base.name,
+    projectId: base.projectId,
+    header: [
       ...(base.rowKind === "person" ? ["Nombre"] : []),
       "Empresa",
       "Web",
@@ -568,36 +590,58 @@ export async function exportProspectsCsv(
       "Fuentes",
       "Estado",
       "Encontrado",
-    ];
-    const lines = [
-      header.map(csvCell).join(","),
-      ...rows.map((r) =>
-        [
-          ...(base.rowKind === "person" ? [r.personName] : []),
-          r.companyName,
-          r.website,
-          ...base.columns.map((c) => formatCell(c, r.data[c.id])),
-          r.fitScore,
-          r.fitReason,
-          r.sources,
-          STATUS_LABELS[r.status],
-          r.createdAt,
-        ]
-          .map(csvCell)
-          .join(","),
-      ),
-    ];
-    const toMark = rows.filter((r) => r.status === "new" || r.status === "accepted").map((r) => r.id);
-    if (toMark.length) {
-      await tx.update(prospects).set({ status: "exported" }).where(inArray(prospects.id, toMark));
+    ],
+    rows: rows.map((r) =>
+      [
+        ...(base.rowKind === "person" ? [r.personName] : []),
+        r.companyName,
+        r.website,
+        ...base.columns.map((c) => formatCell(c, r.data[c.id])),
+        r.fitScore,
+        r.fitReason,
+        r.sources,
+        STATUS_LABELS[r.status],
+        r.createdAt,
+      ].map(text),
+    ),
+    ids: rows.map((r) => r.id),
+    pendingIds: rows.filter((r) => r.status === "new" || r.status === "accepted").map((r) => r.id),
+  };
+}
+
+/** Marks rows as exported (they were new) and records the export. */
+export async function markExported(
+  db: Db,
+  tenant: TenantContext,
+  input: { baseId: string; projectId: string; ids: string[]; count: number; destination?: string },
+) {
+  await withTenant(db, tenant, async (tx) => {
+    if (input.ids.length) {
+      await tx.update(prospects).set({ status: "exported" }).where(inArray(prospects.id, input.ids));
     }
     await audit(tx, tenant, {
       event: "prospects.exported",
-      projectId: base.projectId,
+      projectId: input.projectId,
       entityType: "prospect_base",
-      entityId: base.id,
-      data: { count: rows.length },
+      entityId: input.baseId,
+      data: { count: input.count, ...(input.destination ? { destination: input.destination } : {}) },
     });
-    return { csv: `﻿${lines.join("\r\n")}\r\n`, count: rows.length };
   });
+}
+
+export async function exportProspectsCsv(
+  db: Db,
+  tenant: TenantContext,
+  baseId: string,
+  include: "pending" | "all" = "all",
+): Promise<{ csv: string; count: number }> {
+  const table = await tableForExport(db, tenant, baseId, include);
+  const lines = [table.header.map(csvCell).join(","), ...table.rows.map((r) => r.map(csvCell).join(","))];
+  await markExported(db, tenant, {
+    baseId,
+    projectId: table.projectId,
+    ids: table.pendingIds,
+    count: table.rows.length,
+  });
+  return { csv: `\ufeff${lines.join("\r\n")}\r\n`, count: table.rows.length };
 }

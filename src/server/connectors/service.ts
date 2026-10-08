@@ -13,6 +13,7 @@ import { createTwentyClient, twentyCredentials } from "./twenty";
 import type { Capability, ConnectorClient } from "./types";
 import { slackCredentials } from "./slack";
 import { createWhatsappClient, whatsappCredentials } from "./whatsapp";
+import { workspaceClient, workspaceCredentials, type WorkspaceProviderId } from "./workspace";
 
 export type ConnectionRow = typeof connections.$inferSelect;
 
@@ -255,6 +256,74 @@ export async function createWhatsappConnection(
   });
 }
 
+/**
+ * Connects Airtable, Trello or monday.com with a token (Trello: key and
+ * token), checking it first. A default place for tasks can be chosen later.
+ */
+export async function createWorkspaceConnection(
+  deps: ConnectorDeps,
+  tenant: TenantContext,
+  input: { provider: WorkspaceProviderId; label: string; token: string; key?: string },
+): Promise<ConnectionRow> {
+  const creds = workspaceCredentials[input.provider].parse({ token: input.token, key: input.key });
+  const { account } = await workspaceClient(input.provider, creds, { fetch: deps.fetch ?? fetch }).check();
+  return withTenant(deps.db, tenant, async (tx) => {
+    const [row] = await tx
+      .insert(connections)
+      .values({
+        orgId: tenant.orgId,
+        provider: input.provider,
+        transport: "api",
+        label: input.label,
+        accountRef: account,
+        credentialsEncrypted: encryptJson(creds),
+        readScopes: ["workspace"],
+        writeScopes: ["workspace"],
+        createdBy: tenant.actorId,
+      })
+      .onConflictDoUpdate({
+        target: [connections.orgId, connections.provider, connections.accountRef],
+        set: {
+          label: input.label,
+          credentialsEncrypted: encryptJson(creds),
+          status: "active",
+          lastError: null,
+        },
+      })
+      .returning();
+    await audit(tx, tenant, {
+      event: "connection.saved",
+      entityType: "connection",
+      entityId: row.id,
+      data: { provider: input.provider, accountRef: account },
+    });
+    return row;
+  });
+}
+
+/** Where a connection's tasks go (a Trello list, a monday board); null clears it. */
+export async function setTaskTarget(
+  deps: Pick<ConnectorDeps, "db">,
+  tenant: TenantContext,
+  connectionId: string,
+  target: { id: string; label: string } | null,
+) {
+  await withTenant(deps.db, tenant, async (tx) => {
+    const [row] = await tx.select().from(connections).where(eq(connections.id, connectionId));
+    if (!row) throw new Error("Conexión no encontrada.");
+    await tx
+      .update(connections)
+      .set({ metadata: { ...(row.metadata ?? {}), taskTarget: target } })
+      .where(eq(connections.id, connectionId));
+    await audit(tx, tenant, {
+      event: "connection.saved",
+      entityType: "connection",
+      entityId: connectionId,
+      data: { taskTarget: target },
+    });
+  });
+}
+
 /** The verify token Meta asks for when setting up a WhatsApp connection's webhook. */
 export async function whatsappVerifyToken(
   deps: ConnectorDeps,
@@ -325,10 +394,13 @@ export async function saveGoogleConnection(
   const read = [
     ...(sets.includes("calendar_read") || sets.includes("calendar_write") ? ["calendar"] : []),
     ...(sets.includes("gmail_read") ? ["email"] : []),
+    ...(sets.includes("docs_read") ? ["docs"] : []),
+    ...(sets.includes("sheets") ? ["sheets"] : []),
   ];
   const write = [
     ...(sets.includes("calendar_write") ? ["calendar"] : []),
     ...(sets.includes("gmail_write") ? ["email"] : []),
+    ...(sets.includes("sheets") ? ["sheets"] : []),
   ];
 
   return withTenant(deps.db, tenant, async (tx) => {

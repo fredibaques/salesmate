@@ -1,4 +1,4 @@
-import { BookOpen, ClipboardType, Upload } from "lucide-react";
+import { BookOpen, ClipboardType, FileInput, Upload } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
 import {
@@ -16,7 +16,7 @@ import { formatDate } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { listKnowledge } from "@/server/services/projects";
-import { askKnowledge, uploadKnowledge } from "../actions";
+import { askKnowledge, importGoogleKnowledge, uploadKnowledge } from "../actions";
 import { AskBox } from "./ask-box";
 import { describeSource } from "./sources";
 
@@ -77,6 +77,34 @@ function PasteButton({ projectId }: { projectId: string }) {
   );
 }
 
+function GoogleImportButton({ projectId }: { projectId: string }) {
+  return (
+    <ModalButton
+      label="Desde Google"
+      icon={<FileInput className="size-4" />}
+      title="Importar desde Google Docs o Sheets"
+      variant="secondary"
+    >
+      <ActionForm
+        action={importGoogleKnowledge.bind(null, projectId)}
+        submitLabel="Importar"
+        className="space-y-4"
+      >
+        <Field
+          label="Enlace"
+          hint="Un documento se añade como documento; una hoja, como tabla (su primera pestaña)."
+          tip="Se importa una copia con la cuenta de Google conectada que tenga acceso. Si cambia en Google, vuelve a importarlo."
+        >
+          <Input name="url" type="url" required placeholder="https://docs.google.com/…" />
+        </Field>
+        <Field label="Nombre" optional hint="Si lo dejas vacío, se usa el título del fichero.">
+          <Input name="name" />
+        </Field>
+      </ActionForm>
+    </ModalButton>
+  );
+}
+
 export default async function KnowledgePage({ params }: PageProps<"/app/projects/[projectId]/knowledge">) {
   const { projectId } = await params;
   const tenant = await requireTenant();
@@ -88,6 +116,7 @@ export default async function KnowledgePage({ params }: PageProps<"/app/projects
         {sources.length > 0 ? (
           <>
             <PasteButton projectId={projectId} />
+            <GoogleImportButton projectId={projectId} />
             <UploadButton projectId={projectId} />
           </>
         ) : null}
@@ -102,6 +131,7 @@ export default async function KnowledgePage({ params }: PageProps<"/app/projects
             <>
               <UploadButton projectId={projectId} />
               <PasteButton projectId={projectId} />
+              <GoogleImportButton projectId={projectId} />
             </>
           }
         />

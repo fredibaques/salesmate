@@ -1,9 +1,14 @@
 import { Database, Phone } from "lucide-react";
 import type { ReactNode } from "react";
 import {
+  siAirtable,
   siGmail,
   siGoogle,
+  siGoogledocs,
+  siGooglemeet,
+  siGooglesheets,
   siHubspot,
+  siTrello,
   siModelcontextprotocol,
   siTwenty,
   siWhatsapp,
@@ -47,6 +52,14 @@ const SlackMark = (
   </svg>
 );
 
+const MondayMark = (
+  <svg viewBox="0 0 24 24" aria-hidden className="size-full">
+    <rect x="1.5" y="6" width="4.6" height="13" rx="2.3" transform="rotate(30 3.8 12.5)" fill="#FF3D57" />
+    <rect x="8.7" y="6" width="4.6" height="13" rx="2.3" transform="rotate(30 11 12.5)" fill="#FFCB00" />
+    <circle cx="19.5" cy="16.5" r="2.6" fill="#00CA72" />
+  </svg>
+);
+
 const MARKS: Record<string, ReactNode> = {
   google: <Brand icon={siGoogle} />,
   gmail: <Brand icon={siGmail} />,
@@ -54,6 +67,12 @@ const MARKS: Record<string, ReactNode> = {
   twenty: <Brand icon={siTwenty} />,
   mcp: <Brand icon={siModelcontextprotocol} />,
   whatsapp: <Brand icon={siWhatsapp} />,
+  google_meet: <Brand icon={siGooglemeet} />,
+  google_docs: <Brand icon={siGoogledocs} />,
+  google_sheets: <Brand icon={siGooglesheets} />,
+  airtable: <Brand icon={siAirtable} />,
+  trello: <Brand icon={siTrello} />,
+  monday: MondayMark,
   microsoft: MicrosoftMark,
   slack: SlackMark,
   phone: <Phone className="size-full text-ink-600" strokeWidth={1.75} />,

@@ -96,6 +96,24 @@ const whatsappPayload = z.object({
 });
 export type WhatsappPayload = z.infer<typeof whatsappPayload>;
 
+const tableExportPayload = z.object({
+  connectionId: z.string().uuid(),
+  baseId: z.string().uuid(),
+  include: z.enum(["pending", "all"]).default("all"),
+  /** Base, list or board in the tool (none for Google Sheets: a new spreadsheet). */
+  target: z.string().max(200).nullable().default(null),
+  /** For people reading the action. */
+  destination: z.string().max(300).default(""),
+});
+export type TableExportPayload = z.infer<typeof tableExportPayload>;
+
+const taskPayload = z.object({
+  connectionId: z.string().uuid(),
+  title: z.string().min(1).max(300),
+  body: z.string().max(8_000).default(""),
+});
+export type TaskPayload = z.infer<typeof taskPayload>;
+
 const notifySlackPayload = z.object({
   connectionId: z.string().uuid(),
   text: z.string().min(1).max(4_000),
@@ -198,6 +216,33 @@ export const ACTION_DEFINITIONS = {
     targetKeys: (p) => phoneTargets([p.to.trim().startsWith("+") ? p.to : `+${p.to}`]),
     textOf: (p) => p.body,
     summary: (p) => `WhatsApp a ${p.to}: ${p.body.slice(0, 80)}`,
+  }),
+  /** Copies a table to another tool (by reference: the rows are read when it runs). */
+  "table.export": define<TableExportPayload>({
+    type: "table.export",
+    capability: "table.export",
+    label: "Exportar una tabla a otra herramienta",
+    maxAutonomy: 3,
+    outbound: false,
+    connectionVia: "payload",
+    payloadSchema: tableExportPayload,
+    targetKeys: () => [],
+    textOf: () => "",
+    summary: (p) =>
+      `Exportar ${p.include === "pending" ? "las filas nuevas" : "la tabla"} a ${p.destination || "otra herramienta"}`,
+  }),
+  /** A task for the team in Trello or monday.com (the connection's default list or board). */
+  "task.create": define<TaskPayload>({
+    type: "task.create",
+    capability: "task.create",
+    label: "Crear una tarea para el equipo (Trello, monday.com)",
+    maxAutonomy: 3,
+    outbound: false,
+    connectionVia: "payload",
+    payloadSchema: taskPayload,
+    targetKeys: () => [],
+    textOf: (p) => `${p.title}\n${p.body}`,
+    summary: (p) => `Tarea: ${p.title}`,
   }),
   "notify.slack": define<NotifySlackPayload>({
     type: "notify.slack",

@@ -417,9 +417,13 @@ export async function runProspecting(
       ...(await dataTools(ctx, agent.tools.data ?? [])),
     ];
     const dataProviders = [
-      ...new Set(tools.map((t) => t.name.split("_")[0]).filter((n) => n === "apollo" || n === "lusha")),
+      ...new Set(
+        tools
+          .map((t) => t.name.split("_")[0])
+          .filter((n) => n === "apollo" || n === "lusha" || n === "hunter"),
+      ),
     ]
-      .map((n) => (n === "apollo" ? "Apollo" : "Lusha"))
+      .map((n) => ({ apollo: "Apollo", lusha: "Lusha", hunter: "Hunter" })[n])
       .join(" y ");
 
     const sources = settings.sources ?? {};

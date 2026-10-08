@@ -25,7 +25,7 @@ export type CrmObjectInfo = {
 
 export type BusyInterval = { start: string; end: string };
 
-/** A person from a B2B data provider (Apollo, Lusha). Only professional contact data. */
+/** A person from a B2B data provider (Apollo, Lusha, Hunter). Only professional contact data. */
 export type DataPerson = {
   /** The provider's id, to enrich the person later. */
   id: string | null;
@@ -131,10 +131,36 @@ export type Capabilities = {
   }) => Promise<DataPerson | null>;
   /** Details of one company by its domain (spends the provider's credits). */
   "data.enrich_company": (input: { domain?: string; name?: string }) => Promise<DataCompany | null>;
+  /** Whether an email exists and accepts mail. */
+  "data.verify_email": (input: {
+    email: string;
+  }) => Promise<{ email: string; status: string; score: number | null; sourceUrl: string }>;
   /** Checks the key, and the credits left when the provider says. */
   "data.check": () => Promise<{ ok: true; detail: string }>;
   /** Sends a text message from a WhatsApp Business number. */
   "whatsapp.send": (input: { to: string; body: string }) => Promise<{ messageId: string }>;
+  /** A document as text (Google Docs). */
+  "docs.read": (input: { documentId: string }) => Promise<{ title: string; text: string }>;
+  /** The values of one sheet (Google Sheets). */
+  "sheets.read": (input: {
+    spreadsheetId: string;
+    sheet?: string;
+  }) => Promise<{ title: string; sheetTitle: string; rows: string[][] }>;
+  /** Writes a table somewhere new: a spreadsheet, an Airtable table, cards or items. */
+  "table.export": (input: {
+    name: string;
+    header: string[];
+    rows: string[][];
+    /** Where, for tools with several places (a base, a list, a board). */
+    target?: string | null;
+  }) => Promise<{ url: string | null; count: number }>;
+  /** Places a table can be exported to, or tasks created in (bases, lists, boards). */
+  "export.targets": () => Promise<{ id: string; label: string }[]>;
+  /** A task for the team (a card, an item) in the connection's default place. */
+  "task.create": (input: { title: string; body: string; target?: string | null }) => Promise<{
+    id: string;
+    url: string | null;
+  }>;
   /** Posts a message to the channel of a Slack incoming webhook. */
   "notify.slack": (input: { text: string }) => Promise<{ ok: true }>;
   "calendar.book": (input: {
@@ -200,6 +226,24 @@ export class ConnectorError extends Error {
   ) {
     super(message);
   }
+}
+
+/**
+ * A connector error in words for people. HTTP failures («Trello GET … failed
+ * with HTTP 401») become a sentence; messages already written for people pass
+ * through. Also takes the error stored on a failed action.
+ */
+export function describeConnectorError(err: ConnectorError | string): string {
+  const message = typeof err === "string" ? err : err.message;
+  const http = message.match(/^(\S+?):? .*failed with HTTP (\d+)$/);
+  if (!http) return message;
+  const [, tool, status] = http;
+  if (status === "401" || status === "403")
+    return `${tool} no acepta las credenciales guardadas o no da permiso para esto. Vuelve a conectarla en Configuración → Conexiones.`;
+  if (status === "404")
+    return `${tool} no encuentra lo que pedimos: puede que se haya borrado o que la cuenta no tenga acceso.`;
+  if (status === "429") return `${tool} ha limitado las peticiones. Prueba de nuevo en unos minutos.`;
+  return `${tool} ha respondido con un error (HTTP ${status}). Prueba de nuevo más tarde.`;
 }
 
 export async function expectOk(res: Response, what: string): Promise<unknown> {

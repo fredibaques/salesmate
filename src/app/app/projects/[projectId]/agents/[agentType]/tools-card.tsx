@@ -11,6 +11,8 @@ type Sources = Awaited<ReturnType<typeof listDataSources>>;
 const SOURCE_HELP: Record<string, string> = {
   apollo:
     "Busca empresas y personas por cargo, sector, zona y tamaño, y da sus datos de contacto profesionales. Buscar personas no gasta créditos; los datos de contacto y la búsqueda de empresas, sí.",
+  hunter:
+    "Encuentra a quién trabaja en una empresa (por su web) con su email de trabajo, busca el email de una persona concreta y lo verifica. Cada búsqueda y verificación gasta créditos.",
   lusha:
     "Da los datos de contacto profesionales de una persona o los de una empresa. Cada dato encontrado gasta créditos.",
 };

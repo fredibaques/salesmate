@@ -12,6 +12,7 @@ import { mcpToolsOf } from "@/server/connectors/mcp";
 import { whatsappVerifyToken } from "@/server/connectors/service";
 import { testConnection } from "./actions";
 import { AddConnectionButton } from "./add-connection";
+import { TaskTargetForm } from "./target-picker";
 
 export const metadata = { title: "Conexiones" };
 
@@ -179,6 +180,21 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/app/
                     <code className="block text-xs break-all text-muted">
                       Token de verificación: {whatsappTokens.get(c.id) ?? "—"}
                     </code>
+                  </div>
+                ) : null}
+
+                {(c.provider === "trello" || c.provider === "monday") && canEdit ? (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-xs font-medium tracking-wide text-muted uppercase">
+                      Tareas de los agentes
+                    </p>
+                    <TaskTargetForm
+                      connectionId={c.id}
+                      current={
+                        (c.metadata as { taskTarget?: { id: string; label: string } | null }).taskTarget ??
+                        null
+                      }
+                    />
                   </div>
                 ) : null}
 

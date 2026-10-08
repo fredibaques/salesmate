@@ -1,5 +1,6 @@
 import { ZodError } from "zod";
 import type { FormState } from "@/components/action-form";
+import { ConnectorError, describeConnectorError } from "./connectors/types";
 
 /** Runs a mutation for a form and converts errors into a readable message. */
 export async function runForm(fn: () => Promise<string | void>, okMessage = "Guardado."): Promise<FormState> {
@@ -14,6 +15,7 @@ export async function runForm(fn: () => Promise<string | void>, okMessage = "Gua
         message: err.issues.map((i) => `${i.path.join(".") || "dato"}: ${i.message}`).join(" · "),
       };
     }
+    if (err instanceof ConnectorError) return { ok: false, message: describeConnectorError(err) };
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }
 }

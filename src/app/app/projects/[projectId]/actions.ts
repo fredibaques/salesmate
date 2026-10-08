@@ -7,6 +7,7 @@ import { requireRole, requireTenant } from "@/server/auth/session";
 import { getAvailability } from "@/server/calendar/availability";
 import { getDb } from "@/server/db/client";
 import { list, num, runForm, str } from "@/server/form";
+import { importFromGoogle } from "@/server/knowledge/google-import";
 import { answerFromKnowledge } from "@/server/agents/knowledge-answer";
 import {
   deleteSource,
@@ -129,6 +130,26 @@ function fileFrom(form: FormData): File {
   const file = form.get("file");
   if (!(file instanceof File) || file.size === 0) throw new Error("Selecciona un fichero.");
   return file;
+}
+
+/** Imports a Google Doc or Sheet into the project's knowledge (a copy). */
+export async function importGoogleKnowledge(
+  projectId: string,
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  return runForm(async () => {
+    const tenant = await admin();
+    const imported = await importFromGoogle({ db: getDb() }, tenant, {
+      projectId,
+      url: str(form, "url") ?? "",
+      name: str(form, "name"),
+    });
+    refresh(projectId);
+    return imported.kind === "doc"
+      ? `«${imported.name}» añadido.`
+      : `«${imported.name}» añadido: ${imported.tables === 1 ? "1 tabla" : `${imported.tables} tablas`}.`;
+  });
 }
 
 export async function uploadKnowledge(projectId: string, _: FormState, form: FormData): Promise<FormState> {

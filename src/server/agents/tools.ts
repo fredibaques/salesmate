@@ -338,7 +338,7 @@ export async function mcpTools(
   return out;
 }
 
-const DATA_PROVIDER_NAMES: Record<string, string> = { apollo: "Apollo", lusha: "Lusha" };
+const DATA_PROVIDER_NAMES: Record<string, string> = { apollo: "Apollo", lusha: "Lusha", hunter: "Hunter" };
 
 /**
  * Tools of the B2B data providers the agent may use (Apollo, Lusha): find
@@ -374,7 +374,10 @@ export async function dataTools(ctx: AgentToolContext, connectionIds: string[]):
       out.push(
         defineTool({
           name: `${row.provider}_search_people`,
-          description: `[${label}] Busca personas por cargo, empresa (dominio) y zona. No gasta créditos, pero no da email ni teléfono: para eso usa ${row.provider}_enrich_person con quien encaje. ${source}`,
+          description:
+            row.provider === "hunter"
+              ? `[${label}] Personas que trabajan en las empresas indicadas (companyDomains, obligatorio), con su cargo y su email de trabajo. Gasta una búsqueda por empresa. ${source}`
+              : `[${label}] Busca personas por cargo, empresa (dominio) y zona. No gasta créditos, pero no da email ni teléfono: para eso usa ${row.provider}_enrich_person con quien encaje. ${source}`,
           input: z.object({
             titles: z
               .array(z.string())
@@ -440,6 +443,16 @@ export async function dataTools(ctx: AgentToolContext, connectionIds: string[]):
             providerId: z.string().optional().describe("Id de la persona en la búsqueda anterior"),
           }),
           run: (input) => call((c) => c["data.enrich_person"]?.(input)),
+        }),
+      );
+    }
+    if (caps.includes("data.verify_email")) {
+      out.push(
+        defineTool({
+          name: `${row.provider}_verify_email`,
+          description: `[${label}] Comprueba si un email existe y acepta correo (deliverable, risky, undeliverable). Úsalo antes de guardar un email deducido. Gasta una verificación.`,
+          input: z.object({ email: z.string().email() }),
+          run: (input) => call((c) => c["data.verify_email"]?.(input)),
         }),
       );
     }
