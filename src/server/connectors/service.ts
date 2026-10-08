@@ -396,6 +396,7 @@ export async function saveGoogleConnection(
     ...(sets.includes("gmail_read") ? ["email"] : []),
     ...(sets.includes("docs_read") ? ["docs"] : []),
     ...(sets.includes("sheets") ? ["sheets"] : []),
+    ...(sets.includes("meet_read") ? ["meet"] : []),
   ];
   const write = [
     ...(sets.includes("calendar_write") ? ["calendar"] : []),

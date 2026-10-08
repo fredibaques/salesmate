@@ -43,13 +43,14 @@ export const INTEGRATIONS: Integration[] = [
   {
     id: "google_meet",
     name: "Google Meet",
-    tagline: "Videollamadas en las reuniones que agenda",
+    tagline: "Videollamadas y sus transcripciones",
     category: "email_calendar",
     status: "available",
     color: "#00897B",
     abilities: [
       "Las reuniones que agenda el agente en Google Calendar llevan su enlace de Meet",
-      "Se activa con tu cuenta de Google Workspace, con permiso para crear reuniones",
+      "Al acabar, trae la transcripción, la resume y anota los siguientes pasos en la conversación",
+      "Necesita la transcripción activada en la llamada (Google Workspace de pago)",
     ],
   },
   {
@@ -252,6 +253,7 @@ export function describeScopes(read: string[], write: string[]): string[] {
   if (read.includes("docs")) out.push("Leer documentos de Docs");
   if (read.includes("sheets")) out.push("Leer hojas de cálculo");
   if (write.includes("sheets")) out.push("Crear hojas de cálculo");
+  if (read.includes("meet")) out.push("Leer transcripciones de Meet");
   if (write.includes("workspace")) out.push("Exportar tablas y crear tareas");
   return out;
 }
@@ -279,4 +281,5 @@ export const CAPABILITY_LABELS: Record<string, string> = {
   "table.export": "Exportar tablas",
   "export.targets": "Ver bases, listas y tableros",
   "task.create": "Crear tareas para el equipo",
+  "meet.transcript": "Leer transcripciones de Meet",
 };

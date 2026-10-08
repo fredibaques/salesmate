@@ -8,12 +8,14 @@ import { connections, inboundEvents } from "@/server/db/schema";
 import { withSystem } from "@/server/db/tenant";
 import { isSchedulerCall } from "@/server/cron";
 import { orgLlm } from "@/server/llm/org-ai";
+import { syncPendingTranscripts } from "@/server/meetings/service";
 
 export const maxDuration = 300;
 
 /**
- * Scheduler entry point: reads new mail from connected mailboxes and runs the
- * inbound agent on pending events. Protected by the scheduler secrets.
+ * Scheduler entry point: reads new mail from connected mailboxes, runs the
+ * inbound agent on pending events and reads the transcripts of ended Meet
+ * calls. Protected by the scheduler secrets.
  */
 export async function GET(request: Request) {
   if (!(await isSchedulerCall(getDb(), request))) {
@@ -43,5 +45,7 @@ export async function GET(request: Request) {
       processed: llm ? processed.map((p) => p.status) : "ai_not_connected",
     };
   }
-  return NextResponse.json({ ok: true, report });
+  // Transcripts of Meet calls that have ended.
+  const transcripts = await syncPendingTranscripts({ db, llmFor: (orgId) => orgLlm(db, { orgId }) });
+  return NextResponse.json({ ok: true, report, transcripts });
 }

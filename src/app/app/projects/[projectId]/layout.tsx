@@ -52,6 +52,7 @@ export default async function ProjectLayout({ children, params }: LayoutProps<"/
           <TabLink href={`${base}/prospects`}>Tablas</TabLink>
           <TabLink href={`${base}/knowledge`}>Conocimiento</TabLink>
           <TabLink href={`${base}/conversations`}>Conversaciones</TabLink>
+          <TabLink href={`${base}/meetings`}>Reuniones</TabLink>
           <TabLink href={`${base}/settings`} also={[`${base}/rules`]}>
             Ajustes
           </TabLink>

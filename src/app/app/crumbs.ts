@@ -6,6 +6,7 @@ export type NameLookup = {
   source: (id: string) => Promise<string | null>;
   conversation: (id: string) => Promise<string | null>;
   base: (id: string) => Promise<string | null>;
+  meeting: (id: string) => Promise<string | null>;
   /** The name the user gave an agent, if any. */
   agent: (projectId: string, type: string) => Promise<string | null>;
 };
@@ -24,6 +25,7 @@ const PROJECT_TABS: Record<string, string> = {
   prospects: "Tablas",
   knowledge: "Conocimiento",
   conversations: "Conversaciones",
+  meetings: "Reuniones",
   settings: "Ajustes",
   rules: "Ajustes",
   offer: "Ajustes",
@@ -96,6 +98,9 @@ export async function crumbsFor(segments: string[], names: NameLookup): Promise<
     if (tab === "prospects" && sub) {
       if (sub === "new") return [project, tabCrumb, { label: "Nueva tabla" }];
       return [project, tabCrumb, { label: (await names.base(sub)) ?? "Base" }];
+    }
+    if (tab === "meetings" && sub) {
+      return [project, tabCrumb, { label: (await names.meeting(sub)) ?? "Reunión" }];
     }
     if (tab === "conversations" && sub) {
       return [project, tabCrumb, { label: (await names.conversation(sub)) ?? "Conversación" }];

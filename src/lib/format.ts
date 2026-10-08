@@ -61,6 +61,17 @@ export const CONVERSATION_STATUS: Record<
   closed: { label: "Cerrada", tone: "neutral" },
 };
 
+export const TRANSCRIPT_STATUS: Record<
+  string,
+  { label: string; tone: "neutral" | "success" | "warning" | "danger" | "accent" }
+> = {
+  waiting: { label: "Esperando la transcripción", tone: "warning" },
+  ready: { label: "Transcrita", tone: "success" },
+  none: { label: "Sin transcripción", tone: "neutral" },
+  error: { label: "No se ha podido leer", tone: "danger" },
+  manual: { label: "Sin Meet", tone: "neutral" },
+};
+
 export const CONTACT_STATUS_LABELS: Record<string, string> = {
   new: "Nuevo",
   contacted: "Contactado",

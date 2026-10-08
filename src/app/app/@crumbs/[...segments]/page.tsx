@@ -5,6 +5,7 @@ import {
   agentCustomName,
   baseName,
   conversationName,
+  meetingName,
   projectName,
   sourceName,
 } from "@/server/services/names";
@@ -20,6 +21,7 @@ export default async function CrumbsSlot({ params }: { params: Promise<{ segment
     source: (id) => sourceName(db, tenant, id).catch(() => null),
     conversation: (id) => conversationName(db, tenant, id).catch(() => null),
     base: (id) => baseName(db, tenant, id).catch(() => null),
+    meeting: (id) => meetingName(db, tenant, id).catch(() => null),
     agent: (projectId, type) => agentCustomName(db, tenant, projectId, type).catch(() => null),
   });
   return <Breadcrumbs items={items} />;

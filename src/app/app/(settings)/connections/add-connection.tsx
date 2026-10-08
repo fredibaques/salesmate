@@ -45,8 +45,8 @@ type Setup = { googleReady: boolean; appUrl: string };
 /** Google tools that are a permission of the Google Workspace connection. */
 const GOOGLE_EXTRAS: Record<string, { sets: string; note: string }> = {
   google_meet: {
-    sets: "calendar_read,calendar_write",
-    note: "Google Meet va con tu cuenta de Google: te pediremos permiso para crear reuniones en tu calendario. Las que agende el agente sin un lugar llevarán su enlace de Meet.",
+    sets: "calendar_read,calendar_write,meet_read",
+    note: "Google Meet va con tu cuenta de Google: te pediremos permiso para crear reuniones en tu calendario y leer las transcripciones de tus llamadas. Las que agende el agente sin un lugar llevarán su enlace de Meet.",
   },
   google_docs: {
     sets: "calendar_read,docs_read",

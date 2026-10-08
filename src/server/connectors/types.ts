@@ -161,6 +161,8 @@ export type Capabilities = {
     id: string;
     url: string | null;
   }>;
+  /** The transcript of a Google Meet call held in a time window. */
+  "meet.transcript": (input: { meetCode: string; from: string; to: string }) => Promise<MeetTranscript>;
   /** Posts a message to the channel of a Slack incoming webhook. */
   "notify.slack": (input: { text: string }) => Promise<{ ok: true }>;
   "calendar.book": (input: {
@@ -171,10 +173,18 @@ export type Capabilities = {
     description: string;
     location?: string;
     attendees: { email: string; name?: string }[];
-  }) => Promise<{ eventId: string; htmlLink: string | null }>;
+  }) => Promise<{ eventId: string; htmlLink: string | null; meetLink?: string | null }>;
 };
 
 export type Capability = keyof Capabilities;
+
+/**
+ * not_found: no call with that code in the window (yet); in_progress: the
+ * call or its transcript isn't finished; none: it ended without a transcript.
+ */
+export type MeetTranscript =
+  | { status: "not_found" | "in_progress" | "none" }
+  | { status: "ready"; lines: { speaker: string; text: string; at: string | null }[]; docUrl: string | null };
 
 export type OutgoingEmail = {
   from: { address: string; name?: string | null };

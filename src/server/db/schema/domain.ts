@@ -1100,6 +1100,59 @@ export const agentRuns = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Meetings and their Google Meet transcripts
+// ---------------------------------------------------------------------------
+
+/**
+ * waiting: the transcript is looked for after the meeting ends; ready: read
+ * and summarised; none: Meet made none (transcription off, nobody joined);
+ * error: it couldn't be read (permissions); manual: not a Meet call.
+ */
+export const TRANSCRIPT_STATUSES = ["waiting", "ready", "none", "error", "manual"] as const;
+
+export type TranscriptLine = { speaker: string; text: string; at: string | null };
+
+export const meetings = pgTable(
+  "meetings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: orgId(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    /** The calendar.book action that created it (none when added by hand). */
+    actionId: uuid("action_id").references(() => actions.id, { onDelete: "set null" }),
+    conversationId: uuid("conversation_id").references(() => conversations.id, { onDelete: "set null" }),
+    /** Google connection that reads the transcript (the organizer's account). */
+    connectionId: uuid("connection_id").references(() => connections.id, { onDelete: "set null" }),
+    calendarEventId: text("calendar_event_id"),
+    /** Meet code, «abc-defg-hij». */
+    meetCode: text("meet_code"),
+    title: text("title").notNull(),
+    startAt: timestamp("start_at", { withTimezone: true }).notNull(),
+    endAt: timestamp("end_at", { withTimezone: true }).notNull(),
+    attendees: jsonb("attendees").$type<{ email: string; name?: string }[]>().notNull().default([]),
+    transcriptStatus: text("transcript_status", { enum: TRANSCRIPT_STATUSES }).notNull().default("waiting"),
+    transcript: jsonb("transcript").$type<TranscriptLine[]>(),
+    /** The Google Doc Meet writes the transcript to. */
+    transcriptDocUrl: text("transcript_doc_url"),
+    summary: text("summary"),
+    nextSteps: jsonb("next_steps").$type<string[]>().notNull().default([]),
+    checkedAt: timestamp("checked_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdBy: text("created_by"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique("meetings_action_uq").on(t.actionId),
+    index("meetings_project_idx").on(t.projectId, t.startAt),
+    index("meetings_transcript_idx").on(t.transcriptStatus, t.endAt),
+    tenantPolicy("meetings"),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Relations
 // ---------------------------------------------------------------------------
 

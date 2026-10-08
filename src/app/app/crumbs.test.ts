@@ -6,6 +6,7 @@ const names: NameLookup = {
   source: async () => "Tarifas 2026.xlsx",
   conversation: async () => "Ana García",
   base: async () => "Concesionarios",
+  meeting: async () => "Demo con Ana",
   agent: async (_, type) => (type === "inbound" ? "Recepción web" : null),
 };
 const labels = async (path: string) => (await crumbsFor(path.split("/"), names)).map((c) => c.label);
@@ -38,6 +39,7 @@ describe("crumbsFor", () => {
     expect(await labels("projects/p1/prospects/new")).toEqual(["Swipoo", "Tablas", "Nueva tabla"]);
     expect(await labels("projects/p1/knowledge/s1")).toEqual(["Swipoo", "Conocimiento", "Tarifas 2026.xlsx"]);
     expect(await labels("projects/p1/conversations/c1")).toEqual(["Swipoo", "Conversaciones", "Ana García"]);
+    expect(await labels("projects/p1/meetings/m1")).toEqual(["Swipoo", "Reuniones", "Demo con Ana"]);
     expect(await labels("projects/new")).toEqual(["Panel", "Nuevo proyecto"]);
   });
 

@@ -1,23 +1,28 @@
 import { Bot, ListChecks } from "lucide-react";
 import { notFound } from "next/navigation";
-import { Badge, Card, EmptyState, LinkButton, Meta, PageHeader } from "@/components/ui";
+import { Badge, Card, EmptyState, LinkButton, Meta, PageHeader, RowLink } from "@/components/ui";
 import {
   ACTION_STATUS_LABELS,
   CONTACT_STATUS_LABELS,
   CONVERSATION_STATUS,
   formatDateTime,
+  TRANSCRIPT_STATUS,
 } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getActionDefinition } from "@/server/gateway/definitions";
+import { listMeetings } from "@/server/meetings/service";
 import { getConversation } from "@/server/services/sales";
 
 export default async function ConversationPage({
   params,
 }: PageProps<"/app/projects/[projectId]/conversations/[conversationId]">) {
-  const { conversationId } = await params;
+  const { projectId, conversationId } = await params;
   const tenant = await requireTenant();
-  const data = await getConversation(getDb(), tenant, conversationId);
+  const [data, meetingRows] = await Promise.all([
+    getConversation(getDb(), tenant, conversationId),
+    listMeetings(getDb(), tenant, { conversationId }),
+  ]);
   if (!data) notFound();
   const { conversation: c, contact } = data;
 
@@ -50,8 +55,8 @@ export default async function ConversationPage({
                   className={`rounded-lg border p-3 text-sm ${m.direction === "inbound" ? "border-border" : "border-brand-200 bg-brand-50"}`}
                 >
                   <div className="mb-1 text-xs text-muted">
-                    {m.direction === "inbound" ? "Contacto" : "Nosotros"} · {m.channel} ·{" "}
-                    {formatDateTime(m.sentAt)}
+                    {m.channel === "meet" ? "Reunión" : m.direction === "inbound" ? "Contacto" : "Nosotros"} ·{" "}
+                    {m.channel} · {formatDateTime(m.sentAt)}
                   </div>
                   {m.subject ? <div className="font-medium">{m.subject}</div> : null}
                   <p className="whitespace-pre-wrap">{m.body}</p>
@@ -96,6 +101,22 @@ export default async function ConversationPage({
               </ul>
             )}
           </Card>
+
+          {meetingRows.length > 0 ? (
+            <Card title="Reuniones">
+              {meetingRows.map((meeting) => (
+                <RowLink key={meeting.id} href={`/app/projects/${projectId}/meetings/${meeting.id}`}>
+                  <span>
+                    <span className="block font-medium">{meeting.title}</span>
+                    <span className="text-xs text-muted">{formatDateTime(meeting.startAt)}</span>
+                  </span>
+                  <Badge tone={TRANSCRIPT_STATUS[meeting.transcriptStatus].tone}>
+                    {TRANSCRIPT_STATUS[meeting.transcriptStatus].label}
+                  </Badge>
+                </RowLink>
+              ))}
+            </Card>
+          ) : null}
 
           <Card title="Qué ha hecho el agente">
             {data.runs.length === 0 ? (

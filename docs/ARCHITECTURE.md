@@ -146,6 +146,33 @@ aplica a cualquier `ConnectorError`.
   probando cada cuenta de Google conectada con permiso de lectura; 403/404
   pasan a la siguiente. Es una copia: si cambia en Google, se vuelve a importar.
 
+## Reuniones y transcripciones de Meet
+
+- Tabla `meetings` (migración 0017). Al ejecutarse un `calendar.book`,
+  `recordBookedMeeting` (en `afterExecute` del gateway) guarda la reunión con
+  su conversación (`context.subjectRef`), la conexión de Google del
+  calendario y el código de Meet (`meetCodeOf`); sin Meet queda `manual`.
+- El permiso `meet_read` (`meetings.space.readonly`, se pide desde la
+  ficha «Google Meet») da la capacidad `meet.transcript`: Meet REST API v2,
+  `conferenceRecords` filtrados por código y ventana de tiempo →
+  `transcripts` → `participants` (nombres) → `entries` (paginadas, máx. 30
+  páginas de 100). Varias sesiones de la misma llamada se juntan en orden.
+- `syncPendingTranscripts` (cron `/api/cron/inbound`, 5 por llamada) mira
+  las reuniones en `waiting` desde 5 minutos después del final y cada 10
+  minutos. Si está: la guarda, la resume con la IA de la organización
+  (`json_schema`: resumen y siguientes pasos), deja una nota interna
+  (`channel: "meet"`) en la conversación y pone los siguientes pasos en
+  `conversations.next_step`. «Sin transcripción» solo es definitivo 2 horas
+  después del final (la llamada puede empezar tarde o alargarse); a las 48
+  horas se deja de buscar. Sin permiso o con 401/403 → `error`, con el
+  motivo en `last_error`; «Buscar ahora» lo vuelve a intentar.
+- Pestaña Reuniones del proyecto: lista, ficha con resumen, siguientes
+  pasos y transcripción, y «Traer de Google Meet» para cualquier llamada de
+  los últimos 30 días por su enlace (`importMeetTranscript`, solo si ya
+  tiene transcripción). La conversación enlaza sus reuniones.
+- La transcripción solo existe si alguien la activa en la llamada (planes
+  de Google Workspace que la incluyen).
+
 ## Exportar tablas y tareas del equipo
 
 - `table.export` (gateway, `connectionVia: "payload"`, no saliente): el
@@ -435,7 +462,8 @@ nadie se quita a sí mismo. Todo queda en auditoría (`member.*`).
 
 - Varios agentes de la misma plantilla en un proyecto (hoy uno por tipo).
 - Enviar prospectos al CRM o a una secuencia de emails (con aprobación).
-- Transcripciones de Google Meet (hoy solo se crea el enlace).
+- Que el agente proponga el seguimiento (email, tarea) a partir de los
+  siguientes pasos de una reunión.
 - Exportaciones que actualicen una tabla ya exportada (hoy cada una crea otra).
 - Account Manager (fase 3).
 - Gmail push (Pub/Sub) para responder en segundos también por email.
