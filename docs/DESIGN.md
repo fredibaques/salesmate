@@ -206,7 +206,11 @@ Remove actions on a row are a `dangerGhost` icon button with an
   `MenuButton`, not several buttons. Page actions stay on the title's line
   (`PageHeader` truncates long titles instead of wrapping the actions).
 - Tools show their logo (`IntegrationLogo`: simple-icons marks, Microsoft and
-  Slack drawn, an initial in the brand colour when there is no mark).
+  Slack and monday drawn, an initial in the brand colour when there is no
+  mark, like Hunter).
+- A modal a menu item opens (Exportar → «A otra herramienta…») is a
+  `ModalButton` with `hideTrigger` and `defaultOpen`, shown by a query
+  parameter (`?send=1`); `onClose` removes the parameter.
 - Creating opens a modal from a button; creations with several steps (a
   project, a table) open a `Wizard` in a wide modal, with the steps across
   the top (`ModalButton` + `ActionForm`): the

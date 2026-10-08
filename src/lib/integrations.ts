@@ -3,7 +3,7 @@
  * connector; the rest are planned and shown so users know what is coming.
  */
 
-export type IntegrationCategory = "crm" | "email_calendar" | "messaging" | "data";
+export type IntegrationCategory = "crm" | "email_calendar" | "messaging" | "data" | "workspace";
 
 export type Integration = {
   id: string;
@@ -22,6 +22,7 @@ export const INTEGRATION_CATEGORIES: Record<IntegrationCategory, string> = {
   email_calendar: "Correo y calendario",
   messaging: "Teléfono y mensajería",
   data: "Datos y otras herramientas",
+  workspace: "Documentos y gestión de tareas",
 };
 
 export const INTEGRATIONS: Integration[] = [
@@ -37,6 +38,18 @@ export const INTEGRATIONS: Integration[] = [
       "Crear reuniones con invitación",
       "Preparar borradores y enviar emails desde tu buzón",
       "Leer los emails que llegan para responder leads",
+    ],
+  },
+  {
+    id: "google_meet",
+    name: "Google Meet",
+    tagline: "Videollamadas en las reuniones que agenda",
+    category: "email_calendar",
+    status: "available",
+    color: "#00897B",
+    abilities: [
+      "Las reuniones que agenda el agente en Google Calendar llevan su enlace de Meet",
+      "Se activa con tu cuenta de Google Workspace, con permiso para crear reuniones",
     ],
   },
   {
@@ -125,6 +138,20 @@ export const INTEGRATIONS: Integration[] = [
     ],
   },
   {
+    id: "hunter",
+    name: "Hunter.io",
+    tagline: "Emails de trabajo por empresa",
+    category: "data",
+    status: "available",
+    color: "#FA5320",
+    abilities: [
+      "Encontrar quién trabaja en una empresa (por su web), con su cargo y su email de trabajo",
+      "Encontrar el email de una persona concreta y verificar que existe",
+      "Completar los datos de una empresa: sector, tamaño y ubicación",
+      "Solo lee: no escribe nada en tu cuenta de Hunter",
+    ],
+  },
+  {
     id: "lusha",
     name: "Lusha",
     tagline: "Datos de contacto B2B",
@@ -146,6 +173,66 @@ export const INTEGRATIONS: Integration[] = [
     status: "soon",
     color: "#336791",
   },
+  {
+    id: "google_docs",
+    name: "Google Docs",
+    tagline: "Documentos como conocimiento",
+    category: "workspace",
+    status: "available",
+    color: "#4285F4",
+    abilities: [
+      "Importar un documento de Google Docs al conocimiento de un proyecto",
+      "Solo lee los documentos que importes",
+    ],
+  },
+  {
+    id: "google_sheets",
+    name: "Google Sheets",
+    tagline: "Hojas como conocimiento y destino de tablas",
+    category: "workspace",
+    status: "available",
+    color: "#34A853",
+    abilities: [
+      "Importar una hoja de cálculo como tabla de conocimiento (tarifas, catálogos…)",
+      "Exportar una tabla de SalesMate a una hoja nueva de Google Sheets",
+    ],
+  },
+  {
+    id: "airtable",
+    name: "Airtable",
+    tagline: "Bases de datos colaborativas",
+    category: "workspace",
+    status: "available",
+    color: "#18BFFF",
+    abilities: [
+      "Exportar una tabla de SalesMate a una tabla nueva de una base de Airtable",
+      "Con un token personal: solo las bases a las que le des acceso",
+    ],
+  },
+  {
+    id: "trello",
+    name: "Trello",
+    tagline: "Tableros y tarjetas",
+    category: "workspace",
+    status: "available",
+    color: "#0052CC",
+    abilities: [
+      "Exportar filas de una tabla como tarjetas de una lista",
+      "Que los agentes creen tarjetas para el equipo (tareas de seguimiento), con las reglas del proyecto",
+    ],
+  },
+  {
+    id: "monday",
+    name: "monday.com",
+    tagline: "Tableros de trabajo",
+    category: "workspace",
+    status: "available",
+    color: "#FF3D57",
+    abilities: [
+      "Exportar filas de una tabla como elementos de un tablero",
+      "Que los agentes creen elementos para el equipo (tareas de seguimiento), con las reglas del proyecto",
+    ],
+  },
 ];
 
 export function getIntegration(id: string): Integration | undefined {
@@ -162,6 +249,10 @@ export function describeScopes(read: string[], write: string[]): string[] {
   if (read.includes("crm")) out.push("Leer el CRM");
   if (write.includes("crm")) out.push("Escribir en el CRM");
   if (read.includes("data")) out.push("Buscar empresas y datos de contacto");
+  if (read.includes("docs")) out.push("Leer documentos de Docs");
+  if (read.includes("sheets")) out.push("Leer hojas de cálculo");
+  if (write.includes("sheets")) out.push("Crear hojas de cálculo");
+  if (write.includes("workspace")) out.push("Exportar tablas y crear tareas");
   return out;
 }
 
@@ -182,4 +273,10 @@ export const CAPABILITY_LABELS: Record<string, string> = {
   "data.search_companies": "Buscar empresas",
   "data.enrich_person": "Datos de contacto de una persona",
   "data.enrich_company": "Datos de una empresa",
+  "data.verify_email": "Verificar emails",
+  "docs.read": "Leer documentos",
+  "sheets.read": "Leer hojas de cálculo",
+  "table.export": "Exportar tablas",
+  "export.targets": "Ver bases, listas y tableros",
+  "task.create": "Crear tareas para el equipo",
 };

@@ -5,7 +5,7 @@ import { dataTools } from "../agents/tools";
 import type { Db } from "../db/client";
 import { projects } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
-import { createApolloClient, createLushaClient } from "./data";
+import { createApolloClient, createHunterClient, createLushaClient } from "./data";
 import { createDataConnection } from "./service";
 
 const creds = { apiKey: "key-1234567890abcd" };
@@ -137,6 +137,80 @@ describe("Lusha", () => {
     const client = createLushaClient(creds, { fetch });
     expect(await client["data.enrich_person"]({ email: "nadie@x.es" })).toBeNull();
     expect(await client["data.check"]()).toEqual({ ok: true, detail: "Créditos disponibles · credits: 90" });
+  });
+});
+
+describe("Hunter", () => {
+  it("finds people at each company domain, filtered by title, with their work emails", async () => {
+    const { fetch, requests } = mockFetch({
+      "GET https://api.hunter.io/v2/domain-search": (req) =>
+        new URL(req.url).searchParams.get("domain") === "autosgarcia.es"
+          ? {
+              data: {
+                organization: "Autos García",
+                emails: [
+                  {
+                    value: "luis@autosgarcia.es",
+                    first_name: "Luis",
+                    last_name: "García",
+                    position: "Gerente",
+                  },
+                  { value: "info@autosgarcia.es", position: "Recepción" },
+                ],
+              },
+            }
+          : { data: { organization: "Motor Sur", emails: [] } },
+    });
+    const people = await createHunterClient(creds, { fetch })["data.search_people"]({
+      titles: ["gerente"],
+      companyDomains: ["https://www.autosgarcia.es", "motorsur.es"],
+      limit: 5,
+    });
+    expect(requests).toHaveLength(2);
+    expect(requests[0].headers["x-api-key"]).toBe("key-1234567890abcd");
+    expect(new URL(requests[0].url).searchParams.get("type")).toBe("personal");
+    expect(people).toEqual([
+      expect.objectContaining({
+        name: "Luis García",
+        title: "Gerente",
+        email: "luis@autosgarcia.es",
+        companyName: "Autos García",
+        companyDomain: "autosgarcia.es",
+        sourceUrl: "https://hunter.io/search/autosgarcia.es",
+      }),
+    ]);
+    await expect(
+      createHunterClient(creds, { fetch })["data.search_people"]({ titles: ["CEO"] }),
+    ).rejects.toThrow("companyDomains");
+  });
+
+  it("finds an email by name and domain, verifies it, and treats 404 as not found", async () => {
+    const { fetch, requests } = mockFetch({
+      "GET https://api.hunter.io/v2/email-finder": () => ({
+        data: {
+          email: "ana@acme.es",
+          first_name: "Ana",
+          last_name: "Ruiz",
+          position: "CEO",
+          domain: "acme.es",
+        },
+      }),
+      "GET https://api.hunter.io/v2/email-verifier": () => ({ data: { status: "valid", score: 97 } }),
+    });
+    const client = createHunterClient(creds, { fetch });
+    const person = await client["data.enrich_person"]({ name: "Ana Ruiz Pérez", companyDomain: "acme.es" });
+    const finder = new URL(requests[0].url).searchParams;
+    expect(finder.get("first_name")).toBe("Ana");
+    expect(finder.get("last_name")).toBe("Ruiz Pérez");
+    expect(person).toMatchObject({ name: "Ana Ruiz", email: "ana@acme.es", title: "CEO" });
+    expect(await client["data.verify_email"]({ email: "ana@acme.es" })).toEqual({
+      email: "ana@acme.es",
+      status: "valid",
+      score: 97,
+      sourceUrl: "https://hunter.io/verify",
+    });
+    // No company data for that domain.
+    expect(await client["data.enrich_company"]({ domain: "nadie.es" })).toBeNull();
   });
 });
 

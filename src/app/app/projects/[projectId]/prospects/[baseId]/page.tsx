@@ -16,6 +16,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { MenuButton } from "@/components/menu-button";
+import { connectionCapabilities } from "@/server/connectors/service";
+import { listOrgConnections } from "@/server/services/projects";
 import { DataGrid, GridCell, GridHead, GridRow } from "@/components/data-grid";
 import {
   Badge,
@@ -42,6 +44,7 @@ import { completeProspectsNow, runProspectingNow } from "../../agents/actions";
 import { changeProspectStatus } from "../actions";
 import { CellState, cellTitle, COLUMN_ICONS, NotFound, Pending, ScoreBar, WebLink } from "../cells";
 import { AddColumnButton, BaseSettings, ColumnsEditor, EditColumnButton } from "./columns-editor";
+import { SendTableModal } from "./send-table";
 import { RowPanel } from "./row-panel";
 
 // «Buscar ahora» keeps running after the response.
@@ -86,6 +89,7 @@ export default async function ProspectBasePage({
   const page = Math.max(1, Number(query.page) || 1);
   const rowParam = typeof query.row === "string" ? query.row : undefined;
   const canEdit = tenant.role !== "member";
+  const sending = canEdit && query.send === "1";
   const [data, bases, runs, openRow, pendingCells] = await Promise.all([
     listProspects(db, tenant, baseId, {
       status,
@@ -148,8 +152,23 @@ export default async function ProspectBasePage({
     </Link>
   );
 
+  const destinations = sending
+    ? (await listOrgConnections(db, tenant))
+        .filter((c) => c.status === "active" && connectionCapabilities(c).includes("table.export"))
+        .map((c) => ({ id: c.id, label: c.label, provider: c.provider }))
+    : [];
+
   return (
     <>
+      {sending ? (
+        <SendTableModal
+          projectId={projectId}
+          baseId={baseId}
+          destinations={destinations}
+          pending={pendingExport}
+          total={data.total}
+        />
+      ) : null}
       <PageHeader
         icon={person ? <User /> : <Building2 />}
         title={base.name}
@@ -188,6 +207,15 @@ export default async function ProspectBasePage({
                     description: "Todas las filas, en un Excel (CSV).",
                     href: exportUrl,
                   },
+                  ...(canEdit
+                    ? [
+                        {
+                          label: "A otra herramienta…",
+                          description: "Google Sheets, Airtable, Trello o monday.com.",
+                          href: href({ send: "1" }),
+                        },
+                      ]
+                    : []),
                 ]}
               />
             ) : null}

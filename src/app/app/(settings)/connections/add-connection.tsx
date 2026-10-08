@@ -14,7 +14,7 @@ import {
   type Integration,
   type IntegrationCategory,
 } from "@/lib/integrations";
-import { addDataSource, addMcp, addSlack, addTwenty, addWhatsapp } from "./actions";
+import { addDataSource, addMcp, addSlack, addTwenty, addWhatsapp, addWorkspace } from "./actions";
 
 const GOOGLE_PERMISSIONS = [
   {
@@ -41,6 +41,22 @@ const GOOGLE_PERMISSIONS = [
 ] as const;
 
 type Setup = { googleReady: boolean; appUrl: string };
+
+/** Google tools that are a permission of the Google Workspace connection. */
+const GOOGLE_EXTRAS: Record<string, { sets: string; note: string }> = {
+  google_meet: {
+    sets: "calendar_read,calendar_write",
+    note: "Google Meet va con tu cuenta de Google: te pediremos permiso para crear reuniones en tu calendario. Las que agende el agente sin un lugar llevarán su enlace de Meet.",
+  },
+  google_docs: {
+    sets: "calendar_read,docs_read",
+    note: "Te pediremos permiso para leer tus documentos de Google Docs. Solo se leen los que importes al conocimiento de un proyecto.",
+  },
+  google_sheets: {
+    sets: "calendar_read,sheets",
+    note: "Te pediremos permiso para leer y crear hojas de cálculo: para importar una hoja al conocimiento y para exportar tablas a una hoja nueva.",
+  },
+};
 
 /** The tools that can be connected, by category, as tiles. */
 function ToolGrid({ onPick }: { onPick: (id: string) => void }) {
@@ -110,6 +126,61 @@ function ToolSetup({ integration, setup }: { integration: Integration; setup: Se
       ) : null}
 
       <div className="border-t border-border pt-5">
+        {GOOGLE_EXTRAS[provider] ? (
+          setup.googleReady ? (
+            <form action="/api/connections/google/start" method="get" className="space-y-4">
+              <input type="hidden" name="sets" value={GOOGLE_EXTRAS[provider].sets} />
+              <Notice>{GOOGLE_EXTRAS[provider].note}</Notice>
+              <div className="flex justify-end">
+                <Button>Continuar con Google</Button>
+              </div>
+            </form>
+          ) : (
+            <Notice tone="warning">
+              Primero hay que configurar Google en el servidor (GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET).
+            </Notice>
+          )
+        ) : null}
+
+        {provider === "airtable" || provider === "trello" || provider === "monday" ? (
+          <ActionForm
+            action={addWorkspace.bind(null, provider)}
+            submitLabel={`Conectar ${integration.name}`}
+            className="space-y-4"
+          >
+            <Field label="Nombre" hint="Para reconocerla en los agentes y al exportar.">
+              <Input name="label" defaultValue={integration.name} required />
+            </Field>
+            {provider === "trello" ? (
+              <Field
+                label="API key"
+                tip="En trello.com/power-ups/admin crea un Power-Up (o usa uno tuyo) y copia su API key."
+              >
+                <Input name="key" required autoComplete="off" />
+              </Field>
+            ) : null}
+            <Field
+              label={
+                provider === "airtable"
+                  ? "Token personal"
+                  : provider === "trello"
+                    ? "Token"
+                    : "Token de la API"
+              }
+              hint="Comprobaremos que funciona antes de guardarlo. Se guarda cifrado."
+              tip={
+                provider === "airtable"
+                  ? "airtable.com/create/tokens: permisos data.records:write, schema.bases:read y schema.bases:write, y acceso a las bases donde exportar."
+                  : provider === "trello"
+                    ? "Junto a la API key, pulsa «Token» para autorizarla con tu cuenta de Trello."
+                    : "En monday.com: tu avatar → Developers → My access tokens."
+              }
+            >
+              <Input name="token" type="password" required autoComplete="off" />
+            </Field>
+          </ActionForm>
+        ) : null}
+
         {provider === "google" ? (
           setup.googleReady ? (
             <form action="/api/connections/google/start" method="get" className="space-y-3">
@@ -165,7 +236,7 @@ function ToolSetup({ integration, setup }: { integration: Integration; setup: Se
           </ActionForm>
         ) : null}
 
-        {provider === "apollo" || provider === "lusha" ? (
+        {provider === "apollo" || provider === "lusha" || provider === "hunter" ? (
           <ActionForm
             action={addDataSource.bind(null, provider)}
             submitLabel={`Conectar ${integration.name}`}
@@ -178,9 +249,11 @@ function ToolSetup({ integration, setup }: { integration: Integration; setup: Se
               label="API key"
               hint="Comprobaremos que funciona antes de guardarla. Se guarda cifrada."
               tip={
-                provider === "apollo"
-                  ? "Créala en Apollo → Settings → Integrations → API → API Keys. Si quieres que busque personas, dale acceso a todas las funciones o créala como master key."
-                  : "La encuentras en Lusha → API (dashboard.lusha.com). El acceso a la API depende de tu plan de Lusha."
+                provider === "hunter"
+                  ? "La encuentras en Hunter → API (hunter.io/api-keys)."
+                  : provider === "apollo"
+                    ? "Créala en Apollo → Settings → Integrations → API → API Keys. Si quieres que busque personas, dale acceso a todas las funciones o créala como master key."
+                    : "La encuentras en Lusha → API (dashboard.lusha.com). El acceso a la API depende de tu plan de Lusha."
               }
             >
               <Input name="apiKey" type="password" required autoComplete="off" />

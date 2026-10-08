@@ -20,6 +20,8 @@ export const GOOGLE_SCOPE_SETS = {
   calendar_write: ["https://www.googleapis.com/auth/calendar.events"],
   gmail_write: ["https://www.googleapis.com/auth/gmail.compose"],
   gmail_read: ["https://www.googleapis.com/auth/gmail.readonly"],
+  docs_read: ["https://www.googleapis.com/auth/documents.readonly"],
+  sheets: ["https://www.googleapis.com/auth/spreadsheets"],
 } as const;
 export type GoogleScopeSet = keyof typeof GOOGLE_SCOPE_SETS;
 
@@ -204,6 +206,35 @@ export function parseGmailMessage(message: {
 // Client
 // ---------------------------------------------------------------------------
 
+type DocElement = {
+  paragraph?: { elements?: { textRun?: { content?: string } }[] };
+  table?: { tableRows?: { tableCells?: { content?: DocElement[] }[] }[] };
+};
+
+/** The text of a Google Doc body: paragraphs as lines, table cells separated by « | ». */
+function docText(elements: DocElement[]): string {
+  return elements
+    .map((el) => {
+      if (el.paragraph) return (el.paragraph.elements ?? []).map((e) => e.textRun?.content ?? "").join("");
+      if (el.table)
+        return (
+          (el.table.tableRows ?? [])
+            .map((row) =>
+              (row.tableCells ?? [])
+                .map((cell) =>
+                  docText(cell.content ?? [])
+                    .replace(/\s+/g, " ")
+                    .trim(),
+                )
+                .join(" | "),
+            )
+            .join("\n") + "\n"
+        );
+      return "";
+    })
+    .join("");
+}
+
 export function createGoogleClient(
   creds: GoogleCredentials,
   ctx: ConnectorContext & { oauth: Pick<GoogleOAuthClient, "clientId" | "clientSecret"> },
@@ -310,8 +341,10 @@ export function createGoogleClient(
       location?: string;
       attendees: { email: string; name?: string }[];
     }) {
+      // Without a place, the meeting is a Google Meet video call.
+      const meet = !input.location?.trim();
       const event = (await call(
-        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(input.calendarId)}/events?sendUpdates=all`,
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(input.calendarId)}/events?sendUpdates=all${meet ? "&conferenceDataVersion=1" : ""}`,
         {
           method: "POST",
           json: {
@@ -321,10 +354,63 @@ export function createGoogleClient(
             start: { dateTime: input.start },
             end: { dateTime: input.end },
             attendees: input.attendees.map((a) => ({ email: a.email, displayName: a.name })),
+            ...(meet
+              ? {
+                  conferenceData: {
+                    createRequest: {
+                      requestId: `sm-${input.start}-${input.title}`.replace(/[^\w-]/g, "").slice(0, 60),
+                      conferenceSolutionKey: { type: "hangoutsMeet" },
+                    },
+                  },
+                }
+              : {}),
           },
         },
-      )) as { id: string; htmlLink?: string };
-      return { eventId: event.id, htmlLink: event.htmlLink ?? null };
+      )) as { id: string; htmlLink?: string; hangoutLink?: string };
+      return { eventId: event.id, htmlLink: event.htmlLink ?? null, meetLink: event.hangoutLink ?? null };
+    },
+
+    /** A Google Doc as plain text (paragraphs, lists and tables). */
+    async "docs.read"({ documentId }: { documentId: string }) {
+      const doc = (await call(
+        `https://docs.googleapis.com/v1/documents/${encodeURIComponent(documentId)}`,
+      )) as { title?: string; body?: { content?: DocElement[] } };
+      return { title: doc.title ?? "Documento", text: docText(doc.body?.content ?? []).trim() };
+    },
+
+    /** The values of one sheet of a spreadsheet (the first, or the one named). */
+    async "sheets.read"({ spreadsheetId, sheet }: { spreadsheetId: string; sheet?: string }) {
+      const meta = (await call(
+        `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=properties.title,sheets.properties.title`,
+      )) as { properties?: { title?: string }; sheets?: { properties?: { title?: string } }[] };
+      const names = (meta.sheets ?? []).map((s) => s.properties?.title ?? "").filter(Boolean);
+      const sheetTitle = sheet && names.includes(sheet) ? sheet : (names[0] ?? "Sheet1");
+      const values = (await call(
+        `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(`'${sheetTitle.replace(/'/g, "''")}'`)}`,
+      )) as { values?: unknown[][] };
+      return {
+        title: meta.properties?.title ?? "Hoja de cálculo",
+        sheetTitle,
+        rows: (values.values ?? []).map((r) =>
+          r.map((c) => (c === null || c === undefined ? "" : String(c))),
+        ),
+      };
+    },
+
+    /** A new spreadsheet with the table: header and rows. */
+    async "table.export"(input: { name: string; header: string[]; rows: string[][] }) {
+      const created = (await call("https://sheets.googleapis.com/v4/spreadsheets", {
+        method: "POST",
+        json: { properties: { title: input.name }, sheets: [{ properties: { title: "Datos" } }] },
+      })) as { spreadsheetId: string; spreadsheetUrl?: string };
+      await call(
+        `https://sheets.googleapis.com/v4/spreadsheets/${created.spreadsheetId}/values/${encodeURIComponent("'Datos'!A1")}?valueInputOption=RAW`,
+        { method: "PUT", json: { values: [input.header, ...input.rows] } },
+      );
+      return {
+        url: created.spreadsheetUrl ?? `https://docs.google.com/spreadsheets/d/${created.spreadsheetId}`,
+        count: input.rows.length,
+      };
     },
   };
 }
@@ -334,7 +420,7 @@ export function googleProvider(
 ): ConnectorProvider<GoogleCredentials> {
   return {
     id: "google",
-    name: "Google (Gmail + Calendar)",
+    name: "Google Workspace",
     transport: "api",
     credentialsSchema: googleCredentials,
     capabilitiesFor({ read, write }) {
@@ -343,6 +429,9 @@ export function googleProvider(
       if (write.includes("calendar")) caps.push("calendar.book");
       if (read.includes("email")) caps.push("email.list_messages", "email.get_message");
       if (write.includes("email")) caps.push("email.create_draft", "email.send");
+      if (read.includes("docs")) caps.push("docs.read");
+      if (read.includes("sheets")) caps.push("sheets.read");
+      if (write.includes("sheets")) caps.push("table.export");
       return caps;
     },
     create: (creds, ctx) => createGoogleClient(creds, { ...ctx, oauth }),

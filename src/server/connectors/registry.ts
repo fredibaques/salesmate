@@ -3,10 +3,22 @@ import { dataProvider } from "./data";
 import { googleProvider } from "./google";
 import { slackProvider } from "./slack";
 import { whatsappProvider } from "./whatsapp";
+import { workspaceProvider } from "./workspace";
 import { twentyProvider } from "./twenty";
 import type { ConnectorProvider } from "./types";
 
-export const PROVIDER_IDS = ["twenty", "google", "apollo", "lusha", "slack", "whatsapp"] as const;
+export const PROVIDER_IDS = [
+  "twenty",
+  "google",
+  "apollo",
+  "lusha",
+  "hunter",
+  "slack",
+  "whatsapp",
+  "airtable",
+  "trello",
+  "monday",
+] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
 export function getProvider(id: string): ConnectorProvider<unknown> {
@@ -17,13 +29,20 @@ export function getProvider(id: string): ConnectorProvider<unknown> {
       return slackProvider as ConnectorProvider<unknown>;
     case "whatsapp":
       return whatsappProvider as ConnectorProvider<unknown>;
+    case "airtable":
+    case "trello":
+    case "monday":
+      return workspaceProvider(id) as ConnectorProvider<unknown>;
     case "apollo":
     case "lusha":
+    case "hunter":
       return dataProvider(id) as ConnectorProvider<unknown>;
     case "google": {
       const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } = env();
       if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
-        throw new Error("Google is not configured (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).");
+        throw new Error(
+          "Google no está configurado en el servidor (faltan GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET).",
+        );
       }
       return googleProvider({
         clientId: GOOGLE_CLIENT_ID,

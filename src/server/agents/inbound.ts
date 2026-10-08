@@ -5,6 +5,7 @@ import type { Db } from "../db/client";
 import {
   agentConfigs,
   agentRuns,
+  connections,
   CONTACT_STATUSES,
   contacts,
   conversations,
@@ -385,6 +386,22 @@ export async function processInboundEvent(
         subjectRef: conversationRef(conversation.id),
       }),
     };
+    // Trello and monday.com connections with a place for tasks.
+    const taskBoards = (
+      await withTenant(deps.db, tenant, (tx) =>
+        tx
+          .select()
+          .from(connections)
+          .where(and(inArray(connections.provider, ["trello", "monday"]), eq(connections.status, "active"))),
+      )
+    )
+      .map((c) => ({
+        id: c.id,
+        label: c.label,
+        provider: c.provider,
+        target: (c.metadata as { taskTarget?: { label?: string } | null })?.taskTarget?.label ?? null,
+      }))
+      .filter((b): b is typeof b & { target: string } => Boolean(b.target));
     const needsCalendar = playbook?.spec.nextSteps.some((s) => s === "meeting" || s === "callback") ?? false;
     const tools: AgentTool[] = [
       ...knowledgeTools(toolCtx),
@@ -392,6 +409,7 @@ export async function processInboundEvent(
       ...(needsCalendar ? calendarTools(toolCtx) : []),
       leadStateTool({ db: deps.db, orgId, contactId: contact.id, conversationId: conversation.id }),
       actionTools(toolCtx, [
+        ...(taskBoards.length ? (["task.create"] as const) : []),
         "email.send",
         "whatsapp.send",
         "email.create_draft",
@@ -405,12 +423,21 @@ export async function processInboundEvent(
 
     const result = await runAgentLoop({
       llm: deps.llm,
-      system: systemPrompt({
-        project,
-        playbook,
-        identities: await projectIdentityHints(toolCtx),
-        instructions: agentConfig?.instructions,
-      }),
+      system: [
+        systemPrompt({
+          project,
+          playbook,
+          identities: await projectIdentityHints(toolCtx),
+          instructions: agentConfig?.instructions,
+        }),
+        taskBoards.length
+          ? `## Tableros de tareas del equipo\nPara que una persona haga un seguimiento, además de (o en vez de) una tarea en el CRM, puedes proponer task.create con su connectionId:\n${taskBoards
+              .map((b) => `- ${b.label} (${b.provider}, ${b.target}): connectionId ${b.id}`)
+              .join("\n")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
       messages: [
         {
           role: "user",

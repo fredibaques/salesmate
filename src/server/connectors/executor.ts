@@ -10,8 +10,11 @@ import type {
   McpCallPayload,
   NotifyEmailPayload,
   NotifySlackPayload,
+  TableExportPayload,
+  TaskPayload,
   WhatsappPayload,
 } from "../gateway/definitions";
+import { markExported, tableForExport } from "../prospects/service";
 import type { ActionExecutor, ActionRow } from "../gateway/gateway";
 import { callStoredMcpTool, type McpDeps } from "./mcp";
 import { markConnectionError, openConnection, type ConnectorDeps } from "./service";
@@ -39,9 +42,16 @@ export class ConnectorExecutor implements ActionExecutor {
       });
       return { result };
     }
-    const { client } = await openConnection(this.deps, tenant, action.connectionId);
+    const { connection, client } = await openConnection(this.deps, tenant, action.connectionId);
 
     try {
+      if (action.type === "table.export") return await this.exportTable(client, tenant, action);
+      if (action.type === "task.create") {
+        const p = action.payload as TaskPayload;
+        const target =
+          (connection.metadata as { taskTarget?: { id?: string } | null })?.taskTarget?.id ?? null;
+        return await require(client, "task.create")({ title: p.title, body: p.body, target });
+      }
       return await this.dispatch(client, tenant, action);
     } catch (err) {
       // Authentication problems disable the connection until someone reconnects it.
@@ -50,6 +60,33 @@ export class ConnectorExecutor implements ActionExecutor {
       }
       throw err;
     }
+  }
+
+  /** Reads the table now and writes it to the tool; new rows become «exported». */
+  private async exportTable(client: ConnectorClient, tenant: { orgId: string }, action: ActionRow) {
+    const p = action.payload as TableExportPayload;
+    const table = await tableForExport(this.deps.db, tenant, p.baseId, p.include);
+    if (!table.rows.length) return { url: null, count: 0 };
+    const result = await require(client, "table.export")({
+      name: table.name,
+      header: table.header,
+      rows: table.rows,
+      target: p.target,
+    });
+    // Only the rows that went out count as exported (tools that write one per row stop at a cap).
+    const sent = new Set(table.ids.slice(0, result.count));
+    await markExported(
+      this.deps.db,
+      { orgId: tenant.orgId, actorType: action.actorType, actorId: action.actorId },
+      {
+        baseId: p.baseId,
+        projectId: table.projectId,
+        ids: table.pendingIds.filter((id) => sent.has(id)),
+        count: result.count,
+        destination: p.destination,
+      },
+    );
+    return result;
   }
 
   private async identity(tenant: { orgId: string }, identityId: string) {

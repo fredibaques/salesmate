@@ -35,7 +35,7 @@ src/
     db/                     Esquema Drizzle, cliente, migraciones, withTenant()
     auth/                   Better Auth y helpers de sesión/tenant
     gateway/                Action Gateway: definiciones, políticas, flujo
-    connectors/             Capacidades, Twenty, Google, Apollo y Lusha, MCP, ejecutor, servicio de conexiones
+    connectors/             Capacidades, Twenty, Google, Apollo/Lusha/Hunter, Airtable/Trello/monday, MCP, ejecutor, servicio
     calendar/               Cálculo de huecos y disponibilidad global
     knowledge/              Ingesta de tablas y documentos, consulta y búsqueda
     services/               Casos de uso de la UI (proyectos, reglas, listados)
@@ -80,12 +80,21 @@ rechaza. `executeAction()` reclama la fila con un `UPDATE … WHERE status =
 Los agentes y el gateway hablan en **capacidades** (`crm.create_task`,
 `email.send`, `calendar.free_busy`…; ver `connectors/types.ts`). Cada proveedor
 implementa las suyas según los permisos concedidos. Las credenciales se guardan
-cifradas; si un proveedor devuelve 401/403 la conexión pasa a `error`.
+cifradas; si un proveedor devuelve 401/403 la conexión pasa a `error`. Los
+fallos HTTP se enseñan con frases (`describeConnectorError`): `runForm` lo
+aplica a cualquier `ConnectorError`.
 
 - **Twenty**: REST (`/rest`, `/rest/metadata`), descubrimiento de objetos
   (incluidos los personalizados) y verificación HMAC de webhooks.
 - **Google**: OAuth con permisos a elegir (disponibilidad, reuniones, envío,
-  lectura), refresco de tokens persistido, Gmail (MIME UTF-8) y Calendar.
+  lectura, Docs, Sheets), refresco de tokens persistido, Gmail (MIME UTF-8) y
+  Calendar. En la rejilla, Google Meet, Docs y Sheets son la misma conexión
+  pidiendo más permisos (`include_granted_scopes`). Meet: `calendar.book` sin
+  lugar crea la videollamada (`conferenceData`, devuelve `meetLink`). Docs
+  (`documents.readonly` → `docs.read`) y Sheets (`spreadsheets` →
+  `sheets.read` y `table.export`, que crea una hoja nueva). Son permisos
+  sensibles: en producción, más allá de los usuarios de prueba, Google exige
+  verificar la app.
 - **Apollo y Lusha** (`connectors/data.ts`): proveedores de datos B2B con API
   key, solo lectura (permiso `data`). Capacidades `data.search_people` y
   `data.search_companies` (Apollo), `data.enrich_person` y
@@ -98,6 +107,19 @@ cifradas; si un proveedor devuelve 401/403 la conexión pasa a `error`.
   directamente (`dataTools`), no por el gateway; el agente de prospección los
   recibe si se marcan en su pestaña Herramientas (`agent_configs.tools.data`)
   y cita como fuente la ficha del registro en el proveedor.
+- **Hunter** (`createHunterClient`, `X-API-KEY`): busca personas por dominio
+  (`/domain-search`, exige `companyDomains`, una búsqueda por empresa, máx. 5),
+  encuentra el email por nombre y dominio (`/email-finder`), datos de empresa
+  (`/companies/find`) y `data.verify_email` (`/email-verifier`), que los
+  agentes reciben como herramienta `hunter_verify_email`.
+- **Airtable, Trello y monday.com** (`connectors/workspace.ts`, permiso
+  `workspace`): token (Trello: key y token), comprobado al conectar.
+  `export.targets` lista bases, listas («Tablero › Lista») o tableros.
+  `table.export` crea una tabla nueva en la base de Airtable (todo como texto,
+  lotes de 10 registros) o una tarjeta/elemento por fila (máx. 100 por
+  exportación) con los campos en la descripción. Trello y monday tienen
+  además `task.create` en la lista o tablero por defecto de la conexión
+  (`metadata.taskTarget`, se elige en su tarjeta de Conexiones).
 
 ## Conocimiento
 
@@ -119,6 +141,22 @@ cifradas; si un proveedor devuelve 401/403 la conexión pasa a `error`.
   prompt, los documentos se buscan, y devuelve las fuentes usadas.
 - El gateway solo acepta cifras en mensajes salientes si citan una fuente del
   conocimiento del proyecto.
+- «Desde Google» (`knowledge/google-import.ts`) copia un Google Doc como
+  documento o la primera pestaña de un Google Sheet como tabla (vía CSV),
+  probando cada cuenta de Google conectada con permiso de lectura; 403/404
+  pasan a la siguiente. Es una copia: si cambia en Google, se vuelve a importar.
+
+## Exportar tablas y tareas del equipo
+
+- `table.export` (gateway, `connectionVia: "payload"`, no saliente): el
+  ejecutor lee la tabla en ese momento (`tableForExport`, las nuevas o todas),
+  la escribe con la conexión elegida y marca como exportadas las filas nuevas
+  que salieron (`markExported`; las herramientas de una fila por tarjeta
+  paran en 100). El CSV usa las mismas funciones. En la tabla: Exportar → «A
+  otra herramienta…» (`?send=1`) abre el modal con destino, lista/base/tablero
+  y qué filas.
+- `task.create`: el agente inbound lo tiene si hay una conexión de Trello o
+  monday con lista o tablero de tareas; el prompt le explica cuándo usarlo.
 
 ## IA de cada organización
 
@@ -397,6 +435,8 @@ nadie se quita a sí mismo. Todo queda en auditoría (`member.*`).
 
 - Varios agentes de la misma plantilla en un proyecto (hoy uno por tipo).
 - Enviar prospectos al CRM o a una secuencia de emails (con aprobación).
+- Transcripciones de Google Meet (hoy solo se crea el enlace).
+- Exportaciones que actualicen una tabla ya exportada (hoy cada una crea otra).
 - Account Manager (fase 3).
 - Gmail push (Pub/Sub) para responder en segundos también por email.
 - Worker de workflows durables (Inngest/Trigger.dev) en lugar del cron simple.

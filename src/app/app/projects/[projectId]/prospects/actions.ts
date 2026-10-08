@@ -1,5 +1,6 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
@@ -14,6 +15,11 @@ import {
 import { processAgentEvents, rowsAdded } from "@/server/agents/events";
 import { agentRunDeps } from "@/server/agents/runtime";
 import { requireRole, requireTenant } from "@/server/auth/session";
+import { connections } from "@/server/db/schema";
+import { withTenant } from "@/server/db/tenant";
+import { describeConnectorError } from "@/server/connectors/types";
+import { proposeAction } from "@/server/gateway/gateway";
+import { gatewayDeps } from "@/server/gateway/runtime";
 import { getDb } from "@/server/db/client";
 import { list, num, runForm, str } from "@/server/form";
 import { orgLlm } from "@/server/llm/org-ai";
@@ -239,6 +245,56 @@ export async function saveRowAction(
     }
     const { changed } = await updateProspectRow(db, tenant, baseId, rowId, edit);
     return changed ? "Cambios guardados." : "No había cambios.";
+  });
+  revalidatePath(`${basesPath(projectId)}/${baseId}`);
+  return result;
+}
+
+/**
+ * «Exportar → a otra herramienta»: copies the table to Google Sheets,
+ * Airtable, Trello or monday.com, through the gateway (as the person).
+ */
+export async function sendTableAction(
+  projectId: string,
+  baseId: string,
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const result = await runForm(async () => {
+    const tenant = await admin();
+    const db = getDb();
+    const connectionId = str(form, "connectionId");
+    if (!connectionId) throw new Error("Elige a dónde exportar.");
+    const [connection] = await withTenant(db, tenant, (tx) =>
+      tx.select().from(connections).where(eq(connections.id, connectionId)),
+    );
+    if (!connection) throw new Error("Conexión no encontrada.");
+    const targetLabel = str(form, "targetLabel");
+    const sent = await proposeAction(gatewayDeps(), tenant, {
+      projectId,
+      type: "table.export",
+      payload: {
+        connectionId,
+        baseId,
+        include: str(form, "include") === "pending" ? "pending" : "all",
+        target: str(form, "target") ?? null,
+        destination: [connection.label, targetLabel].filter(Boolean).join(" › "),
+      },
+      reason: "Exportación pedida por una persona del equipo",
+      // Every click is a new export.
+      idempotencyKey: `table.export:${baseId}:${Date.now()}`,
+    });
+    if (sent.outcome !== "executed") {
+      throw new Error(
+        sent.action.error
+          ? describeConnectorError(sent.action.error)
+          : `No se ha podido exportar (${sent.outcome}).`,
+      );
+    }
+    const out = (sent.action.result ?? {}) as { count?: number; url?: string | null };
+    return out.count
+      ? `Exportadas ${out.count} filas a ${connection.label}${out.url ? `: ${out.url}` : "."}`
+      : "No había filas que exportar.";
   });
   revalidatePath(`${basesPath(projectId)}/${baseId}`);
   return result;

@@ -34,6 +34,7 @@ export function ModalButton({
   iconOnly = false,
   width = "md",
   defaultOpen = false,
+  hideTrigger = false,
   onClose,
   className,
 }: {
@@ -50,6 +51,8 @@ export function ModalButton({
   width?: "md" | "lg" | "xl";
   /** Open on arrival, e.g. when a link asks for it (?add=…). */
   defaultOpen?: boolean;
+  /** No button: the modal is opened by a link elsewhere (with `defaultOpen`). */
+  hideTrigger?: boolean;
   onClose?: () => void;
   className?: string;
 }) {
@@ -73,15 +76,17 @@ export function ModalButton({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label={iconOnly && typeof label === "string" ? label : undefined}
-        className={cx(buttonClass({ variant, size, iconOnly }), className)}
-      >
-        {icon}
-        {iconOnly ? null : label}
-      </button>
+      {hideTrigger ? null : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={iconOnly && typeof label === "string" ? label : undefined}
+          className={cx(buttonClass({ variant, size, iconOnly }), className)}
+        >
+          {icon}
+          {iconOnly ? null : label}
+        </button>
+      )}
       <dialog
         ref={dialog}
         onClose={() => {
