@@ -17,6 +17,7 @@ import {
 import { audit } from "../audit";
 import type { Db } from "../db/client";
 import { agentConfigs, projects, prospectBases, prospects } from "../db/schema";
+import { workingSql } from "../agents/working";
 import { withTenant, type TenantContext, type Tx } from "../db/tenant";
 import { foldText } from "../knowledge/normalize";
 
@@ -156,6 +157,7 @@ export async function baseAgents(db: Db, tenant: Pick<TenantContext, "orgId">, b
         icon: agentConfigs.icon,
         color: agentConfigs.color,
         enabled: agentConfigs.enabled,
+        working: workingSql,
       })
       .from(agentConfigs)
       .innerJoin(projects, eq(projects.id, agentConfigs.projectId))
@@ -262,15 +264,31 @@ async function showAgentFields(tx: Tx, baseId: string) {
   await tx.update(prospectBases).set({ hiddenFields: [] }).where(eq(prospectBases.id, baseId));
 }
 
-/** Points an agent at a table of its project, or at one without a project. */
+/** Points an agent at a table of its project, or at one without a project; null = none. */
 export async function setAgentBase(
   db: Db,
   tenant: TenantContext,
   projectId: string,
   agentConfigId: string,
-  baseId: string,
+  baseId: string | null,
 ) {
   return withTenant(db, tenant, async (tx) => {
+    if (!baseId) {
+      const [agent] = await tx
+        .update(agentConfigs)
+        .set({ prospectBaseId: null })
+        .where(and(eq(agentConfigs.id, agentConfigId), eq(agentConfigs.projectId, projectId)))
+        .returning({ id: agentConfigs.id, agentType: agentConfigs.agentType });
+      if (!agent) throw new Error("Agente no encontrado.");
+      await audit(tx, tenant, {
+        event: "agent.base_changed",
+        projectId,
+        entityType: "agent_config",
+        entityId: agent.id,
+        data: { agentType: agent.agentType, base: null },
+      });
+      return;
+    }
     const [base] = await tx
       .select({ id: prospectBases.id, name: prospectBases.name })
       .from(prospectBases)

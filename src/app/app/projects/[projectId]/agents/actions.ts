@@ -6,16 +6,14 @@ import { redirect } from "next/navigation";
 import type { FormState } from "@/components/action-form";
 import { scheduleFromForm } from "@/lib/schedule";
 import { requireRole } from "@/server/auth/session";
+import { requireOrgLlm } from "@/server/llm/org-ai";
 import { getDb } from "@/server/db/client";
-import { PROSPECTING_MODES, SALES_MOTIONS, type ProspectingMode, type SalesMotion } from "@/server/db/schema";
+import { PROSPECTING_MODES, SALES_MOTIONS, type ProspectingMode } from "@/server/db/schema";
 import { bool, list, num, runForm, str } from "@/server/form";
 import { ACTION_DEFINITIONS } from "@/server/gateway/definitions";
-import { draftPlaybook } from "@/server/playbooks/draft";
-import { AGENT_PROCESS_FIELDS, NEXT_STEPS, type NextStep, type PlaybookSpec } from "@/server/playbooks/spec";
 import { DEFAULT_CELLS_PER_RUN, runProspecting } from "@/server/agents/prospector";
 import { closeStaleRuns } from "@/server/agents/scheduler";
 import { agentRunDeps } from "@/server/agents/runtime";
-import { requireOrgLlm } from "@/server/llm/org-ai";
 import { setAgentBase } from "@/server/prospects/bases";
 import {
   addAgent,
@@ -30,9 +28,7 @@ import {
   saveAgentAutomation,
   saveAgentChannels,
   saveAgentInstructions,
-  saveAgentProcess,
   saveAgentTools,
-  SCHEDULED_AGENT_TYPES,
   setAgentEnabled,
   setAgentMcpTools,
   type AgentToolKey,
@@ -42,21 +38,10 @@ import {
 
 const admin = () => requireRole(["owner", "admin"]);
 const refresh = (projectId: string) => revalidatePath(`/app/projects/${projectId}`, "layout");
-const lines = (form: FormData, key: string) =>
-  (str(form, key) ?? "")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
 
 function agentType(value: string): ProjectAgentType {
   if (!isProjectAgentType(value)) throw new Error("Agente desconocido.");
   return value;
-}
-
-function salesMotion(form: FormData): SalesMotion {
-  const motion = str(form, "salesMotion") as SalesMotion;
-  if (!SALES_MOTIONS.includes(motion)) throw new Error("Elige un modelo de venta.");
-  return motion;
 }
 
 function instructionsFromForm(form: FormData, scheduled: boolean) {
@@ -120,18 +105,14 @@ export async function setupAgentAction(
       await saveAgentInstructions(db, tenant, projectId, kind, instructionsFromForm(form, true));
       await saveAgentTools(db, tenant, projectId, kind, toolsFromForm(form));
     } else {
-      const motion = salesMotion(form);
-      const nextSteps = nextStepsFromForm(form);
-      await addAgent(db, tenant, projectId, kind, motion);
-      await saveAgentProcess(db, tenant, projectId, kind, {
-        salesMotion: motion,
-        process: {
-          customerType: str(form, "customerType") === "b2c" ? "b2c" : "b2b",
-          objective: str(form, "objective") ?? "",
-          nextSteps,
-        },
-        notes: "Configuración inicial",
-      });
+      // Gives the project a process from this template only if it has none yet.
+      await addAgent(
+        db,
+        tenant,
+        projectId,
+        kind,
+        SALES_MOTIONS.find((m) => m === str(form, "salesMotion")),
+      );
       await saveAgentChannels(db, tenant, projectId, kind, channelsFromForm(form));
       await updateAgentAutonomy(db, tenant, projectId, kind, {
         defaultLevel: num(form, "defaultLevel") ?? 1,
@@ -178,99 +159,6 @@ export async function toggleAgent(projectId: string, type: string, enabled: bool
   refresh(projectId);
 }
 
-/** One main outcome, then the chosen alternatives in catalog order. */
-function nextStepsFromForm(form: FormData): NextStep[] {
-  const primary = str(form, "primaryStep") as NextStep | undefined;
-  if (!primary || !NEXT_STEPS.includes(primary)) throw new Error("Elige cómo debe terminar la conversación.");
-  const alternatives = NEXT_STEPS.filter((s) => s !== primary && list(form, "alternativeSteps").includes(s));
-  return [primary, ...alternatives];
-}
-
-/** Reads the process form. */
-function processFromForm(form: FormData): Partial<PlaybookSpec> {
-  return {
-    customerType: str(form, "customerType") === "b2c" ? "b2c" : "b2b",
-    objective: str(form, "objective") ?? "",
-    nextSteps: nextStepsFromForm(form),
-    meetingTypeId: str(form, "meetingTypeId"),
-    qualification: lines(form, "qualification").map((l) => ({
-      criterion: l.replace(/^\*\s*/, ""),
-      required: l.startsWith("*"),
-    })),
-    disqualifiers: lines(form, "disqualifiers"),
-    requiredData: lines(form, "requiredData"),
-    rules: lines(form, "rules"),
-    handoff: lines(form, "handoff"),
-    responseTimeMinutes: num(form, "responseTimeMinutes") ?? 15,
-  };
-}
-
-export async function saveProcess(
-  projectId: string,
-  type: string,
-  _: FormState,
-  form: FormData,
-): Promise<FormState> {
-  const result = await runForm(async () => {
-    const tenant = await admin();
-    const row = await saveAgentProcess(getDb(), tenant, projectId, agentType(type), {
-      salesMotion: salesMotion(form),
-      process: processFromForm(form),
-      notes: str(form, "notes"),
-    });
-    return `Proceso guardado (versión ${row.currentVersion}).`;
-  });
-  refresh(projectId);
-  return result;
-}
-
-export async function draftProcess(
-  projectId: string,
-  type: string,
-  _: FormState,
-  form: FormData,
-): Promise<FormState> {
-  const result = await runForm(async () => {
-    const tenant = await admin();
-    const db = getDb();
-    const kind = agentType(type);
-    const agent = await getAgent(db, tenant, projectId, kind);
-    if (!agent?.process) throw new Error("Agente no encontrado.");
-    const { spec, gaps } = await draftPlaybook({ db, llm: await requireOrgLlm(db, tenant) }, tenant, {
-      projectId,
-      salesMotion: agent.process.salesMotion,
-      current: agent.process.spec,
-      instructions: str(form, "instructions"),
-    });
-    const process = Object.fromEntries(
-      AGENT_PROCESS_FIELDS.map((f) => [f, spec[f]]),
-    ) as Partial<PlaybookSpec>;
-    // Keep the meeting type the user chose: the draft can't know it.
-    process.meetingTypeId = agent.process.spec.meetingTypeId;
-    const row = await saveAgentProcess(db, tenant, projectId, kind, {
-      process,
-      notes: `Propuesta de la IA${gaps.length ? `. Falta: ${gaps.join("; ")}` : ""}`,
-    });
-    return `Propuesta guardada como versión ${row.currentVersion}.${gaps.length ? ` Revisa lo que falta: ${gaps.join(" · ")}` : ""}`;
-  });
-  refresh(projectId);
-  return result;
-}
-
-export async function saveChannels(
-  projectId: string,
-  type: string,
-  _: FormState,
-  form: FormData,
-): Promise<FormState> {
-  const result = await runForm(async () => {
-    const tenant = await admin();
-    await saveAgentChannels(getDb(), tenant, projectId, agentType(type), channelsFromForm(form));
-  }, "Canales guardados.");
-  refresh(projectId);
-  return result;
-}
-
 export async function saveAutonomy(
   projectId: string,
   type: string,
@@ -293,30 +181,6 @@ export async function saveAutonomy(
       dailyLimits,
     });
   });
-  refresh(projectId);
-  return result;
-}
-
-export async function saveInstructions(
-  projectId: string,
-  type: string,
-  _: FormState,
-  form: FormData,
-): Promise<FormState> {
-  const result = await runForm(async () => {
-    const tenant = await admin();
-    const kind = agentType(type);
-    const scheduled = SCHEDULED_AGENT_TYPES.includes(kind);
-    const db = getDb();
-    await saveAgentInstructions(db, tenant, projectId, kind, instructionsFromForm(form, scheduled));
-    const baseId = str(form, "baseId");
-    if (kind === "outbound" && baseId) {
-      const agent = await getAgent(db, tenant, projectId, kind);
-      if (agent && agent.config.prospectBaseId !== baseId) {
-        await setAgentBase(db, tenant, projectId, agent.config.id, baseId);
-      }
-    }
-  }, "Instrucciones guardadas.");
   refresh(projectId);
   return result;
 }
@@ -367,20 +231,6 @@ function automationFromForm(form: FormData): Parameters<typeof saveAgentAutomati
   };
 }
 
-export async function saveAutomation(
-  projectId: string,
-  type: string,
-  _: FormState,
-  form: FormData,
-): Promise<FormState> {
-  const result = await runForm(async () => {
-    const tenant = await admin();
-    await saveAgentAutomation(getDb(), tenant, projectId, agentType(type), automationFromForm(form));
-  }, "Automatización guardada.");
-  refresh(projectId);
-  return result;
-}
-
 /**
  * The prospecting agent's whole setup in one form: its goal and
  * instructions, when and how much it works, its model, sources and caps,
@@ -404,6 +254,30 @@ export async function saveAgentSetup(
       if (agent && agent.config.prospectBaseId !== baseId) {
         await setAgentBase(db, tenant, projectId, agent.config.id, baseId);
       }
+    }
+  }, "Configuración guardada.");
+  refresh(projectId);
+  return result;
+}
+
+/**
+ * The inbound agent's whole setup in one form: what it does and on which
+ * table, where it listens, its model and the accounts it writes from.
+ */
+export async function saveInboundSetup(projectId: string, _: FormState, form: FormData): Promise<FormState> {
+  const result = await runForm(async () => {
+    const tenant = await admin();
+    const db = getDb();
+    await saveAgentInstructions(db, tenant, projectId, "inbound", {
+      instructions: str(form, "instructions") ?? "",
+      schedule: null,
+      settings: { model: str(form, "model") ?? "" },
+    });
+    await saveAgentChannels(db, tenant, projectId, "inbound", channelsFromForm(form));
+    const agent = await getAgent(db, tenant, projectId, "inbound");
+    const baseId = str(form, "baseId") ?? null;
+    if (agent && agent.config.prospectBaseId !== baseId) {
+      await setAgentBase(db, tenant, projectId, agent.config.id, baseId);
     }
   }, "Configuración guardada.");
   refresh(projectId);

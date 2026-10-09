@@ -34,6 +34,9 @@ export function profileFromForm(form: FormData): SalesProfile {
     pains: list(form, "pains")
       .map((v) => v.trim())
       .filter(Boolean),
+    fitSignals: list(form, "fitSignals")
+      .map((v) => v.trim())
+      .filter(Boolean),
     objections: pairs(form, "objection", "objectionResponse").map(([objection, response]) => ({
       objection,
       response,

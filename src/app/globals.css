@@ -174,3 +174,25 @@ body {
     animation: none;
   }
 }
+
+/* An agent at work: its icon sways a little, as if busy. */
+@keyframes agent-working {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+  25% {
+    transform: rotate(-8deg) scale(1.08);
+  }
+  75% {
+    transform: rotate(8deg) scale(1.08);
+  }
+}
+
+@utility agent-working {
+  animation: agent-working 1.4s ease-in-out infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}

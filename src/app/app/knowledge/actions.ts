@@ -13,6 +13,7 @@ import {
   ingestDocumentText,
   ingestTableFile,
   setSourceProject,
+  updateSourceText,
 } from "@/server/knowledge/service";
 
 /**
@@ -108,4 +109,17 @@ export async function moveSourceAction(sourceId: string, _: FormState, form: For
   if (!result?.ok) return result;
   refresh();
   redirect(`${listPath(projectId)}/${sourceId}`);
+}
+
+/** Saves a new version of text knowledge (its name and its text). */
+export async function editSourceText(sourceId: string, _: FormState, form: FormData): Promise<FormState> {
+  const result = await runForm(async () => {
+    await updateSourceText(getDb(), await admin(), sourceId, {
+      name: str(form, "name") ?? "",
+      // Kept as typed: str() trims, and the text's own spacing matters.
+      text: String(form.get("text") ?? ""),
+    });
+  }, "Conocimiento guardado.");
+  refresh();
+  return result;
 }

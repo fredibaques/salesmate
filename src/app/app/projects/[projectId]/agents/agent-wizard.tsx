@@ -2,21 +2,15 @@
 
 import { ExternalLink } from "lucide-react";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
-import { Badge, Choice, Field, Input, Notice, Segmented, Select, Textarea } from "@/components/ui";
+import type { ReactNode } from "react";
+import { Badge, Choice, Field, Input, Notice, Select, Textarea } from "@/components/ui";
 import { ScheduleFields } from "@/components/schedule-fields";
 import { Wizard, type WizardStep } from "@/components/wizard";
 import { describeSchedule, scheduleFromForm } from "@/lib/schedule";
 import type { SalesMotion } from "@/server/db/schema";
-import {
-  NEXT_STEP_DESCRIPTIONS,
-  NEXT_STEP_LABELS,
-  NEXT_STEPS,
-  SALES_MOTION_LABELS,
-  type NextStep,
-} from "@/server/playbooks/spec";
+import { NEXT_STEP_LABELS, SALES_MOTION_LABELS, type NextStep } from "@/server/playbooks/spec";
 import type { AGENT_DEFAULTS, listChannelOptions, listMcpServers } from "@/server/services/agents";
-import { setupAgentAction } from "../../actions";
+import { setupAgentAction } from "./actions";
 
 const MOTION_HELP: Record<SalesMotion, string> = {
   b2b_consultative: "Vendes a empresas y hace falta hablar: suele acabar en una reunión o demo.",
@@ -66,106 +60,65 @@ function ActivateChoice() {
 // Inbound
 // ---------------------------------------------------------------------------
 
-type Template = { objective: string; customerType: "b2b" | "b2c"; nextSteps: NextStep[] };
 type ChannelOptions = Awaited<ReturnType<typeof listChannelOptions>>;
 
 export function InboundWizard({
   projectId,
   options,
-  templates,
+  process,
 }: {
   projectId: string;
   options: ChannelOptions;
-  templates: Record<string, Template>;
+  /** The project's sales process, if it has one already. */
+  process: { objective: string; nextSteps: NextStep[] } | null;
 }) {
-  const [motion, setMotion] = useState<SalesMotion>("b2b_consultative");
-  const template = templates[motion];
   const nothingConnected = options.mailboxes.length + options.calendars.length + options.crms.length === 0;
 
   const steps: WizardStep[] = [
     {
       id: "sale",
-      title: "Tu venta",
-      summary: "Partimos de un proceso de ejemplo para este tipo de venta. Podrás ajustarlo todo después.",
-      content: (
-        <>
-          <Field label="Tipo de venta" group>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {(Object.keys(SALES_MOTION_LABELS) as SalesMotion[]).map((m) => (
-                <Choice
-                  key={m}
-                  card
-                  type="radio"
-                  name="salesMotion"
-                  value={m}
-                  checked={m === motion}
-                  onChange={() => setMotion(m)}
-                  label={SALES_MOTION_LABELS[m]}
-                  description={MOTION_HELP[m]}
-                />
-              ))}
-            </div>
-          </Field>
-          {/* Keyed by motion: choosing another type of sale reloads its suggested answers. */}
-          <div key={motion} className="space-y-5">
-            <Field label="Atiende a" group>
-              <Segmented
-                name="customerType"
-                defaultValue={template.customerType}
-                options={[
-                  { value: "b2b", label: "Empresas (B2B)" },
-                  { value: "b2c", label: "Particulares (B2C)" },
-                ]}
+      title: "Proceso de venta",
+      summary: process
+        ? "Atenderá a cada contacto con el proceso de venta del proyecto."
+        : "El proyecto todavía no tiene proceso de venta: partimos de uno de ejemplo para tu tipo de venta.",
+      content: process ? (
+        <dl className="divide-y divide-border">
+          <ReviewRow label="Objetivo">{process.objective}</ReviewRow>
+          <ReviewRow label="Cómo termina">
+            {process.nextSteps.map((s) => NEXT_STEP_LABELS[s]).join(", o ")}
+          </ReviewRow>
+          <ReviewRow label="Dónde se cambia">
+            <Link
+              href={`/app/projects/${projectId}/sales/process`}
+              target="_blank"
+              className="inline-flex items-center gap-1 text-accent hover:underline"
+            >
+              Ventas → Proceso de venta
+              <ExternalLink className="size-3.5" />
+            </Link>
+          </ReviewRow>
+        </dl>
+      ) : (
+        <Field
+          label="Tipo de venta"
+          group
+          tip="Es del proyecto: lo seguirán todos los agentes que hablan con personas. Lo ajustas en Ventas → Proceso de venta."
+        >
+          <div className="grid gap-2 sm:grid-cols-2">
+            {(Object.keys(SALES_MOTION_LABELS) as SalesMotion[]).map((m) => (
+              <Choice
+                key={m}
+                card
+                type="radio"
+                name="salesMotion"
+                value={m}
+                defaultChecked={m === "b2b_consultative"}
+                label={SALES_MOTION_LABELS[m]}
+                description={MOTION_HELP[m]}
               />
-            </Field>
-            <Field label="Objetivo" tip="En una frase, qué consigue una conversación que va bien.">
-              <Input name="objective" required defaultValue={template.objective} />
-            </Field>
+            ))}
           </div>
-        </>
-      ),
-    },
-    {
-      id: "outcome",
-      title: "Cómo termina",
-      summary: "Es lo que el agente intenta conseguir con cada contacto.",
-      content: (
-        <div key={motion} className="space-y-5">
-          <Field label="Resultado principal" group>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {NEXT_STEPS.map((step) => (
-                <Choice
-                  key={step}
-                  card
-                  type="radio"
-                  name="primaryStep"
-                  value={step}
-                  required
-                  defaultChecked={step === template.nextSteps[0]}
-                  label={NEXT_STEP_LABELS[step]}
-                  description={NEXT_STEP_DESCRIPTIONS[step]}
-                />
-              ))}
-            </div>
-          </Field>
-          <Field
-            label="Si no es posible, alternativas"
-            tip="Si con un contacto no se puede conseguir el resultado principal, prueba con estas, en este orden."
-            group
-          >
-            <div className="grid gap-2 sm:grid-cols-2">
-              {NEXT_STEPS.map((step) => (
-                <Choice
-                  key={step}
-                  name="alternativeSteps"
-                  value={step}
-                  defaultChecked={template.nextSteps.slice(1).includes(step)}
-                  label={NEXT_STEP_LABELS[step]}
-                />
-              ))}
-            </div>
-          </Field>
-        </div>
+        </Field>
       ),
     },
     {
@@ -263,8 +216,6 @@ export function InboundWizard({
       title: "Revisar",
       summary: "Así empezará a trabajar. Todo se puede cambiar en su ficha.",
       content: (values) => {
-        const primary = values.get("primaryStep") as NextStep | null;
-        const alternatives = values.getAll("alternativeSteps").filter((s) => s !== primary) as NextStep[];
         const mailbox = options.mailboxes.find((m) => m.id === values.get("mailboxId"));
         const calendar = options.calendars.find((c) => c.id === values.get("calendarId"));
         const crm = options.crms.find((c) => c.id === values.get("crmConnectionId"));
@@ -272,19 +223,10 @@ export function InboundWizard({
         return (
           <>
             <dl className="divide-y divide-border">
-              <ReviewRow label="Tipo de venta">
-                {SALES_MOTION_LABELS[values.get("salesMotion") as SalesMotion]} ·{" "}
-                {values.get("customerType") === "b2c" ? "particulares" : "empresas"}
-              </ReviewRow>
-              <ReviewRow label="Objetivo">{String(values.get("objective") ?? "")}</ReviewRow>
-              <ReviewRow label="Cómo termina">
-                {primary ? NEXT_STEP_LABELS[primary] : null}
-                {alternatives.length ? (
-                  <span className="text-muted">
-                    {" "}
-                    (si no: {alternatives.map((s) => NEXT_STEP_LABELS[s].toLowerCase()).join(", ")})
-                  </span>
-                ) : null}
+              <ReviewRow label="Proceso de venta">
+                {process
+                  ? "El del proyecto"
+                  : `Nuevo, de ejemplo: ${SALES_MOTION_LABELS[(values.get("salesMotion") as SalesMotion) ?? "b2b_consultative"]}`}
               </ReviewRow>
               <ReviewRow label="Canales">
                 {[mailbox?.address, calendar && `calendario ${calendar.address}`, crm?.label]
@@ -333,7 +275,7 @@ export function OutboundWizard({
       content: (
         <Field
           label="Instrucciones"
-          tip="Sector, tamaño, zona, señales de que encajan, qué fuentes usar o evitar y qué datos recoger. Lo común a todos los agentes (qué vendes, a quién) lo toma de Ajustes → Oferta y cliente."
+          tip="Sector, tamaño, zona, señales de que encajan, qué fuentes usar o evitar y qué datos recoger. Lo común a todos los agentes (qué vendes, a quién) lo toma de Ventas → Oferta y cliente."
         >
           <Textarea name="instructions" required defaultValue={defaults.instructions} className="min-h-56" />
         </Field>

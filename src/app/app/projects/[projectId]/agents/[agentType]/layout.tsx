@@ -1,6 +1,7 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
-import { AgentLookFields, AgentTile } from "@/components/agent-look-fields";
+import { AgentLookFields, AgentTile, agentState } from "@/components/agent-look-fields";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { notFound } from "next/navigation";
 import { ConfirmForm } from "@/components/confirm-form";
 import { ModalButton } from "@/components/modal";
@@ -28,9 +29,17 @@ export default async function AgentLayout({
 
   return (
     <>
+      {/* While it works, the page follows it (and the dot turns grey when it ends). */}
+      {agent.working ? <AutoRefresh seconds={10} /> : null}
       <PageHeader
         media={
-          <AgentTile type={agentType} icon={agent.config.icon} color={agent.config.color} size="title" />
+          <AgentTile
+            type={agentType}
+            icon={agent.config.icon}
+            color={agent.config.color}
+            size="title"
+            state={agentState({ enabled: agent.config.enabled, working: agent.working })}
+          />
         }
         title={name}
         badge={
@@ -84,22 +93,10 @@ export default async function AgentLayout({
         }
       />
       <Tabs>
-        {agentType === "outbound" ? (
-          <>
-            <TabLink href={base} exact also={[`${base}/automation`]}>
-              Configuración
-            </TabLink>
-            <TabLink href={`${base}/channels`}>Herramientas</TabLink>
-          </>
-        ) : (
-          <>
-            <TabLink href={base} exact>
-              Proceso de venta
-            </TabLink>
-            <TabLink href={`${base}/instructions`}>Instrucciones</TabLink>
-            <TabLink href={`${base}/channels`}>Canales y herramientas</TabLink>
-          </>
-        )}
+        <TabLink href={base} exact also={[`${base}/automation`, `${base}/instructions`]}>
+          Configuración
+        </TabLink>
+        <TabLink href={`${base}/channels`}>Herramientas</TabLink>
         <TabLink href={`${base}/log`}>Log</TabLink>
         <TabLink href={`${base}/approvals`}>Aprobaciones</TabLink>
       </Tabs>

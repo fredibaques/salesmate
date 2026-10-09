@@ -1,4 +1,5 @@
 import { TZDate } from "@date-fns/tz";
+import { addDays, addMonths, addWeeks, format, startOfDay, startOfMonth, startOfWeek } from "date-fns";
 import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { AGENT_INFO, agentName, type ProjectAgentKey } from "@/lib/agents";
 import type { Db } from "../db/client";
@@ -148,4 +149,61 @@ export async function getRun(db: Db, tenant: Pick<TenantContext, "orgId">, runId
     tx.select().from(agentRuns).where(eq(agentRuns.id, runId)),
   );
   return run ?? null;
+}
+
+export const COST_BUCKETS = ["day", "week", "month"] as const;
+export type CostBucket = (typeof COST_BUCKETS)[number];
+
+/** How many buckets the chart shows for each grouping. */
+const BUCKET_COUNT: Record<CostBucket, number> = { day: 30, week: 12, month: 12 };
+
+function bucketStart(bucket: CostBucket, date: Date) {
+  if (bucket === "day") return startOfDay(date);
+  if (bucket === "week") return startOfWeek(date, { weekStartsOn: 1 });
+  return startOfMonth(date);
+}
+
+function shift(bucket: CostBucket, date: Date, n: number) {
+  if (bucket === "day") return addDays(date, n);
+  if (bucket === "week") return addWeeks(date, n);
+  return addMonths(date, n);
+}
+
+/**
+ * What the runs cost, by day, week or month (in the given time zone),
+ * ending with the current one; buckets without runs are 0.
+ */
+export async function costSeries(
+  db: Db,
+  tenant: Pick<TenantContext, "orgId">,
+  input: { projectId?: string; bucket: CostBucket; timeZone: string; now?: number },
+) {
+  const count = BUCKET_COUNT[input.bucket];
+  const current = bucketStart(input.bucket, new TZDate(input.now ?? Date.now(), input.timeZone));
+  const first = shift(input.bucket, current, -(count - 1));
+  const unit = sql.raw(`'${input.bucket}'`);
+  const local = sql`(${agentRuns.startedAt} AT TIME ZONE ${input.timeZone})`;
+  const rows = await withTenant(db, tenant, (tx) =>
+    tx
+      .select({
+        key: sql<string>`to_char(date_trunc(${unit}, ${local}), 'YYYY-MM-DD')`,
+        costUsd: sql<number>`coalesce(sum(${agentRuns.costUsd}), 0)::float8`,
+        runs: sql<number>`count(*)::int`,
+      })
+      .from(agentRuns)
+      .where(where({ projectId: input.projectId, since: new Date(first.getTime()) }))
+      .groupBy(sql`1`),
+  );
+  const byKey = new Map(rows.map((r) => [r.key, r]));
+  return Array.from({ length: count }, (_, i) => {
+    const start = shift(input.bucket, first, i);
+    const key = format(start, "yyyy-MM-dd");
+    const row = byKey.get(key);
+    return {
+      key,
+      start: new Date(start.getTime()),
+      costUsd: Number(row?.costUsd ?? 0),
+      runs: row?.runs ?? 0,
+    };
+  });
 }

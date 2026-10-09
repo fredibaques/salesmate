@@ -1,16 +1,27 @@
-import { ArrowRightLeft, Download, Info, Trash2 } from "lucide-react";
+import { ArrowRightLeft, Download, Info, Pencil, Trash2 } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ConfirmForm } from "@/components/confirm-form";
 import { Select } from "@/components/form-controls";
 import { ModalButton } from "@/components/modal";
-import { Button, buttonClass, Card, Field, Meta, PageHeader, Table, Td } from "@/components/ui";
+import {
+  Button,
+  buttonClass,
+  Card,
+  Field,
+  Input,
+  Meta,
+  PageHeader,
+  Table,
+  Td,
+  Textarea,
+} from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import type { TenantContext } from "@/server/db/tenant";
 import { getDb } from "@/server/db/client";
-import { getSourceDetail, queryTable } from "@/server/knowledge/service";
+import { getSourceDetail, isEditableText, queryTable } from "@/server/knowledge/service";
 import { formatCell } from "@/server/knowledge/tabular";
 import { listProjects } from "@/server/services/projects";
-import { moveSourceAction, removeSource } from "./actions";
+import { editSourceText, moveSourceAction, removeSource } from "./actions";
 import { describeSource } from "./sources";
 
 const MAX_ROWS = 200;
@@ -35,6 +46,7 @@ export async function SourceDetail({
   const isPdf = file?.mimeType === "application/pdf";
   const wasPdf = !file && /\.pdf$/i.test(String(source.exposedObjects.filename ?? ""));
   const notes = (source.exposedObjects.notes as string[] | undefined) ?? [];
+  const editable = canEdit && isEditableText(source, file);
   const tableRows = await Promise.all(
     tables.map((t) => queryTable(db, tenant, { tableId: t.id, limit: MAX_ROWS })),
   );
@@ -51,6 +63,31 @@ export async function SourceDetail({
         }
         actions={
           <>
+            {editable ? (
+              <ModalButton
+                label="Editar"
+                icon={<Pencil className="size-4" />}
+                title={`Editar «${source.name}»`}
+                width="xl"
+              >
+                <ActionForm
+                  key={text}
+                  action={editSourceText.bind(null, sourceId)}
+                  submitLabel="Guardar"
+                  className="space-y-4"
+                >
+                  <Field label="Nombre">
+                    <Input name="name" required defaultValue={source.name} />
+                  </Field>
+                  <Field
+                    label="Texto"
+                    hint={file ? "Al guardar, este texto sustituye al fichero original." : undefined}
+                  >
+                    <Textarea name="text" required defaultValue={text} className="min-h-[50vh]" />
+                  </Field>
+                </ActionForm>
+              </ModalButton>
+            ) : null}
             {canEdit ? (
               <ConfirmForm
                 action={removeSource.bind(null, sourceId)}

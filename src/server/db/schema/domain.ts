@@ -941,9 +941,14 @@ export const prospects = pgTable(
     /** The person, in bases whose rows are people. */
     personName: text("person_name"),
     website: text("website"),
-    /** 0-100: how well it matches the ideal customer. */
+    /** 0-100: how well it matches the ideal customer (computed from fit_checks when there are criteria). */
     fitScore: integer("fit_score"),
     fitReason: text("fit_reason"),
+    /** Each criterion of the ideal customer and whether the row meets it (prospects/fit.ts). */
+    fitChecks:
+      jsonb("fit_checks").$type<
+        { criterion: string; required: boolean; result: "yes" | "no" | "unknown" }[]
+      >(),
     /** Public pages the data comes from. */
     sources: text("sources")
       .array()

@@ -1,23 +1,18 @@
-import { CalendarClock, FlaskConical, History, Inbox, X } from "lucide-react";
+import { FlaskConical, Inbox } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
-import { Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Textarea } from "@/components/ui";
-import { ACTION_STATUS_LABELS, AGENT_LABELS, AUTONOMY_LABELS, formatDateTime } from "@/lib/format";
+import { Badge, Card, EmptyState, Field, Input, PageHeader, Select, Textarea } from "@/components/ui";
+import { AGENT_LABELS, AUTONOMY_LABELS, formatDateTime } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getActionDefinition } from "@/server/gateway/definitions";
 import { listActions, listOrgIdentities, listProjects } from "@/server/services/projects";
-import { approve, cancel, reject, simulateAgentProposal } from "./actions";
+import { approve, reject, simulateAgentProposal } from "./actions";
 import { INBOX_TIP } from "../tips";
 
 export const metadata = { title: "Por aprobar" };
 
 type Row = Awaited<ReturnType<typeof listActions>>[number];
-
-function Status({ status }: { status: string }) {
-  const s = ACTION_STATUS_LABELS[status] ?? { label: status, tone: "neutral" as const };
-  return <Badge tone={s.tone}>{s.label}</Badge>;
-}
 
 function PolicyNotes({ row }: { row: Row }) {
   const notes = row.action.policyResults.filter((p) => p.outcome !== "allow");
@@ -108,13 +103,8 @@ function PendingAction({ row }: { row: Row }) {
 export default async function InboxPage() {
   const tenant = await requireTenant();
   const db = getDb();
-  const [pending, scheduled, recent, projects, identities] = await Promise.all([
+  const [pending, projects, identities] = await Promise.all([
     listActions(db, tenant, { statuses: ["pending_approval"] }),
-    listActions(db, tenant, { statuses: ["deferred", "approved"] }),
-    listActions(db, tenant, {
-      statuses: ["succeeded", "failed", "blocked", "rejected", "cancelled"],
-      limit: 30,
-    }),
     listProjects(db, tenant),
     listOrgIdentities(db, tenant),
   ]);
@@ -157,70 +147,6 @@ export default async function InboxPage() {
           </ul>
         )}
       </section>
-
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <Card title="Programadas" tip="Aprobadas que esperan su franja horaria o límite diario.">
-          {scheduled.length === 0 ? (
-            <EmptyState
-              compact
-              icon={<CalendarClock />}
-              title="Nada programado"
-              description="Las acciones aprobadas fuera del horario de contacto esperan aquí a su franja."
-            />
-          ) : (
-            <ul className="divide-y divide-border text-sm">
-              {scheduled.map((row) => (
-                <li key={row.action.id} className="flex items-center justify-between gap-2 py-2">
-                  <span>
-                    {getActionDefinition(row.action.type)?.summary(row.action.payload) ?? row.action.type}
-                    <span className="block text-xs text-muted">
-                      {row.projectName} ·{" "}
-                      {row.action.scheduledFor
-                        ? `desde ${formatDateTime(row.action.scheduledFor)}`
-                        : "en cola"}
-                    </span>
-                  </span>
-                  <form action={cancel.bind(null, row.action.id)}>
-                    <Button variant="dangerGhost">
-                      <X className="size-4" />
-                      Cancelar
-                    </Button>
-                  </form>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        <Card title="Últimas resueltas">
-          {recent.length === 0 ? (
-            <EmptyState
-              compact
-              icon={<History />}
-              title="Sin historial todavía"
-              description="Aquí quedan las acciones ya hechas, rechazadas o bloqueadas."
-            />
-          ) : (
-            <ul className="divide-y divide-border text-sm">
-              {recent.map((row) => (
-                <li key={row.action.id} className="py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span>
-                      {getActionDefinition(row.action.type)?.summary(row.action.payload) ?? row.action.type}
-                    </span>
-                    <Status status={row.action.status} />
-                  </div>
-                  <div className="text-xs text-muted">
-                    {row.projectName} · {formatDateTime(row.action.executedAt ?? row.action.updatedAt)}
-                    {row.action.error ? <span className="text-danger"> · {row.action.error}</span> : null}
-                  </div>
-                  <PolicyNotes row={row} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
     </>
   );
 }

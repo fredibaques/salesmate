@@ -23,20 +23,21 @@ const SECTION_PAGES: Record<string, { parent: Crumb; label: string }> = {
 
 const PROJECT_TABS: Record<string, string> = {
   prospects: "Tablas",
+  sales: "Ventas",
   knowledge: "Conocimiento",
   conversations: "Conversaciones",
   meetings: "Reuniones",
   settings: "Ajustes",
   rules: "Ajustes",
-  offer: "Ajustes",
+  offer: "Ventas",
 };
 
-function agentPageLabel(type: string, page: string) {
+function agentPageLabel(page: string) {
   switch (page) {
     case "instructions":
-      return "Instrucciones";
+      return "Configuración";
     case "channels":
-      return type === "outbound" ? "Herramientas" : "Canales y herramientas";
+      return "Herramientas";
     case "approvals":
       return "Aprobaciones";
     case "automation":
@@ -103,14 +104,16 @@ export async function crumbsFor(segments: string[], names: NameLookup): Promise<
         label: (await names.agent(id, sub)) ?? info?.name ?? sub,
         href: `${base}/agents/${sub}`,
       };
-      const page = subsub ? agentPageLabel(sub, subsub) : null;
+      const page = subsub ? agentPageLabel(subsub) : null;
       return page ? [project, agent, { label: page }] : [project, agent];
     }
+    // «Ventas» has sub-tabs under the project's header, like Ajustes: no trail.
+    if (tab === "sales") return [];
     const tabLabel = PROJECT_TABS[tab];
     if (!tabLabel) return [project];
     const tabCrumb = {
       label: tabLabel,
-      href: tab === "rules" || tab === "offer" ? `${base}/settings` : `${base}/${tab}`,
+      href: tab === "rules" ? `${base}/settings` : tab === "offer" ? `${base}/sales` : `${base}/${tab}`,
     };
     if (tab === "knowledge" && sub)
       return [project, tabCrumb, { label: (await names.source(sub)) ?? "Documento" }];

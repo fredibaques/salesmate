@@ -15,7 +15,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { AgentTile } from "@/components/agent-look-fields";
+import { AgentTile, agentState } from "@/components/agent-look-fields";
 import { MenuButton } from "@/components/menu-button";
 import { connectionCapabilities } from "@/server/connectors/service";
 import { listOrgConnections } from "@/server/services/projects";
@@ -124,6 +124,20 @@ function watchRuns<R extends { startedAt: Date; finishedAt: Date | null }>(
 /** A run cut off by the platform stays "running"; after 10 minutes it isn't really searching. */
 function isRecent(startedAt: Date) {
   return Date.now() - new Date(startedAt).getTime() < 10 * 60_000;
+}
+
+const FIT_MARKS = { yes: "✓", no: "✗", unknown: "?" } as const;
+
+/** The fit cell's tooltip: why, and each criterion checked. */
+function fitTitle(r: {
+  fitReason: string | null;
+  fitChecks: { criterion: string; result: "yes" | "no" | "unknown" }[] | null;
+}) {
+  const lines = [
+    r.fitReason,
+    ...(r.fitChecks ?? []).map((c) => `${FIT_MARKS[c.result]} ${c.criterion}`),
+  ].filter(Boolean);
+  return lines.length ? lines.join("\n") : null;
 }
 
 export default async function TablePage({ params, searchParams }: PageProps<"/app/tables/[baseId]">) {
@@ -555,7 +569,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                           );
                         case "fit":
                           return (
-                            <GridCell key={f.key} title={r.fitReason ?? undefined}>
+                            <GridCell key={f.key} title={fitTitle(r) ?? undefined}>
                               <EditableCell
                                 rowId={r.id}
                                 field="fit"
@@ -735,25 +749,24 @@ function TableAgents({
     icon: string | null;
     color: string | null;
     enabled: boolean;
+    working: boolean;
   }[];
 }) {
+  const STATE = { working: "trabajando", idle: "en reposo", paused: "en pausa" } as const;
   return (
-    <span className="ml-1 flex items-center -space-x-1.5">
+    <span className="ml-1 flex items-center gap-1.5">
       {agents.map((a) => (
         <Tooltip
           key={`${a.projectId}:${a.agentType}`}
-          content={`${a.label} · ${a.projectName}${a.enabled ? "" : " · en pausa"}`}
+          content={`${a.label} · ${a.projectName} · ${STATE[agentState(a)]}`}
           side="bottom"
         >
           <Link
             href={`/app/projects/${a.projectId}/agents/${a.agentType}`}
             aria-label={`${a.label} (${a.projectName})`}
-            className={cx(
-              "rounded-lg ring-2 ring-background transition-transform hover:z-10 hover:-translate-y-0.5",
-              !a.enabled && "opacity-50",
-            )}
+            className="rounded-lg transition-transform hover:-translate-y-0.5"
           >
-            <AgentTile type={a.agentType} icon={a.icon} color={a.color} size="sm" />
+            <AgentTile type={a.agentType} icon={a.icon} color={a.color} size="sm" state={agentState(a)} />
           </Link>
         </Tooltip>
       ))}

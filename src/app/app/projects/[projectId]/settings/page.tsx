@@ -1,15 +1,12 @@
-import { Sparkles, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
-import { Card, Chip, Field, FormSection, Input, Notice, Textarea } from "@/components/ui";
+import { Card, Chip, Field, FormSection, Input, Notice } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
-import { currentAi } from "../../../ai-notice";
-import { getSalesProfile } from "@/server/services/agents";
 import { getProject } from "@/server/services/projects";
-import { CustomerFields, OfferFields, ProjectBasicsFields, VoiceFields } from "../../profile-fields";
+import { ProjectBasicsFields } from "../../profile-fields";
 import { deleteProjectAction, saveProject } from "../actions";
-import { draftOffer, saveOffer } from "../offer/actions";
 import { SettingsNav } from "../section-navs";
 
 export const metadata = { title: "Ajustes del proyecto" };
@@ -30,11 +27,7 @@ export default async function ProjectSettingsPage({
   const { projectId } = await params;
   const tenant = await requireTenant();
   const db = getDb();
-  const [project, profile, ai] = await Promise.all([
-    getProject(db, tenant, projectId),
-    getSalesProfile(db, tenant, projectId),
-    currentAi(),
-  ]);
+  const project = await getProject(db, tenant, projectId);
   const s = project!.settings;
   const sendDays = s.sendDays ?? [1, 2, 3, 4, 5];
 
@@ -80,59 +73,6 @@ export default async function ProjectSettingsPage({
             </FormSection>
           </ActionForm>
         </Card>
-
-        <section id="oferta" className="scroll-mt-6">
-          <Card
-            title="Oferta y cliente"
-            tip="Lo que todos los agentes de este proyecto necesitan saber de tu venta: qué ofreces, a quién y cómo hablarle. Lo propio de cada agente se configura en su ficha."
-            actions={
-              ai ? (
-                <ModalButton
-                  label="Proponer con IA"
-                  icon={<Sparkles />}
-                  title="Proponer oferta y cliente con IA"
-                  variant="secondary"
-                  size="sm"
-                >
-                  <ActionForm
-                    action={draftOffer.bind(null, projectId)}
-                    submitLabel="Generar"
-                    className="space-y-4"
-                  >
-                    <Notice tone="warning">
-                      Lee la descripción y el conocimiento del proyecto y sustituye cliente ideal, problemas,
-                      objeciones y tono. La oferta y la firma no se tocan.
-                    </Notice>
-                    <Field label="Indicaciones" optional>
-                      <Textarea
-                        name="instructions"
-                        placeholder="p. ej. Vendemos sobre todo a concesionarios multimarca"
-                      />
-                    </Field>
-                  </ActionForm>
-                </ModalButton>
-              ) : null
-            }
-          >
-            {/* Remount when the stored profile changes (e.g. after the AI proposal) so fields show it. */}
-            <ActionForm
-              key={JSON.stringify(profile)}
-              action={saveOffer.bind(null, projectId)}
-              submitLabel="Guardar"
-              className="space-y-5"
-            >
-              <FormSection title="Oferta">
-                <OfferFields profile={profile} />
-              </FormSection>
-              <FormSection title="Tu cliente">
-                <CustomerFields profile={profile} />
-              </FormSection>
-              <FormSection title="Cómo hablar">
-                <VoiceFields profile={profile} />
-              </FormSection>
-            </ActionForm>
-          </Card>
-        </section>
 
         {tenant.role !== "member" ? (
           <Card title="Eliminar el proyecto">

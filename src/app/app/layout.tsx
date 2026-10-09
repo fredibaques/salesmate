@@ -14,7 +14,7 @@ import { ToastProvider } from "@/components/toast";
 import { Tooltip } from "@/components/ui";
 import { listMemberships, requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
-import { AgentIcon } from "@/components/agent-look-fields";
+import { AgentIcon, AgentStatusDot, agentState } from "@/components/agent-look-fields";
 import { agentName } from "@/lib/agents";
 import { listSidebarAgents } from "@/server/services/agents";
 import { getNavPreferences, inOrder, sectionOrder, type NavSection } from "@/server/services/preferences";
@@ -128,13 +128,9 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
                   nav.agents?.[p.id],
                 ).map((a) => ({
                   href: `/app/projects/${p.id}/agents/${a.agentType}`,
-                  icon: <AgentIcon type={a.agentType} icon={a.icon} color={a.color} />,
+                  icon: <AgentIcon type={a.agentType} icon={a.icon} color={a.color} working={a.working} />,
                   label: agentName(a.agentType, a.name),
-                  badge: a.enabled ? null : (
-                    <Tooltip content="En pausa" align="end">
-                      <span className="size-1.5 rounded-full bg-ink-300" aria-label="En pausa" />
-                    </Tooltip>
-                  ),
+                  badge: <AgentStatusDot state={agentState(a)} />,
                 }))}
               />
             ))}

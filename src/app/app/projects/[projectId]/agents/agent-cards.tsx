@@ -1,40 +1,61 @@
 import { ChevronRight, Plus, TriangleAlert } from "lucide-react";
-import { AgentTile } from "@/components/agent-look-fields";
+import { AgentTile, agentState } from "@/components/agent-look-fields";
 import { AGENT_ICONS } from "@/components/agent-icons";
 import { SwitchButton } from "@/components/switch";
 import { ModalButton } from "@/components/modal";
-import { Badge, CardGrid, EntityCard } from "@/components/ui";
+import { CardGrid, EntityCard } from "@/components/ui";
 import { AGENT_INFO, agentName } from "@/lib/agents";
 import { describeSchedule } from "@/lib/schedule";
-import { NEXT_STEP_LABELS, SALES_MOTION_LABELS } from "@/server/playbooks/spec";
+import { requireTenant } from "@/server/auth/session";
+import { getDb } from "@/server/db/client";
+import { withTenant } from "@/server/db/tenant";
+import { projectProcess } from "@/server/playbooks/service";
 import {
+  AGENT_DEFAULTS,
   AVAILABLE_AGENT_TYPES,
+  listChannelOptions,
+  listMcpServers,
   PROJECT_AGENT_TYPES,
   type listProjectAgents,
   type ProjectAgentType,
 } from "@/server/services/agents";
 import { toggleAgent } from "./actions";
+import { NewAgentFlow } from "./new-agent-flow";
 
 export { AGENT_ICONS };
 
 type Agents = Awaited<ReturnType<typeof listProjectAgents>>;
 
 /**
- * «Añadir agente»: the kinds of agent the project doesn't have yet, to start
- * setting one up. Nothing when it has them all.
+ * «Añadir agente»: a modal to choose the kind of agent the project doesn't
+ * have yet and set it up step by step. Nothing when it has them all.
+ * `open` opens it on arrival with that kind chosen (old links to the page).
  */
-export function AddAgentButton({
+export async function AddAgentButton({
   projectId,
   agents,
   variant = "primary",
+  open,
 }: {
   projectId: string;
   agents: Agents;
   variant?: "primary" | "secondary";
+  open?: string;
 }) {
   const added = new Set(agents.map((a) => a.config.agentType));
-  const missing = PROJECT_AGENT_TYPES.filter((type) => !added.has(type));
-  if (!missing.some((type) => AVAILABLE_AGENT_TYPES.includes(type))) return null;
+  const types = PROJECT_AGENT_TYPES.filter((type) => !added.has(type)).map((type) => ({
+    type,
+    available: AVAILABLE_AGENT_TYPES.includes(type),
+  }));
+  if (!types.some((t) => t.available)) return null;
+  const tenant = await requireTenant();
+  const db = getDb();
+  const [options, servers, process] = await Promise.all([
+    listChannelOptions(db, tenant),
+    listMcpServers(db, tenant),
+    withTenant(db, tenant, (tx) => projectProcess(tx, projectId)),
+  ]);
+  const initial = types.find((t) => t.available && t.type === open)?.type;
   return (
     <ModalButton
       label="Añadir agente"
@@ -42,24 +63,17 @@ export function AddAgentButton({
       title="Añadir agente"
       variant={variant}
       width="lg"
+      defaultOpen={Boolean(initial)}
     >
-      <div className="grid gap-3">
-        {missing.map((type) => {
-          const info = AGENT_INFO[type];
-          const available = AVAILABLE_AGENT_TYPES.includes(type);
-          return (
-            <EntityCard
-              key={type}
-              href={available ? `/app/projects/${projectId}/agents/new/${type}` : undefined}
-              icon={AGENT_ICONS[type]}
-              title={info.name}
-              variant={available ? "default" : "disabled"}
-              badge={available ? null : <Badge>Próximamente</Badge>}
-              description={info.description}
-            />
-          );
-        })}
-      </div>
+      <NewAgentFlow
+        projectId={projectId}
+        types={types}
+        initial={initial}
+        options={options}
+        servers={servers}
+        defaults={AGENT_DEFAULTS.outbound}
+        process={process ? { objective: process.spec.objective, nextSteps: process.spec.nextSteps } : null}
+      />
     </ModalButton>
   );
 }
@@ -78,6 +92,17 @@ function outboundSummary(settings: { prospectsPerRun?: number; mode?: string; ce
   return `En cada ejecución ${text}.`;
 }
 
+/** Where the inbound agent listens, in one line. */
+function inboundSummary(channels: { readMailbox?: boolean; whatsappId?: string | null }) {
+  const where = [
+    "el formulario de tu web",
+    channels.readMailbox ? "el buzón" : null,
+    channels.whatsappId ? "WhatsApp" : null,
+  ].filter(Boolean);
+  const list = where.length > 1 ? `${where.slice(0, -1).join(", ")} y ${where.at(-1)}` : where[0];
+  return `Atiende a quien escribe por ${list}, según el proceso de venta del proyecto.`;
+}
+
 /** The project's agents as cards, with their on/off switch. */
 export function AgentCards({ projectId, agents }: { projectId: string; agents: Agents }) {
   return (
@@ -87,33 +112,26 @@ export function AgentCards({ projectId, agents }: { projectId: string; agents: A
         const info = AGENT_INFO[type];
         const href = `/app/projects/${projectId}/agents/${type}`;
         const warning = missingSetup(type, agent.config.channels);
-        const steps = agent.spec?.nextSteps ?? [];
         const schedule = agent.config.schedule;
         return (
           <EntityCard
             key={type}
             href={href}
-            media={<AgentTile type={type} icon={agent.config.icon} color={agent.config.color} />}
-            title={agentName(type, agent.config.name)}
-            meta={
-              type === "outbound"
-                ? describeSchedule(schedule)
-                : agent.playbook
-                  ? SALES_MOTION_LABELS[agent.playbook.salesMotion]
-                  : null
+            media={
+              <AgentTile
+                type={type}
+                icon={agent.config.icon}
+                color={agent.config.color}
+                state={agentState({ enabled: agent.config.enabled, working: agent.working })}
+              />
             }
+            title={agentName(type, agent.config.name)}
+            meta={type === "outbound" ? describeSchedule(schedule) : null}
             description={
               type === "outbound"
                 ? outboundSummary(agent.config.settings)
-                : steps.length > 0
-                  ? `Objetivo: ${NEXT_STEP_LABELS[steps[0]].toLowerCase()}${
-                      steps.length > 1
-                        ? ` (o ${steps
-                            .slice(1)
-                            .map((s) => NEXT_STEP_LABELS[s].toLowerCase())
-                            .join(", ")})`
-                        : ""
-                    }.`
+                : type === "inbound"
+                  ? inboundSummary(agent.config.channels)
                   : info.description
             }
             footer={

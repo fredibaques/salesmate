@@ -8,7 +8,7 @@ import { withTenant } from "../db/tenant";
 import type { GatewayDeps } from "../gateway/gateway";
 import { defineTool, runAgentLoop, type AgentLoopResult } from "../llm/agent-loop";
 import type { LlmClient } from "../llm/client";
-import { activePlaybookFor } from "../playbooks/service";
+import { projectProcess } from "../playbooks/service";
 import { parseSalesProfile, renderPlaybook } from "../playbooks/spec";
 import {
   actionTools,
@@ -49,7 +49,7 @@ export async function askCopilot(
   const { project, playbook, run } = await withTenant(deps.db, tenant, async (tx) => {
     const [project] = await tx.select().from(projects).where(eq(projects.id, input.projectId));
     if (!project) throw new Error("Proyecto no encontrado.");
-    const playbook = await activePlaybookFor(tx, project.id, "inbound");
+    const playbook = await projectProcess(tx, project.id);
     const [run] = await tx
       .insert(agentRuns)
       .values({

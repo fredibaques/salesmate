@@ -128,7 +128,8 @@ describe("runDueAgents", () => {
                     companyName: "Autos García",
                     website: "https://autosgarcia.es",
                     city: "Málaga",
-                    fitScore: 85,
+                    // The only criterion (segment «Concesionarios»), checked: the score is computed.
+                    fit: { c1: "yes" },
                     fitReason: "Concesionario multimarca con volumen de transferencias",
                     sources: ["https://autosgarcia.es"],
                   },
@@ -161,7 +162,7 @@ describe("runDueAgents", () => {
 
     const [base] = await listBases(db, tenant, projectId);
     const { rows } = await listProspects(db, tenant, base.id);
-    expect(rows.map((r) => [r.companyName, r.fitScore])).toEqual([["Autos García", 85]]);
+    expect(rows.map((r) => [r.companyName, r.fitScore])).toEqual([["Autos García", 100]]);
     const runs = await withTenant(db, tenant, (tx) =>
       tx.select().from(agentRuns).where(eq(agentRuns.projectId, projectId)),
     );

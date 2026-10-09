@@ -12,7 +12,9 @@ screen needs something new, add it here and as a component, not inline.
   it. Counts use `CountBadge`; projects show a `SidebarDot` with their
   initial. Each project is a `SidebarGroup`: its agents hang below it, one
   level down, and a chevron shows or hides them (open by itself while on the
-  project's pages; a paused agent shows a grey dot). The person's own settings live in the `UserMenu` at the bottom:
+  project's pages; each agent shows its state: `AgentStatusDot`, green with a
+  pulse while it works (and its icon sways, `agent-working`), grey at rest, a
+  grey ring when paused). The person's own settings live in the `UserMenu` at the bottom:
   **Mi cuenta** (Perfil, Seguridad, Organización), switching organization and
   «Salir».
 - **Phones** (below `md`): the sidebar hides behind a top bar with the logo
@@ -65,28 +67,38 @@ screen needs something new, add it here and as a component, not inline.
     tool and, once one is picked, what the agents can do with it and its
     form (`?add=1` or `?add=<tool>` opens it from a link).
   - **Por aprobar**: what the agents want to do and waits for a person, with
-    its count. Its own entry, because deciding is the daily job.
+    its count. Its own entry, because deciding is the daily job. It lists only
+    what is pending (what was decided is in Auditoría).
   - **Configuración**: IA, Ejecuciones (every agent run with its cost
     breakdown), Usuarios, Exclusiones and Auditoría.
-- The prospecting agent has four tabs: Configuración (one form in
+- Every agent has the same four tabs: Configuración (one form in
   `FormSection`s grouped by kind: Objetivo, Ejecución, Configuración del
-  modelo, Comunicación, Siguiente paso), Herramientas, Log (its runs as
-  expandable rows with the cost breakdown, a steps `Drawer`, the results card
-  and the month's spending) and Aprobaciones. Other agents also get Log.
+  modelo, Comunicación and, for prospecting, Siguiente paso), Herramientas,
+  Log (its runs as expandable rows with the cost breakdown, a steps
+  `Drawer`, the month's spending and, for prospecting, the results card) and
+  Aprobaciones. The inbound agent's Objetivo shows the project's sales
+  process (with a link to edit it) and the table where it writes each
+  contact.
 - A table's header shows the avatars of the agents working on it
-  (`AgentTile`s with a tooltip, linking to the agent; paused ones faded).
+  (`AgentTile` with `state`: the status dot; a tooltip; a link to the agent).
 - Each person orders the sidebar (sections, projects, each project's agents)
   from the gear next to the brand (`MenuSettingsButton`; saved in
   `user_preferences.nav`, applied with `inOrder`); new projects and agents go
   after the ordered ones, new sections where they go by default (`sectionOrder`). The same modal edits each agent inline. Agents have an icon and a colour the team
   picks (`lib/agent-look.tsx`: `AgentTile`, `AgentIcon`, `AgentLookFields`),
   shown in the sidebar, their header and their card.
-- A project has five tabs: **Resumen** (its home: what is left to set it up,
-  its agents and «Añadir agente»), **Tablas** (its prospect tables), **Conocimiento**
-  (documents and tables), **Conversaciones** and **Ajustes** (General:
-  project data, «Oferta y cliente» and contact hours; and Reglas y
-  exclusiones). The summary shows only the agents the project has; adding
-  one picks its kind in a modal.
+- A project has six tabs: **Resumen** (its home: what is left to set it up,
+  its agents and «Añadir agente», the cost chart with Por día / Por semana /
+  Por mes as `SegmentedLinks`, and its tables), **Ventas** (sub-tabs «Oferta
+  y cliente» and «Proceso de venta»: the sale is the project's, not each
+  agent's), **Conocimiento** (documents and tables; text can be edited in
+  place), **Conversaciones**, **Reuniones** and **Ajustes** (General:
+  project data and contact hours; and Reglas y exclusiones). Adding an agent
+  is a modal: pick its kind, then its `Wizard`, without leaving the project
+  (`?agente=<type>` opens it).
+- Charts are SVG from `components/line-chart.tsx`: one series, a 2px
+  `brand-600` line, hairline grid, three date labels, a crosshair and tooltip
+  on hover and with the arrow keys, and a hidden table for screen readers.
 - Light theme only.
 
 ## 2. Page anatomy
@@ -255,8 +267,8 @@ Remove actions on a row are a `dangerGhost` icon button with an
   so React doesn't reset them when the server says no). Modals have a title
   and no description.
 - Creating something that needs a first configuration (an agent) is a
-  `Wizard`: one step per decision, each checked before moving on, a
-  «Revisar» step that summarises the choices, and one server action at the
+  `Wizard` in a modal: one step per decision, each checked before moving on,
+  a «Revisar» step that summarises the choices, and one server action at the
   end. Afterwards it is edited on its own page.
 - Connecting something from outside (an AI account) is a `Wizard` that
   doubles as the guide: choose, how to get the credential in the provider's

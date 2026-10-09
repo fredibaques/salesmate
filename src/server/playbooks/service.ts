@@ -1,7 +1,7 @@
-import { and, arrayContains, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { audit } from "../audit";
 import type { Db } from "../db/client";
-import { agentConfigs, playbooks, playbookVersions, type AgentType, type SalesMotion } from "../db/schema";
+import { playbooks, playbookVersions, type AgentType, type SalesMotion } from "../db/schema";
 import { withTenant, type TenantContext, type Tx } from "../db/tenant";
 import { PLAYBOOK_TEMPLATES, playbookSpecSchema, type PlaybookSpec } from "./spec";
 
@@ -48,27 +48,11 @@ export async function getPlaybook(db: Db, tenant: Pick<TenantContext, "orgId">, 
 }
 
 /**
- * The process an agent follows in a project: the playbook owned by the added
- * agent, or (for data from before agents owned their process) the most
- * recently updated active playbook for its type.
+ * The project's sales process: one per project, shared by every agent that
+ * talks to people (inbound, first contacts, accounts). Agents that only find
+ * or enrich data (prospecting) don't follow it.
  */
-export async function activePlaybookFor(
-  tx: Tx,
-  projectId: string,
-  agentType: AgentType,
-): Promise<PlaybookWithSpec | null> {
-  const [owned] = await tx
-    .select({ playbook: playbooks })
-    .from(playbooks)
-    .innerJoin(agentConfigs, eq(agentConfigs.id, playbooks.agentConfigId))
-    .where(
-      and(
-        eq(agentConfigs.projectId, projectId),
-        eq(agentConfigs.agentType, agentType),
-        isNotNull(agentConfigs.addedAt),
-      ),
-    );
-  if (owned) return loadCurrent(tx, owned.playbook);
+export async function projectProcess(tx: Tx, projectId: string): Promise<PlaybookWithSpec | null> {
   const [row] = await tx
     .select()
     .from(playbooks)
@@ -77,12 +61,56 @@ export async function activePlaybookFor(
         eq(playbooks.projectId, projectId),
         eq(playbooks.status, "active"),
         isNull(playbooks.agentConfigId),
-        arrayContains(playbooks.agentTypes, [agentType]),
       ),
     )
     .orderBy(desc(playbooks.updatedAt))
     .limit(1);
   return row ? loadCurrent(tx, row) : null;
+}
+
+/** The project's process with its history, for its editor; null until it has one. */
+export async function getProjectProcess(db: Db, tenant: Pick<TenantContext, "orgId">, projectId: string) {
+  const current = await withTenant(db, tenant, (tx) => projectProcess(tx, projectId));
+  return current ? getPlaybook(db, tenant, current.id) : null;
+}
+
+/** Gives the project its process from the template of a sales motion, if it has none yet. */
+export async function ensureProjectProcessIn(
+  tx: Tx,
+  tenant: TenantContext,
+  projectId: string,
+  salesMotion: SalesMotion,
+) {
+  const existing = await projectProcess(tx, projectId);
+  if (existing) return existing;
+  const [row] = await tx
+    .insert(playbooks)
+    .values({
+      orgId: tenant.orgId,
+      projectId,
+      name: "Proceso de venta",
+      salesMotion,
+      agentTypes: ["inbound", "account_manager"],
+      status: "active",
+      createdBy: tenant.actorId,
+    })
+    .returning();
+  await tx.insert(playbookVersions).values({
+    orgId: tenant.orgId,
+    playbookId: row.id,
+    version: 1,
+    spec: playbookSpecSchema.parse(PLAYBOOK_TEMPLATES[salesMotion]),
+    notes: "Creado a partir de la plantilla",
+    createdBy: tenant.actorId,
+  });
+  await audit(tx, tenant, {
+    event: "playbook.created",
+    projectId,
+    entityType: "playbook",
+    entityId: row.id,
+    data: { name: row.name, salesMotion },
+  });
+  return loadCurrent(tx, row);
 }
 
 export async function createPlaybook(

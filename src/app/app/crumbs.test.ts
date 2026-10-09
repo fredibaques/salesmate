@@ -30,12 +30,14 @@ describe("crumbsFor", () => {
     expect(await labels("projects/p1")).toEqual([]);
     expect(await labels("projects/p1/prospects")).toEqual([]);
     expect(await labels("projects/p1/rules")).toEqual([]);
+    expect(await labels("projects/p1/sales")).toEqual([]);
+    expect(await labels("projects/p1/sales/process")).toEqual([]);
     expect(await labels("projects/p1/agents/outbound")).toEqual(["Swipoo", "Agente outbound"]);
     // An agent the user renamed shows its own name.
     expect(await labels("projects/p1/agents/inbound/channels")).toEqual([
       "Swipoo",
       "Recepción web",
-      "Canales y herramientas",
+      "Herramientas",
     ]);
     expect(await labels("projects/p1/agents/new/outbound")).toEqual(["Swipoo", "Añadir el agente outbound"]);
     expect(await labels("projects/p1/prospects/b1")).toEqual(["Swipoo", "Tablas", "Concesionarios"]);
