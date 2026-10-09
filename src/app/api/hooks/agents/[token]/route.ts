@@ -1,6 +1,12 @@
 import { after, NextResponse } from "next/server";
-import { agentByHookToken, processAgentEvents, recordAgentEvent } from "@/server/agents/events";
-import { agentRunDeps } from "@/server/agents/runtime";
+import {
+  agentByHookToken,
+  processAgentEvents,
+  queueWebhookLead,
+  recordAgentEvent,
+} from "@/server/agents/events";
+import { processPendingInbound } from "@/server/agents/inbound";
+import { agentRunDeps, inboundDeps } from "@/server/agents/runtime";
 import { getDb } from "@/server/db/client";
 import { orgLlm } from "@/server/llm/org-ai";
 
@@ -11,9 +17,9 @@ const MAX_BODY = 20_000;
 
 /**
  * An agent's webhook: any tool (a CRM, Zapier, Make…) posts a notice and
- * the agent works with it. The token in the URL is the secret. The notice
- * is stored and processed after answering; if the agent is busy, the
- * scheduler picks it up on its next pass.
+ * the agent works with it (the inbound agent attends it as a lead). The
+ * token in the URL is the secret. The notice is stored and processed after
+ * answering; if the agent is busy, the scheduler picks it up on its next pass.
  */
 export async function POST(request: Request, ctx: RouteContext<"/api/hooks/agents/[token]">) {
   const { token } = await ctx.params;
@@ -30,6 +36,20 @@ export async function POST(request: Request, ctx: RouteContext<"/api/hooks/agent
     // Plain text is fine.
   }
   const tenant = { orgId: agent.orgId };
+  // The inbound agent attends the notice as a new lead (its fields by name).
+  if (agent.agentType === "inbound") {
+    const queued = await queueWebhookLead(db, tenant, agent.projectId, body);
+    if (!queued) return NextResponse.json({ error: "no_contact_data" }, { status: 422 });
+    after(async () => {
+      try {
+        const llm = await orgLlm(db, tenant);
+        if (llm) await processPendingInbound(inboundDeps(llm), tenant.orgId, 5, agent.projectId);
+      } catch (err) {
+        console.error("inbound webhook run failed", err);
+      }
+    });
+    return NextResponse.json({ ok: true }, { status: 202 });
+  }
   const stored = await recordAgentEvent(db, tenant, {
     agentConfigId: agent.id,
     kind: "webhook",

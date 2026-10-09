@@ -1,14 +1,12 @@
 import Link from "next/link";
-import { ActionForm } from "@/components/action-form";
 import { Card, LinkButton } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { listBases } from "@/server/prospects/bases";
 import { countPendingCells } from "@/server/prospects/complete";
 import { firstEmailsWaiting, getAgent } from "@/server/services/agents";
-import { runProspectingNow } from "../actions";
 
-/** The prospecting agent's table at a glance, and «Ejecutar ahora». */
+/** The prospecting agent's table at a glance. */
 export async function ResultsCard({ projectId }: { projectId: string }) {
   const tenant = await requireTenant();
   const db = getDb();
@@ -43,14 +41,6 @@ export async function ResultsCard({ projectId }: { projectId: string }) {
           </Link>
         </p>
       ) : null}
-      <ActionForm
-        action={runProspectingNow.bind(null, projectId)}
-        submitLabel="Ejecutar ahora"
-        submitVariant="secondary"
-        className="mt-4 flex flex-wrap items-center gap-3"
-      >
-        <input type="hidden" name="back" value={`/app/projects/${projectId}/agents/outbound/log`} />
-      </ActionForm>
     </Card>
   );
 }

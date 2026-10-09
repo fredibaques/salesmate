@@ -23,7 +23,16 @@ import type { LlmClient } from "../llm/client";
 import { ingestTableFile } from "../knowledge/service";
 import { personOfRow } from "../conversations/inbox";
 import { setAgentBase } from "../prospects/bases";
-import { addAgent, getAgent, saveAgentChannels, setAgentEnabled } from "../services/agents";
+import { addProspectRow } from "../prospects/service";
+import {
+  addAgent,
+  getAgent,
+  saveAgentChannels,
+  saveAgentTriggers,
+  setAgentEnabled,
+} from "../services/agents";
+import { queueWebhookLead, rowsAdded } from "./events";
+import { runInboundSweep } from "./inbound-sweep";
 import { recordActionInConversation } from "./conversations";
 import { processInboundEvent, processPendingInbound } from "./inbound";
 
@@ -370,5 +379,86 @@ describe("inbound agent", () => {
     // Without a table it writes nowhere.
     await setAgentBase(db, tenant, projectId, agent!.config.id, null);
     expect((await getAgent(db, tenant, projectId, "inbound"))?.config.prospectBaseId).toBeNull();
+  });
+
+  it("listens to what its triggers say: the web form, new rows of its table and notices from other tools", async () => {
+    const reply = () =>
+      scriptedLlm(Array.from({ length: 4 }, () => ({ blocks: [{ type: "text" as const, text: "Hecho." }] })));
+    const agent = (await getAgent(db, tenant, projectId, "inbound"))!;
+    const [base] = await withTenant(db, tenant, (tx) =>
+      tx
+        .insert(prospectBases)
+        .values({
+          orgId: tenant.orgId,
+          projectId,
+          name: "Solicitudes",
+          rowKind: "person",
+          columns: [{ id: "correo", name: "Correo", type: "email", filledBy: "person" }],
+        })
+        .returning(),
+    );
+    await setAgentBase(db, tenant, projectId, agent.config.id, base.id);
+
+    // The web form can be turned off.
+    await saveAgentTriggers(db, tenant, projectId, "inbound", {
+      form: false,
+      newRows: false,
+      webhook: false,
+    });
+    const off = await formEvent({ email: "callado@cliente.com", mensaje: "Hola" });
+    expect(
+      await processInboundEvent({ db, llm: reply().llm, gateway: gateway() }, tenant.orgId, off),
+    ).toEqual({
+      status: "ignored",
+      reason: "trigger_off",
+    });
+
+    // A row someone adds to its table is a lead, only while it listens to new rows.
+    const row = await addProspectRow(db, tenant, base.id, {
+      personName: "Rosa Díaz",
+      companyName: "Talleres Díaz",
+      fields: { correo: "rosa@talleres.es" },
+    });
+    expect(await rowsAdded(db, tenant, { baseId: base.id, rowIds: [row.id] })).toEqual({
+      prospecting: null,
+      inboundProject: null,
+    });
+    await saveAgentTriggers(db, tenant, projectId, "inbound", { form: true, newRows: true, webhook: true });
+    expect((await rowsAdded(db, tenant, { baseId: base.id, rowIds: [row.id] })).inboundProject).toBe(
+      projectId,
+    );
+    // The same row is queued once.
+    await rowsAdded(db, tenant, { baseId: base.id, rowIds: [row.id] });
+
+    // A notice from another tool needs someone to attend.
+    expect(await queueWebhookLead(db, tenant, projectId, { evento: "nuevo" })).toBe(false);
+    expect(
+      await queueWebhookLead(db, tenant, projectId, {
+        name: "Iván",
+        email: "ivan@flota.es",
+        message: "Precio?",
+      }),
+    ).toBe(true);
+    const hooked = (await getAgent(db, tenant, projectId, "inbound"))!;
+    expect(hooked.config.hookToken).toBeTruthy();
+
+    // One run of the agent attends what is waiting in its project.
+    const { outcomes } = await runInboundSweep(
+      { db, llm: reply().llm, gateway: gateway() },
+      tenant,
+      projectId,
+    );
+    expect(outcomes.filter((o) => o.status === "processed")).toHaveLength(2);
+    const people = await withTenant(db, tenant, (tx) =>
+      tx.select({ email: contacts.email }).from(contacts).where(eq(contacts.projectId, projectId)),
+    );
+    expect(people.map((p) => p.email)).toEqual(expect.arrayContaining(["rosa@talleres.es", "ivan@flota.es"]));
+    const sources = await withTenant(db, tenant, (tx) =>
+      tx.select({ source: inboundEvents.source, status: inboundEvents.status }).from(inboundEvents),
+    );
+    expect(sources.filter((e) => e.source === "table")).toEqual([{ source: "table", status: "processed" }]);
+    expect(sources.filter((e) => e.source === "webhook")).toEqual([
+      { source: "webhook", status: "processed" },
+    ]);
   });
 });

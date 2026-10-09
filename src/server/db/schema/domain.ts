@@ -371,6 +371,8 @@ export type AgentSettings = {
     newRows?: boolean;
     /** A POST to its webhook (agent_configs.hook_token): it works with that notice. */
     webhook?: boolean;
+    /** Inbound: a submission of the project's web form (on unless turned off). */
+    form?: boolean;
   };
   /** Spending caps; a run stops (keeping what it saved) when it reaches one. */
   budget?: {

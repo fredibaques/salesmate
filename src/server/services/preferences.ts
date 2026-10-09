@@ -8,13 +8,25 @@ import { eq, and } from "drizzle-orm";
 export const NAV_SECTIONS = [
   "home",
   "conversations",
+  "inbox",
   "tables",
   "knowledge",
   "integrations",
-  "inbox",
   "settings",
 ] as const;
 export type NavSection = (typeof NAV_SECTIONS)[number];
+
+/** Where each entry sits in the sidebar: the Panel on top, then Ventas, Proyectos and Configuración. */
+export type NavGroup = "top" | "sales" | "setup";
+export const NAV_GROUPS: Record<NavSection, NavGroup> = {
+  home: "top",
+  conversations: "sales",
+  inbox: "sales",
+  tables: "sales",
+  knowledge: "setup",
+  integrations: "setup",
+  settings: "setup",
+};
 
 const navInput = z.object({
   sections: z.array(z.enum(NAV_SECTIONS)).max(NAV_SECTIONS.length).default([]),

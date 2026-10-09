@@ -1,5 +1,6 @@
-import { ClipboardType, FileInput, Upload } from "lucide-react";
+import { ClipboardType, FileInput as FileImportIcon, Upload } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
+import { FileInput } from "@/components/file-input";
 import { ModalButton } from "@/components/modal";
 import { CardGrid, EntityCard, Field, Input, Meta, Textarea } from "@/components/ui";
 import { formatDate } from "@/lib/format";
@@ -28,9 +29,9 @@ export function UploadButton({
       <ActionForm action={uploadKnowledge.bind(null, projectId)} submitLabel="Subir" className="space-y-4">
         <input type="hidden" name="kind" value="document" />
         <Field label="Fichero" hint="Hasta 4 MB.">
-          <Input
+          <FileInput
             name="file"
-            type="file"
+            maxMb={4}
             accept=".csv,.tsv,.xlsx,.pdf,.docx,.md,.txt,.html"
             required
             className="file:mr-3 file:rounded-md file:border-0 file:bg-brand-100 file:px-2 file:py-1 file:text-accent hover:file:bg-brand-200"
@@ -70,7 +71,7 @@ export function GoogleImportButton({ projectId }: { projectId: string | null }) 
   return (
     <ModalButton
       label="Desde Google"
-      icon={<FileInput className="size-4" />}
+      icon={<FileImportIcon className="size-4" />}
       title="Importar desde Google Docs o Sheets"
       variant="secondary"
     >

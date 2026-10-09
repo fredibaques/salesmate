@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { CopyButton } from "@/components/copy-button";
-import { Button, Card, Choice, EmptyState, Field, FormSection, Select, Textarea } from "@/components/ui";
+import { Button, Card, EmptyState, Field, FormSection, Select, Textarea } from "@/components/ui";
 import { AI_PROVIDER_INFO } from "@/lib/ai-providers";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
@@ -17,6 +17,7 @@ import { getAgent, listChannelOptions } from "@/server/services/agents";
 import { getProject } from "@/server/services/projects";
 import { rotateKey } from "../../conversations/actions";
 import { saveInboundSetup } from "../actions";
+import { TriggerFields } from "./trigger-fields";
 
 function ConnectLink({ children, add = "1" }: { children: React.ReactNode; add?: string }) {
   return (
@@ -48,6 +49,7 @@ export async function InboundSetup({ projectId }: { projectId: string }) {
   const models = ai ? AI_PROVIDER_INFO[ai.provider].models : [];
   const orgModel = models.find((m) => m.id === ai?.model);
   const endpoint = `${env().APP_URL}/api/inbound/form/${projectId}`;
+  const hookUrl = config.hookToken ? `${env().APP_URL}/api/hooks/agents/${config.hookToken}` : null;
   const steps = process?.spec.nextSteps ?? [];
 
   return (
@@ -57,7 +59,14 @@ export async function InboundSetup({ projectId }: { projectId: string }) {
         tip="Atiende a quien escribe siguiendo el proceso de venta del proyecto. Todo lo que envía pasa por el gateway: sus respuestas esperan tu aprobación salvo que subas su autonomía."
       >
         <ActionForm
-          key={JSON.stringify([config.instructions, config.settings.model, config.prospectBaseId, channels])}
+          key={JSON.stringify([
+            config.instructions,
+            config.settings,
+            config.schedule,
+            config.prospectBaseId,
+            config.hookToken,
+            channels,
+          ])}
           action={saveInboundSetup.bind(null, projectId)}
           submitLabel="Guardar"
           className="space-y-8"
@@ -118,41 +127,63 @@ export async function InboundSetup({ projectId }: { projectId: string }) {
             </Field>
           </FormSection>
 
-          <FormSection
-            title="Ejecución"
-            tip="Trabaja cuando alguien escribe: siempre con el formulario de tu web y, si lo marcas, con el buzón y WhatsApp."
-          >
-            <Choice
-              name="readMailbox"
-              defaultChecked={channels.readMailbox ?? false}
-              label="Cuando llega un email al buzón"
-              description="Cada email nuevo se trata como un contacto entrante. Necesita que la cuenta tenga permiso de lectura."
-            />
-            <Field
-              label="Cuando llega un WhatsApp a"
-              optional
-              hint={
-                options.whatsapps.length === 0 ? (
-                  <>
+          <TriggerFields
+            projectId={projectId}
+            config={config}
+            run="En cada ejecución lee su buzón y atiende lo que tenga pendiente; cada contacto, en su propia conversación."
+            hookUrl={config.settings.triggers?.webhook ? hookUrl : null}
+            events={[
+              {
+                name: "triggerForm",
+                label: "Llega un formulario de tu web",
+                description: "Atiende cada envío en segundos. La dirección y la clave están debajo.",
+                checked: config.settings.triggers?.form !== false,
+              },
+              {
+                name: "readMailbox",
+                label: "Llega un email al buzón",
+                description:
+                  "Cada email nuevo del buzón desde el que escribe es un contacto. Necesita que la cuenta tenga permiso de lectura.",
+                checked: channels.readMailbox ?? false,
+              },
+              {
+                name: "triggerWhatsapp",
+                label: "Llega un WhatsApp",
+                description: "Atiende los mensajes que llegan a este número y responde por WhatsApp.",
+                checked: Boolean(channels.whatsappId),
+                extra: options.whatsapps.length ? (
+                  <Select name="whatsappId" defaultValue={channels.whatsappId ?? ""} className="max-w-sm">
+                    <option value="">— Elige un número —</option>
+                    {options.whatsapps.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.address}
+                        {w.name ? ` · ${w.name}` : ""}
+                      </option>
+                    ))}
+                  </Select>
+                ) : (
+                  <p className="text-xs text-muted">
                     No hay ningún número de WhatsApp Business conectado.{" "}
                     <ConnectLink add="whatsapp">Conecta uno</ConnectLink>.
-                  </>
-                ) : (
-                  "Atiende los mensajes que llegan a este número y responde por WhatsApp."
-                )
-              }
-            >
-              <Select name="whatsappId" defaultValue={channels.whatsappId ?? ""} className="max-w-sm">
-                <option value="">— Ningún número —</option>
-                {options.whatsapps.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.address}
-                    {w.name ? ` · ${w.name}` : ""}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </FormSection>
+                  </p>
+                ),
+              },
+              {
+                name: "triggerNewRows",
+                label: "Se añade una fila a su tabla",
+                description:
+                  "Cada persona nueva de «Apunta cada contacto en» (con email o teléfono) es un contacto que atender.",
+                checked: Boolean(config.settings.triggers?.newRows),
+              },
+              {
+                name: "triggerWebhook",
+                label: "Llega un aviso de otra herramienta",
+                description:
+                  "Tu CRM, Zapier o Make envían un POST con los datos de la persona (nombre, email, teléfono, mensaje).",
+                checked: Boolean(config.settings.triggers?.webhook),
+              },
+            ]}
+          />
 
           {models.length ? (
             <FormSection title="Configuración del modelo" tip="Qué IA usa para responder.">

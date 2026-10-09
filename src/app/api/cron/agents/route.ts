@@ -31,7 +31,9 @@ export async function GET(request: Request) {
       projectId: r.projectId,
       ...("error" in r.result
         ? { error: r.result.error }
-        : { status: r.result.status, added: r.result.added, costUsd: r.result.costUsd }),
+        : "outcomes" in r.result
+          ? { queued: r.result.queued, leads: r.result.outcomes.map((o) => o.status) }
+          : { status: r.result.status, added: r.result.added, costUsd: r.result.costUsd }),
     })),
   });
 }

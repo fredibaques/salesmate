@@ -1,5 +1,14 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
-import { agentConfigs, agentEvents, agentRuns, projects, type AgentEventKind } from "../db/schema";
+import {
+  agentConfigs,
+  agentEvents,
+  agentRuns,
+  inboundEvents,
+  projects,
+  prospectBases,
+  prospects,
+  type AgentEventKind,
+} from "../db/schema";
 import { withSystem, withTenant } from "../db/tenant";
 import type { LlmClient } from "../llm/client";
 import { runProspecting, type AgentRunDeps, type ProspectingResult } from "./prospector";
@@ -51,30 +60,97 @@ export async function recordAgentEvent(
   });
 }
 
-/** Rows a person added to a base: an event for the agent that fills it, if it listens. */
+/** Who works on rows just added to a table: the prospecting agent's id, the inbound agent's project. */
+export type RowsAddedTo = { prospecting: string | null; inboundProject: string | null };
+
+/**
+ * Rows a person (or a form) added to a table. The agents working on it that
+ * listen to new rows get them: the prospecting agent completes them (an
+ * agent event), the inbound agent attends each person as a new lead.
+ */
 export async function rowsAdded(
   db: AgentRunDeps["db"],
   tenant: { orgId: string },
   input: { baseId: string; rowIds: string[] },
-): Promise<string | null> {
-  if (!input.rowIds.length) return null;
+): Promise<RowsAddedTo> {
+  const out: RowsAddedTo = { prospecting: null, inboundProject: null };
+  if (!input.rowIds.length) return out;
   const agents = await withTenant(db, tenant, (tx) =>
     tx
-      .select({ id: agentConfigs.id })
+      .select({
+        id: agentConfigs.id,
+        agentType: agentConfigs.agentType,
+        projectId: agentConfigs.projectId,
+        settings: agentConfigs.settings,
+        enabled: agentConfigs.enabled,
+      })
       .from(agentConfigs)
       .where(and(eq(agentConfigs.prospectBaseId, input.baseId), isNotNull(agentConfigs.addedAt))),
   );
   for (const agent of agents) {
+    if (agent.agentType === "inbound") {
+      if (!agent.settings.triggers?.newRows) continue;
+      if (await queueRowsAsLeads(db, tenant, { ...input, projectId: agent.projectId })) {
+        out.inboundProject = agent.projectId;
+      }
+      continue;
+    }
     if (
-      await recordAgentEvent(db, tenant, {
+      !out.prospecting &&
+      (await recordAgentEvent(db, tenant, {
         agentConfigId: agent.id,
         kind: "new_rows",
         payload: { rowIds: input.rowIds },
-      })
+      }))
     )
-      return agent.id;
+      out.prospecting = agent.id;
   }
-  return null;
+  return out;
+}
+
+/** The fields of a table row as a lead (name, company, email, phone and the other columns by name). */
+function rowAsFields(
+  row: typeof prospects.$inferSelect,
+  columns: (typeof prospectBases.$inferSelect)["columns"],
+): Record<string, string> {
+  const fields: Record<string, string> = {};
+  if (row.personName) fields.nombre = row.personName;
+  if (row.companyName) fields.empresa = row.companyName;
+  if (row.website) fields.web = row.website;
+  for (const c of columns) {
+    const value = row.data[c.id];
+    if (value === null || value === undefined || value === "") continue;
+    const key = c.type === "email" ? "email" : c.type === "phone" ? "telefono" : c.name;
+    if (!(key in fields)) fields[key] = Array.isArray(value) ? value.join(", ") : String(value);
+  }
+  return fields;
+}
+
+/** Rows of a table queued as leads of a project's inbound agent (those with an email or a phone). */
+async function queueRowsAsLeads(
+  db: AgentRunDeps["db"],
+  tenant: { orgId: string },
+  input: { baseId: string; rowIds: string[]; projectId: string },
+) {
+  return withTenant(db, tenant, async (tx) => {
+    const [base] = await tx.select().from(prospectBases).where(eq(prospectBases.id, input.baseId));
+    if (!base) return 0;
+    const rows = await tx.select().from(prospects).where(inArray(prospects.id, input.rowIds));
+    const events = rows
+      .map((row) => ({ row, fields: rowAsFields(row, base.columns) }))
+      .filter(({ fields }) => fields.email || fields.telefono)
+      .map(({ row, fields }) => ({
+        orgId: tenant.orgId,
+        projectId: input.projectId,
+        source: "table",
+        eventType: "table.row_added",
+        externalId: `row:${row.id}`,
+        payload: { fields, rowId: row.id, baseId: base.id },
+      }));
+    if (!events.length) return 0;
+    await tx.insert(inboundEvents).values(events).onConflictDoNothing();
+    return events.length;
+  });
 }
 
 /** The agent behind a webhook token (any organization), or null. */
@@ -82,7 +158,13 @@ export async function agentByHookToken(db: AgentRunDeps["db"], token: string) {
   if (token.length < 20) return null;
   const [agent] = await withSystem(db, (tx) =>
     tx
-      .select({ id: agentConfigs.id, orgId: agentConfigs.orgId, settings: agentConfigs.settings })
+      .select({
+        id: agentConfigs.id,
+        orgId: agentConfigs.orgId,
+        projectId: agentConfigs.projectId,
+        agentType: agentConfigs.agentType,
+        settings: agentConfigs.settings,
+      })
       .from(agentConfigs)
       .where(and(eq(agentConfigs.hookToken, token), isNotNull(agentConfigs.addedAt))),
   );
@@ -200,4 +282,38 @@ export async function runPendingEvents(
       return { agentConfigId, outcome: outcome.status };
     }),
   );
+}
+
+/**
+ * A notice posted to the inbound agent's webhook, queued as a lead: its
+ * top-level values by name (nombre, email, telefono, mensaje…). Without an
+ * email or a phone there is no one to attend.
+ */
+export async function queueWebhookLead(
+  db: AgentRunDeps["db"],
+  tenant: { orgId: string },
+  projectId: string,
+  body: unknown,
+) {
+  const source =
+    body && typeof body === "object" && !Array.isArray(body)
+      ? ((body as Record<string, unknown>).fields ?? body)
+      : { mensaje: String(body ?? "") };
+  const fields = Object.fromEntries(
+    Object.entries(source as Record<string, unknown>)
+      .filter(([, v]) => v !== null && v !== undefined && typeof v !== "object")
+      .map(([k, v]) => [k, String(v)]),
+  );
+  const keys = Object.keys(fields).map((k) => k.toLowerCase());
+  if (!keys.some((k) => /mail|tel|phone|movil|móvil|whatsapp/.test(k))) return false;
+  await withTenant(db, tenant, (tx) =>
+    tx.insert(inboundEvents).values({
+      orgId: tenant.orgId,
+      projectId,
+      source: "webhook",
+      eventType: "webhook.received",
+      payload: { fields },
+    }),
+  );
+  return true;
 }

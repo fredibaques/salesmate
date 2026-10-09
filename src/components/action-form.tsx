@@ -1,5 +1,6 @@
 "use client";
 
+import { unstable_rethrow } from "next/navigation";
 import { startTransition, useActionState, useRef, type ReactNode } from "react";
 import { useModal } from "./modal";
 import { useToast } from "./toast";
@@ -7,6 +8,29 @@ import { buttonClass, cx, type ButtonVariant } from "./ui";
 
 export type FormState = { ok: boolean; message: string } | null;
 export type FormAction = (state: FormState, formData: FormData) => Promise<FormState>;
+
+/**
+ * Calls a server action and turns a failure to reach it (no connection, a
+ * request the host refuses, like a file over its size limit) into an error
+ * next to the button instead of breaking the page. Redirects and other
+ * Next.js signals still go through.
+ */
+export async function callAction(
+  action: FormAction,
+  state: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  try {
+    return await action(state, formData);
+  } catch (err) {
+    unstable_rethrow(err);
+    return {
+      ok: false,
+      message:
+        "No se ha podido enviar. Revisa tu conexión y que los ficheros no pasen de 4 MB, y vuelve a probar.",
+    };
+  }
+}
 
 /**
  * Form bound to a server action that returns a status message. Success
@@ -42,7 +66,7 @@ export function ActionForm({
   // would be lost. Errors stay next to the button.
   const form = useRef<HTMLFormElement>(null);
   const [state, formAction, pending] = useActionState<FormState, FormData>(async (prev, formData) => {
-    const result = await action(prev, formData);
+    const result = await callAction(action, prev, formData);
     if (result?.ok) {
       // Clean for the next use, as React does after an action; a rejected
       // submit keeps what was typed so it can be fixed and sent again.

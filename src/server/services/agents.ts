@@ -920,6 +920,37 @@ export async function saveAgentAutomation(
   });
 }
 
+/**
+ * What makes an agent work besides «Ejecutar ahora» and its schedule: new
+ * rows of its table, a notice to its webhook (which gets its secret URL the
+ * first time) and, for the inbound agent, its project's web form.
+ */
+export async function saveAgentTriggers(
+  db: Db,
+  tenant: TenantContext,
+  projectId: string,
+  agentType: ProjectAgentType,
+  triggers: { newRows: boolean; webhook: boolean; form?: boolean },
+) {
+  return withTenant(db, tenant, async (tx) => {
+    const current = await findConfig(tx, projectId, agentType);
+    if (!current?.addedAt) throw new Error("Agente no encontrado.");
+    const settings: AgentSettings = {
+      ...current.settings,
+      triggers: { ...current.settings.triggers, ...triggers },
+    };
+    const hookToken = triggers.webhook ? (current.hookToken ?? newHookToken()) : current.hookToken;
+    await tx.update(agentConfigs).set({ settings, hookToken }).where(eq(agentConfigs.id, current.id));
+    await audit(tx, tenant, {
+      event: "agent.triggers_updated",
+      projectId,
+      entityType: "agent_config",
+      entityId: current.id,
+      data: { agentType, triggers },
+    });
+  });
+}
+
 /** A new webhook secret: the old URL stops working. */
 export async function rotateAgentHook(
   db: Db,

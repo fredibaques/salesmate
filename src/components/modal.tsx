@@ -37,6 +37,7 @@ export function ModalButton({
   hideTrigger = false,
   onClose,
   className,
+  triggerClass,
 }: {
   label: ReactNode;
   icon?: ReactNode;
@@ -55,6 +56,8 @@ export function ModalButton({
   hideTrigger?: boolean;
   onClose?: () => void;
   className?: string;
+  /** Classes that replace the button look entirely (a card that opens the modal). */
+  triggerClass?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(defaultOpen);
@@ -81,7 +84,7 @@ export function ModalButton({
           type="button"
           onClick={() => setOpen(true)}
           aria-label={iconOnly && typeof label === "string" ? label : undefined}
-          className={cx(buttonClass({ variant, size, iconOnly }), className)}
+          className={triggerClass ?? cx(buttonClass({ variant, size, iconOnly }), className)}
         >
           {icon}
           {iconOnly ? null : label}
