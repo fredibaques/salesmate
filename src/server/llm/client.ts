@@ -67,6 +67,64 @@ export function estimateCostUsd(
   );
 }
 
+export type CostLine = { key: string; label: string; detail: string; usd: number };
+
+/**
+ * What a run cost, item by item: the model's input, output and cache
+ * tokens, the web searches, and anything else billed to it (e.g. the first
+ * emails drafted after a prospecting run), so the lines add up to `totalUsd`.
+ */
+export function costBreakdown(
+  model: string,
+  usage: { input: number; output: number; cacheRead: number; cacheWrite: number; webSearches: number },
+  totalUsd: number,
+): CostLine[] {
+  const found = findModel(model);
+  const n = (v: number) => v.toLocaleString("es-ES");
+  const lines: CostLine[] = [];
+  if (found) {
+    const p = found.price;
+    lines.push(
+      {
+        key: "input",
+        label: "Entrada",
+        detail: `${n(usage.input)} tokens`,
+        usd: (usage.input * p.input) / 1e6,
+      },
+      {
+        key: "output",
+        label: "Salida",
+        detail: `${n(usage.output)} tokens`,
+        usd: (usage.output * p.output) / 1e6,
+      },
+      {
+        key: "cache",
+        label: "Caché",
+        detail: `${n(usage.cacheRead)} leídos, ${n(usage.cacheWrite)} escritos`,
+        usd: (usage.cacheRead * p.cacheRead + usage.cacheWrite * p.cacheWrite) / 1e6,
+      },
+      {
+        key: "search",
+        label: "Búsquedas web",
+        detail: `${n(usage.webSearches)} búsquedas`,
+        usd: usage.webSearches * AI_PROVIDER_INFO[found.provider].webSearchUsd,
+      },
+    );
+  }
+  const rest = totalUsd - lines.reduce((sum, l) => sum + l.usd, 0);
+  if (rest > 0.0005) {
+    lines.push({
+      key: "other",
+      label: found ? "Otros" : "Modelo",
+      detail: found
+        ? "Borradores de primeros emails y pasos sin desglose"
+        : `Precios de ${model} no conocidos`,
+      usd: rest,
+    });
+  }
+  return lines.filter((l) => l.usd > 0 || l.key === "input");
+}
+
 /**
  * The same client answering with another model of its provider (an agent's
  * own choice). A model of another provider, or unknown, is ignored: the

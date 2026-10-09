@@ -25,11 +25,14 @@ export function SubmitOnChange({
   defaultValue,
   options,
   "aria-label": label,
+  wide = false,
 }: {
   name: string;
   defaultValue: string;
   options: { value: string; label: string }[];
   "aria-label": string;
+  /** Room for longer option names (project names). */
+  wide?: boolean;
 }) {
   return (
     <select
@@ -37,7 +40,7 @@ export function SubmitOnChange({
       defaultValue={defaultValue}
       aria-label={label}
       onChange={(e) => e.currentTarget.form?.requestSubmit()}
-      className="h-8 max-w-28 shrink-0 rounded-md border border-border bg-surface px-2 text-xs text-ink-700 transition-colors hover:border-border-strong"
+      className={`h-8 ${wide ? "max-w-52" : "max-w-28"} shrink-0 rounded-md border border-border bg-surface px-2 text-xs text-ink-700 transition-colors hover:border-border-strong`}
     >
       {options.map((o) => (
         <option key={o.value} value={o.value}>

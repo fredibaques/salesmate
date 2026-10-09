@@ -134,6 +134,8 @@ export async function answerFromKnowledge(
         inputTokens: result.usage.input,
         outputTokens: result.usage.output,
         cacheReadTokens: result.usage.cacheRead,
+        cacheWriteTokens: result.usage.cacheWrite,
+        webSearches: result.usage.webSearches,
         costUsd: result.costUsd,
         steps: result.steps,
         summary: result.finalText,

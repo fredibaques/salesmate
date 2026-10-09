@@ -572,6 +572,8 @@ ${[
       inputTokens: result.usage.input,
       outputTokens: result.usage.output,
       cacheReadTokens: result.usage.cacheRead,
+      cacheWriteTokens: result.usage.cacheWrite,
+      webSearches: result.usage.webSearches,
       costUsd,
       steps: result.steps,
       summary,

@@ -334,6 +334,39 @@ const amount = (form: FormData, key: string) => {
   return v === undefined ? undefined : Number(v.replace(",", "."));
 };
 
+/** The automation fields of an agent's form (triggers, goal, caps, sources, notices, first contact). */
+function automationFromForm(form: FormData): Parameters<typeof saveAgentAutomation>[4] {
+  const goalRows = num(form, "goalRows");
+  const prefer = str(form, "sourcesPrefer");
+  return {
+    triggers: { newRows: bool(form, "triggerNewRows"), webhook: bool(form, "triggerWebhook") },
+    budget: {
+      maxCostPerRunUsd: amount(form, "maxCostPerRunUsd"),
+      maxCostPerMonthUsd: amount(form, "maxCostPerMonthUsd"),
+      maxSearchesPerRun: num(form, "maxSearchesPerRun"),
+    },
+    goal: goalRows ? { rows: goalRows, minFit: num(form, "goalMinFit") } : null,
+    sources: {
+      allow: domainList(form, "sourcesAllow"),
+      block: domainList(form, "sourcesBlock"),
+      prefer: prefer === "data" || prefer === "web" ? (prefer as "data" | "web") : null,
+    },
+    notify: {
+      slackConnectionId: str(form, "slackConnectionId") ?? null,
+      emails: list(form, "notifyEmails"),
+      onFinish: bool(form, "notifyOnFinish"),
+      onProblem: bool(form, "notifyOnProblem"),
+    },
+    mailboxId: str(form, "mailboxId") ?? null,
+    handoff: {
+      enabled: bool(form, "handoffEnabled"),
+      minFit: num(form, "handoffMinFit"),
+      perRun: num(form, "handoffPerRun"),
+      instructions: str(form, "handoffInstructions"),
+    },
+  };
+}
+
 export async function saveAutomation(
   projectId: string,
   type: string,
@@ -342,36 +375,37 @@ export async function saveAutomation(
 ): Promise<FormState> {
   const result = await runForm(async () => {
     const tenant = await admin();
-    const goalRows = num(form, "goalRows");
-    const prefer = str(form, "sourcesPrefer");
-    await saveAgentAutomation(getDb(), tenant, projectId, agentType(type), {
-      triggers: { newRows: bool(form, "triggerNewRows"), webhook: bool(form, "triggerWebhook") },
-      budget: {
-        maxCostPerRunUsd: amount(form, "maxCostPerRunUsd"),
-        maxCostPerMonthUsd: amount(form, "maxCostPerMonthUsd"),
-        maxSearchesPerRun: num(form, "maxSearchesPerRun"),
-      },
-      goal: goalRows ? { rows: goalRows, minFit: num(form, "goalMinFit") } : null,
-      sources: {
-        allow: domainList(form, "sourcesAllow"),
-        block: domainList(form, "sourcesBlock"),
-        prefer: prefer === "data" || prefer === "web" ? prefer : null,
-      },
-      notify: {
-        slackConnectionId: str(form, "slackConnectionId") ?? null,
-        emails: list(form, "notifyEmails"),
-        onFinish: bool(form, "notifyOnFinish"),
-        onProblem: bool(form, "notifyOnProblem"),
-      },
-      mailboxId: str(form, "mailboxId") ?? null,
-      handoff: {
-        enabled: bool(form, "handoffEnabled"),
-        minFit: num(form, "handoffMinFit"),
-        perRun: num(form, "handoffPerRun"),
-        instructions: str(form, "handoffInstructions"),
-      },
-    });
+    await saveAgentAutomation(getDb(), tenant, projectId, agentType(type), automationFromForm(form));
   }, "Automatización guardada.");
+  refresh(projectId);
+  return result;
+}
+
+/**
+ * The prospecting agent's whole setup in one form: its goal and
+ * instructions, when and how much it works, its model, sources and caps,
+ * whom it tells and the next step.
+ */
+export async function saveAgentSetup(
+  projectId: string,
+  type: string,
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const result = await runForm(async () => {
+    const tenant = await admin();
+    const kind = agentType(type);
+    const db = getDb();
+    await saveAgentInstructions(db, tenant, projectId, kind, instructionsFromForm(form, true));
+    await saveAgentAutomation(db, tenant, projectId, kind, automationFromForm(form));
+    const baseId = str(form, "baseId");
+    if (kind === "outbound" && baseId) {
+      const agent = await getAgent(db, tenant, projectId, kind);
+      if (agent && agent.config.prospectBaseId !== baseId) {
+        await setAgentBase(db, tenant, projectId, agent.config.id, baseId);
+      }
+    }
+  }, "Configuración guardada.");
   refresh(projectId);
   return result;
 }

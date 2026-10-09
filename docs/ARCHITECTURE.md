@@ -279,8 +279,8 @@ src/server/
 - **Entradas.** Formularios: `POST /api/inbound/form/:projectId` con la clave
   del proyecto; se procesa justo después de responder (`after()`). Email y
   pendientes: `GET /api/cron/inbound` desde el workflow programado.
-- **Trazabilidad.** Cada ejecución queda en `agent_runs` (pasos, tokens,
-  coste); cada conversación guarda mensajes entrantes y salientes (los emails
+- **Trazabilidad.** Cada ejecución queda en `agent_runs` (pasos, tokens de
+  entrada, salida y caché leída/escrita, búsquedas web, coste); cada conversación guarda mensajes entrantes y salientes (los emails
   enviados se registran tras ejecutarse, vía `afterExecute`).
 - **Tests sin red.** `tests/helpers/fake-llm.ts` reproduce turnos guionizados
   del modelo para probar agentes de forma determinista.
@@ -431,10 +431,25 @@ recuerda guardar tras 8 búsquedas o lecturas sin hacerlo y, a 45 s del
 final, que deje de buscar y guarde lo confirmado (`steer` de
 `runAgentLoop`, texto tras los resultados de las herramientas).
 
+## Registro de ejecuciones y coste
+
+`agents/runs.ts` lee `agent_runs` como un registro: `listRuns` (más recientes
+primero, paginado por `startedAt`), `runTotals` (coste del periodo por agente)
+y `getRun` (con sus pasos). Cada ejecución lleva su desglose
+(`costBreakdown` en `llm/client.ts`): entrada, salida, caché y búsquedas web a
+los precios del modelo, y «Otros» con lo que no se desglosa (borradores de
+primeros emails, ejecuciones anteriores a la migración 0022). Se ve en la
+pestaña «Log» de cada agente (con los resultados del agente de prospección y
+el gasto del mes) y en Configuración → Ejecuciones (`/app/runs`, filtros de
+periodo, proyecto y agente; meses en hora de Madrid con `monthStart`).
+
 ## Automatización de los agentes
 
-Ajustes en `agent_configs.settings` (pestaña «Automatización» del agente de
-prospección; `saveAgentAutomation` en `services/agents.ts`):
+Ajustes en `agent_configs.settings` (`saveAgentAutomation` en
+`services/agents.ts`). En el agente de prospección se editan junto a las
+instrucciones en una sola pestaña «Configuración» (`outbound-setup.tsx`,
+acción `saveAgentSetup`), agrupados en Objetivo, Ejecución, Configuración del
+modelo, Comunicación y Siguiente paso; `/automation` redirige ahí:
 
 - **Disparadores** (`triggers`): además del horario y «Ejecutar ahora», trabaja
   cuando alguien añade una fila a su base (completa esa fila) o cuando recibe
@@ -544,6 +559,10 @@ horas desde el último mensaje del contacto, Meta exige plantillas aprobadas
   (`set_config('app.org_id')` y `set_config('role')`, locales a la transacción).
 - Better Auth guarda la sesión firmada en una cookie 5 minutos
   (`session.cookieCache`): la mayoría de peticiones no la leen de la base de datos.
+- Las sesiones abiertas (Mi cuenta → Seguridad) se leen y cierran directamente
+  en la tabla `session` (`listOwnSessions`, `revokeOtherOwnSessions` en
+  `auth/session.ts`): `listSessions` de Better Auth exige una sesión «fresca»
+  (menos de un día) y fallaba con `SESSION_NOT_FRESH`.
 - El menú lateral cuenta lo pendiente de aprobar con un `count` por proyecto,
   no listando las acciones.
 

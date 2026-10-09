@@ -150,10 +150,15 @@ export async function baseAgents(db: Db, tenant: Pick<TenantContext, "orgId">, b
     tx
       .select({
         projectId: agentConfigs.projectId,
+        projectName: projects.name,
         agentType: agentConfigs.agentType,
         name: agentConfigs.name,
+        icon: agentConfigs.icon,
+        color: agentConfigs.color,
+        enabled: agentConfigs.enabled,
       })
       .from(agentConfigs)
+      .innerJoin(projects, eq(projects.id, agentConfigs.projectId))
       .where(and(eq(agentConfigs.prospectBaseId, baseId), isNotNull(agentConfigs.addedAt))),
   );
   const labels = agentNames(rows);

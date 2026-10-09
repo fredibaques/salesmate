@@ -15,11 +15,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { AgentTile } from "@/components/agent-look-fields";
 import { MenuButton } from "@/components/menu-button";
 import { connectionCapabilities } from "@/server/connectors/service";
 import { listOrgConnections } from "@/server/services/projects";
 import { DataGrid, GridCell, GridHead, GridRow } from "@/components/data-grid";
-import { Badge, Button, cx, Input, LinkButton, Notice, PageHeader } from "@/components/ui";
+import { Badge, Button, cx, Input, LinkButton, Notice, PageHeader, Tooltip } from "@/components/ui";
 import { plural } from "@/lib/format";
 import {
   isPendingCell,
@@ -231,6 +232,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
       <PageHeader
         icon={person ? <User /> : <Building2 />}
         title={base.name}
+        badge={agents.length ? <TableAgents agents={agents} /> : null}
         tip={`Cada fila es ${person ? "una persona" : "una empresa"}. ${filledByAgent ? `La rellena ${filler!.label} y la revisáis las personas del equipo.` : "La rellenáis a mano o desde un formulario; también puede rellenarla un agente."} Haz clic en una celda para escribir en ella. Las columnas se cambian desde su cabecera y se mueven manteniéndola pulsada. Exportar descarga un Excel (CSV) con sus columnas.`}
         actions={
           <>
@@ -718,5 +720,43 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
         />
       ) : null}
     </>
+  );
+}
+
+/** The agents that work on the table, as their avatars (each opens its agent). */
+function TableAgents({
+  agents,
+}: {
+  agents: {
+    projectId: string;
+    projectName: string;
+    agentType: string;
+    label: string;
+    icon: string | null;
+    color: string | null;
+    enabled: boolean;
+  }[];
+}) {
+  return (
+    <span className="ml-1 flex items-center -space-x-1.5">
+      {agents.map((a) => (
+        <Tooltip
+          key={`${a.projectId}:${a.agentType}`}
+          content={`${a.label} · ${a.projectName}${a.enabled ? "" : " · en pausa"}`}
+          side="bottom"
+        >
+          <Link
+            href={`/app/projects/${a.projectId}/agents/${a.agentType}`}
+            aria-label={`${a.label} (${a.projectName})`}
+            className={cx(
+              "rounded-lg ring-2 ring-background transition-transform hover:z-10 hover:-translate-y-0.5",
+              !a.enabled && "opacity-50",
+            )}
+          >
+            <AgentTile type={a.agentType} icon={a.icon} color={a.color} size="sm" />
+          </Link>
+        </Tooltip>
+      ))}
+    </span>
   );
 }
