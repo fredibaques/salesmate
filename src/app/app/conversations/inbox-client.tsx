@@ -1,7 +1,6 @@
 "use client";
 
 import { Hand, Lock, RotateCcw, Undo2 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { ActionForm, type FormAction, type FormState } from "@/components/action-form";
 import { useToast } from "@/components/toast";
@@ -9,17 +8,7 @@ import { buttonClass, cx, Input, Textarea } from "@/components/ui";
 import type { PersonChange } from "@/server/conversations/inbox";
 import type { WhatsappTemplate } from "@/server/connectors/whatsapp";
 
-/** Brings new messages in every few seconds while the page is visible. */
-export function AutoRefresh({ seconds = 15 }: { seconds?: number }) {
-  const router = useRouter();
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      if (document.visibilityState === "visible") router.refresh();
-    }, seconds * 1000);
-    return () => window.clearInterval(id);
-  }, [router, seconds]);
-  return null;
-}
+export { AutoRefresh } from "@/components/auto-refresh";
 
 /** Keeps the thread scrolled to its latest message (on opening it and when one arrives). */
 export function ScrollToEnd({ count }: { count: number }) {
@@ -36,11 +25,14 @@ export function SubmitOnChange({
   defaultValue,
   options,
   "aria-label": label,
+  wide = false,
 }: {
   name: string;
   defaultValue: string;
   options: { value: string; label: string }[];
   "aria-label": string;
+  /** Room for longer option names (project names). */
+  wide?: boolean;
 }) {
   return (
     <select
@@ -48,7 +40,7 @@ export function SubmitOnChange({
       defaultValue={defaultValue}
       aria-label={label}
       onChange={(e) => e.currentTarget.form?.requestSubmit()}
-      className="h-8 max-w-28 shrink-0 rounded-md border border-border bg-surface px-2 text-xs text-ink-700 transition-colors hover:border-border-strong"
+      className={`h-8 ${wide ? "max-w-52" : "max-w-28"} shrink-0 rounded-md border border-border bg-surface px-2 text-xs text-ink-700 transition-colors hover:border-border-strong`}
     >
       {options.map((o) => (
         <option key={o.value} value={o.value}>

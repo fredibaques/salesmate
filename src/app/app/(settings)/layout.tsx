@@ -10,6 +10,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
         <PageHeader className="mb-4" title="Configuración" />
         <Tabs>
           <TabLink href="/app/ai">IA</TabLink>
+          <TabLink href="/app/runs">Ejecuciones</TabLink>
           <TabLink href="/app/users">Usuarios</TabLink>
           <TabLink href="/app/exclusions">Exclusiones</TabLink>
           <TabLink href="/app/audit">Auditoría</TabLink>

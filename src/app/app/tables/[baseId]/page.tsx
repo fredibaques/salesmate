@@ -14,11 +14,13 @@ import {
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
+import { AutoRefresh } from "@/components/auto-refresh";
+import { AgentTile } from "@/components/agent-look-fields";
 import { MenuButton } from "@/components/menu-button";
 import { connectionCapabilities } from "@/server/connectors/service";
 import { listOrgConnections } from "@/server/services/projects";
 import { DataGrid, GridCell, GridHead, GridRow } from "@/components/data-grid";
-import { Badge, Button, cx, Input, LinkButton, Notice, PageHeader } from "@/components/ui";
+import { Badge, Button, cx, Input, LinkButton, Notice, PageHeader, Tooltip } from "@/components/ui";
 import { plural } from "@/lib/format";
 import {
   isPendingCell,
@@ -98,6 +100,27 @@ const SYSTEM_EDITORS: Partial<Record<SystemField, CellEditor>> = {
   fit: { type: "score" },
 };
 
+/**
+ * After «Completar vacíos» or «Buscar ahora» from this page (?working=<when>)
+ * the run may not have begun yet: the page keeps refreshing until it does.
+ * A run that ended in the last half hour says what it did.
+ */
+function watchRuns<R extends { startedAt: Date; finishedAt: Date | null }>(
+  idle: boolean,
+  runs: R[],
+  startedAt: number,
+) {
+  const now = Date.now();
+  const latest = runs[0];
+  const starting =
+    idle &&
+    startedAt > 0 &&
+    now - startedAt < 60_000 &&
+    !(latest && latest.startedAt.getTime() >= startedAt - 5_000);
+  const ended = idle && !starting && latest?.finishedAt && now - latest.finishedAt.getTime() < 30 * 60_000;
+  return { starting, lastRun: ended ? runs[0] : null };
+}
+
 /** A run cut off by the platform stays "running"; after 10 minutes it isn't really searching. */
 function isRecent(startedAt: Date) {
   return Date.now() - new Date(startedAt).getTime() < 10 * 60_000;
@@ -138,6 +161,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
   ]);
   const filledByAgent = Boolean(filler);
   const running = filledByAgent && runs[0]?.status === "running" && isRecent(runs[0].startedAt);
+  const { starting, lastRun } = watchRuns(filledByAgent && !running, runs, Number(query.working) || 0);
   const columns = base.columns.filter((c) => !c.hidden);
   const person = base.rowKind === "person";
   const primary = primaryField(base.rowKind);
@@ -208,6 +232,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
       <PageHeader
         icon={person ? <User /> : <Building2 />}
         title={base.name}
+        badge={agents.length ? <TableAgents agents={agents} /> : null}
         tip={`Cada fila es ${person ? "una persona" : "una empresa"}. ${filledByAgent ? `La rellena ${filler!.label} y la revisáis las personas del equipo.` : "La rellenáis a mano o desde un formulario; también puede rellenarla un agente."} Haz clic en una celda para escribir en ella. Las columnas se cambian desde su cabecera y se mueven manteniéndola pulsada. Exportar descarga un Excel (CSV) con sus columnas.`}
         actions={
           <>
@@ -217,7 +242,9 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                 submitLabel={`Completar vacíos (${pendingCells})`}
                 submitVariant="secondary"
                 className="flex flex-wrap items-center gap-3"
-              />
+              >
+                <input type="hidden" name="back" value={path} />
+              </ActionForm>
             ) : null}
             {filledByAgent && canEdit ? (
               <ActionForm
@@ -225,7 +252,9 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                 submitLabel="Buscar ahora"
                 submitVariant="secondary"
                 className="flex flex-wrap items-center gap-3"
-              />
+              >
+                <input type="hidden" name="back" value={path} />
+              </ActionForm>
             ) : null}
             {data.total > 0 ? (
               <MenuButton
@@ -280,8 +309,32 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
 
       <div className="space-y-4">
         {filledByAgent ? <AiNotice feature="La búsqueda de prospectos" /> : null}
-        {running ? (
-          <Notice>Está buscando ahora mismo. Recarga la página en unos minutos para ver lo nuevo.</Notice>
+        {running || starting ? (
+          <>
+            <AutoRefresh seconds={6} />
+            <Notice>
+              {filler!.label} está trabajando en esta tabla: lo que encuentre aparece aquí solo, según lo
+              guarda (tarda unos minutos).
+            </Notice>
+          </>
+        ) : lastRun ? (
+          <Notice
+            tone={lastRun.status === "failed" ? "danger" : "success"}
+            action={
+              <LinkButton
+                href={`/app/projects/${filler!.projectId}/agents/outbound`}
+                variant="secondary"
+                size="sm"
+              >
+                Ver el resumen
+              </LinkButton>
+            }
+          >
+            {lastRun.status === "failed"
+              ? `La última ejecución no ha terminado bien: ${lastRun.error ?? "error desconocido"}`
+              : (lastRun.summary ?? "").split("\n\n")[0].replace(/\*\*/g, "") ||
+                "La última ejecución ha terminado."}
+          </Notice>
         ) : null}
 
         <>
@@ -667,5 +720,43 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
         />
       ) : null}
     </>
+  );
+}
+
+/** The agents that work on the table, as their avatars (each opens its agent). */
+function TableAgents({
+  agents,
+}: {
+  agents: {
+    projectId: string;
+    projectName: string;
+    agentType: string;
+    label: string;
+    icon: string | null;
+    color: string | null;
+    enabled: boolean;
+  }[];
+}) {
+  return (
+    <span className="ml-1 flex items-center -space-x-1.5">
+      {agents.map((a) => (
+        <Tooltip
+          key={`${a.projectId}:${a.agentType}`}
+          content={`${a.label} · ${a.projectName}${a.enabled ? "" : " · en pausa"}`}
+          side="bottom"
+        >
+          <Link
+            href={`/app/projects/${a.projectId}/agents/${a.agentType}`}
+            aria-label={`${a.label} (${a.projectName})`}
+            className={cx(
+              "rounded-lg ring-2 ring-background transition-transform hover:z-10 hover:-translate-y-0.5",
+              !a.enabled && "opacity-50",
+            )}
+          >
+            <AgentTile type={a.agentType} icon={a.icon} color={a.color} size="sm" />
+          </Link>
+        </Tooltip>
+      ))}
+    </span>
   );
 }

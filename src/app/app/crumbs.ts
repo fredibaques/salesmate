@@ -15,6 +15,7 @@ const SETTINGS = { label: "Configuración", href: "/app/ai" };
 
 const SECTION_PAGES: Record<string, { parent: Crumb; label: string }> = {
   ai: { parent: SETTINGS, label: "IA" },
+  runs: { parent: SETTINGS, label: "Ejecuciones" },
   users: { parent: SETTINGS, label: "Usuarios" },
   exclusions: { parent: SETTINGS, label: "Exclusiones" },
   audit: { parent: SETTINGS, label: "Auditoría" },
@@ -39,7 +40,9 @@ function agentPageLabel(type: string, page: string) {
     case "approvals":
       return "Aprobaciones";
     case "automation":
-      return "Automatización";
+      return "Configuración";
+    case "log":
+      return "Log";
     default:
       return null;
   }

@@ -281,7 +281,9 @@ export function RowPanel({
               submitLabel="Completar esta fila"
               submitVariant="secondary"
               cancel={false}
-            />
+            >
+              <input type="hidden" name="back" value={`/app/tables/${base.id}`} />
+            </ActionForm>
           ) : null}
         </div>
       ) : null}

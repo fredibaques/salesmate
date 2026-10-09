@@ -86,11 +86,10 @@ export default async function AgentLayout({
       <Tabs>
         {agentType === "outbound" ? (
           <>
-            <TabLink href={base} exact>
-              Instrucciones
+            <TabLink href={base} exact also={[`${base}/automation`]}>
+              Configuración
             </TabLink>
             <TabLink href={`${base}/channels`}>Herramientas</TabLink>
-            <TabLink href={`${base}/automation`}>Automatización</TabLink>
           </>
         ) : (
           <>
@@ -101,6 +100,7 @@ export default async function AgentLayout({
             <TabLink href={`${base}/channels`}>Canales y herramientas</TabLink>
           </>
         )}
+        <TabLink href={`${base}/log`}>Log</TabLink>
         <TabLink href={`${base}/approvals`}>Aprobaciones</TabLink>
       </Tabs>
       {children}

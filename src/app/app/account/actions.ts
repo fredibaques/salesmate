@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import type { FormState } from "@/components/action-form";
 import { getAuth } from "@/server/auth/auth";
-import { requireRole, requireTenant } from "@/server/auth/session";
+import { getSession, requireRole, requireTenant, revokeOtherOwnSessions } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { organization } from "@/server/db/schema";
 import { bool, runForm, str } from "@/server/form";
@@ -43,8 +43,11 @@ export async function changePassword(_: FormState, form: FormData): Promise<Form
 
 export async function signOutOtherSessions(_: FormState): Promise<FormState> {
   const result = await runForm(async () => {
-    await requireTenant();
-    await getAuth().api.revokeOtherSessions({ headers: await headers() });
+    const tenant = await requireTenant();
+    const current = await getSession();
+    if (!current) throw new Error("Tu sesión ha caducado: vuelve a entrar.");
+    // Not through Better Auth's revokeOtherSessions: it asks for a login from the last day.
+    await revokeOtherOwnSessions(tenant.userId, current.session.id);
   }, "Has cerrado la sesión en los demás dispositivos.");
   revalidatePath("/app/account/security");
   return result;

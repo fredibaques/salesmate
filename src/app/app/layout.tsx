@@ -69,7 +69,7 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
       <SidebarItem
         key="settings"
         href="/app/ai"
-        also={["/app/users", "/app/exclusions", "/app/audit"]}
+        also={["/app/runs", "/app/users", "/app/exclusions", "/app/audit"]}
         icon={<Settings />}
       >
         Configuración

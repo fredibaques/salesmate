@@ -66,11 +66,15 @@ screen needs something new, add it here and as a component, not inline.
     form (`?add=1` or `?add=<tool>` opens it from a link).
   - **Por aprobar**: what the agents want to do and waits for a person, with
     its count. Its own entry, because deciding is the daily job.
-  - **Configuración**: IA, Usuarios, Exclusiones and Auditoría.
-- The prospecting agent has four tabs: Instrucciones (what, when, per run,
-  model), Herramientas, Automatización (triggers, goal, spending caps,
-  sources, mailbox, notices, first contact; one form in `FormSection`s) and
-  Aprobaciones.
+  - **Configuración**: IA, Ejecuciones (every agent run with its cost
+    breakdown), Usuarios, Exclusiones and Auditoría.
+- The prospecting agent has four tabs: Configuración (one form in
+  `FormSection`s grouped by kind: Objetivo, Ejecución, Configuración del
+  modelo, Comunicación, Siguiente paso), Herramientas, Log (its runs as
+  expandable rows with the cost breakdown, a steps `Drawer`, the results card
+  and the month's spending) and Aprobaciones. Other agents also get Log.
+- A table's header shows the avatars of the agents working on it
+  (`AgentTile`s with a tooltip, linking to the agent; paused ones faded).
 - Each person orders the sidebar (sections, projects, each project's agents)
   from the gear next to the brand (`MenuSettingsButton`; saved in
   `user_preferences.nav`, applied with `inOrder`); new projects and agents go

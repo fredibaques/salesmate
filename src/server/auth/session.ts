@@ -1,10 +1,10 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, gt, ne } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { getDb } from "../db/client";
-import { member, organization } from "../db/schema";
+import { member, organization, session } from "../db/schema";
 import type { TenantContext } from "../db/tenant";
 import { getAuth } from "./auth";
 
@@ -75,4 +75,25 @@ export async function listMemberships(userId: string) {
     .from(member)
     .innerJoin(organization, eq(organization.id, member.organizationId))
     .where(and(eq(member.userId, userId)));
+}
+
+/** The person's signed-in devices (sessions that haven't expired), the most recently used first. */
+export async function listOwnSessions(userId: string) {
+  return getDb()
+    .select({
+      id: session.id,
+      userAgent: session.userAgent,
+      ipAddress: session.ipAddress,
+      updatedAt: session.updatedAt,
+    })
+    .from(session)
+    .where(and(eq(session.userId, userId), gt(session.expiresAt, new Date())))
+    .orderBy(desc(session.updatedAt));
+}
+
+/** Signs the person out everywhere but here. */
+export async function revokeOtherOwnSessions(userId: string, currentSessionId: string) {
+  await getDb()
+    .delete(session)
+    .where(and(eq(session.userId, userId), ne(session.id, currentSessionId)));
 }

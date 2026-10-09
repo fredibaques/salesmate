@@ -63,15 +63,13 @@ beforeAll(async () => {
       .returning();
     mailboxId = identity.id;
     await tx.insert(projectIdentities).values({ orgId: tenant.orgId, projectId, identityId: identity.id });
-    await tx
-      .insert(suppressions)
-      .values({
-        orgId: tenant.orgId,
-        projectId,
-        type: "email",
-        value: "no@excluido.es",
-        reason: "Pidió no recibir",
-      });
+    await tx.insert(suppressions).values({
+      orgId: tenant.orgId,
+      projectId,
+      type: "email",
+      value: "no@excluido.es",
+      reason: "Pidió no recibir",
+    });
   });
 });
 afterAll(async () => close());

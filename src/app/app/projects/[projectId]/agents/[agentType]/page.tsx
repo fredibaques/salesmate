@@ -19,7 +19,7 @@ import { getAgent, isProjectAgentType, listChannelOptions } from "@/server/servi
 import { getProject, listMeetingTypes } from "@/server/services/projects";
 import { MeetingTypesCard } from "../../meeting-types";
 import { draftProcess, saveProcess } from "../actions";
-import { OutboundHome } from "./outbound-home";
+import { OutboundSetup } from "./outbound-setup";
 
 const join = (items: string[]) => items.join("\n");
 
@@ -29,7 +29,7 @@ export default async function AgentHomePage({
   const { projectId, agentType } = await params;
   if (!isProjectAgentType(agentType)) notFound();
   // Agents without a conversation process start on their instructions.
-  if (agentType === "outbound") return <OutboundHome projectId={projectId} />;
+  if (agentType === "outbound") return <OutboundSetup projectId={projectId} />;
   const tenant = await requireTenant();
   const db = getDb();
   const [agent, meetingTypes, options, project, ai] = await Promise.all([

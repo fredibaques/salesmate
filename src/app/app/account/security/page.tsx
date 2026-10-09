@@ -5,7 +5,7 @@ import { PasswordInput } from "@/components/password-input";
 import { Badge, Card, Choice, Field, Notice } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import { getAuth } from "@/server/auth/auth";
-import { getSession, requireTenant } from "@/server/auth/session";
+import { getSession, listOwnSessions, requireTenant } from "@/server/auth/session";
 import { changePassword, signOutOtherSessions } from "../actions";
 
 export const metadata = { title: "Seguridad" };
@@ -37,11 +37,14 @@ function describeDevice(userAgent: string | null | undefined) {
 }
 
 export default async function SecurityPage() {
-  await requireTenant();
+  const tenant = await requireTenant();
   const h = await headers();
+  // Read straight from the store: Better Auth's listSessions asks for a
+  // login from the last day («fresh» session), which a page to look at your
+  // own devices shouldn't.
   const [current, sessions, accounts] = await Promise.all([
     getSession(),
-    getAuth().api.listSessions({ headers: h }),
+    listOwnSessions(tenant.userId),
     getAuth().api.listUserAccounts({ headers: h }),
   ]);
   const hasPassword = accounts.some((a) => a.providerId === "credential");
