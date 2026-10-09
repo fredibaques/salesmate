@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { requireTenant } from "@/server/auth/session";
+import { personKey } from "@/server/conversations/inbox";
 import { getDb } from "@/server/db/client";
 import { getConversation } from "@/server/services/sales";
 
@@ -11,6 +12,6 @@ export default async function ConversationPage({
   const tenant = await requireTenant();
   const data = await getConversation(getDb(), tenant, conversationId);
   if (!data) notFound();
-  const key = data.conversation.contactId ?? `conv:${conversationId}`;
+  const key = personKey(data.conversation, data.contact);
   redirect(`/app/projects/${projectId}/conversations?c=${encodeURIComponent(key)}`);
 }

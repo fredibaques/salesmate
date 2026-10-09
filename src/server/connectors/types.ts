@@ -137,8 +137,19 @@ export type Capabilities = {
   }) => Promise<{ email: string; status: string; score: number | null; sourceUrl: string }>;
   /** Checks the key, and the credits left when the provider says. */
   "data.check": () => Promise<{ ok: true; detail: string }>;
-  /** Sends a text message from a WhatsApp Business number. */
-  "whatsapp.send": (input: { to: string; body: string }) => Promise<{ messageId: string }>;
+  /**
+   * Sends a message from a WhatsApp Business number: free text, or an
+   * approved template (the only thing allowed 24 h after their last message).
+   */
+  "whatsapp.send": (input: {
+    to: string;
+    body: string;
+    template?: { name: string; language: string; params: string[] };
+  }) => Promise<{ messageId: string }>;
+  /** The number's approved message templates. */
+  "whatsapp.list_templates": () => Promise<
+    { name: string; language: string; category: string; body: string; params: number }[]
+  >;
   /** A document as text (Google Docs). */
   "docs.read": (input: { documentId: string }) => Promise<{ title: string; text: string }>;
   /** The values of one sheet (Google Sheets). */

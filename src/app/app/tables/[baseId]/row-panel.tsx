@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Building2, Lock, Undo2, User, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { ActionForm } from "@/components/action-form";
@@ -131,6 +132,7 @@ export function RowPanel({
   row,
   closeHref,
   canRun = false,
+  conversationKey = null,
 }: {
   /** Project of the prospecting agent that fills this table, if one does. */
   agentProjectId: string | null;
@@ -139,6 +141,8 @@ export function RowPanel({
   closeHref: string;
   /** The person can start the agent (owners and admins). */
   canRun?: boolean;
+  /** The agent wrote to this row: its conversation in the inbox. */
+  conversationKey?: string | null;
 }) {
   const person = base.rowKind === "person";
   const title = row ? (person ? row.personName || row.companyName : row.companyName) : "Nueva fila";
@@ -155,6 +159,14 @@ export function RowPanel({
             <span>
               {row.runId ? "Encontrada por el agente" : "Añadida"} el {formatDateTime(row.createdAt)}
             </span>
+            {conversationKey ? (
+              <Link
+                href={`/app/conversations?box=all&c=${encodeURIComponent(conversationKey)}`}
+                className="text-accent hover:underline"
+              >
+                Ver la conversación
+              </Link>
+            ) : null}
           </span>
         ) : (
           `En «${base.name}»`

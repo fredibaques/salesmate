@@ -20,6 +20,12 @@ export const whatsappCredentials = z.object({
     .trim()
     .regex(/^\d{6,}$/, "El identificador del número son solo cifras."),
   appSecret: z.string().trim().min(16, "El secreto de la app no parece válido."),
+  /** The WhatsApp Business account (WABA): needed to list its message templates. */
+  businessAccountId: z
+    .string()
+    .trim()
+    .regex(/^\d{6,}$/, "El identificador de la cuenta son solo cifras.")
+    .optional(),
   /** Ours: Meta sends it back when the webhook is set up. */
   verifyToken: z.string().min(16),
 });
@@ -28,6 +34,21 @@ export type WhatsappCredentials = z.infer<typeof whatsappCredentials>;
 /** «+34 600 00 00 00» → «34600000000» (what the Cloud API takes). */
 export function waNumber(phone: string): string {
   return phone.replace(/[^\d]/g, "");
+}
+
+/** An approved message template: what can be sent outside the 24-hour window. */
+export type WhatsappTemplate = {
+  name: string;
+  language: string;
+  category: string;
+  /** The body, with {{1}}, {{2}}… where the parameters go. */
+  body: string;
+  params: number;
+};
+
+/** The body of a template with its parameters filled in. */
+export function renderTemplate(body: string, params: string[]): string {
+  return body.replace(/\{\{(\d+)\}\}/g, (all, n) => params[Number(n) - 1] ?? all);
 }
 
 function client(creds: WhatsappCredentials, ctx: ConnectorContext) {
@@ -59,6 +80,56 @@ function client(creds: WhatsappCredentials, ctx: ConnectorContext) {
       };
       return { number: body.display_phone_number ?? creds.phoneNumberId, name: body.verified_name ?? null };
     },
+    /** The account's approved templates (needs its id). */
+    async templates(): Promise<WhatsappTemplate[]> {
+      if (!creds.businessAccountId) {
+        throw new ConnectorError(
+          "Falta el identificador de la cuenta de WhatsApp Business para ver sus plantillas: añádelo reconectando WhatsApp en Integraciones.",
+          400,
+        );
+      }
+      const body = (await call(
+        `${creds.businessAccountId}/message_templates?fields=name,language,status,category,components&status=APPROVED&limit=100`,
+      )) as {
+        data?: {
+          name: string;
+          language: string;
+          status?: string;
+          category?: string;
+          components?: { type: string; text?: string }[];
+        }[];
+      };
+      return (body.data ?? [])
+        .filter((t) => !t.status || t.status === "APPROVED")
+        .map((t) => {
+          const text = t.components?.find((c) => c.type === "BODY")?.text ?? "";
+          const params = new Set([...text.matchAll(/\{\{(\d+)\}\}/g)].map((m) => m[1])).size;
+          return { name: t.name, language: t.language, category: t.category ?? "", body: text, params };
+        });
+    },
+    async sendTemplate(input: { to: string; name: string; language: string; params: string[] }) {
+      const body = (await call(`${creds.phoneNumberId}/messages`, {
+        method: "POST",
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: waNumber(input.to),
+          type: "template",
+          template: {
+            name: input.name,
+            language: { code: input.language },
+            ...(input.params.length
+              ? {
+                  components: [
+                    { type: "body", parameters: input.params.map((text) => ({ type: "text", text })) },
+                  ],
+                }
+              : {}),
+          },
+        }),
+      })) as { messages?: { id: string }[] };
+      return { messageId: body.messages?.[0]?.id ?? "" };
+    },
     async send(input: { to: string; body: string }) {
       const body = (await call(`${creds.phoneNumberId}/messages`, {
         method: "POST",
@@ -84,10 +155,15 @@ export const whatsappProvider: ConnectorProvider<WhatsappCredentials> = {
   name: "WhatsApp Business",
   transport: "api",
   credentialsSchema: whatsappCredentials,
-  capabilitiesFor: (scopes) => (scopes.write.includes("whatsapp") ? ["whatsapp.send"] : []),
+  capabilitiesFor: (scopes) =>
+    scopes.write.includes("whatsapp") ? ["whatsapp.send", "whatsapp.list_templates"] : [],
   create: (creds, ctx) => {
     const c = client(creds, ctx);
-    return { "whatsapp.send": (input) => c.send(input) };
+    return {
+      "whatsapp.send": (input) =>
+        input.template ? c.sendTemplate({ to: input.to, ...input.template }) : c.send(input),
+      "whatsapp.list_templates": () => c.templates(),
+    };
   },
 };
 

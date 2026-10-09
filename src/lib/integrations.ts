@@ -100,6 +100,7 @@ export const INTEGRATIONS: Integration[] = [
     abilities: [
       "Atender los mensajes que llegan a tu número de empresa (agente inbound)",
       "Responder por WhatsApp, siempre según las reglas del proyecto y con tu aprobación",
+      "Escribir pasadas 24 horas con tus plantillas aprobadas por Meta",
       "Usa la API oficial de Meta (WhatsApp Cloud API)",
     ],
   },
@@ -282,4 +283,6 @@ export const CAPABILITY_LABELS: Record<string, string> = {
   "export.targets": "Ver bases, listas y tableros",
   "task.create": "Crear tareas para el equipo",
   "meet.transcript": "Leer transcripciones de Meet",
+  "whatsapp.send": "Enviar WhatsApps",
+  "whatsapp.list_templates": "Ver las plantillas aprobadas",
 };

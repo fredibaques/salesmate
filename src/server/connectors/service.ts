@@ -192,7 +192,13 @@ export async function createDataConnection(
 export async function createWhatsappConnection(
   deps: ConnectorDeps,
   tenant: TenantContext,
-  input: { label: string; accessToken: string; phoneNumberId: string; appSecret: string },
+  input: {
+    label: string;
+    accessToken: string;
+    phoneNumberId: string;
+    appSecret: string;
+    businessAccountId?: string;
+  },
 ): Promise<ConnectionRow> {
   const creds = whatsappCredentials.parse({ ...input, verifyToken: randomBytes(24).toString("base64url") });
   const number = await createWhatsappClient(creds, { fetch: deps.fetch ?? fetch }).describe();

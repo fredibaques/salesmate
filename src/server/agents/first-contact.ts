@@ -2,10 +2,12 @@ import { and, asc, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { BaseColumn } from "@/lib/prospect-columns";
 import type { Db } from "../db/client";
-import { prospects, type AgentSettings } from "../db/schema";
+import { contacts, conversations, prospects, type AgentSettings } from "../db/schema";
 import { withTenant } from "../db/tenant";
 import { GatewayError, proposeAction, type GatewayDeps } from "../gateway/gateway";
 import { estimateCostUsd, type LlmClient } from "../llm/client";
+import { conversationRef } from "./conversations";
+import { normalizeEmail } from "../gateway/targets";
 
 /**
  * The next step after prospecting: for rows that fit, the agent writes a
@@ -13,7 +15,48 @@ import { estimateCostUsd, type LlmClient } from "../llm/client";
  * applies the project's rules (send window, exclusions, cooldowns) and, by
  * default, waits for a person to approve it in «Por aprobar». Each row gets
  * one first email at most (prospects.contact_action_id).
+ *
+ * The email opens a conversation with the row's person (a contact of the
+ * project), so it shows in the inbox, and their reply lands in the same
+ * thread (the Gmail thread is kept on the conversation once it is sent).
  */
+
+/** The contact and an email conversation for a row the agent is about to write to. */
+async function openConversation(
+  db: Db,
+  orgId: string,
+  input: { projectId: string; email: string; row: Row; baseId: string },
+) {
+  const email = normalizeEmail(input.email);
+  const [first, ...rest] = (input.row.personName ?? "").split(/\s+/).filter(Boolean);
+  return withTenant(db, { orgId }, async (tx) => {
+    const [contact] = await tx
+      .insert(contacts)
+      .values({
+        orgId,
+        projectId: input.projectId,
+        email,
+        firstName: first ?? null,
+        lastName: rest.length ? rest.join(" ") : null,
+        companyName: input.row.companyName || null,
+        customerType: "b2b",
+        dataOrigin: "prospecting",
+        legalBasis: "legitimate_interest",
+        fitScore: input.row.fitScore,
+        data: { prospect: { baseId: input.baseId, rowId: input.row.id } },
+      })
+      .onConflictDoUpdate({
+        target: [contacts.projectId, contacts.email],
+        set: { updatedAt: new Date() },
+      })
+      .returning();
+    const [conversation] = await tx
+      .insert(conversations)
+      .values({ orgId, projectId: input.projectId, contactId: contact.id, channel: "email", status: "open" })
+      .returning();
+    return { contact, conversation };
+  });
+}
 
 export const DEFAULT_HANDOFF_MIN_FIT = 70;
 export const DEFAULT_HANDOFF_PER_RUN = 5;
@@ -142,6 +185,16 @@ export async function prepareFirstContacts(
       continue;
     }
 
+    const { conversation } = await openConversation(deps.db, tenant.orgId, {
+      projectId: input.projectId,
+      email: to,
+      row,
+      baseId: input.base.id,
+    });
+    const dropConversation = () =>
+      withTenant(deps.db, tenant, (tx) =>
+        tx.delete(conversations).where(eq(conversations.id, conversation.id)),
+      );
     try {
       const proposal = await proposeAction(deps.gateway, actor, {
         projectId: input.projectId,
@@ -149,7 +202,7 @@ export async function prepareFirstContacts(
         agentType: "outbound",
         runId: input.runId,
         payload: { identityId: input.mailboxId, to: [to], subject: draft.subject, body: draft.body },
-        context: { customerType: "b2b", subjectRef: to },
+        context: { customerType: "b2b", subjectRef: conversationRef(conversation.id) },
         reason: `Primer contacto con ${row.personName ?? row.companyName}${row.fitScore != null ? ` (encaje ${row.fitScore})` : ""}${row.fitReason ? `: ${row.fitReason}` : ""}`,
         idempotencyKey: `first-contact:${row.id}`,
       });
@@ -157,12 +210,15 @@ export async function prepareFirstContacts(
         tx.update(prospects).set({ contactActionId: proposal.action.id }).where(eq(prospects.id, row.id)),
       );
       if (proposal.outcome === "blocked") {
+        // Nothing was said: no conversation to show.
+        await dropConversation();
         const why = proposal.action.policyResults.find((p) => p.outcome === "block")?.reason;
         result.blocked.push(`${row.companyName}${why ? `: ${why}` : ""}`);
       } else {
         result.proposed++;
       }
     } catch (err) {
+      await dropConversation();
       if (!(err instanceof GatewayError)) throw err;
       result.blocked.push(`${row.companyName}: ${err.message}`);
     }

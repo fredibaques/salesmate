@@ -1,6 +1,8 @@
 import { and, asc, desc, eq, inArray, max, ne, sql } from "drizzle-orm";
 import { audit } from "../audit";
-import { describeConnectorError } from "../connectors/types";
+import { openConnection, type ConnectorDeps } from "../connectors/service";
+import { ConnectorError, describeConnectorError } from "../connectors/types";
+import { renderTemplate, type WhatsappTemplate } from "../connectors/whatsapp";
 import type { Db } from "../db/client";
 import {
   actions,
@@ -20,9 +22,11 @@ import { foldText } from "../knowledge/normalize";
 
 /**
  * The conversations inbox: one row per person, whatever the channels they
- * wrote through (email, WhatsApp, a form). A person is a contact of a
- * project; a conversation without a contact is a row of its own
- * (`conv:<id>`). Messages of all their conversations make one thread.
+ * wrote through (email, WhatsApp, a form) and the projects they talk to.
+ * A person is known by their email (`e:<email>`), else their phone
+ * (`t:<digits>`), else their contact (`c:<id>`); a conversation without a
+ * contact is a row of its own (`conv:<id>`). Messages of all their
+ * conversations make one thread; a project's tab shows only its part.
  */
 
 export type InboxBox = "needs" | "waiting" | "closed";
@@ -32,9 +36,12 @@ type User = Pick<TenantContext, "orgId"> & { userId: string };
 export type InboxRow = {
   key: string;
   contactId: string | null;
+  /** The project of their latest conversation. */
   projectId: string;
   projectName: string;
   projectColor: string | null;
+  /** Every project they talk to, the most recent first. */
+  projectNames: string[];
   name: string;
   company: string | null;
   email: string | null;
@@ -75,7 +82,16 @@ export function boxOf(statuses: ConversationStatus[], pending: number): InboxBox
   return "closed";
 }
 
-const keyOf = (c: { id: string; contactId: string | null }) => c.contactId ?? `conv:${c.id}`;
+/** How the inbox knows a person: by email, else phone, else contact, else the conversation alone. */
+export function personKey(
+  conversation: { id: string; contactId: string | null },
+  contact: { email: string | null; phone: string | null } | null,
+): string {
+  if (contact?.email) return `e:${contact.email.trim().toLowerCase()}`;
+  const digits = contact?.phone?.replace(/\D/g, "");
+  if (digits) return `t:${digits}`;
+  return conversation.contactId ? `c:${conversation.contactId}` : `conv:${conversation.id}`;
+}
 
 /** Actions waiting for a person, by conversation id. */
 async function pendingByConversation(tx: Parameters<Parameters<typeof withTenant>[2]>[0]) {
@@ -152,7 +168,7 @@ export async function listInbox(
       InboxRow & { statuses: ConversationStatus[]; lastInboundAt: Date | null }
     >();
     for (const { conversation: c, contact, projectName, projectColor } of convs) {
-      const key = keyOf(c);
+      const key = personKey(c, contact);
       const last = lastBy.get(c.id);
       const at = last?.sentAt ?? c.lastMessageAt;
       let row = people.get(key);
@@ -163,6 +179,7 @@ export async function listInbox(
           projectId: c.projectId,
           projectName,
           projectColor,
+          projectNames: [],
           name: personName(contact),
           company: contact?.companyName ?? null,
           email: contact?.email ?? null,
@@ -180,6 +197,7 @@ export async function listInbox(
         people.set(key, row);
       }
       if (!row.channels.includes(c.channel)) row.channels.push(c.channel);
+      if (!row.projectNames.includes(projectName)) row.projectNames.push(projectName);
       row.statuses.push(c.status);
       row.pending += pending.get(c.id) ?? 0;
       row.handedOff ||= c.status === "handed_off";
@@ -213,13 +231,27 @@ export async function listInbox(
   });
 }
 
-/** The conversations of one person (a contact, or `conv:<id>`). */
-async function conversationsOf(tx: Parameters<Parameters<typeof withTenant>[2]>[0], key: string) {
+/** The conversations of one person (see `personKey`), the latest first; only a project's with `projectId`. */
+async function conversationsOf(
+  tx: Parameters<Parameters<typeof withTenant>[2]>[0],
+  key: string,
+  projectId?: string,
+) {
+  const [kind, ...rest] = key.includes(":") ? key.split(":") : ["c", key];
+  const value = rest.join(":");
+  const who =
+    kind === "conv"
+      ? eq(conversations.id, value)
+      : kind === "e"
+        ? sql`${conversations.contactId} in (select id from contacts where lower(email) = ${value})`
+        : kind === "t"
+          ? sql`${conversations.contactId} in (select id from contacts where regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') = ${value})`
+          : eq(conversations.contactId, value);
   return tx
     .select()
     .from(conversations)
-    .where(key.startsWith("conv:") ? eq(conversations.id, key.slice(5)) : eq(conversations.contactId, key))
-    .orderBy(desc(conversations.lastMessageAt));
+    .where(and(who, projectId ? eq(conversations.projectId, projectId) : undefined))
+    .orderBy(sql`${conversations.lastMessageAt} desc nulls last`);
 }
 
 const WHATSAPP_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -229,16 +261,29 @@ const WHATSAPP_WINDOW_MS = 24 * 60 * 60 * 1000;
  * what the agents prepared (and wait for approval), meetings, the agent's
  * runs, and how a person can answer them (channels with an identity).
  */
-export async function getPerson(db: Db, tenant: Pick<TenantContext, "orgId">, key: string, now = new Date()) {
+export async function getPerson(
+  db: Db,
+  tenant: Pick<TenantContext, "orgId">,
+  key: string,
+  options: { now?: Date; projectId?: string } = {},
+) {
+  const now = options.now ?? new Date();
   return withTenant(db, tenant, async (tx) => {
-    const convs = await conversationsOf(tx, key);
+    const convs = await conversationsOf(tx, key, options.projectId);
     if (!convs.length) return null;
     const ids = convs.map((c) => c.id);
+    // Answers go out from the project of their latest conversation.
     const projectId = convs[0].projectId;
-    const [contact] = convs[0].contactId
-      ? await tx.select().from(contacts).where(eq(contacts.id, convs[0].contactId))
-      : [null];
-    const [project] = await tx.select().from(projects).where(eq(projects.id, projectId));
+    const contactIds = [...new Set(convs.map((c) => c.contactId).filter((c): c is string => Boolean(c)))];
+    const contactRows = contactIds.length
+      ? await tx.select().from(contacts).where(inArray(contacts.id, contactIds))
+      : [];
+    const contact = contactRows.find((c) => c.id === convs[0].contactId) ?? contactRows[0] ?? null;
+    const projectRows = await tx
+      .select({ id: projects.id, name: projects.name, color: projects.color })
+      .from(projects)
+      .where(inArray(projects.id, [...new Set(convs.map((c) => c.projectId))]));
+    const project = projectRows.find((p) => p.id === projectId) ?? null;
     const thread = await tx
       .select()
       .from(messages)
@@ -248,7 +293,7 @@ export async function getPerson(db: Db, tenant: Pick<TenantContext, "orgId">, ke
     const related = await tx
       .select()
       .from(actions)
-      .where(and(eq(actions.projectId, projectId), sql`${actions.context}->>'subjectRef' in ${refs}`))
+      .where(sql`${actions.context}->>'subjectRef' in ${refs}`)
       .orderBy(asc(actions.createdAt));
     const runIds = [...new Set(related.map((a) => a.runId).filter((r): r is string => Boolean(r)))];
     const runs = runIds.length
@@ -292,10 +337,17 @@ export async function getPerson(db: Db, tenant: Pick<TenantContext, "orgId">, ke
           : null,
     };
     const lastInbound = [...thread].reverse().find((m) => m.direction === "inbound");
+    // Where they came from: the table row the prospecting agent found them in.
+    const prospect = contactRows
+      .map((c) => (c.data as { prospect?: { baseId: string; rowId: string } }).prospect)
+      .find(Boolean);
     return {
       key,
       contact,
       project,
+      /** Every project they talk to (the reply goes from `project`). */
+      projects: projectRows,
+      prospect: prospect ?? null,
       conversations: convs,
       messages: thread,
       actions: related,
@@ -318,6 +370,18 @@ export async function getPerson(db: Db, tenant: Pick<TenantContext, "orgId">, ke
   });
 }
 export type Person = NonNullable<Awaited<ReturnType<typeof getPerson>>>;
+
+/** The inbox person of a table row the prospecting agent contacted, if any. */
+export async function personOfRow(db: Db, tenant: Pick<TenantContext, "orgId">, rowId: string) {
+  const [contact] = await withTenant(db, tenant, (tx) =>
+    tx
+      .select({ id: contacts.id, email: contacts.email, phone: contacts.phone })
+      .from(contacts)
+      .where(sql`${contacts.data}->'prospect'->>'rowId' = ${rowId}`)
+      .limit(1),
+  );
+  return contact ? personKey({ id: "", contactId: contact.id }, contact) : null;
+}
 
 /** The person has been read up to now by this user. */
 export async function markRead(db: Db, tenant: User, key: string) {
@@ -400,15 +464,78 @@ export async function addNote(db: Db, tenant: TenantContext, key: string, author
  * project's rules, exclusions and hours apply) and recorded in the thread
  * once sent.
  */
-export async function replyToPerson(
-  deps: GatewayDeps,
+/** The project's WhatsApp number for a person: the identity and its connection. */
+async function whatsappIdentity(db: Db, tenant: Pick<TenantContext, "orgId">, projectId: string) {
+  const rows = await withTenant(db, tenant, (tx) =>
+    tx
+      .select({
+        id: identities.id,
+        connectionId: identities.connectionId,
+        isDefault: projectIdentities.isDefault,
+      })
+      .from(projectIdentities)
+      .innerJoin(identities, eq(identities.id, projectIdentities.identityId))
+      .where(and(eq(projectIdentities.projectId, projectId), eq(identities.kind, "whatsapp"))),
+  );
+  return rows.sort((a, b) => Number(b.isDefault) - Number(a.isDefault))[0] ?? null;
+}
+
+/**
+ * The approved WhatsApp templates of the number a person is answered from:
+ * the only way to write to them 24 h after their last message.
+ */
+export async function whatsappTemplates(
+  deps: { db: Db; connectors?: Omit<ConnectorDeps, "db"> },
   tenant: TenantContext,
   key: string,
-  input: { channel: "email" | "whatsapp"; subject?: string; body: string },
+): Promise<WhatsappTemplate[]> {
+  const person = await getPerson(deps.db, tenant, key);
+  if (!person) throw new Error("Esa conversación ya no existe.");
+  const identity = await whatsappIdentity(deps.db, tenant, person.conversations[0].projectId);
+  if (!identity?.connectionId) throw new Error("El proyecto no tiene un número de WhatsApp conectado.");
+  const { client } = await openConnection({ db: deps.db, ...deps.connectors }, tenant, identity.connectionId);
+  if (!client["whatsapp.list_templates"]) throw new Error("Esta conexión no da acceso a las plantillas.");
+  try {
+    return await client["whatsapp.list_templates"]();
+  } catch (err) {
+    throw new Error(
+      err instanceof ConnectorError
+        ? describeConnectorError(err)
+        : err instanceof Error
+          ? err.message
+          : String(err),
+    );
+  }
+}
+
+export async function replyToPerson(
+  deps: GatewayDeps & { connectors?: Omit<ConnectorDeps, "db"> },
+  tenant: TenantContext,
+  key: string,
+  input: {
+    channel: "email" | "whatsapp";
+    subject?: string;
+    body: string;
+    /** A WhatsApp template and its parameters (its body is what they read). */
+    template?: { name: string; language: string; params: string[] };
+  },
 ): Promise<string> {
-  const person = await getPerson(deps.db, tenant, key, deps.now?.() ?? new Date());
+  const person = await getPerson(deps.db, tenant, key, { now: deps.now?.() ?? new Date() });
   if (!person?.contact) throw new Error("No sabemos a quién responder en esta conversación.");
-  const body = input.body.trim();
+  let body = input.body.trim();
+  let template: { name: string; language: string; params: string[] } | undefined;
+  if (input.channel === "whatsapp" && input.template) {
+    const available = await whatsappTemplates(deps, tenant, key);
+    const chosen = available.find(
+      (t) => t.name === input.template!.name && t.language === input.template!.language,
+    );
+    if (!chosen) throw new Error("Esa plantilla ya no está aprobada en WhatsApp.");
+    const params = input.template.params.slice(0, chosen.params).map((p) => p.trim());
+    if (params.length < chosen.params || params.some((p) => !p))
+      throw new Error("Rellena todos los huecos de la plantilla.");
+    template = { name: chosen.name, language: chosen.language, params };
+    body = renderTemplate(chosen.body, params) || chosen.name;
+  }
   if (!body) throw new Error("Escribe la respuesta.");
   const conv = person.conversations.find((c) => c.channel === input.channel) ?? person.conversations[0];
   const ownIdentity = await withTenant(deps.db, tenant, (tx) =>
@@ -442,11 +569,11 @@ export async function replyToPerson(
   } else {
     if (!person.contact.phone || !identity)
       throw new Error("Para responder por WhatsApp, el proyecto necesita un número de WhatsApp conectado.");
-    if (!person.replyChannels.whatsapp?.windowOpen)
+    if (!template && !person.replyChannels.whatsapp?.windowOpen)
       throw new Error(
-        "Han pasado más de 24 horas desde su último WhatsApp: WhatsApp solo deja escribirle con una plantilla aprobada. Respóndele por email.",
+        "Han pasado más de 24 horas desde su último WhatsApp (o nunca te ha escrito por ahí): WhatsApp solo deja escribirle con una plantilla aprobada.",
       );
-    payload = { identityId: identity.id, to: person.contact.phone, body };
+    payload = { identityId: identity.id, to: person.contact.phone, body, ...(template ? { template } : {}) };
   }
   const sent = await proposeAction(deps, tenant, {
     projectId: conv.projectId,
