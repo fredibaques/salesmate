@@ -7,8 +7,8 @@ import { withTenant, type TenantContext } from "../db/tenant";
 import { ingestDocumentText } from "../knowledge/service";
 import { draftPlaybook } from "./draft";
 import {
-  activePlaybookFor,
   createPlaybook,
+  projectProcess,
   getPlaybook,
   savePlaybookVersion,
   setPlaybookStatus,
@@ -34,20 +34,19 @@ beforeAll(async () => {
 afterAll(async () => close());
 
 describe("playbooks", () => {
-  it("versions changes and resolves the active playbook per agent", async () => {
+  it("versions changes and resolves the project's active process", async () => {
     const pb = await createPlaybook(db, tenant, { projectId, name: "Web", salesMotion: "b2c_assisted" });
-    expect(await withTenant(db, tenant, (tx) => activePlaybookFor(tx, projectId, "inbound"))).toBeNull();
+    expect(await withTenant(db, tenant, (tx) => projectProcess(tx, projectId))).toBeNull();
     await setPlaybookStatus(db, tenant, pb.id, "active");
     await savePlaybookVersion(db, tenant, pb.id, {
       spec: { ...PLAYBOOK_TEMPLATES.b2c_assisted, objective: "Presupuesto en 5 minutos" },
       notes: "Objetivo más concreto",
     });
-    const active = await withTenant(db, tenant, (tx) => activePlaybookFor(tx, projectId, "inbound"));
+    const active = await withTenant(db, tenant, (tx) => projectProcess(tx, projectId));
     expect(active).toMatchObject({
       currentVersion: 2,
       spec: { objective: "Presupuesto en 5 minutos", customerType: "b2c" },
     });
-    expect(await withTenant(db, tenant, (tx) => activePlaybookFor(tx, projectId, "outbound"))).toBeNull();
     const full = await getPlaybook(db, tenant, pb.id);
     expect(full?.history.map((h) => h.version)).toEqual([2, 1]);
     await expect(

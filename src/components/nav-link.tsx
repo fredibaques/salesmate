@@ -76,3 +76,30 @@ export function SubTabLink({
     </Link>
   );
 }
+
+/** A segmented choice made of links (e.g. grouping a chart by day, week or month). */
+export function SegmentedLinks({
+  options,
+  label,
+}: {
+  options: { href: string; label: string; active: boolean }[];
+  label: string;
+}) {
+  return (
+    <nav aria-label={label} className="inline-flex gap-1 rounded-xl bg-ink-100 p-1">
+      {options.map((o) => (
+        <Link
+          key={o.href}
+          href={o.href}
+          scroll={false}
+          aria-current={o.active ? "true" : undefined}
+          className={`rounded-lg px-2.5 py-1 text-xs transition-colors ${
+            o.active ? "bg-surface font-medium text-foreground shadow-sm" : "text-muted hover:text-foreground"
+          }`}
+        >
+          {o.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}

@@ -379,6 +379,54 @@ export async function renameSource(db: Db, tenant: TenantContext, sourceId: stri
   });
 }
 
+/** Text knowledge (pasted, or a plain-text file) can be edited where it is shown. */
+export function isEditableText(source: { kind: string }, file: { mimeType: string } | null) {
+  return source.kind !== "table" && (!file || file.mimeType.startsWith("text/"));
+}
+
+/**
+ * Replaces the text of a text source (and its name): agents read the new
+ * version right away. A text file's original is dropped, since it no longer
+ * matches what agents read.
+ */
+export async function updateSourceText(
+  db: Db,
+  tenant: TenantContext,
+  sourceId: string,
+  input: { name: string; text: string },
+) {
+  const name = input.name.trim();
+  if (!name) throw new Error("Escribe un nombre.");
+  const chunks = chunkText(input.text);
+  if (chunks.length === 0) throw new Error("Escribe el texto.");
+  return withTenant(db, tenant, async (tx) => {
+    const [source] = await tx.select().from(knowledgeSources).where(eq(knowledgeSources.id, sourceId));
+    if (!source) throw new Error("Fuente no encontrada.");
+    const [file] = await tx
+      .select({ mimeType: kbFiles.mimeType })
+      .from(kbFiles)
+      .where(eq(kbFiles.sourceId, sourceId));
+    if (!isEditableText(source, file ?? null))
+      throw new Error("Este conocimiento no se puede editar como texto.");
+    await tx.delete(kbDocuments).where(eq(kbDocuments.sourceId, sourceId));
+    await tx.delete(kbFiles).where(eq(kbFiles.sourceId, sourceId));
+    await insertDocument(tx, tenant, sourceId, { title: name, content: input.text, chunks });
+    const [row] = await tx
+      .update(knowledgeSources)
+      .set({ name, lastSyncedAt: new Date(), status: "ready", error: null })
+      .where(eq(knowledgeSources.id, sourceId))
+      .returning();
+    await audit(tx, tenant, {
+      event: "knowledge.source_updated",
+      projectId: row.projectId,
+      entityType: "knowledge_source",
+      entityId: row.id,
+      data: { name, chars: input.text.length },
+    });
+    return row;
+  });
+}
+
 export async function deleteSource(db: Db, tenant: TenantContext, sourceId: string) {
   return withTenant(db, tenant, async (tx) => {
     const [row] = await tx.delete(knowledgeSources).where(eq(knowledgeSources.id, sourceId)).returning();

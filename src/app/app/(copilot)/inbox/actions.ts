@@ -3,10 +3,9 @@
 import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/action-form";
 import { requireRole, requireTenant } from "@/server/auth/session";
-import { getDb } from "@/server/db/client";
 import { AGENT_TYPES, type AgentType } from "@/server/db/schema";
 import { runForm, str } from "@/server/form";
-import { cancelAction, decideAction, GatewayError, proposeAction } from "@/server/gateway/gateway";
+import { decideAction, GatewayError, proposeAction } from "@/server/gateway/gateway";
 import { gatewayDeps } from "@/server/gateway/runtime";
 
 const OUTCOME_MESSAGES: Record<string, string> = {
@@ -70,12 +69,6 @@ export async function reject(actionId: string, _: FormState, form: FormData): Pr
   });
   revalidatePath("/app", "layout");
   return result;
-}
-
-export async function cancel(actionId: string) {
-  const tenant = await requireTenant();
-  await cancelAction({ db: getDb() }, tenant, actionId);
-  revalidatePath("/app", "layout");
 }
 
 /**

@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { AGENT_COLORS, AGENT_ICON_CHOICES } from "@/lib/agent-look";
 import { audit } from "../audit";
+import { workingSql } from "../agents/working";
 import { ensureAgentBaseIn } from "../prospects/bases";
 import { mcpToolsOf } from "../connectors/mcp";
 import { connectionCapabilities } from "../connectors/service";
@@ -13,8 +14,6 @@ import {
   agentRuns,
   connections,
   identities,
-  playbooks,
-  playbookVersions,
   projectConnections,
   projectIdentities,
   projects,
@@ -27,20 +26,14 @@ import {
   type SalesMotion,
 } from "../db/schema";
 import { withTenant, type TenantContext, type Tx } from "../db/tenant";
-import { getPlaybook, savePlaybookVersion } from "../playbooks/service";
-import {
-  AGENT_PROCESS_FIELDS,
-  PLAYBOOK_TEMPLATES,
-  parseSalesProfile,
-  playbookSpecSchema,
-  salesProfileSchema,
-  type PlaybookSpec,
-} from "../playbooks/spec";
+import { ensureProjectProcessIn, savePlaybookVersion } from "../playbooks/service";
+import { PROCESS_FIELDS, parseSalesProfile, salesProfileSchema, type PlaybookSpec } from "../playbooks/spec";
 
 /**
- * Agents are the unit the user works with: they add an agent to a project,
- * describe its sales process and tell it which mailbox, calendar and CRM to
- * use. Each added agent owns exactly one playbook (its process, versioned).
+ * Agents are the unit the user works with: they add an agent to a project
+ * and tell it what to do and which mailbox, calendar and CRM to use. The
+ * sales process belongs to the project (playbooks/service.ts): the agents
+ * that talk to people follow it; prospecting agents don't need it.
  */
 
 /** Agents a project can have, in display order. Others run at organization level. */
@@ -76,12 +69,6 @@ export function isProjectAgentType(value: string): value is ProjectAgentType {
   return (PROJECT_AGENT_TYPES as readonly string[]).includes(value);
 }
 
-const PROCESS_NAMES: Record<ProjectAgentType, string> = {
-  inbound: "Proceso inbound",
-  outbound: "Proceso outbound",
-  account_manager: "Proceso de cartera",
-};
-
 async function findConfig(tx: Tx, projectId: string, agentType: AgentType) {
   const [row] = await tx
     .select()
@@ -90,28 +77,14 @@ async function findConfig(tx: Tx, projectId: string, agentType: AgentType) {
   return row ?? null;
 }
 
-async function currentSpec(tx: Tx, playbookId: string, version: number) {
-  const [row] = await tx
-    .select({ spec: playbookVersions.spec })
-    .from(playbookVersions)
-    .where(and(eq(playbookVersions.playbookId, playbookId), eq(playbookVersions.version, version)));
-  return row ? playbookSpecSchema.parse(row.spec) : null;
-}
-
-/** Agents added to a project, with a summary of their process. */
+/** Agents added to a project. */
 export async function listProjectAgents(db: Db, tenant: Pick<TenantContext, "orgId">, projectId: string) {
   return withTenant(db, tenant, async (tx) => {
     const rows = await tx
-      .select({ config: agentConfigs, playbook: playbooks })
+      .select({ config: agentConfigs, working: workingSql })
       .from(agentConfigs)
-      .leftJoin(playbooks, eq(playbooks.agentConfigId, agentConfigs.id))
       .where(and(eq(agentConfigs.projectId, projectId), isNotNull(agentConfigs.addedAt)));
-    const out = [];
-    for (const { config, playbook } of rows) {
-      const spec = playbook ? await currentSpec(tx, playbook.id, playbook.currentVersion) : null;
-      out.push({ config, playbook, spec });
-    }
-    return out.sort(
+    return rows.sort(
       (a, b) =>
         PROJECT_AGENT_TYPES.indexOf(a.config.agentType as ProjectAgentType) -
         PROJECT_AGENT_TYPES.indexOf(b.config.agentType as ProjectAgentType),
@@ -130,6 +103,7 @@ export async function listSidebarAgents(db: Db, tenant: Pick<TenantContext, "org
         icon: agentConfigs.icon,
         color: agentConfigs.color,
         enabled: agentConfigs.enabled,
+        working: workingSql,
       })
       .from(agentConfigs)
       .where(isNotNull(agentConfigs.addedAt)),
@@ -139,34 +113,36 @@ export async function listSidebarAgents(db: Db, tenant: Pick<TenantContext, "org
     .sort((a, b) => PROJECT_AGENT_TYPES.indexOf(a.agentType) - PROJECT_AGENT_TYPES.indexOf(b.agentType));
 }
 
-/** One added agent with its process (current version and history). */
+/** One added agent of a project. */
 export async function getAgent(
   db: Db,
   tenant: Pick<TenantContext, "orgId">,
   projectId: string,
   agentType: ProjectAgentType,
 ) {
-  const base = await withTenant(db, tenant, async (tx) => {
-    const config = await findConfig(tx, projectId, agentType);
-    if (!config?.addedAt) return null;
-    const [playbook] = await tx
-      .select({ id: playbooks.id })
-      .from(playbooks)
-      .where(eq(playbooks.agentConfigId, config.id));
-    return { config, playbookId: playbook?.id ?? null };
+  const row = await withTenant(db, tenant, async (tx) => {
+    const [found] = await tx
+      .select({ config: agentConfigs, working: workingSql })
+      .from(agentConfigs)
+      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.agentType, agentType)));
+    return found;
   });
-  if (!base) return null;
-  const process = base.playbookId ? await getPlaybook(db, tenant, base.playbookId) : null;
-  return { config: base.config, process };
+  return row?.config.addedAt ? row : null;
 }
 
-/** Adds an agent to a project with the template process of the chosen sales motion. */
+/** Agents that talk to people and so follow the project's sales process. */
+export const PROCESS_AGENT_TYPES: readonly ProjectAgentType[] = ["inbound", "account_manager"];
+
+/**
+ * Adds an agent to a project. One that talks to people gives the project a
+ * sales process from the template of `salesMotion` if it has none yet.
+ */
 export async function addAgent(
   db: Db,
   tenant: TenantContext,
   projectId: string,
   agentType: ProjectAgentType,
-  salesMotion: SalesMotion,
+  salesMotion: SalesMotion = "b2b_consultative",
 ) {
   if (!AVAILABLE_AGENT_TYPES.includes(agentType)) throw new Error("Este agente todavía no está disponible.");
   return withTenant(db, tenant, async (tx) => {
@@ -198,30 +174,8 @@ export async function addAgent(
         })
         .where(eq(agentConfigs.id, config.id));
     }
-    const [existing] = await tx.select().from(playbooks).where(eq(playbooks.agentConfigId, config.id));
-    if (!existing) {
-      const [playbook] = await tx
-        .insert(playbooks)
-        .values({
-          orgId: tenant.orgId,
-          projectId,
-          agentConfigId: config.id,
-          name: PROCESS_NAMES[agentType],
-          salesMotion,
-          agentTypes: [agentType],
-          status: "active",
-          createdBy: tenant.actorId,
-        })
-        .returning();
-      await tx.insert(playbookVersions).values({
-        orgId: tenant.orgId,
-        playbookId: playbook.id,
-        version: 1,
-        spec: playbookSpecSchema.parse(PLAYBOOK_TEMPLATES[salesMotion]),
-        notes: "Creado a partir de la plantilla",
-        createdBy: tenant.actorId,
-      });
-    }
+    if (PROCESS_AGENT_TYPES.includes(agentType))
+      await ensureProjectProcessIn(tx, tenant, projectId, salesMotion);
     // A prospecting agent fills a base of the project from the start.
     if (agentType === "outbound") await ensureAgentBaseIn(tx, tenant, config.id);
     await audit(tx, tenant, {
@@ -229,7 +183,7 @@ export async function addAgent(
       projectId,
       entityType: "agent_config",
       entityId: config.id,
-      data: { agentType, salesMotion },
+      data: { agentType },
     });
     return config;
   });
@@ -328,21 +282,24 @@ export async function customizeAgent(
   });
 }
 
-/** Saves a new version of the agent's process; project-level fields are left untouched. */
-export async function saveAgentProcess(
+/**
+ * Saves a new version of the project's sales process (creating it if the
+ * project has none); the fields of «Oferta y cliente» are left untouched.
+ */
+export async function saveProjectProcess(
   db: Db,
   tenant: TenantContext,
   projectId: string,
-  agentType: ProjectAgentType,
   input: { salesMotion?: SalesMotion; process: Partial<PlaybookSpec>; notes?: string },
 ) {
-  const agent = await getAgent(db, tenant, projectId, agentType);
-  if (!agent?.process) throw new Error("Agente no encontrado.");
-  const merged: Record<string, unknown> = { ...agent.process.spec };
-  for (const field of AGENT_PROCESS_FIELDS) {
+  const current = await withTenant(db, tenant, (tx) =>
+    ensureProjectProcessIn(tx, tenant, projectId, input.salesMotion ?? "b2b_consultative"),
+  );
+  const merged: Record<string, unknown> = { ...current.spec };
+  for (const field of PROCESS_FIELDS) {
     if (field in input.process) merged[field] = input.process[field];
   }
-  return savePlaybookVersion(db, tenant, agent.process.id, {
+  return savePlaybookVersion(db, tenant, current.id, {
     spec: merged,
     notes: input.notes,
     salesMotion: input.salesMotion,

@@ -17,10 +17,11 @@ import {
 import { withTenant } from "../db/tenant";
 import type { GatewayDeps } from "../gateway/gateway";
 import { runAgentLoop, defineTool, type AgentTool } from "../llm/agent-loop";
-import type { LlmClient } from "../llm/client";
-import { activePlaybookFor, type PlaybookWithSpec } from "../playbooks/service";
+import { withModel, type LlmClient } from "../llm/client";
+import { projectProcess, type PlaybookWithSpec } from "../playbooks/service";
 import { parseSalesProfile, renderPlaybook } from "../playbooks/spec";
 import { conversationRef, findOrCreateConversation, upsertContact, type Lead } from "./conversations";
+import { recordLeadRow } from "./inbound-table";
 import {
   leadFromEmail,
   leadFromForm,
@@ -113,7 +114,7 @@ function systemPrompt(input: {
           spec: playbook.spec,
           profile: parseSalesProfile(project.salesProfile),
         })
-      : "## Playbook\nEste proyecto aún no tiene un playbook inbound activo. Limítate a un acuse de recibo cordial que confirme que alguien del equipo responderá pronto, y crea una tarea para que una persona lo atienda.",
+      : "## Proceso de venta\nEste proyecto aún no tiene proceso de venta. Limítate a un acuse de recibo cordial que confirme que alguien del equipo responderá pronto, y crea una tarea para que una persona lo atienda.",
     input.instructions ? `## Instrucciones de la persona responsable\n${input.instructions}` : "",
   ]
     .filter(Boolean)
@@ -305,12 +306,23 @@ export async function processInboundEvent(
           .where(and(eq(identities.kind, "email"), inArray(identities.address, [lead.email.toLowerCase()])));
         if (own.length) return { ownMessage: true as const };
       }
-      const playbook = await activePlaybookFor(tx, project.id, "inbound");
+      const playbook = await projectProcess(tx, project.id);
       const [agentConfig] = await tx
         .select()
         .from(agentConfigs)
         .where(and(eq(agentConfigs.projectId, project.id), eq(agentConfigs.agentType, "inbound")));
       const contact = await upsertContact(tx, orgId, project.id, lead, playbook?.spec.customerType ?? null);
+      // The agent's table, if it works on one: the person becomes (or finds) their row.
+      if (agentConfig?.prospectBaseId) {
+        await recordLeadRow(tx, {
+          orgId,
+          baseId: agentConfig.prospectBaseId,
+          agentConfigId: agentConfig.id,
+          contactId: contact.id,
+          lead,
+          now,
+        });
+      }
       const conversation = await findOrCreateConversation(tx, {
         orgId,
         projectId: project.id,
@@ -355,7 +367,7 @@ export async function processInboundEvent(
           trigger: "inbound_event",
           triggerRef: event.id,
           playbookVersionId: playbook?.versionId ?? null,
-          model: deps.llm.model,
+          model: withModel(deps.llm, agentConfig?.settings.model).model,
         })
         .returning();
       return {
@@ -432,7 +444,7 @@ export async function processInboundEvent(
     ];
 
     const result = await runAgentLoop({
-      llm: deps.llm,
+      llm: withModel(deps.llm, agentConfig?.settings.model),
       system: [
         systemPrompt({
           project,

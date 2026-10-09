@@ -25,6 +25,7 @@ import {
 } from "../prospects/agent-schema";
 import { ensureAgentBase } from "../prospects/bases";
 import { completeProspects, rowsToComplete } from "../prospects/complete";
+import { fitCriteria, fitPrompt } from "../prospects/fit";
 import { knownProspects, prospectInput, recentProspectNames, saveProspects } from "../prospects/service";
 import { goalProgress, monthSpendUsd, notifyTeam, pauseAgent, type RunNotice } from "./automation";
 import { prepareFirstContacts, type FirstContactResult } from "./first-contact";
@@ -304,6 +305,8 @@ export async function runProspecting(
     // Short references for the rows to complete: models copy them better than ids.
     const refs = new Map(work.rows.map((r, i) => [`F${i + 1}`, r.id]));
     const known = finds ? await recentProspectNames(deps.db, tenant, base.id) : [];
+    // The criteria of the fit: the agent checks them, the score is computed from its answers.
+    const criteria = fitCriteria(parseSalesProfile(project.salesProfile));
 
     const ctx: AgentToolContext = {
       db: deps.db,
@@ -345,6 +348,7 @@ export async function runProspecting(
               agentConfigId: agent.id,
               runId: run.id,
               items: prospects,
+              fitCriteria: criteria,
             });
             added += result.added.length;
             return {
@@ -359,7 +363,7 @@ export async function runProspecting(
           },
         }),
         // The model sees the base's own columns, with their types and instructions.
-        jsonSchema: saveRowsSchema(base.rowKind, base.columns),
+        jsonSchema: saveRowsSchema(base.rowKind, base.columns, criteria),
       },
     ];
     const completeTools = [
@@ -441,6 +445,7 @@ export async function runProspecting(
       `## El proyecto\n${project.description ?? "(sin descripción)"}\nWeb: ${project.website ?? "—"}`,
       `## Oferta y cliente ideal\n${renderSalesProfile(parseSalesProfile(project.salesProfile))}`,
       agent.instructions ? `## Instrucciones de la persona responsable\n${agent.instructions}` : "",
+      finds ? fitPrompt(criteria) : "",
       `## Cómo trabajas
 ${[
   completes && finds
@@ -466,9 +471,6 @@ ${[
     : "",
   "- Trabaja por tandas de 2 o 3 filas: confirma sus datos y guárdalos antes de seguir con las siguientes. Lo que no hayas guardado se pierde si se acaba el tiempo de la ejecución.",
   "- Guarda solo datos que hayas podido confirmar, cada uno con la URL de donde sale. No inventes datos: si no encuentras un dato público, déjalo vacío.",
-  finds
-    ? "- Puntúa el encaje de cada fila nueva (fitScore 0-100) y explica en una frase por qué encaja (fitReason)."
-    : "",
   dataProviders
     ? `- Tienes ${dataProviders} para encontrar empresas y a quién decide en ellas, y sus datos de contacto profesionales. Los datos de contacto gastan créditos de la cuenta: pídelos solo de filas que ya encajan y de las columnas que la base pide. Lo que guardes de ahí, cítalo con su sourceUrl.`
     : "",

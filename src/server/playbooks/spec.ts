@@ -104,6 +104,8 @@ export const salesProfileSchema = z.object({
     .default({ include: [], exclude: [], geography: [] }),
   decisionMakers: lines,
   pains: lines,
+  /** What shows a company fits (beyond segment and zone): the criteria of the fit score. */
+  fitSignals: lines,
   objections: z
     .array(z.object({ objection: z.string().trim().min(1), response: z.string().trim().min(1) }))
     .default([]),
@@ -118,8 +120,8 @@ export function parseSalesProfile(raw: unknown): SalesProfile {
   return parsed.success ? parsed.data : salesProfileSchema.parse({});
 }
 
-/** Fields of a playbook spec that belong to the agent rather than the project. */
-export const AGENT_PROCESS_FIELDS = [
+/** Fields of the sales process (the rest of a spec comes from «Oferta y cliente»). */
+export const PROCESS_FIELDS = [
   "objective",
   "customerType",
   "nextSteps",
@@ -291,6 +293,7 @@ export function renderSalesProfile(profile: SalesProfile): string {
   if (profile.segment.geography.length) parts.push(`Zona: ${profile.segment.geography.join(", ")}`);
   if (profile.decisionMakers.length) parts.push(`Quién decide la compra:\n${bullet(profile.decisionMakers)}`);
   if (profile.pains.length) parts.push(`Problemas que resolvemos:\n${bullet(profile.pains)}`);
+  if (profile.fitSignals.length) parts.push(`Señales de que encaja:\n${bullet(profile.fitSignals)}`);
   return parts.length
     ? parts.join("\n\n")
     : "(El proyecto todavía no ha descrito su oferta ni su cliente ideal.)";

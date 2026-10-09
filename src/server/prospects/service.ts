@@ -1,5 +1,6 @@
 import { and, asc, count, desc, eq, ilike, inArray, or, sql, type AnyColumn } from "drizzle-orm";
 import { z } from "zod";
+import { fitChecksFrom, scoreFit, type FitCriterion } from "./fit";
 import { checkCell, formatCell, type BaseColumn, type RowKind } from "@/lib/prospect-columns";
 import { audit } from "../audit";
 import type { Db } from "../db/client";
@@ -41,6 +42,8 @@ export const prospectInput = z.object({
     .transform((v) => v || undefined),
   fitScore: z.number().int().min(0).max(100).optional(),
   fitReason: z.string().trim().max(1000).optional(),
+  /** The agent's answer to each fit criterion, by its id (c1, c2…): yes / no / unknown. */
+  fit: z.record(z.string(), z.unknown()).optional(),
   sources: z.array(z.string().url()).max(10).default([]),
   /** Values by column id (or column name). */
   fields: z.record(z.string(), z.unknown()).default({}),
@@ -156,7 +159,14 @@ export async function baseInfo(
 export async function saveProspects(
   db: Db,
   tenant: TenantContext,
-  input: { baseId: string; agentConfigId?: string; runId?: string; items: ProspectInput[] },
+  input: {
+    baseId: string;
+    agentConfigId?: string;
+    runId?: string;
+    items: ProspectInput[];
+    /** The project's fit criteria: the score is computed from the agent's checks. */
+    fitCriteria?: FitCriterion[];
+  },
 ): Promise<{ added: ProspectRow[]; duplicates: string[]; invalid: string[]; fieldErrors: string[] }> {
   const base = await baseInfo(db, tenant, input.baseId);
   const invalid: string[] = [];
@@ -179,7 +189,9 @@ export async function saveProspects(
       invalid.push(label);
       return [];
     }
-    const { fields, fieldSources, ...system } = result.data;
+    const { fields, fieldSources, fit, ...system } = result.data;
+    const fitChecks = input.fitCriteria?.length ? fitChecksFrom(input.fitCriteria, fit) : null;
+    if (fitChecks) system.fitScore = scoreFit(fitChecks) ?? undefined;
     const { data, errors } = cellsFromFields(base.columns, fields);
     const sources = sourceUrlsFor(base.columns, fieldSources);
     fieldErrors.push(...errors.map((e) => `${label} · ${e}`));
@@ -192,6 +204,7 @@ export async function saveProspects(
         key,
         row: {
           ...system,
+          fitChecks,
           data,
           cellMeta: Object.fromEntries(
             Object.keys(data).map((id) => [id, sources[id] ? { ...meta, source: sources[id] } : meta]),
@@ -418,7 +431,14 @@ export async function updateProspectRow(
     }
     await tx
       .update(prospects)
-      .set({ ...system, data, cellMeta, dedupeKey: key })
+      .set({
+        ...system,
+        data,
+        cellMeta,
+        dedupeKey: key,
+        // A person who sets the fit by hand overrides the checks it came from.
+        ...(system.fitScore !== row.fitScore ? { fitChecks: null } : {}),
+      })
       .where(eq(prospects.id, id));
     await audit(tx, tenant, {
       event: "prospect.edited",

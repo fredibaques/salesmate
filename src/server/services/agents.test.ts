@@ -6,7 +6,7 @@ import { saveGoogleConnection } from "../connectors/service";
 import type { Db } from "../db/client";
 import { connections, identities, projectConnections, projectIdentities, projects } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
-import { activePlaybookFor } from "../playbooks/service";
+import { getProjectProcess, projectProcess } from "../playbooks/service";
 import { renderPlaybook } from "../playbooks/spec";
 import {
   addAgent,
@@ -17,7 +17,7 @@ import {
   removeAgent,
   removeAgentTool,
   saveAgentChannels,
-  saveAgentProcess,
+  saveProjectProcess,
   saveSalesProfile,
   setAgentEnabled,
   setAgentMcpTools,
@@ -60,18 +60,34 @@ beforeAll(async () => {
 afterAll(async () => close());
 
 describe("agents", () => {
-  it("are added to a project with their own process from the template", async () => {
+  it("give the project a sales process from the template when one that talks to people is added", async () => {
     expect(await listProjectAgents(db, tenant, projectId)).toEqual([]);
+    expect(await withTenant(db, tenant, (tx) => projectProcess(tx, projectId))).toBeNull();
     await addAgent(db, tenant, projectId, "inbound", "b2b_consultative");
 
     const [agent] = await listProjectAgents(db, tenant, projectId);
     expect(agent.config.agentType).toBe("inbound");
     expect(agent.config.enabled).toBe(false);
-    expect(agent.spec?.nextSteps[0]).toBe("meeting");
+    expect(agent.working).toBe(false);
 
-    // The added agent's process is what the runtime follows.
-    const active = await withTenant(db, tenant, (tx) => activePlaybookFor(tx, projectId, "inbound"));
-    expect(active?.id).toBe(agent.playbook?.id);
+    // The process is the project's: what the runtime follows.
+    const process = await withTenant(db, tenant, (tx) => projectProcess(tx, projectId));
+    expect(process?.agentConfigId).toBeNull();
+    expect(process?.spec.nextSteps[0]).toBe("meeting");
+  });
+
+  it("don't give the project a process when they only find data", async () => {
+    const project = await createProject(db, tenant, { name: "Solo prospección" });
+    await addAgent(db, tenant, project.id, "outbound");
+    expect(await getProjectProcess(db, tenant, project.id)).toBeNull();
+    // Saving it the first time creates it.
+    await saveProjectProcess(db, tenant, project.id, {
+      salesMotion: "b2c_assisted",
+      process: { objective: "Recoger los datos" },
+    });
+    const process = await getProjectProcess(db, tenant, project.id);
+    expect(process?.salesMotion).toBe("b2c_assisted");
+    expect(process?.spec.objective).toBe("Recoger los datos");
   });
 
   it("gives the prospecting agent its template defaults even when its row already exists", async () => {
@@ -98,22 +114,23 @@ describe("agents", () => {
       offer: "Gestión de transferencias de vehículos",
       tone: "Cercano",
     });
-    await saveAgentProcess(db, tenant, projectId, "inbound", {
+    await saveProjectProcess(db, tenant, projectId, {
       salesMotion: "b2b_transactional",
       process: { objective: "Dar de alta al concesionario", nextSteps: ["send_quote", "handoff"] },
       notes: "Sin reunión",
     });
 
-    const agent = await getAgent(db, tenant, projectId, "inbound");
-    expect(agent?.process?.salesMotion).toBe("b2b_transactional");
-    expect(agent?.process?.currentVersion).toBe(2);
-    expect(agent?.process?.spec.nextSteps).toEqual(["send_quote", "handoff"]);
+    const process = await getProjectProcess(db, tenant, projectId);
+    expect(process?.salesMotion).toBe("b2b_transactional");
+    expect(process?.currentVersion).toBe(2);
+    expect(process?.spec.nextSteps).toEqual(["send_quote", "handoff"]);
+    expect(process?.history.map((h) => h.version)).toEqual([2, 1]);
 
     const profile = await getSalesProfile(db, tenant, projectId);
     const text = renderPlaybook({
-      name: agent!.process!.name,
-      motion: agent!.process!.salesMotion,
-      spec: agent!.process!.spec,
+      name: process!.name,
+      motion: process!.salesMotion,
+      spec: process!.spec,
       profile,
     });
     expect(text).toContain("Qué vendemos: Gestión de transferencias de vehículos");
@@ -154,14 +171,17 @@ describe("agents", () => {
     );
     expect(links).toEqual([]);
     expect(await listProjectAgents(db, tenant, projectId)).toEqual([]);
-    expect(await withTenant(db, tenant, (tx) => activePlaybookFor(tx, projectId, "inbound"))).toBeNull();
+    // The process stays with the project.
+    expect((await getProjectProcess(db, tenant, projectId))?.currentVersion).toBe(2);
   });
 
-  it("keeps the process when an agent is added again", async () => {
+  it("keeps the project's process when an agent is added again", async () => {
     await addAgent(db, tenant, projectId, "inbound", "b2c_assisted");
     const agent = await getAgent(db, tenant, projectId, "inbound");
     expect(agent?.config.enabled).toBe(false);
-    expect(agent?.process?.currentVersion).toBe(2);
+    const process = await getProjectProcess(db, tenant, projectId);
+    expect(process?.currentVersion).toBe(2);
+    expect(process?.salesMotion).toBe("b2b_transactional");
   });
 });
 

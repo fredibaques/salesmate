@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Building2, Lock, Undo2, User, X } from "lucide-react";
+import { Building2, Check, CircleHelp, Lock, Undo2, User, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { ActionForm } from "@/components/action-form";
 import { Drawer } from "@/components/drawer";
@@ -204,6 +204,30 @@ export function RowPanel({
             <Input name="fitReason" defaultValue={row?.fitReason ?? ""} />
           </Field>
         </div>
+        {row?.fitChecks?.length ? (
+          <Field
+            label="Criterios de encaje"
+            tip="El agente comprueba cada criterio de tu cliente ideal (Ventas → Oferta y cliente) y el encaje sale de ahí: cumple cuenta entero, sin comprobar cuenta la mitad y los imprescindibles pesan el doble. Si no cumple uno imprescindible, el encaje queda en 20 como mucho."
+          >
+            <ul className="space-y-1 text-sm">
+              {row.fitChecks.map((c) => (
+                <li key={c.criterion} className="flex items-start gap-2">
+                  {c.result === "yes" ? (
+                    <Check className="mt-0.5 size-4 shrink-0 text-success" aria-label="Cumple" />
+                  ) : c.result === "no" ? (
+                    <X className="mt-0.5 size-4 shrink-0 text-danger" aria-label="No cumple" />
+                  ) : (
+                    <CircleHelp className="mt-0.5 size-4 shrink-0 text-muted" aria-label="Sin comprobar" />
+                  )}
+                  <span className={c.result === "unknown" ? "text-muted" : undefined}>
+                    {c.criterion}
+                    {c.required ? <span className="text-xs text-muted"> · imprescindible</span> : null}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Field>
+        ) : null}
 
         {base.columns.length ? (
           <div className="space-y-5 border-t border-border pt-5">

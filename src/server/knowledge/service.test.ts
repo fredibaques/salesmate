@@ -9,10 +9,12 @@ import {
   getSourceFile,
   ingestDocumentText,
   ingestTableFile,
+  isEditableText,
   queryTable,
   reprocessTableSource,
   searchKnowledge,
   setSourceProject,
+  updateSourceText,
 } from "./service";
 import { listKnowledge } from "../services/projects";
 
@@ -238,6 +240,46 @@ describe("original files and source detail", () => {
     const detail = await getSourceDetail(db, tenant, source.id);
     expect(detail?.text).toBe("Primer párrafo.\n\nSegundo párrafo.");
     expect(detail?.file?.filename).toBe("guion.md");
+  });
+
+  it("edits text knowledge: agents read the new text, and a text file's original goes", async () => {
+    const { source } = await ingestDocumentText(db, tenant, {
+      projectId,
+      name: "Objeciones",
+      text: "Si dicen que es caro, habla del ahorro.",
+      file: { filename: "objeciones.txt", data: Buffer.from("x") },
+    });
+    await updateSourceText(db, tenant, source.id, {
+      name: "Respuestas a objeciones",
+      text: "Si dicen que es caro, recuerda la garantía de devolución.",
+    });
+    const detail = await getSourceDetail(db, tenant, source.id);
+    expect(detail?.source.name).toBe("Respuestas a objeciones");
+    expect(detail?.text).toBe("Si dicen que es caro, recuerda la garantía de devolución.");
+    expect(detail?.file).toBeNull();
+    const hits = await searchKnowledge(db, tenant, { projectId, query: "garantía devolución" });
+    expect(hits.some((h) => h.sourceId === source.id)).toBe(true);
+    expect(
+      (await searchKnowledge(db, tenant, { projectId, query: "ahorro" })).some(
+        (h) => h.sourceId === source.id,
+      ),
+    ).toBe(false);
+  });
+
+  it("doesn't edit tables or PDFs as text", async () => {
+    const pdf = await ingestDocumentText(db, tenant, {
+      projectId,
+      name: "Catálogo",
+      text: "Texto del catálogo.",
+      file: { filename: "catalogo.pdf", data: Buffer.from("%PDF") },
+    });
+    expect(isEditableText(pdf.source, { mimeType: "application/pdf" })).toBe(false);
+    await expect(
+      updateSourceText(db, tenant, pdf.source.id, { name: "Catálogo", text: "Otro" }),
+    ).rejects.toThrow(/no se puede editar/);
+    await expect(updateSourceText(db, tenant, pdf.source.id, { name: " ", text: "x" })).rejects.toThrow(
+      /nombre/,
+    );
   });
 });
 

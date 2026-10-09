@@ -158,7 +158,7 @@ export async function intakeAction(baseId: string, open: boolean, _: FormState):
 export async function deleteBaseAction(baseId: string) {
   const base = await deleteBase(getDb(), await admin(), baseId);
   refresh();
-  redirect(base.projectId ? `/app/projects/${base.projectId}/prospects` : "/app/tables");
+  redirect(base.projectId ? `/app/projects/${base.projectId}#tablas` : "/app/tables");
 }
 
 // ---- Columns ----------------------------------------------------------------

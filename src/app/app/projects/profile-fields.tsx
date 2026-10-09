@@ -115,6 +115,18 @@ export function CustomerFields({ profile }: { profile?: SalesProfile }) {
           placeholder="p. ej. Pierden días con el papeleo"
         />
       </Field>
+      <Field
+        label="Señales de que encaja"
+        optional
+        group
+        tip="Lo que hace que una empresa sea un buen cliente, comprobable desde fuera. Junto con a quién te diriges, las zonas y a quién no, son los criterios del encaje de cada fila de tus tablas: el agente marca cuáles cumple y el encaje sale de ahí."
+      >
+        <ListInput
+          name="fitSignals"
+          defaultValue={profile?.fitSignals}
+          placeholder="p. ej. Vende coches de ocasión"
+        />
+      </Field>
     </>
   );
 }

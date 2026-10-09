@@ -14,12 +14,16 @@ import {
   messages,
   projectIdentities,
   projects,
+  prospectBases,
+  prospects,
 } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
 import { decideAction, type GatewayDeps } from "../gateway/gateway";
 import type { LlmClient } from "../llm/client";
 import { ingestTableFile } from "../knowledge/service";
-import { addAgent, saveAgentChannels, setAgentEnabled } from "../services/agents";
+import { personOfRow } from "../conversations/inbox";
+import { setAgentBase } from "../prospects/bases";
+import { addAgent, getAgent, saveAgentChannels, setAgentEnabled } from "../services/agents";
 import { recordActionInConversation } from "./conversations";
 import { processInboundEvent, processPendingInbound } from "./inbound";
 
@@ -318,5 +322,53 @@ describe("inbound agent", () => {
       tx.select().from(conversations).where(eq(conversations.id, done.conversationId)),
     );
     expect(conv.status).toBe("handed_off");
+  });
+
+  it("writes each person into the table it works on, once, linked to their conversation", async () => {
+    const [base] = await withTenant(db, tenant, (tx) =>
+      tx
+        .insert(prospectBases)
+        .values({
+          orgId: tenant.orgId,
+          projectId,
+          name: "Leads",
+          rowKind: "person",
+          columns: [
+            { id: "email", name: "Email", type: "email", filledBy: "agent" },
+            { id: "tel", name: "Teléfono", type: "phone", filledBy: "agent" },
+          ],
+        })
+        .returning(),
+    );
+    const agent = await getAgent(db, tenant, projectId, "inbound");
+    await setAgentBase(db, tenant, projectId, agent!.config.id, base.id);
+
+    for (const mensaje of ["Quiero información", "¿Seguís ahí?"]) {
+      const eventId = await formEvent({
+        nombre: "Ana Ruiz",
+        email: "Ana@Taller.es",
+        empresa: "Taller Ruiz",
+        telefono: "600 111 222",
+        mensaje,
+      });
+      const { llm } = scriptedLlm([{ blocks: [{ type: "text", text: "Hecho." }] }]);
+      await processInboundEvent({ db, llm, gateway: gateway() }, tenant.orgId, eventId);
+    }
+
+    const rows = await withTenant(db, tenant, (tx) =>
+      tx.select().from(prospects).where(eq(prospects.baseId, base.id)),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      personName: "Ana Ruiz",
+      companyName: "Taller Ruiz",
+      data: { email: "ana@taller.es" },
+    });
+    // The row opens the person's conversation.
+    expect(await personOfRow(db, tenant, rows[0].id)).toBe("e:ana@taller.es");
+
+    // Without a table it writes nowhere.
+    await setAgentBase(db, tenant, projectId, agent!.config.id, null);
+    expect((await getAgent(db, tenant, projectId, "inbound"))?.config.prospectBaseId).toBeNull();
   });
 });

@@ -7,7 +7,7 @@ import { getDb } from "@/server/db/client";
 import { runForm, str } from "@/server/form";
 import { requireOrgLlm } from "@/server/llm/org-ai";
 import { draftPlaybook } from "@/server/playbooks/draft";
-import { activePlaybookFor } from "@/server/playbooks/service";
+import { projectProcess } from "@/server/playbooks/service";
 import { PLAYBOOK_TEMPLATES } from "@/server/playbooks/spec";
 import { withTenant } from "@/server/db/tenant";
 import { getSalesProfile, saveSalesProfile } from "@/server/services/agents";
@@ -29,7 +29,7 @@ export async function draftOffer(projectId: string, _: FormState, form: FormData
     const tenant = await admin();
     const db = getDb();
     const current = await getSalesProfile(db, tenant, projectId);
-    const process = await withTenant(db, tenant, (tx) => activePlaybookFor(tx, projectId, "inbound"));
+    const process = await withTenant(db, tenant, (tx) => projectProcess(tx, projectId));
     const motion = process?.salesMotion ?? "b2b_consultative";
     const { spec, gaps } = await draftPlaybook({ db, llm: await requireOrgLlm(db, tenant) }, tenant, {
       projectId,

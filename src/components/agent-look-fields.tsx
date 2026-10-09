@@ -1,23 +1,75 @@
 import { AGENT_COLORS, AGENT_ICON_CHOICES, agentLook, colorLook } from "@/lib/agent-look";
 import { cx, Field, IconTile } from "./ui";
 
-/** The agent's tile with its icon and colour. */
+/** What an agent is doing: working now, waiting (enabled) or paused. */
+export type AgentState = "working" | "idle" | "paused";
+
+export function agentState(agent: { enabled: boolean; working?: boolean }): AgentState {
+  if (agent.working) return "working";
+  return agent.enabled ? "idle" : "paused";
+}
+
+const STATE_LABELS: Record<AgentState, string> = {
+  working: "Trabajando",
+  idle: "En reposo",
+  paused: "En pausa",
+};
+
+/**
+ * A small dot with the agent's state: green (with a pulse) while it works,
+ * grey when it waits, a grey ring when it is paused.
+ */
+export function AgentStatusDot({ state, className }: { state: AgentState; className?: string }) {
+  return (
+    <span
+      role="img"
+      aria-label={STATE_LABELS[state]}
+      title={STATE_LABELS[state]}
+      className={cx("relative inline-flex size-2 shrink-0", className)}
+    >
+      {state === "working" ? (
+        <span className="absolute inset-0 animate-ping rounded-full bg-leaf-500 opacity-60 motion-reduce:hidden" />
+      ) : null}
+      <span
+        className={cx(
+          "relative size-2 rounded-full",
+          state === "working" && "bg-leaf-500",
+          state === "idle" && "bg-ink-300",
+          state === "paused" && "border-[1.5px] border-ink-300 bg-surface",
+        )}
+      />
+    </span>
+  );
+}
+
+/** The agent's tile with its icon and colour; with `state`, its status dot (and a busy icon while it works). */
 export function AgentTile({
   type,
   icon,
   color,
   size = "md",
+  state,
 }: {
   type: string;
   icon?: string | null;
   color?: string | null;
   size?: "sm" | "title" | "md" | "lg";
+  state?: AgentState;
 }) {
   const look = agentLook(type, icon, color);
-  return (
+  const tile = (
     <IconTile size={size} colors={look.tile}>
-      <look.Icon />
+      <look.Icon className={state === "working" ? "agent-working" : undefined} />
     </IconTile>
+  );
+  if (!state) return tile;
+  return (
+    <span className="relative inline-flex shrink-0">
+      {tile}
+      <span className="absolute -right-0.5 -bottom-0.5 rounded-full bg-surface p-[2px]">
+        <AgentStatusDot state={state} />
+      </span>
+    </span>
   );
 }
 
@@ -30,15 +82,26 @@ export function AgentIcon({
   icon,
   color,
   className = "size-3.5",
+  working = false,
 }: {
   type: string;
   icon?: string | null;
   color?: string | null;
   className?: string;
+  /** Sways while the agent works. */
+  working?: boolean;
 }) {
   const look = agentLook(type, icon, color);
   return (
-    <span aria-hidden className={cx("flex shrink-0 items-center justify-center", look.text, className)}>
+    <span
+      aria-hidden
+      className={cx(
+        "flex shrink-0 items-center justify-center",
+        look.text,
+        working && "agent-working",
+        className,
+      )}
+    >
       <look.Icon className="size-full" />
     </span>
   );

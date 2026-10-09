@@ -248,18 +248,26 @@ src/server/
   prospects/complete.ts  Celdas por completar y cómo las rellena el agente sin pisar lo escrito a mano
   agents/scheduler.ts  Agentes con horario: cuáles tocan y ejecución única por franja
   connectors/mcp.ts    Servidores MCP: alta, herramientas y llamadas
-  playbooks/           Especificación, plantillas, versiones y borrador con IA (salida estructurada)
-  services/agents.ts   Agentes de un proyecto: añadir, proceso, canales, autonomía y perfil de venta
+  playbooks/           Proceso de venta del proyecto: especificación, plantillas, versiones y borrador con IA
+  services/agents.ts   Agentes de un proyecto: añadir, canales, autonomía, perfil y proceso de venta
 ```
 
 - **El agente es la unidad de configuración.** El usuario añade un agente a
-  un proyecto (`agent_configs.added_at`) y lo configura en su ficha: su
-  **proceso** (un playbook propio, versionado, enlazado por
-  `playbooks.agent_config_id`), sus **canales** (`agent_configs.channels`:
-  buzón, calendario y CRM elegidos entre las conexiones de la organización) y
-  su **autonomía**. Lo común a todos los agentes del proyecto (oferta, cliente
-  ideal, objeciones, tono, firma) vive en `projects.sales_profile` y se
-  combina con el proceso al montar el prompt.
+  un proyecto (`agent_configs.added_at`) y lo configura en su ficha: sus
+  **canales** (`agent_configs.channels`: buzón, calendario y CRM elegidos
+  entre las conexiones de la organización) y su **autonomía**.
+- **La venta es del proyecto** (pestaña «Ventas»). «Oferta y cliente»
+  (`projects.sales_profile`: oferta, cliente ideal, señales de encaje,
+  objeciones, tono, firma) lo conocen todos los agentes. El **proceso de
+  venta** (cómo termina una conversación, cualificación, reglas, cuándo pasar
+  a una persona) es un playbook del proyecto, versionado, sin
+  `agent_config_id` (`projectProcess`, `getProjectProcess`,
+  `saveProjectProcess`). Lo siguen los agentes que hablan con personas
+  (inbound, primeros contactos, cuentas); añadir uno lo crea desde la
+  plantilla del tipo de venta si el proyecto no tiene (`ensureProjectProcessIn`).
+  Los que solo buscan o completan datos (prospección) no lo usan: les basta
+  «Oferta y cliente». La migración 0023 convirtió el proceso del inbound de
+  cada proyecto (o el más reciente) en el del proyecto.
 - **Canales derivados.** `project_identities` y `project_connections` (lo que
   el gateway y las herramientas comprueban) se recalculan a partir de los
   canales de los agentes del proyecto (`syncProjectChannels`); el usuario no
@@ -338,6 +346,17 @@ agente directamente; el resto se proponen al gateway como `mcp.call_tool`
 auditoría se aplican igual que a un email. La plataforma hace de cliente MCP a
 propósito: con el conector MCP de la API las llamadas no pasarían por el gateway.
 
+**Encaje** (`prospects/fit.ts`). No es un número que el modelo se invente:
+los criterios salen de «Oferta y cliente» (a quién te diriges, zonas y a
+quién no, imprescindibles; y las señales de encaje) y el agente marca cada uno
+como `yes`, `no` o `unknown` en `save_prospects` (`fit`, por id c1, c2…).
+`scoreFit` lo convierte en 0-100: cumple cuenta entero, sin comprobar la
+mitad, los imprescindibles pesan el doble y fallar uno deja el encaje en 20
+como mucho. Se guarda con sus comprobaciones (`prospects.fit_checks`), que se
+ven al pasar sobre la celda y en el panel de la fila; si una persona cambia el
+número a mano, las comprobaciones se borran. Sin criterios, el agente da un
+número orientativo.
+
 **Tablas** (`prospects/`, `lib/prospect-columns.ts`). Una tabla
 (`prospect_bases`) puede ir con un proyecto o sola (`project_id` nulo,
 migración 0019; al borrar un proyecto sus tablas se quedan, sin proyecto, y
@@ -353,7 +372,7 @@ de las columnas en `data` por id de columna, con quién y cuándo escribió cada
 celda en `cell_meta`. No hay duplicados por base (`base_id, dedupe_key`:
 dominio de la web, o nombre y ciudad; en bases de personas, persona y empresa).
 Cada tabla vive en `/app/tables/<id>` (las rutas antiguas bajo el proyecto
-redirigen); la sección Tablas y la pestaña Tablas del proyecto las listan
+redirigen); la sección Tablas y el resumen del proyecto las listan
 igual (`TablesList`). La rejilla se ve siempre, también vacía, con filtros,
 orden por cualquier columna, búsqueda y exportación a CSV. Exportar a otra
 herramienta pasa por el gateway, que registra por proyecto: solo en tablas con
@@ -431,6 +450,15 @@ recuerda guardar tras 8 búsquedas o lecturas sin hacerlo y, a 45 s del
 final, que deje de buscar y guarde lo confirmado (`steer` de
 `runAgentLoop`, texto tras los resultados de las herramientas).
 
+## Un agente trabajando
+
+`agents/working.ts` (`workingSql`) dice, como columna de una consulta sobre
+`agent_configs`, si el agente tiene ahora una ejecución en marcha (de las
+últimas 2 h). Lo usan el menú, las tarjetas, la cabecera del agente y los
+avatares de una tabla: punto verde con pulso y el icono moviéndose mientras
+trabaja, punto gris en reposo, anillo gris en pausa. La página del agente se
+refresca sola mientras trabaja.
+
 ## Registro de ejecuciones y coste
 
 `agents/runs.ts` lee `agent_runs` como un registro: `listRuns` (más recientes
@@ -440,7 +468,8 @@ y `getRun` (con sus pasos). Cada ejecución lleva su desglose
 los precios del modelo, y «Otros» con lo que no se desglosa (borradores de
 primeros emails, ejecuciones anteriores a la migración 0022). Se ve en la
 pestaña «Log» de cada agente (con los resultados del agente de prospección y
-el gasto del mes) y en Configuración → Ejecuciones (`/app/runs`, filtros de
+el gasto del mes), en el resumen de cada proyecto (gráfico de líneas del
+coste por día, semana o mes: `costSeries`, en la hora del proyecto) y en Configuración → Ejecuciones (`/app/runs`, filtros de
 periodo, proyecto y agente; meses en hora de Madrid con `monthStart`).
 
 ## Automatización de los agentes

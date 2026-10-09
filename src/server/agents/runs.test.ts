@@ -1,11 +1,12 @@
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, seedOrg } from "../../../tests/helpers/db";
 import type { Db } from "../db/client";
 import { agentRuns, projects } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
 import { costBreakdown } from "../llm/client";
-import { addAgent } from "../services/agents";
-import { getRun, listRuns, monthStart, runTotals } from "./runs";
+import { addAgent, getAgent, listProjectAgents } from "../services/agents";
+import { costSeries, getRun, listRuns, monthStart, runTotals } from "./runs";
 
 let db: Db;
 let close: () => Promise<void>;
@@ -152,5 +153,55 @@ describe("runs log", () => {
     const now = new Date("2026-10-31T23:30:00Z").getTime(); // already 1 November in Madrid
     expect(monthStart("Europe/Madrid", 0, now).getTime()).toBe(Date.parse("2026-10-31T23:00:00Z"));
     expect(monthStart("Europe/Madrid", -1, now).getTime()).toBe(Date.parse("2026-09-30T22:00:00Z"));
+  });
+
+  it("adds up the cost by day, week or month, with empty buckets at 0", async () => {
+    const now = new Date("2026-10-09T10:00:00Z").getTime();
+    const opts = { projectId, timeZone: "Europe/Madrid", now };
+    const days = await costSeries(db, tenant, { ...opts, bucket: "day" });
+    expect(days).toHaveLength(30);
+    expect(days.at(-1)?.key).toBe("2026-10-09");
+    expect(days.find((d) => d.key === "2026-10-05")).toMatchObject({ runs: 1 });
+    expect(days.find((d) => d.key === "2026-10-05")?.costUsd).toBeCloseTo(0.8);
+    expect(days.find((d) => d.key === "2026-10-01")).toMatchObject({ costUsd: 0, runs: 0 });
+
+    const weeks = await costSeries(db, tenant, { ...opts, bucket: "week" });
+    expect(weeks).toHaveLength(12);
+    // Weeks start on Monday: the 5th and the 6th are the same week.
+    expect(weeks.at(-1)).toMatchObject({ key: "2026-10-05", runs: 2 });
+
+    const months = await costSeries(db, tenant, { ...opts, bucket: "month" });
+    expect(months.map((m) => m.key).slice(-2)).toEqual(["2026-09-01", "2026-10-01"]);
+    expect(months.at(-2)?.costUsd).toBeCloseTo(0.04);
+    // Another organization sees nothing.
+    expect((await costSeries(db, other, { ...opts, bucket: "month" })).every((m) => m.runs === 0)).toBe(true);
+  });
+
+  it("knows which agent is working right now", async () => {
+    // Only the copilot has a run going: the prospecting agent rests.
+    expect((await getAgent(db, tenant, projectId, "outbound"))?.working).toBe(false);
+    const [run] = await withTenant(db, tenant, (tx) =>
+      tx
+        .insert(agentRuns)
+        .values({
+          orgId: tenant.orgId,
+          projectId,
+          agentType: "outbound",
+          trigger: "manual",
+          status: "running",
+          model: MODEL,
+          steps: [],
+        })
+        .returning(),
+    );
+    expect((await getAgent(db, tenant, projectId, "outbound"))?.working).toBe(true);
+    expect((await listProjectAgents(db, tenant, projectId)).map((a) => a.working)).toEqual([true]);
+    await withTenant(db, tenant, (tx) =>
+      tx
+        .update(agentRuns)
+        .set({ status: "completed", finishedAt: new Date() })
+        .where(eq(agentRuns.id, run.id)),
+    );
+    expect((await getAgent(db, tenant, projectId, "outbound"))?.working).toBe(false);
   });
 });
