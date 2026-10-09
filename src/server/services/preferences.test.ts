@@ -54,6 +54,7 @@ describe("sectionOrder", () => {
     expect(sectionOrder(["inbox", "home", "tables", "settings"])).toEqual([
       "inbox",
       "home",
+      "conversations",
       "tables",
       "knowledge",
       "integrations",

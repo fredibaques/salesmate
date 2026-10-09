@@ -1,26 +1,14 @@
-import { FlaskConical, MessagesSquare, RefreshCw } from "lucide-react";
-import Link from "next/link";
+import { FlaskConical, Inbox, MessagesSquare, RefreshCw } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
-import {
-  Badge,
-  Card,
-  EmptyState,
-  Field,
-  Input,
-  LinkButton,
-  Notice,
-  Table,
-  Td,
-  Textarea,
-  Toolbar,
-} from "@/components/ui";
-import { CONVERSATION_STATUS, formatDateTime } from "@/lib/format";
+import { Badge, EmptyState, Field, Input, LinkButton, Notice, Textarea, Toolbar } from "@/components/ui";
+import { formatDateTime } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { AiNotice, currentAi } from "../../../ai-notice";
 import { getAgent } from "@/server/services/agents";
 import { listConversations, listRecentEvents } from "@/server/services/sales";
+import { InboxView, type InboxQuery } from "../../../conversations/inbox-view";
 import { processNow, simulateLead } from "./actions";
 
 const EVENT_STATUS: Record<string, "neutral" | "success" | "warning" | "danger"> = {
@@ -77,24 +65,76 @@ function SimulateLeadButton({
   );
 }
 
+/** What the project's inbound agent received, and whether it was processed. */
+async function RecentEntries({ projectId }: { projectId: string }) {
+  const tenant = await requireTenant();
+  const [events, llm] = await Promise.all([listRecentEvents(getDb(), tenant, projectId), currentAi()]);
+  return (
+    <ModalButton
+      label="Entradas"
+      icon={<Inbox className="size-4" />}
+      title="Entradas recientes"
+      variant="ghost"
+    >
+      {events.length === 0 ? (
+        <EmptyState
+          compact
+          icon={<RefreshCw />}
+          title="Sin entradas todavía"
+          description="Cada formulario, email o WhatsApp que reciba el proyecto aparece aquí, con su estado de procesado."
+        />
+      ) : (
+        <ul className="divide-y divide-border text-sm">
+          {events.map((e) => (
+            <li key={e.id} className="flex items-center justify-between gap-2 py-2">
+              <span>
+                {e.source} · <span className="text-xs text-muted">{formatDateTime(e.receivedAt)}</span>
+                {e.error ? <div className="text-xs text-danger">{e.error}</div> : null}
+              </span>
+              <Badge tone={EVENT_STATUS[e.status]}>{e.status}</Badge>
+            </li>
+          ))}
+        </ul>
+      )}
+      {llm ? (
+        <div className="mt-4">
+          <ActionForm
+            action={processNow.bind(null, projectId)}
+            submitLabel="Procesar pendientes ahora"
+            submitVariant="secondary"
+            stayOpen
+          />
+        </div>
+      ) : null}
+    </ModalButton>
+  );
+}
+
+/** The project's people and their conversations: the inbox, for this project only. */
 export default async function ConversationsPage({
   params,
+  searchParams,
 }: PageProps<"/app/projects/[projectId]/conversations">) {
   const { projectId } = await params;
+  const raw = await searchParams;
+  const query = Object.fromEntries(
+    Object.entries(raw).filter((e): e is [string, string] => typeof e[1] === "string"),
+  ) as InboxQuery;
   const tenant = await requireTenant();
   const db = getDb();
-  const [inbound, rows, events, llm] = await Promise.all([
+  const [inbound, rows] = await Promise.all([
     getAgent(db, tenant, projectId, "inbound"),
     listConversations(db, tenant, projectId),
-    listRecentEvents(db, tenant, projectId),
-    currentAi(),
   ]);
   const agentsUrl = `/app/projects/${projectId}/agents`;
 
   return (
     <>
-      <Toolbar>{rows.length > 0 && inbound ? <SimulateLeadButton projectId={projectId} /> : null}</Toolbar>
-      <div className="space-y-6">
+      <Toolbar>
+        {inbound ? <RecentEntries projectId={projectId} /> : null}
+        {rows.length > 0 && inbound ? <SimulateLeadButton projectId={projectId} /> : null}
+      </Toolbar>
+      <div className="space-y-4">
         {inbound && !inbound.config.enabled ? (
           <Notice
             tone="warning"
@@ -112,102 +152,40 @@ export default async function ConversationsPage({
           <AiNotice feature="El agente inbound (los mensajes se guardan y se atenderán después)" />
         ) : null}
 
-        <Card>
-          {rows.length === 0 ? (
-            inbound ? (
-              <EmptyState
-                icon={<MessagesSquare />}
-                title="Todavía no hay conversaciones"
-                description="Llegarán cuando conectes el formulario de tu web o un buzón en los canales del agente inbound. Mientras, prueba cómo respondería con un lead simulado."
-                action={
-                  <>
-                    <SimulateLeadButton projectId={projectId} variant="primary" />
-                    <LinkButton href={`${agentsUrl}/inbound/channels`}>Configurar canales</LinkButton>
-                  </>
-                }
-              />
-            ) : (
-              <EmptyState
-                icon={<MessagesSquare />}
-                title="Todavía no hay conversaciones"
-                description="Las conversaciones las abren los agentes. Añade el agente inbound para atender a quien te contacta por tu web o por email."
-                action={
-                  <LinkButton href={agentsUrl} variant="primary">
-                    Añadir un agente
-                  </LinkButton>
-                }
-              />
-            )
+        {rows.length === 0 ? (
+          inbound ? (
+            <EmptyState
+              icon={<MessagesSquare />}
+              title="Todavía no hay conversaciones"
+              description="Llegarán cuando conectes el formulario de tu web, un buzón o WhatsApp en los canales del agente inbound. Mientras, prueba cómo respondería con un lead simulado."
+              action={
+                <>
+                  <SimulateLeadButton projectId={projectId} variant="primary" />
+                  <LinkButton href={`${agentsUrl}/inbound/channels`}>Configurar canales</LinkButton>
+                </>
+              }
+            />
           ) : (
-            <Table head={["Contacto", "Canal", "Estado", "Valoración", "Resumen", "Último mensaje"]}>
-              {rows.map(({ conversation: c, contact }) => (
-                <tr key={c.id} className="group relative transition-colors hover:bg-background">
-                  <Td>
-                    <Link
-                      href={`/app/projects/${projectId}/conversations/${c.id}`}
-                      className="font-medium group-hover:text-accent after:absolute after:inset-0"
-                    >
-                      {[contact?.firstName, contact?.lastName].filter(Boolean).join(" ") ||
-                        contact?.email ||
-                        "—"}
-                    </Link>
-                    <div className="text-xs text-muted">{contact?.companyName ?? contact?.email}</div>
-                  </Td>
-                  <Td>
-                    <Badge>{c.channel}</Badge>
-                  </Td>
-                  <Td>
-                    <Badge tone={CONVERSATION_STATUS[c.status].tone}>
-                      {CONVERSATION_STATUS[c.status].label}
-                    </Badge>
-                  </Td>
-                  <Td className="text-xs">
-                    {c.classification ?? "—"}
-                    {contact?.fitScore != null ? (
-                      <div className="text-muted">encaje {contact.fitScore}</div>
-                    ) : null}
-                  </Td>
-                  <Td className="max-w-md text-xs text-muted">{c.summary ?? "—"}</Td>
-                  <Td className="whitespace-nowrap text-xs text-muted">{formatDateTime(c.lastMessageAt)}</Td>
-                </tr>
-              ))}
-            </Table>
-          )}
-        </Card>
-
-        <div>
-          <Card title="Entradas recientes">
-            {events.length === 0 ? (
-              <EmptyState
-                compact
-                icon={<RefreshCw />}
-                title="Sin entradas todavía"
-                description="Cada formulario o email que reciba el proyecto aparece aquí, con su estado de procesado."
-              />
-            ) : (
-              <ul className="divide-y divide-border text-sm">
-                {events.map((e) => (
-                  <li key={e.id} className="flex items-center justify-between gap-2 py-2">
-                    <span>
-                      {e.source} · <span className="text-xs text-muted">{formatDateTime(e.receivedAt)}</span>
-                      {e.error ? <div className="text-xs text-danger">{e.error}</div> : null}
-                    </span>
-                    <Badge tone={EVENT_STATUS[e.status]}>{e.status}</Badge>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {llm ? (
-              <div className="mt-3">
-                <ActionForm
-                  action={processNow.bind(null, projectId)}
-                  submitLabel="Procesar pendientes ahora"
-                  submitVariant="secondary"
-                />
-              </div>
-            ) : null}
-          </Card>
-        </div>
+            <EmptyState
+              icon={<MessagesSquare />}
+              title="Todavía no hay conversaciones"
+              description="Las conversaciones las abren los agentes. Añade el agente inbound para atender a quien te contacta por tu web, por email o por WhatsApp."
+              action={
+                <LinkButton href={agentsUrl} variant="primary">
+                  Añadir un agente
+                </LinkButton>
+              }
+            />
+          )
+        ) : (
+          <InboxView
+            tenant={tenant}
+            projectId={projectId}
+            query={query}
+            basePath={`/app/projects/${projectId}/conversations`}
+            heightClass="h-[calc(100dvh-19rem)] min-h-[26rem] md:h-[calc(100dvh-18rem)]"
+          />
+        )}
       </div>
     </>
   );

@@ -290,4 +290,33 @@ describe("inbound agent", () => {
       "processed",
     );
   });
+
+  it("keeps the message but doesn't answer once a person has taken the conversation over", async () => {
+    const first = await formEvent({ email: "tomada@cliente.com", mensaje: "Hola" });
+    const { llm } = scriptedLlm([{ blocks: [{ type: "text", text: "Resumen." }] }]);
+    const done = await processInboundEvent({ db, llm, gateway: gateway() }, tenant.orgId, first);
+    if (done.status !== "processed") throw new Error(done.status);
+    await withTenant(db, tenant, (tx) =>
+      tx.update(conversations).set({ status: "handed_off" }).where(eq(conversations.id, done.conversationId)),
+    );
+
+    const again = await formEvent({ email: "tomada@cliente.com", mensaje: "¿Me llamáis?" });
+    // No scripted answers: the agent must not run.
+    const quiet = scriptedLlm([]);
+    const outcome = await processInboundEvent(
+      { db, llm: quiet.llm, gateway: gateway() },
+      tenant.orgId,
+      again,
+    );
+    expect(outcome).toEqual({ status: "handed_off", conversationId: done.conversationId });
+    expect(quiet.requests).toHaveLength(0);
+    const thread = await withTenant(db, tenant, (tx) =>
+      tx.select().from(messages).where(eq(messages.conversationId, done.conversationId)),
+    );
+    expect(thread.map((m) => m.body)).toContain("¿Me llamáis?");
+    const [conv] = await withTenant(db, tenant, (tx) =>
+      tx.select().from(conversations).where(eq(conversations.id, done.conversationId)),
+    );
+    expect(conv.status).toBe("handed_off");
+  });
 });

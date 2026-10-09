@@ -1,4 +1,4 @@
-import { BookOpen, Inbox, LayoutDashboard, Plug, Settings, Sheet } from "lucide-react";
+import { BookOpen, Inbox, LayoutDashboard, MessagesSquare, Plug, Settings, Sheet } from "lucide-react";
 import {
   CountBadge,
   Sidebar,
@@ -38,6 +38,11 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
     home: (
       <SidebarItem key="home" href="/app" exact icon={<LayoutDashboard />}>
         Panel
+      </SidebarItem>
+    ),
+    conversations: (
+      <SidebarItem key="conversations" href="/app/conversations" icon={<MessagesSquare />}>
+        Conversaciones
       </SidebarItem>
     ),
     tables: (

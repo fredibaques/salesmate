@@ -5,7 +5,15 @@ import { withTenant } from "../db/tenant";
 import { eq, and } from "drizzle-orm";
 
 /** The sidebar's sections, in their default order. */
-export const NAV_SECTIONS = ["home", "tables", "knowledge", "integrations", "inbox", "settings"] as const;
+export const NAV_SECTIONS = [
+  "home",
+  "conversations",
+  "tables",
+  "knowledge",
+  "integrations",
+  "inbox",
+  "settings",
+] as const;
 export type NavSection = (typeof NAV_SECTIONS)[number];
 
 const navInput = z.object({

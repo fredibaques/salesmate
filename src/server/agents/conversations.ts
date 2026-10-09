@@ -2,7 +2,7 @@ import { and, desc, eq, gte } from "drizzle-orm";
 import { contacts, conversations, messages, type ActionContext } from "../db/schema";
 import { withTenant, type Tx } from "../db/tenant";
 import type { Db } from "../db/client";
-import type { EmailPayload } from "../gateway/definitions";
+import type { EmailPayload, WhatsappPayload } from "../gateway/definitions";
 import type { ActionRow } from "../gateway/gateway";
 import { normalizeEmail } from "../gateway/targets";
 
@@ -133,15 +133,24 @@ function conversationIdFrom(context: ActionContext): string | null {
 }
 
 /**
- * Called after an action executes: emails sent for a conversation become
- * outbound messages of that conversation.
+ * Called after an action executes: emails and WhatsApps sent for a
+ * conversation become outbound messages of that conversation.
  */
 export async function recordActionInConversation(db: Db, orgId: string, action: ActionRow) {
-  if (action.type !== "email.send") return;
+  if (action.type !== "email.send" && action.type !== "whatsapp.send") return;
   const conversationId = conversationIdFrom(action.context);
   if (!conversationId) return;
-  const p = action.payload as EmailPayload;
   const result = (action.result ?? {}) as { messageId?: string };
+  const sent =
+    action.type === "email.send"
+      ? (() => {
+          const p = action.payload as EmailPayload;
+          return { channel: "email", toAddresses: p.to, subject: p.subject, body: p.body };
+        })()
+      : (() => {
+          const p = action.payload as WhatsappPayload;
+          return { channel: "whatsapp", toAddresses: [p.to], subject: null, body: p.body };
+        })();
   await withTenant(db, { orgId }, async (tx) => {
     await tx
       .insert(messages)
@@ -149,12 +158,9 @@ export async function recordActionInConversation(db: Db, orgId: string, action: 
         orgId,
         conversationId,
         direction: "outbound",
-        channel: "email",
         externalId: result.messageId ?? `action:${action.id}`,
-        toAddresses: p.to,
-        subject: p.subject,
-        body: p.body,
         actionId: action.id,
+        ...sent,
       })
       .onConflictDoNothing();
     await tx

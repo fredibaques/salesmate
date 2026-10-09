@@ -39,7 +39,7 @@ screen needs something new, add it here and as a component, not inline.
   no «back» buttons.
 - **Loading**: every main route has a `loading.tsx` with skeletons
   (`src/components/skeleton.tsx`) shaped like the page that is coming.
-- The sidebar has six entries and the projects:
+- The sidebar has seven entries and the projects:
   - **Panel**: the home. Copilot comes first, always: the greeting is the
     page's title and a large box to ask or ask for something (`ChatHero`,
     with the project to talk about, ready-made questions and «O empieza por»
@@ -48,6 +48,14 @@ screen needs something new, add it here and as a component, not inline.
     conversation starts it takes the page. Below it: the
     first steps, recent tables, projects, what waits for approval and the
     latest activity. Copilot has no entry of its own.
+  - **Conversaciones**: an inbox as in a help desk. Three columns: people
+    (one row per person, all their channels together; boxes «Te necesitan»,
+    «Esperando», «Cerradas», «Todas»), the thread (bubbles: the customer on
+    the left, us on the right; notes in amber; the agents' drafts as a dashed
+    card to approve, edit or discard; the composer at the foot) and who they
+    are (from `xl`; below, in a «Ficha» modal). On a phone, the list first
+    and the thread on tapping. Each project's Conversaciones tab is the same
+    inbox, filtered.
   - **Tablas**: every table of every project (the prospect bases the agents
     fill), most recently active first, and «Nueva tabla» (pick the project).
   - **Conocimiento**: the account's knowledge, used by every project (each

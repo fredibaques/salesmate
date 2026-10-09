@@ -23,6 +23,9 @@ function editedPayload(type: string, original: Record<string, unknown>, form: Fo
     const to = (str(form, "to") ?? "").split(/[,;\s]+/).filter(Boolean);
     return { ...original, to, subject: str(form, "subject") ?? "", body: String(form.get("body") ?? "") };
   }
+  if (type === "whatsapp.send" && form.has("body")) {
+    return { ...original, body: String(form.get("body") ?? "") };
+  }
   const raw = str(form, "payload");
   if (!raw) return original;
   try {

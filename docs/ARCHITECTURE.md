@@ -483,6 +483,39 @@ formularios y emails. Las respuestas son `whatsapp.send` en el gateway
 horas desde el último mensaje del contacto, Meta exige plantillas aprobadas
 (pendiente).
 
+## Conversaciones (bandeja)
+
+`/app/conversations` (todas) y la pestaña Conversaciones de cada proyecto
+(filtrada) son la misma bandeja (`server/conversations/inbox.ts`,
+`app/app/conversations/inbox-view.tsx`):
+
+- **Una fila por persona**: las conversaciones de un contacto (una por canal
+  o hilo: email, WhatsApp, formulario) se juntan en un solo hilo ordenado por
+  fecha. Una conversación sin contacto es su propia fila (`conv:<id>`). Los
+  contactos son por proyecto, así que la misma persona en dos proyectos son
+  dos filas.
+- **Bandejas**: «Te necesitan» (algo por aprobar, o alguna conversación
+  `open`, `waiting_us` o `handed_off`), «Esperando» (`waiting_customer`),
+  «Cerradas» y «Todas»; filtros por canal y proyecto y búsqueda.
+- **No leídas** por persona y usuario (`conversation_reads`): un mensaje del
+  cliente posterior a la última vez que la abrió.
+- **Borradores en el hilo**: las acciones `pending_approval` cuyo
+  `context.subjectRef` es una de sus conversaciones se aprueban (editadas o
+  no) o descartan ahí mismo, con las mismas acciones que «Por aprobar».
+- **Responder** (`replyToPerson`): email o WhatsApp desde la identidad del
+  proyecto, por el gateway como persona (reglas, exclusiones y horario se
+  aplican). Lo enviado se guarda en el hilo (`recordActionInConversation`,
+  ahora también WhatsApp). WhatsApp solo admite texto libre en las 24 h
+  siguientes a su último mensaje; fuera de esa ventana no se ofrece.
+- **Tomar el control** pone sus conversaciones en `handed_off`: el agente
+  inbound sigue guardando lo que llega pero no responde (el evento queda
+  `processed`, resultado `handed_off`). «Devolver al agente» las deja `open`.
+  También se cierran y reabren.
+- **Notas internas**: mensajes `direction: internal`, canal `note`; no
+  cuentan como último mensaje ni los ve el cliente.
+- La página se refresca sola cada 15 s mientras está visible. La antigua
+  página de una conversación redirige a la bandeja con esa persona abierta.
+
 ## Rendimiento
 
 - Las funciones de Vercel corren en `fra1` (`vercel.json`), junto a Neon
