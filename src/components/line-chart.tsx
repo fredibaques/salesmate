@@ -29,7 +29,7 @@ function niceMax(max: number) {
 
 /** Axis values: as many decimals as the grid step needs, so no two read the same. */
 function tick(value: number, step: number, unit: "usd") {
-  const digits = Math.max(0, -Math.floor(Math.log10(step)));
+  const digits = value === 0 ? 0 : Math.max(0, -Math.floor(Math.log10(step)));
   const n = value.toFixed(digits);
   return unit === "usd" ? `${n} $` : n;
 }

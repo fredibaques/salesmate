@@ -45,7 +45,7 @@ const SECTIONS: Record<string, { label: string; icon: ReactNode }> = {
   knowledge: { label: "Conocimiento", icon: <BookOpen className="size-4 text-muted" /> },
   integrations: { label: "Integraciones", icon: <Plug className="size-4 text-muted" /> },
   inbox: { label: "Por aprobar", icon: <Inbox className="size-4 text-muted" /> },
-  settings: { label: "Configuración", icon: <Settings className="size-4 text-muted" /> },
+  settings: { label: "Ajustes", icon: <Settings className="size-4 text-muted" /> },
 };
 
 function move(list: string[], from: number, to: number): string[] {

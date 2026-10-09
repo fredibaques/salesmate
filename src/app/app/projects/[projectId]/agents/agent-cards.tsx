@@ -27,27 +27,34 @@ export { AGENT_ICONS };
 type Agents = Awaited<ReturnType<typeof listProjectAgents>>;
 
 /**
- * «Añadir agente»: a modal to choose the kind of agent the project doesn't
- * have yet and set it up step by step. Nothing when it has them all.
+ * «Añadir agente»: a modal to choose the kind of agent and set it up step by
+ * step. Kinds the project already has, or that aren't ready, show why they
+ * can't be added. As `card`, it is the last card of the agents' grid.
  * `open` opens it on arrival with that kind chosen (old links to the page).
  */
 export async function AddAgentButton({
   projectId,
   agents,
   variant = "primary",
+  card = false,
   open,
 }: {
   projectId: string;
   agents: Agents;
   variant?: "primary" | "secondary";
+  card?: boolean;
   open?: string;
 }) {
   const added = new Set(agents.map((a) => a.config.agentType));
-  const types = PROJECT_AGENT_TYPES.filter((type) => !added.has(type)).map((type) => ({
+  const types = PROJECT_AGENT_TYPES.map((type) => ({
     type,
-    available: AVAILABLE_AGENT_TYPES.includes(type),
+    available: AVAILABLE_AGENT_TYPES.includes(type) && !added.has(type),
+    note: added.has(type)
+      ? "Ya está en el proyecto"
+      : AVAILABLE_AGENT_TYPES.includes(type)
+        ? null
+        : "Próximamente",
   }));
-  if (!types.some((t) => t.available)) return null;
   const tenant = await requireTenant();
   const db = getDb();
   const [options, servers, process] = await Promise.all([
@@ -58,12 +65,31 @@ export async function AddAgentButton({
   const initial = types.find((t) => t.available && t.type === open)?.type;
   return (
     <ModalButton
-      label="Añadir agente"
-      icon={<Plus className="size-4" />}
+      label={
+        card ? (
+          <>
+            <span className="flex size-9 items-center justify-center rounded-lg border border-dashed border-border-strong text-muted transition-colors group-hover:border-accent group-hover:text-accent">
+              <Plus className="size-4" />
+            </span>
+            <span className="text-sm font-medium">Añadir agente</span>
+            <span className="text-xs text-muted">
+              Atiende contactos, busca clientes o completa tus tablas
+            </span>
+          </>
+        ) : (
+          "Añadir agente"
+        )
+      }
+      icon={card ? undefined : <Plus className="size-4" />}
       title="Añadir agente"
       variant={variant}
       width="lg"
       defaultOpen={Boolean(initial)}
+      triggerClass={
+        card
+          ? "group flex min-h-44 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-transparent p-5 text-center transition-colors hover:border-accent hover:bg-surface"
+          : undefined
+      }
     >
       <NewAgentFlow
         projectId={projectId}
@@ -104,7 +130,16 @@ function inboundSummary(channels: { readMailbox?: boolean; whatsappId?: string |
 }
 
 /** The project's agents as cards, with their on/off switch. */
-export function AgentCards({ projectId, agents }: { projectId: string; agents: Agents }) {
+export function AgentCards({
+  projectId,
+  agents,
+  addCard,
+}: {
+  projectId: string;
+  agents: Agents;
+  /** The last card: «Añadir agente». */
+  addCard?: React.ReactNode;
+}) {
   return (
     <CardGrid>
       {agents.map((agent) => {
@@ -134,24 +169,28 @@ export function AgentCards({ projectId, agents }: { projectId: string; agents: A
                   ? inboundSummary(agent.config.channels)
                   : info.description
             }
+            badge={
+              // Above the card's link, so it switches instead of opening the agent.
+              <form
+                action={toggleAgent.bind(null, projectId, type, !agent.config.enabled)}
+                className="relative z-10 -mt-1"
+              >
+                <SwitchButton
+                  on={agent.config.enabled}
+                  offLabel="En pausa"
+                  label={
+                    agent.config.enabled
+                      ? `Pausar «${agentName(type, agent.config.name)}»`
+                      : `Activar «${agentName(type, agent.config.name)}»`
+                  }
+                />
+              </form>
+            }
             footer={
-              <>
-                <form action={toggleAgent.bind(null, projectId, type, !agent.config.enabled)}>
-                  <SwitchButton
-                    on={agent.config.enabled}
-                    offLabel="En pausa"
-                    label={
-                      agent.config.enabled
-                        ? `Pausar «${agentName(type, agent.config.name)}»`
-                        : `Activar «${agentName(type, agent.config.name)}»`
-                    }
-                  />
-                </form>
-                <span className="inline-flex items-center gap-0.5 text-sm text-muted transition-colors group-hover:text-accent">
-                  Configurar
-                  <ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-                </span>
-              </>
+              <span className="ml-auto inline-flex items-center gap-0.5 text-sm text-muted transition-colors group-hover:text-accent">
+                Configurar
+                <ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+              </span>
             }
           >
             {warning ? (
@@ -163,6 +202,7 @@ export function AgentCards({ projectId, agents }: { projectId: string; agents: A
           </EntityCard>
         );
       })}
+      {addCard}
     </CardGrid>
   );
 }

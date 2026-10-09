@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, seedOrg } from "../../../tests/helpers/db";
 import { lastToolResults, scriptedLlm } from "../../../tests/helpers/fake-llm";
 import type { Db } from "../db/client";
-import { agentConfigs, agentRuns, projects } from "../db/schema";
+import { agentConfigs, agentRuns, inboundEvents, projects } from "../db/schema";
 import { withSystem, withTenant, type TenantContext } from "../db/tenant";
 import type { GatewayDeps } from "../gateway/gateway";
 import { listBases } from "../prospects/bases";
@@ -333,5 +333,38 @@ describe("time limits", () => {
     );
     expect(run).toMatchObject({ status: "failed" });
     expect(run.error).toContain("Interrumpida");
+  });
+});
+
+describe("scheduled inbound agent", () => {
+  it("runs the inbound agent on its schedule: it attends what is waiting in its project", async () => {
+    const other = await withTenant(db, tenant, async (tx) => {
+      const [p] = await tx
+        .insert(projects)
+        .values({ orgId: tenant.orgId, name: "Recepción", timezone: "Europe/Madrid" })
+        .returning();
+      await tx.insert(inboundEvents).values({
+        orgId: tenant.orgId,
+        projectId: p.id,
+        source: "form",
+        eventType: "form.submitted",
+        payload: { fields: { email: "lead@cliente.es", mensaje: "Hola" } },
+      });
+      return p.id;
+    });
+    await addAgent(db, tenant, other, "inbound");
+    await saveAgentInstructions(db, tenant, other, "inbound", {
+      instructions: "",
+      schedule: { kind: "daily", time: "08:00" },
+    });
+    await setAgentEnabled(db, tenant, other, "inbound", true);
+    // Thursday 8 October 2026, 08:30 in Madrid.
+    const now = new Date("2026-10-08T06:30:00Z");
+    const { llm } = scriptedLlm(
+      Array.from({ length: 5 }, () => ({ blocks: [{ type: "text" as const, text: "Hecho." }] })),
+    );
+    const report = await runDueAgents({ db, llmFor: async () => llm, gateway: gateway(), now: () => now });
+    const run = report.runs.find((r) => r.projectId === other);
+    expect(run?.result).toMatchObject({ outcomes: [{ status: "processed" }] });
   });
 });

@@ -35,6 +35,19 @@ export function SkeletonCard() {
   );
 }
 
+/**
+ * A page header being loaded, in the place of `PageHeader`: the icon tile
+ * and the title on a 32px line, with the same space below.
+ */
+export function SkeletonHeader() {
+  return (
+    <div className="mb-6 flex h-8 items-center gap-3">
+      <Skeleton className="size-8 rounded-md" />
+      <Skeleton className="h-6 w-56" />
+    </div>
+  );
+}
+
 function Status() {
   return <span className="sr-only">Cargando…</span>;
 }
@@ -42,9 +55,9 @@ function Status() {
 /** A page with a title and a grid of cards (dashboards, lists of entities). */
 export function GridPageSkeleton({ header = true, cards = 6 }: { header?: boolean; cards?: number }) {
   return (
-    <div role="status" aria-busy className="space-y-6">
+    <div role="status" aria-busy>
       <Status />
-      {header ? <Skeleton className="h-7 w-56" /> : null}
+      {header ? <SkeletonHeader /> : null}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {Array.from({ length: cards }, (_, i) => (
           <SkeletonCard key={i} />
@@ -78,11 +91,12 @@ export function FormPageSkeleton({ fields = 5 }: { fields?: number }) {
 }
 
 /** A list of rows (conversations, approvals, audit). */
-export function ListPageSkeleton({ rows = 6 }: { rows?: number }) {
+export function ListPageSkeleton({ rows = 6, header = false }: { rows?: number; header?: boolean }) {
   return (
-    <div role="status" aria-busy className="rounded-xl border border-border bg-surface p-5 shadow-xs">
+    <div role="status" aria-busy>
       <Status />
-      <div className="divide-y divide-border">
+      {header ? <SkeletonHeader /> : null}
+      <div className="divide-y divide-border rounded-xl border border-border bg-surface p-5 shadow-xs">
         {Array.from({ length: rows }, (_, i) => (
           <div key={i} className="flex items-center gap-4 py-3.5 first:pt-0 last:pb-0">
             <Skeleton className="size-8 rounded-full" />

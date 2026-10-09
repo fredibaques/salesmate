@@ -194,9 +194,13 @@ describe("caps, goal, sources and model", () => {
 describe("event triggers", () => {
   it("completes rows a person adds, when it listens to new rows", async () => {
     const row = await addProspectRow(db, tenant, baseId, { companyName: "Motor Sur", fields: {} });
-    expect(await rowsAdded(db, tenant, { baseId, rowIds: [row.id] })).toBeNull(); // not listening
+    // Not listening.
+    expect(await rowsAdded(db, tenant, { baseId, rowIds: [row.id] })).toEqual({
+      prospecting: null,
+      inboundProject: null,
+    });
     await automation({ triggers: { newRows: true } });
-    expect(await rowsAdded(db, tenant, { baseId, rowIds: [row.id] })).toBe(agentId);
+    expect((await rowsAdded(db, tenant, { baseId, rowIds: [row.id] })).prospecting).toBe(agentId);
 
     const { llm, requests } = scriptedLlm([
       {

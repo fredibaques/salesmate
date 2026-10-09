@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
-import { CopyButton } from "@/components/copy-button";
-import { ScheduleFields } from "@/components/schedule-fields";
 import {
   Card,
   Choice,
@@ -27,7 +25,7 @@ import { getAgent, listChannelOptions, listSlackConnections } from "@/server/ser
 import { getProject } from "@/server/services/projects";
 import { listTeam } from "@/server/services/team";
 import { rotateHook, saveAgentSetup } from "../actions";
-import { ScheduleStatus } from "./schedule-status";
+import { TriggerFields } from "./trigger-fields";
 
 const MODES = [
   { value: "find", label: "Buscar nuevos" },
@@ -160,38 +158,27 @@ export async function OutboundSetup({ projectId }: { projectId: string }) {
             ) : null}
           </FormSection>
 
-          <FormSection title="Ejecución" tip="Cuándo trabaja y cuánto hace cada vez.">
-            <ScheduleFields schedule={config.schedule} />
-            <ScheduleStatus projectId={projectId} config={config} />
-            <Field
-              label="Además, trabaja"
-              group
-              tip="Lo que llega mientras está trabajando espera a que termine."
-            >
-              <div className="space-y-2">
-                <Choice
-                  card
-                  name="triggerNewRows"
-                  defaultChecked={Boolean(s.triggers?.newRows)}
-                  label="Cuando alguien añade una fila a su tabla"
-                  description={base ? `Completa esa fila (en «${base.name}»).` : "Completa esa fila."}
-                />
-                <Choice
-                  card
-                  name="triggerWebhook"
-                  defaultChecked={Boolean(s.triggers?.webhook)}
-                  label="Cuando recibe un aviso de otra herramienta"
-                  description="Tu CRM, Zapier o Make envían un POST a su dirección y trabaja con lo que le cuentan."
-                />
-              </div>
-            </Field>
-            {hookUrl && s.triggers?.webhook ? (
-              <div className="space-y-2 rounded-lg bg-background p-3">
-                <p className="text-xs font-medium text-muted">Dirección del webhook (secreta)</p>
-                <code className="block text-xs break-all">{hookUrl}</code>
-                <CopyButton text={hookUrl} label="Copiar dirección" />
-              </div>
-            ) : null}
+          <TriggerFields
+            projectId={projectId}
+            config={config}
+            run="En cada ejecución busca filas nuevas, completa las que tienen huecos o las dos cosas."
+            hookUrl={s.triggers?.webhook ? hookUrl : null}
+            events={[
+              {
+                name: "triggerNewRows",
+                label: "Se añade una fila a su tabla",
+                description: base ? `Completa esa fila (en «${base.name}»).` : "Completa esa fila.",
+                checked: Boolean(s.triggers?.newRows),
+              },
+              {
+                name: "triggerWebhook",
+                label: "Llega un aviso de otra herramienta",
+                description:
+                  "Tu CRM, Zapier o Make envían un POST a su dirección y trabaja con lo que le cuentan.",
+                checked: Boolean(s.triggers?.webhook),
+              },
+            ]}
+          >
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
                 label="Filas nuevas por ejecución"
@@ -220,7 +207,7 @@ export async function OutboundSetup({ projectId }: { projectId: string }) {
                 />
               </Field>
             </div>
-          </FormSection>
+          </TriggerFields>
 
           <FormSection
             title="Configuración del modelo"

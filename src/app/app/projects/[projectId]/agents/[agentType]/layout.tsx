@@ -12,7 +12,13 @@ import { AGENT_INFO, agentName } from "@/lib/agents";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getAgent, isProjectAgentType } from "@/server/services/agents";
-import { removeAgentAction, customizeAgentAction, toggleAgent } from "../actions";
+import {
+  customizeAgentAction,
+  removeAgentAction,
+  runInboundNow,
+  runProspectingNow,
+  toggleAgent,
+} from "../actions";
 
 export default async function AgentLayout({
   children,
@@ -70,6 +76,21 @@ export default async function AgentLayout({
         }
         actions={
           <>
+            {tenant.role !== "member" ? (
+              <ActionForm
+                action={
+                  agentType === "outbound"
+                    ? runProspectingNow.bind(null, projectId)
+                    : runInboundNow.bind(null, projectId)
+                }
+                submitLabel="Ejecutar ahora"
+                submitVariant="secondary"
+                className="flex items-center"
+              >
+                {/* Then its Log, which follows the run while it works. */}
+                <input type="hidden" name="back" value={`${base}/log`} />
+              </ActionForm>
+            ) : null}
             <ConfirmForm
               action={removeAgentAction.bind(null, projectId, agentType)}
               message={`¿Quitar «${name}» de este proyecto? Dejará de atender contactos. Su proceso se conserva por si lo vuelves a añadir.`}

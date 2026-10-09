@@ -20,7 +20,11 @@ export async function ScheduleStatus({
   const project = await getProject(getDb(), await requireTenant(), projectId);
   if (!project) return null;
   if (!config.schedule) {
-    return <p className="text-sm text-muted">Solo trabaja cuando pulsas «Ejecutar ahora».</p>;
+    return (
+      <p className="text-sm text-muted">
+        Sin horario: trabaja cuando lo lanzas o cuando pasa algo de lo que marques.
+      </p>
+    );
   }
   const now = new Date();
   const working = config.enabled && !project.agentsPaused;

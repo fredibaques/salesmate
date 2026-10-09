@@ -28,8 +28,8 @@ export function NewAgentFlow({
   process,
 }: {
   projectId: string;
-  /** Kinds the project doesn't have yet, and whether each can be added today. */
-  types: { type: ProjectAgentType; available: boolean }[];
+  /** Every kind, whether it can be added here and, if not, why. */
+  types: { type: ProjectAgentType; available: boolean; note: string | null }[];
   initial?: ProjectAgentType;
   options: Awaited<ReturnType<typeof listChannelOptions>>;
   servers: Awaited<ReturnType<typeof listMcpServers>>;
@@ -62,7 +62,7 @@ export function NewAgentFlow({
 
   return (
     <ul className="grid gap-3">
-      {types.map(({ type: t, available }) => {
+      {types.map(({ type: t, available, note }) => {
         const info = AGENT_INFO[t];
         return (
           <li key={t}>
@@ -76,7 +76,7 @@ export function NewAgentFlow({
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2 font-medium">
                   {info.name}
-                  {available ? null : <Badge>Próximamente</Badge>}
+                  {note ? <Badge>{note}</Badge> : null}
                 </span>
                 <span className="mt-0.5 block text-sm text-muted">{info.description}</span>
               </span>

@@ -1,15 +1,4 @@
-import {
-  Activity,
-  Bot,
-  Building2,
-  CheckCircle2,
-  Circle,
-  FolderKanban,
-  Inbox,
-  Plug,
-  Sheet,
-  User,
-} from "lucide-react";
+import { Bot, Building2, CheckCircle2, Circle, FolderKanban, Plug, Sheet, User } from "lucide-react";
 import Link from "next/link";
 import {
   Badge,
@@ -19,15 +8,13 @@ import {
   EntityCard,
   LinkButton,
   Notice,
-  RowLink,
   Table,
   Td,
 } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
-import { getActionDefinition } from "@/server/gateway/definitions";
-import { listActions, listAudit, listOrgConnections, listProjects } from "@/server/services/projects";
-import { describeEvent, formatDateTime, plural } from "@/lib/format";
+import { listOrgConnections, listProjects } from "@/server/services/projects";
+import { formatDateTime, plural } from "@/lib/format";
 import { listAllBases } from "@/server/prospects/bases";
 import { AI_CONNECT_HREF, AiNotice, currentAi } from "./ai-notice";
 import { CopilotChat } from "./home/copilot-chat";
@@ -37,16 +24,14 @@ export const metadata = { title: "Panel" };
 
 /**
  * The home: Copilot to ask or ask for anything, and below it the latest
- * tables, the projects, what waits for approval and the latest activity.
+ * tables and the projects. What waits for approval has its own section.
  */
 export default async function DashboardPage() {
   const tenant = await requireTenant();
   const db = getDb();
-  const [projects, pending, connections, events, ai, bases] = await Promise.all([
+  const [projects, connections, ai, bases] = await Promise.all([
     listProjects(db, tenant),
-    listActions(db, tenant, { statuses: ["pending_approval"], limit: 5 }),
     listOrgConnections(db, tenant),
-    listAudit(db, tenant, { limit: 8 }),
     currentAi(),
     listAllBases(db, tenant),
   ]);
@@ -198,65 +183,6 @@ export default async function DashboardPage() {
           </CardGrid>
         )}
       </section>
-
-      <div className="grid items-start gap-6 lg:grid-cols-2">
-        <Card title="Pendiente de aprobación">
-          {pending.length === 0 ? (
-            <EmptyState
-              compact
-              icon={<Inbox />}
-              title="Nada pendiente"
-              description="Cuando un agente prepare algo que necesite tu visto bueno, aparecerá aquí."
-            />
-          ) : (
-            <ul className="divide-y divide-border text-sm">
-              {pending.map(({ action, projectName }) => (
-                <li key={action.id}>
-                  <RowLink href="/app/inbox" className="py-2">
-                    <span>
-                      {getActionDefinition(action.type)?.summary(action.payload) ?? action.type}
-                      <span className="block text-xs text-muted">
-                        {projectName} · {formatDateTime(action.createdAt)}
-                      </span>
-                    </span>
-                  </RowLink>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        <Card
-          title="Actividad reciente"
-          actions={
-            events.length > 0 ? (
-              <LinkButton href="/app/audit" variant="ghost">
-                Ver todo
-              </LinkButton>
-            ) : null
-          }
-        >
-          {events.length === 0 ? (
-            <EmptyState
-              compact
-              icon={<Activity />}
-              title="Sin actividad todavía"
-              description="Aquí verás lo último que han hecho las personas y los agentes de tu organización."
-            />
-          ) : (
-            <ul className="divide-y divide-border text-sm">
-              {events.map((e) => (
-                <li key={e.id} className="flex justify-between gap-4 py-2">
-                  <span>
-                    {describeEvent(e.event)} <span className="text-muted">{summarize(e.data)}</span>
-                  </span>
-                  <span className="shrink-0 text-xs text-muted">{formatDateTime(e.createdAt)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
     </>
   );
 
@@ -272,9 +198,4 @@ export default async function DashboardPage() {
       </CopilotChat>
     </>
   );
-}
-
-function summarize(data: Record<string, unknown>) {
-  const s = (data.summary ?? data.name ?? data.column ?? data.base ?? data.type ?? "") as string;
-  return typeof s === "string" ? s : "";
 }

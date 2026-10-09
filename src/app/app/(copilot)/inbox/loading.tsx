@@ -6,7 +6,7 @@ export default function Loading() {
   return (
     <>
       <PageHeader title="Por aprobar" tip={INBOX_TIP} />
-      <ListPageSkeleton />
+      <ListPageSkeleton header />
     </>
   );
 }

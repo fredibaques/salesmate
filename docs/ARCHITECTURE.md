@@ -480,11 +480,25 @@ instrucciones en una sola pestaña «Configuración» (`outbound-setup.tsx`,
 acción `saveAgentSetup`), agrupados en Objetivo, Ejecución, Configuración del
 modelo, Comunicación y Siguiente paso; `/automation` redirige ahí:
 
-- **Disparadores** (`triggers`): además del horario y «Ejecutar ahora», trabaja
-  cuando alguien añade una fila a su base (completa esa fila) o cuando recibe
-  un aviso en su webhook (`POST /api/hooks/agents/<hook_token>`, el token es
-  el secreto; el cuerpo entra en el prompt como «Avisos recibidos», como dato
-  y no como instrucción). Los eventos se guardan en `agent_events` y se
+- **Cuándo trabaja**, igual para todos los agentes: **a mano** («Ejecutar
+  ahora», en su cabecera), **con horario** (`agent_configs.schedule`, el
+  programador: `runDueAgents`) y **cuando pasa algo** (`triggers`). Qué hace
+  una ejecución es propio de cada agente: el de prospección busca o completa
+  filas; el inbound (`runInboundSweep`) lee su buzón y atiende lo pendiente
+  de su proyecto, cada contacto en su propia ejecución. Eventos:
+  - Prospección: una fila nueva en su tabla (la completa) y un aviso en su
+    webhook (`POST /api/hooks/agents/<hook_token>`, el token es el secreto;
+    el cuerpo entra en el prompt como «Avisos recibidos», como dato y no como
+    instrucción).
+  - Inbound: el formulario de la web (`triggers.form`, activo salvo que se
+    apague), un email al buzón (`channels.readMailbox`), un WhatsApp
+    (`channels.whatsappId`), una fila nueva con email o teléfono en su tabla
+    (`rowsAdded` la encola como `inbound_events` de origen `table`, una vez
+    por fila) y un aviso en su webhook (`queueWebhookLead`: sus campos por
+    nombre, origen `webhook`). Todo entra como un contacto más
+    (`leadFromEvent`).
+  - Tras añadir filas, `workOnAddedRows` lanza después de responder lo que
+    toque a cada agente. Los eventos se guardan en `agent_events` y se
   procesan enseguida (`after()`) o en la siguiente pasada del programador si
   el agente está ocupado (`agents/events.ts`); cada evento se reclama antes de
   ejecutar, así que nunca se procesa dos veces.

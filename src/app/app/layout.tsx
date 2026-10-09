@@ -17,7 +17,14 @@ import { getDb } from "@/server/db/client";
 import { AgentIcon, AgentStatusDot, agentState } from "@/components/agent-look-fields";
 import { agentName } from "@/lib/agents";
 import { listSidebarAgents } from "@/server/services/agents";
-import { getNavPreferences, inOrder, sectionOrder, type NavSection } from "@/server/services/preferences";
+import {
+  getNavPreferences,
+  inOrder,
+  NAV_GROUPS,
+  sectionOrder,
+  type NavGroup,
+  type NavSection,
+} from "@/server/services/preferences";
 import { listProjects } from "@/server/services/projects";
 import { signOut, switchOrganization } from "./actions";
 import { NewProjectButton } from "./projects/new-project";
@@ -72,10 +79,13 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
         also={["/app/runs", "/app/users", "/app/exclusions", "/app/audit"]}
         icon={<Settings />}
       >
-        Configuración
+        Ajustes
       </SidebarItem>
     ),
   };
+
+  const order = sectionOrder(nav.sections);
+  const inGroup = (group: NavGroup) => order.filter((k) => NAV_GROUPS[k] === group);
 
   return (
     <ToastProvider>
@@ -102,7 +112,9 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
               />
             }
           />
-          <SidebarSection>{sectionOrder(nav.sections).map((k) => sections[k])}</SidebarSection>
+          {/* Each group keeps the order the person chose for its entries. */}
+          <SidebarSection>{inGroup("top").map((k) => sections[k])}</SidebarSection>
+          <SidebarSection label="Ventas">{inGroup("sales").map((k) => sections[k])}</SidebarSection>
 
           <SidebarSection
             label="Proyectos"
@@ -138,6 +150,7 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
               <p className="px-2.5 py-2 text-sm text-muted">Todavía no hay proyectos.</p>
             ) : null}
           </SidebarSection>
+          <SidebarSection label="Configuración">{inGroup("setup").map((k) => sections[k])}</SidebarSection>
 
           <UserMenu
             name={tenant.user.name}

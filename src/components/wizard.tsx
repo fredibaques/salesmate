@@ -3,7 +3,7 @@
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import Link from "next/link";
 import { startTransition, useActionState, useRef, useState, type ReactNode } from "react";
-import type { FormAction, FormState } from "./action-form";
+import { callAction, type FormAction, type FormState } from "./action-form";
 import { useModal } from "./modal";
 import { cx } from "./cx";
 import { buttonClass } from "./ui";
@@ -43,7 +43,10 @@ export function Wizard({
   const [current, setCurrent] = useState(0);
   const [reached, setReached] = useState(0);
   const [values, setValues] = useState<FormData | null>(null);
-  const [state, formAction, pending] = useActionState<FormState, FormData>(action, null);
+  const [state, formAction, pending] = useActionState<FormState, FormData>(
+    (prev, data) => callAction(action, prev, data),
+    null,
+  );
   const last = current === steps.length - 1;
 
   function go(index: number) {

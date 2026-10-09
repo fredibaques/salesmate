@@ -13,7 +13,8 @@ import { bool, list, num, runForm, str } from "@/server/form";
 import { ACTION_DEFINITIONS } from "@/server/gateway/definitions";
 import { DEFAULT_CELLS_PER_RUN, runProspecting } from "@/server/agents/prospector";
 import { closeStaleRuns } from "@/server/agents/scheduler";
-import { agentRunDeps } from "@/server/agents/runtime";
+import { runInboundSweep } from "@/server/agents/inbound-sweep";
+import { agentRunDeps, inboundDeps } from "@/server/agents/runtime";
 import { setAgentBase } from "@/server/prospects/bases";
 import {
   addAgent,
@@ -29,6 +30,7 @@ import {
   saveAgentChannels,
   saveAgentInstructions,
   saveAgentTools,
+  saveAgentTriggers,
   setAgentEnabled,
   setAgentMcpTools,
   type AgentToolKey,
@@ -270,10 +272,19 @@ export async function saveInboundSetup(projectId: string, _: FormState, form: Fo
     const db = getDb();
     await saveAgentInstructions(db, tenant, projectId, "inbound", {
       instructions: str(form, "instructions") ?? "",
-      schedule: null,
+      schedule: scheduleFromForm(form),
       settings: { model: str(form, "model") ?? "" },
     });
-    await saveAgentChannels(db, tenant, projectId, "inbound", channelsFromForm(form));
+    await saveAgentTriggers(db, tenant, projectId, "inbound", {
+      form: bool(form, "triggerForm"),
+      newRows: bool(form, "triggerNewRows"),
+      webhook: bool(form, "triggerWebhook"),
+    });
+    // WhatsApp is listened to only while its event is on.
+    await saveAgentChannels(db, tenant, projectId, "inbound", {
+      ...channelsFromForm(form),
+      whatsappId: bool(form, "triggerWhatsapp") ? (str(form, "whatsappId") ?? null) : null,
+    });
     const agent = await getAgent(db, tenant, projectId, "inbound");
     const baseId = str(form, "baseId") ?? null;
     if (agent && agent.config.prospectBaseId !== baseId) {
@@ -375,6 +386,32 @@ function backTo(form: FormData | undefined) {
   const url = new URL(back, "http://x");
   url.searchParams.set("working", String(Date.now()));
   return `${url.pathname}${url.search}`;
+}
+
+/**
+ * «Ejecutar ahora» of the inbound agent: reads its mailbox and attends
+ * what is waiting, after answering. Its runs show in its Log.
+ */
+export async function runInboundNow(projectId: string, _: FormState, form?: FormData): Promise<FormState> {
+  const result = await runForm(async () => {
+    const tenant = await admin();
+    const db = getDb();
+    const agent = await getAgent(db, tenant, projectId, "inbound");
+    if (!agent) throw new Error("Agente no encontrado.");
+    const llm = await requireOrgLlm(db, tenant);
+    after(async () => {
+      try {
+        await runInboundSweep(inboundDeps(llm), tenant, projectId);
+      } catch (err) {
+        console.error("inbound run failed", err);
+      }
+    });
+    return "En marcha: revisa su buzón y atiende lo que tenga pendiente.";
+  });
+  refresh(projectId);
+  const back = result?.ok ? backTo(form) : null;
+  if (back) redirect(back);
+  return result;
 }
 
 /** «Buscar ahora»: a run in the agent's own mode. */

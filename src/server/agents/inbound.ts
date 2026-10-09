@@ -63,7 +63,8 @@ function leadFromEvent(
   source: string,
   payload: Record<string, unknown>,
 ): { lead: Lead; automated: boolean } | null {
-  if (source === "form") {
+  // A web form, a notice from another tool (webhook) or a row of the agent's table: fields by name.
+  if (source === "form" || source === "webhook" || source === "table") {
     const lead = leadFromForm((payload.fields ?? payload) as Record<string, unknown>);
     return { lead, automated: false };
   }
@@ -237,6 +238,17 @@ function leadStateTool(ctx: { db: Db; orgId: string; contactId: string; conversa
   });
 }
 
+/** Whether the project's inbound agent has its web form trigger turned off. */
+async function formsOff(db: Db, tenant: { orgId: string }, projectId: string) {
+  const [agent] = await withTenant(db, tenant, (tx) =>
+    tx
+      .select({ settings: agentConfigs.settings })
+      .from(agentConfigs)
+      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.agentType, "inbound"))),
+  );
+  return agent?.settings.triggers?.form === false;
+}
+
 /**
  * Processes one inbound event end to end: lead → contact → conversation →
  * agent run (with the project's playbook) → proposed actions in the gateway.
@@ -285,6 +297,10 @@ export async function processInboundEvent(
     if (!event.projectId) {
       await finish("ignored", "El evento no está asociado a ningún proyecto.");
       return { status: "ignored", reason: "no_project" };
+    }
+    if (event.source === "form" && (await formsOff(deps.db, tenant, event.projectId))) {
+      await finish("ignored", "El agente inbound no atiende el formulario de la web.");
+      return { status: "ignored", reason: "trigger_off" };
     }
     const { lead, automated } = parsed;
     if (!lead.email && !lead.phone) {
@@ -518,7 +534,13 @@ export async function processInboundEvent(
  * Processes queued leads of projects whose inbound agent is added and active.
  * Leads of other projects stay queued until the agent is activated.
  */
-export async function processPendingInbound(deps: InboundDeps, orgId: string, limit = 20) {
+export async function processPendingInbound(
+  deps: InboundDeps,
+  orgId: string,
+  limit = 20,
+  /** Only this project's leads (a run of its agent). */
+  projectId?: string,
+) {
   const pending = await withTenant(deps.db, { orgId }, (tx) =>
     tx
       .select({ id: inboundEvents.id })
@@ -533,9 +555,12 @@ export async function processPendingInbound(deps: InboundDeps, orgId: string, li
         ),
       )
       .where(
-        or(
-          eq(inboundEvents.status, "pending"),
-          and(eq(inboundEvents.status, "error"), lt(inboundEvents.attempts, MAX_ATTEMPTS)),
+        and(
+          projectId ? eq(inboundEvents.projectId, projectId) : undefined,
+          or(
+            eq(inboundEvents.status, "pending"),
+            and(eq(inboundEvents.status, "error"), lt(inboundEvents.attempts, MAX_ATTEMPTS)),
+          ),
         ),
       )
       .orderBy(asc(inboundEvents.receivedAt))

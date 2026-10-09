@@ -40,16 +40,25 @@ screen needs something new, add it here and as a component, not inline.
   straight from their project in the trail, as in the sidebar. There are
   no «back» buttons.
 - **Loading**: every main route has a `loading.tsx` with skeletons
-  (`src/components/skeleton.tsx`) shaped like the page that is coming.
-- The sidebar has seven entries and the projects:
+  (`src/components/skeleton.tsx`) shaped like the page that is coming; a page
+  that draws its own header gets `SkeletonHeader` (tile and title where
+  `PageHeader` puts them), so nothing jumps when it arrives.
+- **Errors**: `app/app/error.tsx` keeps the menu and offers «Volver a probar».
+  Forms never break the page: `callAction` turns a request that can't reach
+  the server (no connection, a file over the host's limit) into an error next
+  to the button; file fields (`FileInput`) refuse files over their limit
+  before sending.
+- The sidebar groups its entries (`NAV_GROUPS`): **Panel** on top;
+  **Ventas** (Por aprobar, Conversaciones, Tablas); **Proyectos**; and
+  **Configuración** (Conocimiento, Integraciones, Ajustes). Each person
+  orders the entries within their group:
   - **Panel**: the home. Copilot comes first, always: the greeting is the
     page's title and a large box to ask or ask for something (`ChatHero`,
     with the project to talk about, ready-made questions and «O empieza por»
     shortcuts). Until it can answer (no AI connected, no project) the box
     shows disabled with a notice that says how to fix it. Once a
     conversation starts it takes the page. Below it: the
-    first steps, recent tables, projects, what waits for approval and the
-    latest activity. Copilot has no entry of its own.
+    first steps, recent tables and the projects. Copilot has no entry of its own.
   - **Conversaciones**: an inbox as in a help desk. Three columns: people
     (one row per person, all their channels together; boxes «Te necesitan»,
     «Esperando», «Cerradas», «Todas»), the thread (bubbles: the customer on
@@ -71,9 +80,11 @@ screen needs something new, add it here and as a component, not inline.
     what is pending (what was decided is in Auditoría).
   - **Configuración**: IA, Ejecuciones (every agent run with its cost
     breakdown), Usuarios, Exclusiones and Auditoría.
-- Every agent has the same four tabs: Configuración (one form in
-  `FormSection`s grouped by kind: Objetivo, Ejecución, Configuración del
-  modelo, Comunicación and, for prospecting, Siguiente paso), Herramientas,
+- Every agent has «Ejecutar ahora» in its header and the same four tabs:
+  Configuración (one form in `FormSection`s grouped by kind: Objetivo,
+  Cuándo trabaja, Configuración del modelo, Comunicación and, for
+  prospecting, Siguiente paso; «Cuándo trabaja» is the same `TriggerFields`
+  for every agent: a mano, con horario, cuando pasa algo), Herramientas,
   Log (its runs as expandable rows with the cost breakdown, a steps
   `Drawer`, the month's spending and, for prospecting, the results card) and
   Aprobaciones. The inbound agent's Objetivo shows the project's sales
@@ -87,9 +98,11 @@ screen needs something new, add it here and as a component, not inline.
   after the ordered ones, new sections where they go by default (`sectionOrder`). The same modal edits each agent inline. Agents have an icon and a colour the team
   picks (`lib/agent-look.tsx`: `AgentTile`, `AgentIcon`, `AgentLookFields`),
   shown in the sidebar, their header and their card.
-- A project has six tabs: **Resumen** (its home: what is left to set it up,
-  its agents and «Añadir agente», the cost chart with Por día / Por semana /
-  Por mes as `SegmentedLinks`, and its tables), **Ventas** (sub-tabs «Oferta
+- A project has six tabs: **Resumen** (its home: on top the cost chart, ¾,
+  with Por día / Por semana / Por mes as `SegmentedLinks`, and its tables, ¼,
+  the same height; below, its agents as cards, the on/off switch at each
+  card's top right, and always a dashed «Añadir agente» card the size of an
+  agent's; what the project needs is asked in its creation wizard), **Ventas** (sub-tabs «Oferta
   y cliente» and «Proceso de venta»: the sale is the project's, not each
   agent's), **Conocimiento** (documents and tables; text can be edited in
   place), **Conversaciones**, **Reuniones** and **Ajustes** (General:

@@ -40,7 +40,16 @@ function tomorrowMorning(): string {
  * given moment, or again and again (every day, some weekdays, or a day of
  * the month). Times are the project's. Read with `scheduleFromForm`.
  */
-export function ScheduleFields({ schedule }: { schedule: AgentSchedule | null }) {
+export function ScheduleFields({
+  schedule,
+  label = "Cuándo trabaja",
+  manualLabel = "Cuando se lo pida",
+}: {
+  schedule: AgentSchedule | null;
+  label?: string;
+  /** Name of the option without a schedule. */
+  manualLabel?: string;
+}) {
   const initial = scheduleChoice(schedule);
   const [mode, setMode] = useState<RunMode>(initial.mode);
   const [frequency, setFrequency] = useState<Frequency>(initial.frequency);
@@ -52,13 +61,13 @@ export function ScheduleFields({ schedule }: { schedule: AgentSchedule | null })
   return (
     <>
       <Field
-        label="Cuándo trabaja"
+        label={label}
         group
         tip="Siempre en la hora del proyecto y solo mientras el agente esté activo. Sea cual sea la opción, puedes lanzarlo cuando quieras con «Ejecutar ahora»."
       >
         <Segmented
           name="runMode"
-          options={MODES}
+          options={MODES.map((m) => (m.value === "manual" ? { ...m, label: manualLabel } : m))}
           defaultValue={initial.mode}
           onChange={(v) => setMode(v as RunMode)}
         />

@@ -3,7 +3,6 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { after } from "next/server";
 import type { FormState } from "@/components/action-form";
 import {
   COLUMN_TYPES,
@@ -15,8 +14,8 @@ import {
   type RowKind,
   type SystemField,
 } from "@/lib/prospect-columns";
-import { processAgentEvents, rowsAdded } from "@/server/agents/events";
-import { agentRunDeps } from "@/server/agents/runtime";
+import { rowsAdded } from "@/server/agents/events";
+import { workOnAddedRows } from "@/server/agents/runtime";
 import { requireRole, requireTenant } from "@/server/auth/session";
 import { connections } from "@/server/db/schema";
 import { withTenant } from "@/server/db/tenant";
@@ -233,20 +232,9 @@ export async function removeColumnAction(baseId: string, columnId: string) {
 
 // ---- Rows -------------------------------------------------------------------
 
-/** The agent that fills the table completes a new row, if it listens to new rows. */
+/** The agents working on the table that listen to new rows work on this one. */
 async function completeNewRow(tenant: TenantContext, baseId: string, rowId: string) {
-  const db = getDb();
-  const agentId = await rowsAdded(db, tenant, { baseId, rowIds: [rowId] });
-  if (!agentId) return false;
-  after(async () => {
-    try {
-      const llm = await orgLlm(db, tenant);
-      if (llm) await processAgentEvents(agentRunDeps(llm), tenant, agentId);
-    } catch (err) {
-      console.error("new-row run failed", err);
-    }
-  });
-  return true;
+  return workOnAddedRows(tenant, await rowsAdded(getDb(), tenant, { baseId, rowIds: [rowId] }));
 }
 
 type CellValue = string | boolean | string[] | null;

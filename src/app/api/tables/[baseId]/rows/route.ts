@@ -1,8 +1,7 @@
-import { after, NextResponse } from "next/server";
-import { processAgentEvents, rowsAdded } from "@/server/agents/events";
-import { agentRunDeps } from "@/server/agents/runtime";
+import { NextResponse } from "next/server";
+import { rowsAdded } from "@/server/agents/events";
+import { workOnAddedRows } from "@/server/agents/runtime";
 import { getDb } from "@/server/db/client";
-import { orgLlm } from "@/server/llm/org-ai";
 import { intakeRow } from "@/server/prospects/intake";
 
 /**
@@ -70,18 +69,6 @@ export async function POST(request: Request, ctx: RouteContext<"/api/tables/[bas
     return respond(200, { ok: true, duplicate: true, ignored: result.ignored });
 
   const tenant = { orgId: result.orgId };
-  const agentId = await rowsAdded(db, tenant, { baseId, rowIds: [result.rowId] });
-  if (agentId) {
-    after(async () => {
-      try {
-        const llm = await orgLlm(db, tenant);
-        if (llm) {
-          await processAgentEvents(agentRunDeps(llm), tenant, agentId);
-        }
-      } catch (err) {
-        console.error("form row run failed", err);
-      }
-    });
-  }
+  workOnAddedRows(tenant, await rowsAdded(db, tenant, { baseId, rowIds: [result.rowId] }));
   return respond(201, { ok: true, id: result.rowId, ignored: result.ignored });
 }

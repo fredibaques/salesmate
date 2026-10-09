@@ -10,13 +10,24 @@ export function NewTableButton({
   projectId,
   projects,
   variant = "primary",
+  size,
+  iconOnly,
 }: {
   projectId?: string;
   projects?: { id: string; name: string }[];
   variant?: ButtonVariant;
+  size?: "sm" | "md";
+  iconOnly?: boolean;
 }) {
   return (
-    <ModalButton label="Nueva tabla" icon={<Plus className="size-4" />} title="Nueva tabla" variant={variant}>
+    <ModalButton
+      label="Nueva tabla"
+      icon={<Plus className="size-4" />}
+      title="Nueva tabla"
+      variant={variant}
+      size={size}
+      iconOnly={iconOnly}
+    >
       <NewTableForm projectId={projectId} projects={projects} />
     </ModalButton>
   );

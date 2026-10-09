@@ -1,3 +1,4 @@
+import { runInboundSweep } from "./inbound-sweep";
 import { and, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { agentConfigs, agentRuns, projects, type AgentSchedule } from "../db/schema";
 import { withSystem, withTenant } from "../db/tenant";
@@ -90,7 +91,10 @@ export async function closeStaleRuns(db: AgentRunDeps["db"], now: Date): Promise
   return rows.length;
 }
 
-export type ScheduledRun = { projectId: string; result: ProspectingResult | { error: string } };
+export type ScheduledRun = {
+  projectId: string;
+  result: ProspectingResult | Awaited<ReturnType<typeof runInboundSweep>> | { error: string };
+};
 export type SkippedAgent = { projectId: string; reason: "no_ai" | "taken" | "over_limit" };
 
 const SKIP_NOTES: Partial<Record<SkippedAgent["reason"], string>> = {
@@ -122,7 +126,7 @@ export async function runDueAgents(
       .innerJoin(projects, eq(projects.id, agentConfigs.projectId))
       .where(
         and(
-          eq(agentConfigs.agentType, "outbound"),
+          inArray(agentConfigs.agentType, ["outbound", "inbound"]),
           eq(agentConfigs.enabled, true),
           isNotNull(agentConfigs.addedAt),
           isNotNull(agentConfigs.schedule),
@@ -200,7 +204,11 @@ export async function runDueAgents(
     claimed.map(async ({ agent, projectId, llm }): Promise<ScheduledRun> => {
       const tenant = { orgId: agent.orgId };
       try {
-        const result = await runProspecting({ ...deps, llm }, tenant, { projectId, trigger: "schedule" });
+        // The inbound agent's run reads its mailbox and attends what is waiting.
+        const result =
+          agent.agentType === "inbound"
+            ? await runInboundSweep({ ...deps, llm }, tenant, projectId)
+            : await runProspecting({ ...deps, llm }, tenant, { projectId, trigger: "schedule" });
         await note(agent.id, agent.orgId, null);
         return { projectId, result };
       } catch (err) {
