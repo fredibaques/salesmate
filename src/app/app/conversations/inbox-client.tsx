@@ -7,6 +7,7 @@ import { ActionForm, type FormAction, type FormState } from "@/components/action
 import { useToast } from "@/components/toast";
 import { buttonClass, cx, Input, Textarea } from "@/components/ui";
 import type { PersonChange } from "@/server/conversations/inbox";
+import type { WhatsappTemplate } from "@/server/connectors/whatsapp";
 
 /** Brings new messages in every few seconds while the page is visible. */
 export function AutoRefresh({ seconds = 15 }: { seconds?: number }) {
@@ -125,12 +126,14 @@ export function Composer({
   subject,
   reply,
   note,
+  templates,
 }: {
   channels: { email: { from: string } | null; whatsapp: { from: string; windowOpen: boolean } | null };
   preferred: Channel | null;
   subject: string;
   reply: FormAction;
   note: FormAction;
+  templates: () => Promise<{ ok: true; templates: WhatsappTemplate[] } | { ok: false; message: string }>;
 }) {
   const [mode, setMode] = useState<"reply" | "note">(preferred ? "reply" : "note");
   const [channel, setChannel] = useState<Channel>(preferred ?? "email");
@@ -197,10 +200,7 @@ export function Composer({
           canales de su agente. Mientras, puedes dejar notas para el equipo.
         </p>
       ) : whatsappClosed ? (
-        <p className="py-2 text-sm text-muted">
-          Han pasado más de 24 horas desde su último WhatsApp: WhatsApp solo deja escribirle con una plantilla
-          aprobada.{channels.email ? " Respóndele por email." : ""}
-        </p>
+        <TemplatePicker reply={reply} load={templates} />
       ) : (
         <ActionForm action={reply} submitLabel="Enviar" className="space-y-2" key={channel}>
           <input type="hidden" name="channel" value={channel} />
@@ -217,5 +217,107 @@ export function Composer({
         </ActionForm>
       )}
     </div>
+  );
+}
+
+/**
+ * After 24 h without a WhatsApp from them (or if they never wrote by
+ * WhatsApp), only an approved template can be sent: pick one and fill its
+ * gaps, seeing what they will read.
+ */
+function TemplatePicker({
+  reply,
+  load,
+}: {
+  reply: FormAction;
+  load: () => Promise<{ ok: true; templates: WhatsappTemplate[] } | { ok: false; message: string }>;
+}) {
+  const [state, setState] = useState<
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "error"; message: string }
+    | { status: "ready"; templates: WhatsappTemplate[] }
+  >({ status: "idle" });
+  const [picked, setPicked] = useState(0);
+  const [params, setParams] = useState<string[]>([]);
+
+  if (state.status !== "ready") {
+    return (
+      <div className="space-y-2 py-1 text-sm">
+        <p className="text-muted">
+          Han pasado más de 24 horas desde su último WhatsApp (o nunca te ha escrito por ahí): WhatsApp solo
+          deja escribirle con una plantilla aprobada por Meta.
+        </p>
+        {state.status === "error" ? <p className="text-danger">{state.message}</p> : null}
+        <button
+          type="button"
+          disabled={state.status === "loading"}
+          onClick={async () => {
+            setState({ status: "loading" });
+            const result = await load();
+            setState(
+              result.ok
+                ? { status: "ready", templates: result.templates }
+                : { status: "error", message: result.message },
+            );
+          }}
+          className={buttonClass({ variant: "secondary", size: "sm" })}
+        >
+          {state.status === "loading" ? "Cargando plantillas…" : "Usar una plantilla"}
+        </button>
+      </div>
+    );
+  }
+  if (!state.templates.length) {
+    return (
+      <p className="py-2 text-sm text-muted">Tu cuenta de WhatsApp no tiene plantillas aprobadas todavía.</p>
+    );
+  }
+  const t = state.templates[picked] ?? state.templates[0];
+  const preview = t.body.replace(/\{\{(\d+)\}\}/g, (all, n) => params[Number(n) - 1] || all);
+  return (
+    <ActionForm
+      action={reply}
+      submitLabel="Enviar plantilla"
+      className="space-y-2"
+      key={`${t.name}:${t.language}`}
+    >
+      <input type="hidden" name="channel" value="whatsapp" />
+      <input type="hidden" name="templateName" value={t.name} />
+      <input type="hidden" name="templateLanguage" value={t.language} />
+      <select
+        aria-label="Plantilla"
+        value={picked}
+        onChange={(e) => {
+          setPicked(Number(e.target.value));
+          setParams([]);
+        }}
+        className="h-8 w-full rounded-md border border-border bg-surface px-2 text-sm transition-colors hover:border-border-strong"
+      >
+        {state.templates.map((x, i) => (
+          <option key={`${x.name}:${x.language}`} value={i}>
+            {x.name} · {x.language}
+          </option>
+        ))}
+      </select>
+      {Array.from({ length: t.params }, (_, i) => (
+        <Input
+          key={i}
+          name="param"
+          required
+          size="sm"
+          placeholder={`Hueco {{${i + 1}}}`}
+          aria-label={`Hueco ${i + 1}`}
+          onChange={(e) => {
+            const next = [...params];
+            next[i] = e.target.value;
+            setParams(next);
+          }}
+        />
+      ))}
+      <p className="rounded-lg bg-ink-50 px-3 py-2 text-sm whitespace-pre-wrap text-ink-700">
+        {preview || t.name}
+      </p>
+    </ActionForm>
   );
 }

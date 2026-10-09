@@ -102,7 +102,7 @@ export class ConnectorExecutor implements ActionExecutor {
     switch (action.type) {
       case "whatsapp.send": {
         const p = action.payload as WhatsappPayload;
-        return await require(client, "whatsapp.send")({ to: p.to, body: p.body });
+        return await require(client, "whatsapp.send")({ to: p.to, body: p.body, template: p.template });
       }
       case "notify.slack":
         return await require(client, "notify.slack")({ text: (action.payload as NotifySlackPayload).text });

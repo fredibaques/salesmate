@@ -32,7 +32,7 @@ import {
 import type { TenantContext } from "@/server/db/tenant";
 import { getDb } from "@/server/db/client";
 import { getActionDefinition } from "@/server/gateway/definitions";
-import { changePersonAction, noteAction, replyAction } from "./actions";
+import { changePersonAction, noteAction, replyAction, templatesAction } from "./actions";
 import { AutoRefresh, Composer, PersonButtons, ScrollToEnd, SubmitOnChange } from "./inbox-client";
 
 /**
@@ -134,9 +134,8 @@ export async function InboxView({
   const q = query.q?.trim() || undefined;
   const user = { orgId: tenant.orgId, userId: tenant.userId };
   // Opening someone reads them.
-  const selected = query.c ? await getPerson(db, tenant, query.c) : null;
-  if (selected && (!projectId || selected.project?.id === projectId)) await markRead(db, user, selected.key);
-  const person = selected && (!projectId || selected.project?.id === projectId) ? selected : null;
+  const person = query.c ? await getPerson(db, tenant, query.c, { projectId }) : null;
+  if (person) await markRead(db, user, person.key);
   const { rows, counts } = await listInbox(db, user, { projectId: filterProject, box, channel, q });
 
   const href = (changes: Partial<InboxQuery>) => {
@@ -308,7 +307,7 @@ function PersonRow({
               <ChannelIcon key={c} channel={c} />
             ))}
             <span className="min-w-0 truncate">
-              {[r.company, showProject ? r.projectName : null].filter(Boolean).join(" · ")}
+              {[r.company, showProject ? r.projectNames.join(", ") : null].filter(Boolean).join(" · ")}
             </span>
             {showProject ? (
               <span aria-hidden className={cx("size-1.5 shrink-0 rounded-full", look.swatch)} />
@@ -480,6 +479,7 @@ function Thread({
         }
         reply={replyAction.bind(null, person.key)}
         note={noteAction.bind(null, person.key)}
+        templates={templatesAction.bind(null, person.key)}
       />
     </>
   );
@@ -647,10 +647,25 @@ function PersonDetails({ person }: { person: Person }) {
         {row("Estado", c?.status ? <Badge>{CONTACT_STATUS_LABELS[c.status]}</Badge> : null)}
         {row("Encaje", c?.fitScore != null ? `${c.fitScore}/100` : null)}
         {row(
-          "Proyecto",
-          person.project ? (
-            <Link href={`/app/projects/${person.project.id}`} className="text-accent hover:underline">
-              {person.project.name}
+          person.projects.length > 1 ? "Proyectos" : "Proyecto",
+          person.projects.length ? (
+            <span className="flex flex-wrap justify-end gap-x-2">
+              {person.projects.map((p) => (
+                <Link key={p.id} href={`/app/projects/${p.id}`} className="text-accent hover:underline">
+                  {p.name}
+                </Link>
+              ))}
+            </span>
+          ) : null,
+        )}
+        {row(
+          "Viene de",
+          person.prospect ? (
+            <Link
+              href={`/app/tables/${person.prospect.baseId}?row=${person.prospect.rowId}`}
+              className="text-accent hover:underline"
+            >
+              Su fila en la tabla
             </Link>
           ) : null,
         )}

@@ -13,7 +13,7 @@ import { decideAction, type GatewayDeps } from "../gateway/gateway";
 import { addAgent, saveAgentChannels, setAgentEnabled } from "../services/agents";
 import { ConnectorExecutor } from "./executor";
 import { createWhatsappConnection, whatsappVerifyToken } from "./service";
-import { parseWhatsappWebhook, verifyWhatsappSignature } from "./whatsapp";
+import { parseWhatsappWebhook, renderTemplate, verifyWhatsappSignature, whatsappProvider } from "./whatsapp";
 
 let db: Db;
 let close: () => Promise<void>;
@@ -167,5 +167,73 @@ describe("WhatsApp Business", () => {
       tx.select().from(inboundEvents).where(eq(inboundEvents.id, eventIds[0])),
     );
     expect(event.status).toBe("processed");
+  });
+
+  it("lists the account's approved templates and sends one with its gaps filled", async () => {
+    const meta = mockFetch({
+      "GET https://graph.facebook.com/v21.0/555666777/message_templates": () => ({
+        data: [
+          {
+            name: "seguimiento",
+            language: "es",
+            status: "APPROVED",
+            category: "UTILITY",
+            components: [{ type: "BODY", text: "Hola {{1}}, ¿pudiste ver lo de {{2}}?" }],
+          },
+          { name: "borrador", language: "es", status: "PENDING", components: [] },
+        ],
+      }),
+      "POST https://graph.facebook.com/v21.0/1234567890/messages": () => ({ messages: [{ id: "wamid.t1" }] }),
+    });
+    const creds = {
+      accessToken: "EAAG-token-de-prueba-123456",
+      phoneNumberId: "1234567890",
+      appSecret: "secreto-de-la-app-123",
+      verifyToken: "x".repeat(20),
+      businessAccountId: "555666777",
+    };
+    const client = whatsappProvider.create(creds, { fetch: meta.fetch } as never);
+    const templates = await client["whatsapp.list_templates"]!();
+    expect(templates).toEqual([
+      {
+        name: "seguimiento",
+        language: "es",
+        category: "UTILITY",
+        body: "Hola {{1}}, ¿pudiste ver lo de {{2}}?",
+        params: 2,
+      },
+    ]);
+    expect(renderTemplate(templates[0].body, ["Ana", "la transferencia"])).toBe(
+      "Hola Ana, ¿pudiste ver lo de la transferencia?",
+    );
+    await client["whatsapp.send"]!({
+      to: "+34 611 222 333",
+      body: "Hola Ana, ¿pudiste ver lo de la transferencia?",
+      template: { name: "seguimiento", language: "es", params: ["Ana", "la transferencia"] },
+    });
+    expect(meta.requests.at(-1)!.body).toEqual({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: "34611222333",
+      type: "template",
+      template: {
+        name: "seguimiento",
+        language: { code: "es" },
+        components: [
+          {
+            type: "body",
+            parameters: [
+              { type: "text", text: "Ana" },
+              { type: "text", text: "la transferencia" },
+            ],
+          },
+        ],
+      },
+    });
+    // Without the account's id there is nothing to list.
+    const noAccount = whatsappProvider.create({ ...creds, businessAccountId: undefined }, {
+      fetch: meta.fetch,
+    } as never);
+    await expect(noAccount["whatsapp.list_templates"]!()).rejects.toThrow(/identificador de la cuenta/);
   });
 });

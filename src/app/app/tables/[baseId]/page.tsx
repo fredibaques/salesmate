@@ -57,6 +57,7 @@ import { env } from "@/server/env";
 import { TableIntake, TableSettings } from "./table-settings";
 import { SendTableModal } from "./send-table";
 import { RowPanel } from "./row-panel";
+import { personOfRow } from "@/server/conversations/inbox";
 
 // «Buscar ahora» keeps running after the response.
 export const maxDuration = 300;
@@ -662,6 +663,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
           row={openRow}
           closeHref={href({ row: undefined })}
           canRun={canEdit}
+          conversationKey={openRow ? await personOfRow(db, tenant, openRow.id) : null}
         />
       ) : null}
     </>

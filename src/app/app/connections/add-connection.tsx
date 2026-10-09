@@ -286,6 +286,14 @@ function ToolSetup({ integration, setup }: { integration: Integration; setup: Se
             >
               <Input name="appSecret" type="password" required autoComplete="off" />
             </Field>
+            <Field
+              label="Identificador de la cuenta de WhatsApp Business"
+              optional
+              hint="Para escribir con tus plantillas cuando han pasado 24 horas."
+              tip="En Meta for Developers → tu app → WhatsApp → Configuración de la API: «WhatsApp Business Account ID» (solo cifras)."
+            >
+              <Input name="businessAccountId" inputMode="numeric" autoComplete="off" />
+            </Field>
           </ActionForm>
         ) : null}
 

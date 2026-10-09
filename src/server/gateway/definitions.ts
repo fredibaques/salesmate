@@ -92,7 +92,16 @@ const whatsappPayload = z.object({
   identityId: z.string().uuid(),
   /** The contact's number, with country code. */
   to: z.string().regex(/^\+?[\d\s()-]{8,20}$/, "Número de teléfono no válido."),
+  /** What the contact reads (with a template: its body with the parameters filled in). */
   body: z.string().min(1).max(4_000),
+  /** An approved template, required 24 h after the contact's last message. */
+  template: z
+    .object({
+      name: z.string().min(1).max(512),
+      language: z.string().min(2).max(15),
+      params: z.array(z.string().max(1_000)).max(20).default([]),
+    })
+    .optional(),
 });
 export type WhatsappPayload = z.infer<typeof whatsappPayload>;
 

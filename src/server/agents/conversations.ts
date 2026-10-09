@@ -140,7 +140,7 @@ export async function recordActionInConversation(db: Db, orgId: string, action: 
   if (action.type !== "email.send" && action.type !== "whatsapp.send") return;
   const conversationId = conversationIdFrom(action.context);
   if (!conversationId) return;
-  const result = (action.result ?? {}) as { messageId?: string };
+  const result = (action.result ?? {}) as { messageId?: string; threadId?: string | null };
   const sent =
     action.type === "email.send"
       ? (() => {
@@ -163,9 +163,35 @@ export async function recordActionInConversation(db: Db, orgId: string, action: 
         ...sent,
       })
       .onConflictDoNothing();
-    await tx
+    const [conversation] = await tx
       .update(conversations)
       .set({ status: "waiting_customer", lastMessageAt: new Date() })
-      .where(eq(conversations.id, conversationId));
+      .where(eq(conversations.id, conversationId))
+      .returning();
+    // The first email of a conversation we started: its Gmail thread is where the reply will come.
+    if (conversation && !conversation.externalThreadId && sent.channel === "email" && result.threadId) {
+      const [taken] = await tx
+        .select({ id: conversations.id })
+        .from(conversations)
+        .where(
+          and(
+            eq(conversations.projectId, conversation.projectId),
+            eq(conversations.channel, "email"),
+            eq(conversations.externalThreadId, result.threadId),
+          ),
+        );
+      if (!taken) {
+        await tx
+          .update(conversations)
+          .set({ externalThreadId: result.threadId })
+          .where(eq(conversations.id, conversationId));
+      }
+    }
+    if (conversation?.contactId) {
+      await tx
+        .update(contacts)
+        .set({ status: "contacted" })
+        .where(and(eq(contacts.id, conversation.contactId), eq(contacts.status, "new")));
+    }
   });
 }

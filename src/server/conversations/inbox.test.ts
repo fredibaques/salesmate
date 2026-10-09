@@ -13,7 +13,18 @@ import {
 } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
 import { proposeAction, type ActionExecutor, type GatewayDeps } from "../gateway/gateway";
-import { addNote, changePerson, getPerson, listInbox, markRead, replyToPerson } from "./inbox";
+import {
+  addNote,
+  changePerson,
+  getPerson,
+  listInbox,
+  markRead,
+  replyToPerson,
+  whatsappTemplates,
+} from "./inbox";
+import { mockFetch } from "../../../tests/helpers/fetch";
+import { encryptJson } from "../crypto";
+import { eq } from "drizzle-orm";
 
 let db: Db;
 let close: () => Promise<void>;
@@ -23,6 +34,7 @@ let person: TenantContext;
 let agent: TenantContext;
 let projectId: string;
 let contactId: string;
+const ANA = "e:ana@autosruiz.es";
 let emailConv: string;
 let whatsappConv: string;
 let emailIdentityId: string;
@@ -149,16 +161,14 @@ beforeAll(async () => {
         lastMessageAt: new Date("2026-10-01T09:00:00Z"),
       })
       .returning();
-    await tx
-      .insert(messages)
-      .values({
-        orgId,
-        conversationId: formConv.id,
-        direction: "inbound",
-        channel: "form",
-        body: "Información, por favor",
-        sentAt: new Date("2026-10-01T09:00:00Z"),
-      });
+    await tx.insert(messages).values({
+      orgId,
+      conversationId: formConv.id,
+      direction: "inbound",
+      channel: "form",
+      body: "Información, por favor",
+      sentAt: new Date("2026-10-01T09:00:00Z"),
+    });
   });
 });
 afterAll(async () => close());
@@ -169,7 +179,7 @@ describe("the conversations inbox", () => {
     expect(counts).toEqual({ needs: 1, waiting: 0, closed: 1, all: 2 });
     const ana = rows[0];
     expect(ana).toMatchObject({
-      key: contactId,
+      key: ANA,
       name: "Ana Ruiz",
       company: "Autos Ruiz",
       channels: ["whatsapp", "email"],
@@ -185,7 +195,7 @@ describe("the conversations inbox", () => {
       (await listInbox(db, { orgId, userId }, { box: "all", channel: "form" })).rows.map((r) => r.name),
     ).toEqual(["Luis"]);
 
-    await markRead(db, { orgId, userId }, contactId);
+    await markRead(db, { orgId, userId }, ANA);
     expect((await listInbox(db, { orgId, userId }, {})).rows[0].unread).toBe(false);
   });
 
@@ -203,7 +213,7 @@ describe("the conversations inbox", () => {
       context: { subjectRef: `conversation:${emailConv}` },
     });
     expect(draft.outcome).toBe("pending_approval");
-    const ana = (await getPerson(db, person, contactId, now))!;
+    const ana = (await getPerson(db, person, ANA, { now }))!;
     expect(ana.messages.map((m) => m.body)).toEqual([
       "¿Cuánto cuesta?",
       "Desde 49 €.",
@@ -219,16 +229,16 @@ describe("the conversations inbox", () => {
   });
 
   it("lets a person answer through the gateway, and the reply lands in the thread", async () => {
+    expect(await replyToPerson(deps(), person, ANA, { channel: "whatsapp", body: "Sí, desde 19 €." })).toBe(
+      "Enviado.",
+    );
     expect(
-      await replyToPerson(deps(), person, contactId, { channel: "whatsapp", body: "Sí, desde 19 €." }),
-    ).toBe("Enviado.");
-    expect(
-      await replyToPerson(deps(), person, contactId, {
+      await replyToPerson(deps(), person, ANA, {
         channel: "email",
         body: "Te lo confirmo por escrito.",
       }),
     ).toBe("Enviado.");
-    const ana = (await getPerson(db, person, contactId, now))!;
+    const ana = (await getPerson(db, person, ANA, { now }))!;
     const outbound = ana.messages.filter((m) => m.direction === "outbound").slice(-2);
     expect(outbound.map((m) => [m.channel, m.body, m.subject])).toEqual([
       ["whatsapp", "Sí, desde 19 €.", null],
@@ -238,16 +248,65 @@ describe("the conversations inbox", () => {
     // WhatsApp only takes free text within 24 h of their last message.
     now = new Date("2026-10-09T09:00:00Z");
     await expect(
-      replyToPerson(deps(), person, contactId, { channel: "whatsapp", body: "¿Seguimos?" }),
+      replyToPerson(deps(), person, ANA, { channel: "whatsapp", body: "¿Seguimos?" }),
     ).rejects.toThrow(/24 horas/);
+
+    // An approved template can still be sent: it lands in the thread as its filled-in body.
+    await withTenant(db, { orgId }, (tx) =>
+      tx
+        .update(connections)
+        .set({
+          writeScopes: ["whatsapp"],
+          credentialsEncrypted: encryptJson({
+            accessToken: "EAAG-token-de-prueba-123456",
+            phoneNumberId: "1234567890",
+            appSecret: "secreto-de-la-app-123",
+            verifyToken: "x".repeat(20),
+            businessAccountId: "555666777",
+          }),
+        })
+        .where(eq(connections.provider, "whatsapp")),
+    );
+    const meta = mockFetch({
+      "GET https://graph.facebook.com/v21.0/555666777/message_templates": () => ({
+        data: [
+          {
+            name: "seguimiento",
+            language: "es",
+            status: "APPROVED",
+            components: [{ type: "BODY", text: "Hola {{1}}, ¿seguimos con lo de {{2}}?" }],
+          },
+        ],
+      }),
+    });
+    const connectors = { fetch: meta.fetch };
+    expect((await whatsappTemplates({ db, connectors }, person, ANA)).map((t) => t.name)).toEqual([
+      "seguimiento",
+    ]);
+    await expect(
+      replyToPerson({ ...deps(), connectors }, person, ANA, {
+        channel: "whatsapp",
+        body: "",
+        template: { name: "seguimiento", language: "es", params: ["Ana"] },
+      }),
+    ).rejects.toThrow(/huecos/);
+    expect(
+      await replyToPerson({ ...deps(), connectors }, person, ANA, {
+        channel: "whatsapp",
+        body: "",
+        template: { name: "seguimiento", language: "es", params: ["Ana", "las motos"] },
+      }),
+    ).toBe("Enviado.");
+    const last = (await getPerson(db, person, ANA, { now }))!.messages.at(-1)!;
+    expect([last.channel, last.body]).toEqual(["whatsapp", "Hola Ana, ¿seguimos con lo de las motos?"]);
   });
 
   it("takes a person over from the agents, keeps notes for the team, and closes them", async () => {
-    await changePerson(db, person, contactId, "take_over");
-    let ana = (await getPerson(db, person, contactId))!;
+    await changePerson(db, person, ANA, "take_over");
+    let ana = (await getPerson(db, person, ANA))!;
     expect(ana.handedOff).toBe(true);
-    await addNote(db, person, contactId, "Fredi", "Llamarla el lunes.");
-    ana = (await getPerson(db, person, contactId))!;
+    await addNote(db, person, ANA, "Fredi", "Llamarla el lunes.");
+    ana = (await getPerson(db, person, ANA))!;
     expect(ana.messages.at(-1)).toMatchObject({
       direction: "internal",
       channel: "note",
@@ -259,12 +318,53 @@ describe("the conversations inbox", () => {
       "Llamarla el lunes.",
     );
 
-    await changePerson(db, person, contactId, "close");
-    expect((await getPerson(db, person, contactId))!.closed).toBe(true);
-    await changePerson(db, person, contactId, "reopen");
-    expect((await getPerson(db, person, contactId))!.conversations.map((c) => c.status)).toEqual([
-      "open",
-      "open",
-    ]);
+    await changePerson(db, person, ANA, "close");
+    expect((await getPerson(db, person, ANA))!.closed).toBe(true);
+    await changePerson(db, person, ANA, "reopen");
+    expect((await getPerson(db, person, ANA))!.conversations.map((c) => c.status)).toEqual(["open", "open"]);
+  });
+
+  it("joins the same person across projects, and a project's tab shows only its part", async () => {
+    const other = await withTenant(db, { orgId }, async (tx) => {
+      const [project] = await tx.insert(projects).values({ orgId, name: "Seguros" }).returning();
+      const [contact] = await tx
+        .insert(contacts)
+        .values({ orgId, projectId: project.id, firstName: "Ana", email: "Ana@AutosRuiz.es" })
+        .returning();
+      const [conv] = await tx
+        .insert(conversations)
+        .values({
+          orgId,
+          projectId: project.id,
+          contactId: contact.id,
+          channel: "form",
+          status: "waiting_us",
+          lastMessageAt: new Date("2026-10-08T09:00:00Z"),
+        })
+        .returning();
+      await tx
+        .insert(messages)
+        .values({
+          orgId,
+          conversationId: conv.id,
+          direction: "inbound",
+          channel: "form",
+          body: "¿Y seguros para flotas?",
+          sentAt: new Date("2026-10-08T09:00:00Z"),
+        });
+      return project.id;
+    });
+    const { rows } = await listInbox(db, { orgId, userId }, { box: "all" });
+    const ana = rows.find((r) => r.key === ANA)!;
+    expect(rows.filter((r) => r.name.startsWith("Ana"))).toHaveLength(1);
+    expect(ana.projectNames.sort()).toEqual(["Seguros", "Swipoo"]);
+    expect(ana.channels.sort()).toEqual(["email", "form", "whatsapp"]);
+    expect((await getPerson(db, person, ANA))!.conversations).toHaveLength(3);
+    expect(
+      (await getPerson(db, person, ANA, { projectId: other }))!.conversations.map((c) => c.channel),
+    ).toEqual(["form"]);
+    expect(
+      (await listInbox(db, { orgId, userId }, { box: "all", projectId: other })).rows.map((r) => r.key),
+    ).toEqual([ANA]);
   });
 });

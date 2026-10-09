@@ -3,9 +3,16 @@
 import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/action-form";
 import { requireTenant } from "@/server/auth/session";
-import { addNote, changePerson, replyToPerson, type PersonChange } from "@/server/conversations/inbox";
+import {
+  addNote,
+  changePerson,
+  replyToPerson,
+  whatsappTemplates,
+  type PersonChange,
+} from "@/server/conversations/inbox";
+import type { WhatsappTemplate } from "@/server/connectors/whatsapp";
 import { getDb } from "@/server/db/client";
-import { runForm, str } from "@/server/form";
+import { list, runForm, str } from "@/server/form";
 import { gatewayDeps } from "@/server/gateway/runtime";
 
 /** The inbox shows in its section and in each project's tab: refresh everything under /app. */
@@ -16,10 +23,19 @@ export async function replyAction(key: string, _: FormState, form: FormData): Pr
   const result = await runForm(async () => {
     const tenant = await requireTenant();
     const channel = str(form, "channel") === "whatsapp" ? "whatsapp" : "email";
+    const templateName = str(form, "templateName");
     return replyToPerson(gatewayDeps(), tenant, key, {
       channel,
       subject: str(form, "subject"),
       body: String(form.get("body") ?? ""),
+      template:
+        channel === "whatsapp" && templateName
+          ? {
+              name: templateName,
+              language: str(form, "templateLanguage") ?? "es",
+              params: list(form, "param"),
+            }
+          : undefined,
     });
   });
   refresh();
@@ -58,4 +74,16 @@ export async function changePersonAction(key: string, change: PersonChange): Pro
   });
   refresh();
   return result;
+}
+
+/** The approved WhatsApp templates the person can be written with (after 24 h). */
+export async function templatesAction(
+  key: string,
+): Promise<{ ok: true; templates: WhatsappTemplate[] } | { ok: false; message: string }> {
+  try {
+    const tenant = await requireTenant();
+    return { ok: true, templates: await whatsappTemplates({ db: getDb() }, tenant, key) };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
 }

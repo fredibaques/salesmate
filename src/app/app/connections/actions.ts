@@ -162,6 +162,7 @@ export async function addWhatsapp(_: FormState, form: FormData): Promise<FormSta
         accessToken: str(form, "accessToken") ?? "",
         phoneNumberId: str(form, "phoneNumberId") ?? "",
         appSecret: str(form, "appSecret") ?? "",
+        businessAccountId: str(form, "businessAccountId"),
       });
     } catch (err) {
       if (err instanceof ConnectorError && (err.status === 401 || err.status === 403 || err.status === 400)) {

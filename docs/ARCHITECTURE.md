@@ -489,11 +489,13 @@ horas desde el último mensaje del contacto, Meta exige plantillas aprobadas
 (filtrada) son la misma bandeja (`server/conversations/inbox.ts`,
 `app/app/conversations/inbox-view.tsx`):
 
-- **Una fila por persona**: las conversaciones de un contacto (una por canal
+- **Una fila por persona**: las conversaciones de una persona (una por canal
   o hilo: email, WhatsApp, formulario) se juntan en un solo hilo ordenado por
-  fecha. Una conversación sin contacto es su propia fila (`conv:<id>`). Los
-  contactos son por proyecto, así que la misma persona en dos proyectos son
-  dos filas.
+  fecha, también entre proyectos. La persona se reconoce por su email
+  (`e:<email>`), si no por su teléfono (`t:<cifras>`), si no por su contacto
+  (`c:<id>`); una conversación sin contacto es su propia fila (`conv:<id>`).
+  La pestaña de un proyecto muestra solo su parte; las respuestas salen desde
+  el proyecto de su última conversación.
 - **Bandejas**: «Te necesitan» (algo por aprobar, o alguna conversación
   `open`, `waiting_us` o `handed_off`), «Esperando» (`waiting_customer`),
   «Cerradas» y «Todas»; filtros por canal y proyecto y búsqueda.
@@ -507,6 +509,23 @@ horas desde el último mensaje del contacto, Meta exige plantillas aprobadas
   aplican). Lo enviado se guarda en el hilo (`recordActionInConversation`,
   ahora también WhatsApp). WhatsApp solo admite texto libre en las 24 h
   siguientes a su último mensaje; fuera de esa ventana no se ofrece.
+- **Plantillas de WhatsApp**: pasadas 24 h desde su último WhatsApp (o si
+  nunca escribió por ahí) solo se ofrecen las plantillas aprobadas de la
+  cuenta (`whatsapp.list_templates`, necesita el identificador de la cuenta
+  de WhatsApp Business en la conexión). Se envían como `whatsapp.send` con
+  `template` (nombre, idioma, parámetros); `body` es su texto con los huecos
+  rellenos, que es lo que queda en el hilo y lo que revisan las reglas.
+- **Primeros emails de prospección**: cada uno abre una conversación con la
+  persona de la fila (contacto del proyecto con `data.prospect` = tabla y
+  fila); al enviarse, la conversación guarda el hilo de Gmail. La fila enlaza
+  a su conversación («Ver la conversación») y la ficha, a su fila. Si las
+  reglas lo bloquean, no queda conversación.
+- **Respuestas en nuestros hilos** (`pollMailboxes`): cualquier buzón con
+  permiso de lectura asignado a un proyecto trae las respuestas a hilos de
+  email nuestros (de los últimos 90 días) directamente a su conversación
+  (`waiting_us`, contacto `engaged`), aunque no haya agente inbound; un buzón
+  que un agente lee para leads, además, encola todo lo nuevo como antes. El
+  agente inbound del proyecto, si está activo, puede responderlas.
 - **Tomar el control** pone sus conversaciones en `handed_off`: el agente
   inbound sigue guardando lo que llega pero no responde (el evento queda
   `processed`, resultado `handed_off`). «Devolver al agente» las deja `open`.
