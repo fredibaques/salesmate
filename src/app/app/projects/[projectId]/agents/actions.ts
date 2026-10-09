@@ -457,12 +457,31 @@ async function startRun(projectId: string, options: { mode?: ProspectingMode; ro
   });
 }
 
+/**
+ * Where to go once a run is started: back to the page it was started from
+ * (a form field `back`, a path under /app), marked so it watches the run.
+ */
+function backTo(form: FormData | undefined) {
+  const back = form ? str(form, "back") : undefined;
+  if (!back?.startsWith("/app/")) return null;
+  const url = new URL(back, "http://x");
+  url.searchParams.set("working", String(Date.now()));
+  return `${url.pathname}${url.search}`;
+}
+
 /** «Buscar ahora»: a run in the agent's own mode. */
-export async function runProspectingNow(projectId: string, _: FormState): Promise<FormState> {
-  return runForm(async () => {
+export async function runProspectingNow(
+  projectId: string,
+  _: FormState,
+  form?: FormData,
+): Promise<FormState> {
+  const result = await runForm(async () => {
     await startRun(projectId, {});
-    return "En marcha. Lo que encuentre irá apareciendo en unos minutos; recarga la página para verlo.";
+    return "En marcha. Lo que encuentre irá apareciendo en unos minutos.";
   });
+  const back = result?.ok ? backTo(form) : null;
+  if (back) redirect(back);
+  return result;
 }
 
 /** «Completar vacíos» (or one row's «Completar esta fila»): fills empty cells, without looking for new rows. */
@@ -470,9 +489,13 @@ export async function completeProspectsNow(
   projectId: string,
   rowIds: string[] | null,
   _: FormState,
+  form?: FormData,
 ): Promise<FormState> {
-  return runForm(async () => {
+  const result = await runForm(async () => {
     await startRun(projectId, { mode: "complete", rowIds: rowIds ?? undefined });
-    return "En marcha. Los datos irán apareciendo en unos minutos; recarga la página para verlos.";
+    return "En marcha. Los datos irán apareciendo en la tabla en unos minutos.";
   });
+  const back = result?.ok ? backTo(form) : null;
+  if (back) redirect(back);
+  return result;
 }

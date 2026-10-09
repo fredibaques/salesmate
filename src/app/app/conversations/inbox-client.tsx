@@ -1,7 +1,6 @@
 "use client";
 
 import { Hand, Lock, RotateCcw, Undo2 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { ActionForm, type FormAction, type FormState } from "@/components/action-form";
 import { useToast } from "@/components/toast";
@@ -9,17 +8,7 @@ import { buttonClass, cx, Input, Textarea } from "@/components/ui";
 import type { PersonChange } from "@/server/conversations/inbox";
 import type { WhatsappTemplate } from "@/server/connectors/whatsapp";
 
-/** Brings new messages in every few seconds while the page is visible. */
-export function AutoRefresh({ seconds = 15 }: { seconds?: number }) {
-  const router = useRouter();
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      if (document.visibilityState === "visible") router.refresh();
-    }, seconds * 1000);
-    return () => window.clearInterval(id);
-  }, [router, seconds]);
-  return null;
-}
+export { AutoRefresh } from "@/components/auto-refresh";
 
 /** Keeps the thread scrolled to its latest message (on opening it and when one arrives). */
 export function ScrollToEnd({ count }: { count: number }) {

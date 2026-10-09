@@ -342,16 +342,14 @@ describe("the conversations inbox", () => {
           lastMessageAt: new Date("2026-10-08T09:00:00Z"),
         })
         .returning();
-      await tx
-        .insert(messages)
-        .values({
-          orgId,
-          conversationId: conv.id,
-          direction: "inbound",
-          channel: "form",
-          body: "¿Y seguros para flotas?",
-          sentAt: new Date("2026-10-08T09:00:00Z"),
-        });
+      await tx.insert(messages).values({
+        orgId,
+        conversationId: conv.id,
+        direction: "inbound",
+        channel: "form",
+        body: "¿Y seguros para flotas?",
+        sentAt: new Date("2026-10-08T09:00:00Z"),
+      });
       return project.id;
     });
     const { rows } = await listInbox(db, { orgId, userId }, { box: "all" });

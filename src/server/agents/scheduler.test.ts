@@ -297,7 +297,7 @@ describe("time limits", () => {
     expect(result).toMatchObject({ status: "completed", added: 1 });
     // Few searches per request, so each turn hands control back soon.
     const web = requests[0].tools?.find((t) => "name" in t && t.name === "web_search");
-    expect(web).toMatchObject({ max_uses: 3 });
+    expect(web).toMatchObject({ max_uses: 5 });
   });
 
   it("tells the agent to stop searching and save when time is nearly up, once", () => {

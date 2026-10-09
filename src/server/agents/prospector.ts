@@ -52,7 +52,7 @@ export const RUN_TIME_BUDGET_MS = 170_000;
  * request, so a high cap let a single turn outlast the whole budget with
  * nothing saved; a low one hands control back often.
  */
-const SEARCHES_PER_TURN = 3;
+const SEARCHES_PER_TURN = 5;
 /** Web searches and page reads in a row without saving before the agent is asked to save. */
 const NUDGE_AFTER_WEB_CALLS = 8;
 /** Time left when the agent is asked to stop searching and save what it has. */
@@ -453,7 +453,7 @@ ${[
     : "",
   !agent.tools.web
     ? "- No tienes búsqueda web: usa solo las herramientas conectadas."
-    : "- Busca en la web y lee las páginas que encuentres (web_search, y web_fetch si lo tienes). Usa fuentes públicas: webs de empresas, directorios, asociaciones del sector, registros y noticias. No uses LinkedIn como fuente.",
+    : `- Busca en la web y lee las páginas que encuentres (web_search, y web_fetch si lo tienes). Usa fuentes públicas: webs de empresas, directorios, asociaciones del sector, registros y noticias. No uses LinkedIn como fuente.\n- Cada turno admite como mucho ${SEARCHES_PER_TURN} búsquedas y ${SEARCHES_PER_TURN * 2} lecturas: haz pocas a la vez. Si una devuelve «max_uses_exceeded» no es un límite de la ejecución: guarda lo que tengas y sigue buscando en el turno siguiente.`,
   sources.allow?.length ? `- Busca y lee solo en estos sitios: ${sources.allow.join(", ")}.` : "",
   sources.block?.length ? `- No uses nunca como fuente: ${sources.block.join(", ")}.` : "",
   sources.prefer === "data" && dataProviders
