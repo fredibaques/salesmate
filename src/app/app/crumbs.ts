@@ -61,8 +61,8 @@ export async function crumbsFor(segments: string[], names: NameLookup): Promise<
     return [];
   }
 
-  // Mi cuenta and Integraciones are pages of their own.
-  if (first === "account" || first === "connections") return [];
+  // Mi cuenta, Integraciones and Conversaciones are pages of their own.
+  if (first === "account" || first === "connections" || first === "conversations") return [];
 
   // Knowledge of the whole account: a source hangs from «Conocimiento».
   if (first === "knowledge") {

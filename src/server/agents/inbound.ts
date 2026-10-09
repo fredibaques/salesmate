@@ -51,6 +51,8 @@ export type InboundDeps = {
 export type InboundOutcome =
   | { status: "processed"; runId: string; conversationId: string; summary: string }
   | { status: "ignored"; reason: string }
+  /** A person took the conversation over: the message is kept, the agent doesn't answer. */
+  | { status: "handed_off"; conversationId: string }
   | { status: "skipped" }
   | { status: "error"; error: string };
 
@@ -332,10 +334,13 @@ export async function processInboundEvent(
           metadata: { extra: lead.extra },
         })
         .onConflictDoNothing();
+      // A person took it over: it stays theirs, waiting for them.
+      const handedOff = conversation.status === "handed_off";
       await tx
         .update(conversations)
-        .set({ status: "waiting_us", lastMessageAt: now })
+        .set({ status: handedOff ? "handed_off" : "waiting_us", lastMessageAt: now })
         .where(eq(conversations.id, conversation.id));
+      if (handedOff) return { ownMessage: false as const, handedOff: true as const, conversation };
       const history = await tx
         .select()
         .from(messages)
@@ -355,6 +360,7 @@ export async function processInboundEvent(
         .returning();
       return {
         ownMessage: false as const,
+        handedOff: false as const,
         project,
         playbook,
         agentConfig: agentConfig ?? null,
@@ -368,6 +374,10 @@ export async function processInboundEvent(
     if (prepared.ownMessage) {
       await finish("ignored", "Mensaje enviado desde una identidad propia.");
       return { status: "ignored", reason: "own_message" };
+    }
+    if (prepared.handedOff) {
+      await finish("processed");
+      return { status: "handed_off", conversationId: prepared.conversation.id };
     }
     const { project, playbook, agentConfig, contact, conversation, history, run } = prepared;
 

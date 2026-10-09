@@ -21,6 +21,7 @@ describe("crumbsFor", () => {
     expect(await labels("copilot")).toEqual([]);
     expect(await labels("account/security")).toEqual([]);
     expect(await labels("knowledge")).toEqual([]);
+    expect(await labels("conversations")).toEqual([]);
     expect(await labels("knowledge/s1")).toEqual(["Conocimiento", "Tarifas 2026.xlsx"]);
   });
 

@@ -6,6 +6,7 @@ import {
   BookOpen,
   Inbox,
   LayoutDashboard,
+  MessagesSquare,
   Pencil,
   Plug,
   Settings,
@@ -39,6 +40,7 @@ export type MenuProject = {
 
 const SECTIONS: Record<string, { label: string; icon: ReactNode }> = {
   home: { label: "Panel", icon: <LayoutDashboard className="size-4 text-muted" /> },
+  conversations: { label: "Conversaciones", icon: <MessagesSquare className="size-4 text-muted" /> },
   tables: { label: "Tablas", icon: <Sheet className="size-4 text-muted" /> },
   knowledge: { label: "Conocimiento", icon: <BookOpen className="size-4 text-muted" /> },
   integrations: { label: "Integraciones", icon: <Plug className="size-4 text-muted" /> },

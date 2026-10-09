@@ -1069,6 +1069,21 @@ export const messages = pgTable(
   ],
 );
 
+/**
+ * When each person last read each inbox row (a contact, or a conversation
+ * without one: `conv:<id>`): later messages from the customer are unread.
+ */
+export const conversationReads = pgTable(
+  "conversation_reads",
+  {
+    orgId: orgId(),
+    userId: text("user_id").notNull(),
+    personKey: text("person_key").notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.orgId, t.userId, t.personKey] }), tenantPolicy("conversation_reads")],
+);
+
 export type AgentRunStep =
   | { type: "text"; text: string }
   | { type: "tool_call"; name: string; input: unknown }
