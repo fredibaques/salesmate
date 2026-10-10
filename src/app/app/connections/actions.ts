@@ -21,6 +21,7 @@ import { getDb } from "@/server/db/client";
 import { connections } from "@/server/db/schema";
 import { withTenant } from "@/server/db/tenant";
 import { bool, runForm, str } from "@/server/form";
+import { removeConnection } from "@/server/services/connections";
 
 export async function addTwenty(_: FormState, form: FormData): Promise<FormState> {
   const label = str(form, "label") ?? "Twenty";
@@ -233,4 +234,11 @@ export async function testConnection(connectionId: string, _: FormState): Promis
     if (client["notify.slack"]) return "Guardada. Se comprobará con el primer aviso de un agente.";
     return "Conexión cargada (sin prueba de lectura disponible para sus permisos).";
   });
+}
+
+/** «Desconectar»: the tool stops being available to the agents. */
+export async function removeConnectionAction(connectionId: string) {
+  const tenant = await requireRole(["owner", "admin"]);
+  await removeConnection(getDb(), tenant, connectionId);
+  revalidatePath("/app", "layout");
 }

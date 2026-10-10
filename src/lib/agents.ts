@@ -1,16 +1,22 @@
 /** How each project agent is presented to the user. */
 export const AGENT_INFO = {
-  inbound: {
-    name: "Agente inbound",
-    short: "Inbound",
+  prospecting: {
+    name: "Agente de prospección",
+    short: "Prospección",
     description:
-      "Atiende a quien te contacta por el formulario de tu web o por email: le responde, lo cualifica y lo lleva al siguiente paso.",
+      "Recoge información de distintas fuentes, sobre todo internet: busca empresas o personas que encajan con tu cliente ideal y completa los datos de tus tablas.",
   },
   outbound: {
     name: "Agente outbound",
     short: "Outbound",
     description:
-      "Busca cada día en fuentes públicas empresas que encajan con tu cliente ideal y las va guardando en tu base de prospectos, sin repetir.",
+      "Inicia el proceso comercial con las filas de una tabla que encajan: prepara un primer email personal para cada una y lo envía con tu aprobación.",
+  },
+  inbound: {
+    name: "Agente inbound",
+    short: "Inbound",
+    description:
+      "Atiende a quien muestra interés por su cuenta (formulario de la web, email, WhatsApp…): le responde, lo cualifica y lo lleva al siguiente paso.",
   },
   account_manager: {
     name: "Account Manager",

@@ -43,6 +43,7 @@ export const AUTONOMY_LABELS = [
 ];
 
 export const AGENT_LABELS: Record<string, string> = {
+  prospecting: "Prospección",
   outbound: "Outbound",
   inbound: "Inbound",
   account_manager: "Account Manager",

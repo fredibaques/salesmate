@@ -36,7 +36,7 @@ describe("sidebar preferences", () => {
     const [p] = await withTenant(db, tenant, (tx) =>
       tx.insert(projects).values({ orgId: tenant.orgId, name: "P" }).returning(),
     );
-    const agent = await addAgent(db, tenant, p.id, "outbound", "b2b_consultative");
+    const agent = await addAgent(db, tenant, p.id, "prospecting", "b2b_consultative");
     await customizeAgent(db, tenant, p.id, agent.id, { name: "Radar", icon: "radar", color: "violeta" });
     expect(await listSidebarAgents(db, tenant)).toEqual([
       expect.objectContaining({ name: "Radar", icon: "radar", color: "violeta" }),

@@ -14,7 +14,6 @@ import {
 } from "@/components/ui";
 import { AI_PROVIDER_INFO } from "@/lib/ai-providers";
 import { goalProgress, monthSpendUsd } from "@/server/agents/automation";
-import { DEFAULT_HANDOFF_MIN_FIT, DEFAULT_HANDOFF_PER_RUN } from "@/server/agents/first-contact";
 import { DEFAULT_CELLS_PER_RUN } from "@/server/agents/prospector";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
@@ -45,7 +44,7 @@ const PREFER = [
  * much it may spend), whom it tells and the next step after it finds rows.
  * Saved with one button.
  */
-export async function OutboundSetup({ projectId, agentId }: { projectId: string; agentId: string }) {
+export async function ProspectingSetup({ projectId, agentId }: { projectId: string; agentId: string }) {
   const tenant = await requireTenant();
   const db = getDb();
   const [agent, project, options, slacks, team, bases, ai] = await Promise.all([
@@ -75,7 +74,7 @@ export async function OutboundSetup({ projectId, agentId }: { projectId: string;
     <div className="max-w-3xl space-y-6">
       <Card
         title="Configuración"
-        tip="Lo que comparten todos los agentes (qué vendes, a quién, tono) ya lo saben por Ajustes → Oferta y cliente. Todo lo que hace por fuera pasa por el gateway: los avisos al equipo salen solos y los emails a prospectos esperan tu aprobación."
+        tip="Lo que comparten todos los agentes (qué vendes, a quién, tono) ya lo saben por Ajustes → Oferta y cliente. Todo lo que hace por fuera pasa por el gateway: los avisos al equipo salen solos. Para escribir a las filas que encuentra, añade un agente outbound que trabaje con su tabla."
       >
         <ActionForm
           key={JSON.stringify([
@@ -299,7 +298,10 @@ export async function OutboundSetup({ projectId, agentId }: { projectId: string;
           </FormSection>
 
           <FormSection title="Comunicación" tip="Desde dónde escribe y a quién avisa.">
-            <Field label="Buzón" tip="Desde el que escribe los primeros emails y envía los avisos por email.">
+            <Field
+              label="Buzón"
+              tip="Desde el que envía los avisos por email. Escribir a las filas que encuentra es cosa de un agente outbound."
+            >
               {mailboxes.length ? (
                 <Select name="mailboxId" defaultValue={config.channels.mailboxId ?? ""} className="max-w-sm">
                   <option value="">Ninguno</option>
@@ -372,49 +374,6 @@ export async function OutboundSetup({ projectId, agentId }: { projectId: string;
                   />
                 ))}
               </div>
-            </Field>
-          </FormSection>
-
-          <FormSection
-            title="Siguiente paso: primer contacto"
-            tip="Después de cada ejecución, escribe un primer email para las filas con email que encajan y lo propone desde su buzón. Nada sale sin tu aprobación, y se respetan el horario de envío y las exclusiones del proyecto."
-          >
-            <Choice
-              card
-              name="handoffEnabled"
-              defaultChecked={Boolean(s.handoff?.enabled)}
-              label="Preparar el primer email de las filas que encajan"
-              description="Un email por fila, una sola vez. Aparece en Conversaciones para aprobarlo."
-            />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Encaje mínimo">
-                <Input
-                  name="handoffMinFit"
-                  type="number"
-                  min={0}
-                  max={100}
-                  defaultValue={s.handoff?.minFit ?? DEFAULT_HANDOFF_MIN_FIT}
-                  className="w-32"
-                />
-              </Field>
-              <Field label="Emails por ejecución">
-                <Input
-                  name="handoffPerRun"
-                  type="number"
-                  min={1}
-                  max={25}
-                  defaultValue={s.handoff?.perRun ?? DEFAULT_HANDOFF_PER_RUN}
-                  className="w-32"
-                />
-              </Field>
-            </div>
-            <Field label="Cómo escribirlo" optional>
-              <Textarea
-                name="handoffInstructions"
-                defaultValue={s.handoff?.instructions ?? ""}
-                placeholder="Tono, qué mencionar, qué evitar, cómo firmar…"
-                className="min-h-24"
-              />
             </Field>
           </FormSection>
         </ActionForm>

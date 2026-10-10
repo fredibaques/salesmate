@@ -80,7 +80,7 @@ describe("agents", () => {
 
   it("don't give the project a process when they only find data", async () => {
     const project = await createProject(db, tenant, { name: "Solo prospección" });
-    await addAgent(db, tenant, project.id, "outbound");
+    await addAgent(db, tenant, project.id, "prospecting");
     expect(await getProjectProcess(db, tenant, project.id)).toBeNull();
     // Saving it the first time creates it.
     await saveProjectProcess(db, tenant, project.id, {
@@ -94,7 +94,7 @@ describe("agents", () => {
 
   it("gives the prospecting agent its template defaults", async () => {
     const project = await createProject(db, tenant, { name: "Con plantilla" });
-    const added = await addAgent(db, tenant, project.id, "outbound", "b2b_consultative");
+    const added = await addAgent(db, tenant, project.id, "prospecting", "b2b_consultative");
     const agent = await getAgent(db, tenant, project.id, added.id);
     expect(agent?.config).toMatchObject({
       tools: { web: true },
@@ -207,7 +207,7 @@ describe("agents", () => {
 
 describe("agent tools", () => {
   it("adds and removes tools one by one, with the functions of an MCP server", async () => {
-    const { id: agentId } = await addAgent(db, tenant, projectId, "outbound", "b2b_consultative");
+    const { id: agentId } = await addAgent(db, tenant, projectId, "prospecting", "b2b_consultative");
     const [mcp, hunter] = await withTenant(db, tenant, (tx) =>
       tx
         .insert(connections)

@@ -11,12 +11,12 @@ import { withTenant } from "@/server/db/tenant";
 import { env } from "@/server/env";
 import { getOrgAi } from "@/server/llm/org-ai";
 import { projectProcess } from "@/server/playbooks/service";
-import { NEXT_STEP_LABELS } from "@/server/playbooks/spec";
 import { listBases } from "@/server/prospects/bases";
 import { getAgent, listChannelOptions } from "@/server/services/agents";
 import { getProject } from "@/server/services/projects";
 import { rotateKey } from "../../conversations/actions";
 import { saveInboundSetup } from "../actions";
+import { ProcessField } from "./process-field";
 import { TriggerFields } from "./trigger-fields";
 
 function ConnectLink({ children, add = "1" }: { children: React.ReactNode; add?: string }) {
@@ -50,7 +50,6 @@ export async function InboundSetup({ projectId, agentId }: { projectId: string; 
   const orgModel = models.find((m) => m.id === ai?.model);
   const endpoint = `${env().APP_URL}/api/inbound/form/${projectId}`;
   const hookUrl = config.hookToken ? `${env().APP_URL}/api/hooks/agents/${config.hookToken}` : null;
-  const steps = process?.spec.nextSteps ?? [];
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -72,33 +71,7 @@ export async function InboundSetup({ projectId, agentId }: { projectId: string; 
           className="space-y-8"
         >
           <FormSection title="Objetivo" tip="Qué hace con cada contacto y dónde lo apunta.">
-            <Field
-              label="Proceso de venta"
-              tip="Es del proyecto: lo comparten todos los agentes que hablan con personas."
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm">
-                <span className="min-w-0">
-                  {process ? (
-                    <>
-                      {process.spec.objective || "Sin objetivo escrito"}
-                      {steps.length ? (
-                        <span className="block text-xs text-muted">
-                          Termina en: {steps.map((s) => NEXT_STEP_LABELS[s].toLowerCase()).join(", o ")}
-                        </span>
-                      ) : null}
-                    </>
-                  ) : (
-                    <span className="text-muted">El proyecto todavía no tiene proceso de venta.</span>
-                  )}
-                </span>
-                <Link
-                  href={`/app/projects/${projectId}/sales/process`}
-                  className="text-sm text-accent hover:underline"
-                >
-                  {process ? "Editar" : "Definirlo"}
-                </Link>
-              </div>
-            </Field>
+            <ProcessField projectId={projectId} process={process} />
             <Field
               label="Apunta cada contacto en"
               optional

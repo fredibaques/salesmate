@@ -15,11 +15,13 @@ import {
   addAgent,
   saveAgentAutomation,
   saveAgentInstructions,
+  saveAgentOutreach,
   setAgentEnabled,
   type automationInput,
 } from "../services/agents";
 import { teamEmails } from "./automation";
 import { processAgentEvents, recordAgentEvent, rowsAdded } from "./events";
+import { runOutreach } from "./outreach";
 import { runProspecting } from "./prospector";
 import type { z } from "zod";
 
@@ -56,7 +58,7 @@ beforeAll(async () => {
       .returning(),
   );
   projectId = p.id;
-  const agent = await addAgent(db, tenant, projectId, "outbound", "b2b_consultative");
+  const agent = await addAgent(db, tenant, projectId, "prospecting", "b2b_consultative");
   agentId = agent.id;
   const base = await createBase(db, tenant, projectId, {
     name: "Concesionarios",
@@ -290,7 +292,7 @@ describe("notices and the next step", () => {
     });
     expect(slack.requests.length).toBe(before + 1);
     expect((slack.requests.at(-1)!.body as { text: string }).text).toMatch(
-      /⚠️ \*Agente outbound\* · Swipoo: No ha encontrado nada nuevo/,
+      /⚠️ \*Agente de prospección\* · Swipoo: No ha encontrado nada nuevo/,
     );
     const [notice] = await withTenant(db, tenant, (tx) =>
       tx.select().from(actions).where(eq(actions.type, "notify.slack")),
@@ -305,8 +307,14 @@ describe("notices and the next step", () => {
     await expect(automation({ notify: { emails: [ownerEmail], onFinish: true } })).rejects.toThrow("buzón");
   });
 
-  it("prepares a first email for rows that fit and leaves it for approval", async () => {
-    await automation({ mailboxId, handoff: { enabled: true, minFit: 80, instructions: "Menciona la ITV." } });
+  it("the outbound agent writes a first email to the rows that fit and leaves it for approval", async () => {
+    const outbound = await addAgent(db, tenant, projectId, "outbound");
+    await setAgentBase(db, tenant, projectId, outbound.id, baseId);
+    await saveAgentInstructions(db, tenant, projectId, outbound.id, {
+      instructions: "Menciona la ITV.",
+      schedule: null,
+    });
+    await saveAgentOutreach(db, tenant, projectId, outbound.id, { minFit: 80, perRun: 5, mailboxId });
     const { added } = await saveProspects(db, agentActor(), {
       baseId,
       items: [
@@ -316,7 +324,6 @@ describe("notices and the next step", () => {
       ],
     });
     const { llm, requests } = scriptedLlm([
-      done,
       {
         blocks: [
           {
@@ -326,18 +333,20 @@ describe("notices and the next step", () => {
         ],
       },
     ]);
-    const result = await runProspecting({ db, llm, gateway: gateway() }, tenant, {
-      agentId,
+    const result = await runOutreach({ db, llm, gateway: gateway() }, tenant, {
+      agentId: outbound.id,
       trigger: "manual",
     });
-    expect(result.firstContacts).toMatchObject({ proposed: 1, blocked: [] });
-    expect(result.summary).toContain("1 emails preparados");
-    expect(JSON.stringify(requests[1].messages)).toContain("Menciona la ITV.");
+    expect(result).toMatchObject({ status: "completed", proposed: 1 });
+    expect(result.summary).toContain("1 primer email preparado");
+    expect(JSON.stringify(requests[0].messages)).toContain("Menciona la ITV.");
     const [email] = await withTenant(db, tenant, (tx) =>
       tx.select().from(actions).where(eq(actions.type, "email.send")),
     );
     expect(email).toMatchObject({
       status: "pending_approval",
+      agentType: "outbound",
+      agentConfigId: outbound.id,
       payload: {
         identityId: mailboxId,
         to: ["info@autoscadiz.es"],
@@ -352,10 +361,18 @@ describe("notices and the next step", () => {
     );
     expect(contacted.map((r) => r.id)).toEqual([added.find((a) => a.companyName === "Autos Cádiz")!.id]);
     // Next run: that row already has its first email.
-    const again = await runProspecting({ db, llm: scriptedLlm([done]).llm, gateway: gateway() }, tenant, {
-      agentId,
+    const again = await runOutreach({ db, llm: scriptedLlm([]).llm, gateway: gateway() }, tenant, {
+      agentId: outbound.id,
       trigger: "manual",
     });
-    expect(again.firstContacts).toMatchObject({ proposed: 0 });
+    expect(again).toMatchObject({ status: "completed", proposed: 0 });
+    // Without a table it doesn't work, and says why.
+    await setAgentBase(db, tenant, projectId, outbound.id, null);
+    const idle = await runOutreach({ db, llm: scriptedLlm([]).llm, gateway: gateway() }, tenant, {
+      agentId: outbound.id,
+      trigger: "manual",
+    });
+    expect(idle.status).toBe("skipped");
+    expect(idle.summary).toContain("elige en su configuración la tabla");
   });
 });

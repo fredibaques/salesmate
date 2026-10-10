@@ -81,12 +81,15 @@ export function CellState({
   value,
   meta,
   pending,
+  filling = false,
   agent = true,
 }: {
   column: BaseColumn;
   value: unknown;
   meta: CellMeta | undefined;
   pending: boolean;
+  /** An agent is filling it right now. */
+  filling?: boolean;
   /** An agent fills the table: hand-written values show a lock (it won't change them). */
   agent?: boolean;
 }) {
@@ -101,7 +104,18 @@ export function CellState({
     );
   }
   if (meta?.notFound) return <NotFound />;
+  if (pending && filling) return <Filling />;
   return pending ? <Pending /> : null;
+}
+
+/** A cell an agent is filling right now: the text shimmers until the value arrives. */
+export function Filling() {
+  return (
+    <span className="inline-flex items-center gap-1 text-xs" role="status">
+      <Sparkles className="size-3 animate-pulse text-brand-600" aria-hidden />
+      <span className="text-shimmer font-medium">completándose</span>
+    </span>
+  );
 }
 
 export function Pending() {

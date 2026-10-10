@@ -118,12 +118,14 @@ describe("bases", () => {
     const [project] = await withTenant(db, tenant, (tx) =>
       tx.insert(projects).values({ orgId: tenant.orgId, name: "Agente" }).returning(),
     );
-    const agent = await addAgent(db, tenant, project.id, "outbound", "b2b_consultative");
+    const agent = await addAgent(db, tenant, project.id, "prospecting", "b2b_consultative");
     const first = await ensureAgentBase(db, tenant, agent.id);
     const second = await createBase(db, tenant, project.id, { name: "Otra", rowKind: "person", columns: [] });
     await deleteBase(db, tenant, first.id);
     expect((await ensureAgentBase(db, tenant, agent.id)).id).toBe(second.id);
-    expect(await listBases(db, tenant, project.id)).toMatchObject([{ name: "Otra", agents: ["outbound"] }]);
+    expect(await listBases(db, tenant, project.id)).toMatchObject([
+      { name: "Otra", agents: ["prospecting"] },
+    ]);
   });
 });
 
@@ -368,10 +370,10 @@ describe("tables on their own", () => {
       true,
     );
 
-    const agent = await addAgent(db, tenant, projectId, "outbound", "b2b_consultative");
+    const agent = await addAgent(db, tenant, projectId, "prospecting", "b2b_consultative");
     await setAgentBase(db, tenant, projectId, agent.id, solo.id);
     expect(await baseAgents(db, tenant, solo.id)).toEqual([
-      expect.objectContaining({ projectId, agentType: "outbound", label: "Agente outbound" }),
+      expect.objectContaining({ projectId, agentType: "prospecting", label: "Agente de prospección" }),
     ]);
 
     await setBaseProject(db, tenant, solo.id, projectId);
@@ -404,7 +406,7 @@ describe("tables like a spreadsheet", () => {
       addProspectRow(db, tenant, base.id, rowEditFromValues({ company: "Sin persona" })),
     ).rejects.toThrow(/nombre de la persona/);
 
-    const agent = await addAgent(db, tenant, projectId, "outbound", "b2b_consultative");
+    const agent = await addAgent(db, tenant, projectId, "prospecting", "b2b_consultative");
     await setAgentBase(db, tenant, projectId, agent.id, base.id);
     expect((await getBase(db, tenant, base.id))!.hiddenFields).toEqual([]);
   });

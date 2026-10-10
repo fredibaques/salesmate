@@ -63,7 +63,7 @@ export const MAX_COLUMNS = 50;
  * company, or the person in tables of people) is the only one a table can't
  * hide: it is how rows are told apart. The rest show or hide like columns.
  */
-export const SYSTEM_FIELDS = ["person", "company", "web", "fit", "status", "sources"] as const;
+export const SYSTEM_FIELDS = ["person", "company", "web", "fit", "status", "sources", "created"] as const;
 export type SystemField = (typeof SYSTEM_FIELDS)[number];
 
 export const SYSTEM_FIELD_LABELS: Record<SystemField, string> = {
@@ -73,6 +73,7 @@ export const SYSTEM_FIELD_LABELS: Record<SystemField, string> = {
   fit: "Encaje",
   status: "Estado",
   sources: "Fuentes",
+  created: "Fecha de registro",
 };
 
 /** The field that names each row. */
@@ -85,9 +86,9 @@ export function systemFields(rowKind: RowKind): SystemField[] {
   return rowKind === "person" ? [...SYSTEM_FIELDS] : SYSTEM_FIELDS.filter((f) => f !== "person");
 }
 
-/** A new table shows only the row's name: the rest is added from the table. */
+/** A new table shows only the row's name and when each row arrived: the rest is added from the table. */
 export function newTableHiddenFields(rowKind: RowKind): SystemField[] {
-  return systemFields(rowKind).filter((f) => f !== primaryField(rowKind));
+  return systemFields(rowKind).filter((f) => f !== primaryField(rowKind) && f !== "created");
 }
 
 /**

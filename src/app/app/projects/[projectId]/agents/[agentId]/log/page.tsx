@@ -42,7 +42,7 @@ export default async function AgentLogPage({
         />
       </div>
       <div className="space-y-6">
-        {agent.config.agentType === "outbound" ? (
+        {agent.config.agentType === "prospecting" || agent.config.agentType === "outbound" ? (
           <ResultsCard projectId={projectId} agentId={agentId} />
         ) : null}
         <Card

@@ -1,16 +1,18 @@
 import { CalendarDays, Mail, Phone, Plug } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { IntegrationLogo } from "@/components/integration-logo";
-import { Badge, CardGrid, EmptyState, EntityCard, Notice, PageHeader } from "@/components/ui";
+import { Badge, Button, CardGrid, EmptyState, EntityCard, Notice, PageHeader } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
-import { describeScopes, getIntegration } from "@/lib/integrations";
+import { Trash2 } from "lucide-react";
+import { ConfirmForm } from "@/components/confirm-form";
+import { connectedTools, describeScopes, getIntegration, googleToolsOf } from "@/lib/integrations";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { env } from "@/server/env";
 import { listOrgConnections, listOrgIdentities } from "@/server/services/projects";
 import { mcpToolsOf } from "@/server/connectors/mcp";
 import { whatsappVerifyToken } from "@/server/connectors/service";
-import { testConnection } from "./actions";
+import { removeConnectionAction, testConnection } from "./actions";
 import { AddConnectionButton } from "./add-connection";
 import { TaskTargetForm } from "./target-picker";
 
@@ -60,6 +62,7 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/app/
     appUrl,
     // ?add=1 opens the modal, ?add=<tool> straight on that tool.
     initial: typeof query.add === "string" ? query.add : null,
+    connected: connectedTools(connections),
   };
 
   return (
@@ -112,15 +115,45 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/app/
                 footer={
                   <>
                     <span className="text-xs text-muted">Conectada el {formatDateTime(c.createdAt)}</span>
-                    <ActionForm
-                      action={testConnection.bind(null, c.id)}
-                      submitLabel="Probar conexión"
-                      submitVariant="secondary"
-                      className="flex flex-wrap items-center gap-3"
-                    />
+                    <span className="flex flex-wrap items-center gap-2">
+                      {canEdit ? (
+                        <ConfirmForm
+                          action={removeConnectionAction.bind(null, c.id)}
+                          message={`¿Desconectar «${c.label}»? Los agentes dejarán de usarla${own.length ? ` y de usar ${own.map((i) => i.address).join(", ")}` : ""}. Lo que ya hicieron se conserva.`}
+                        >
+                          <Button variant="dangerGhost" size="sm">
+                            <Trash2 className="size-4" />
+                            Desconectar
+                          </Button>
+                        </ConfirmForm>
+                      ) : null}
+                      <ActionForm
+                        action={testConnection.bind(null, c.id)}
+                        submitLabel="Probar conexión"
+                        submitVariant="secondary"
+                        className="flex flex-wrap items-center gap-3"
+                      />
+                    </span>
                   </>
                 }
               >
+                {c.provider === "google" ? (
+                  <div className="mb-4">
+                    <p className="text-xs font-medium tracking-wide text-muted uppercase">Herramientas</p>
+                    <ul className="mt-2 flex flex-wrap gap-2">
+                      {googleToolsOf(c.readScopes, c.writeScopes).map((t) => (
+                        <li
+                          key={t.id}
+                          className="flex items-center gap-1.5 rounded-lg border border-border py-1 pr-2.5 pl-1 text-sm"
+                        >
+                          <IntegrationLogo id={t.id} name={t.name} size="xs" />
+                          {t.name}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
                 {scopes.length > 0 ? (
                   <div>
                     <p className="text-xs font-medium tracking-wide text-muted uppercase">Permisos</p>

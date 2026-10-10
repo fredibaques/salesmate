@@ -12,7 +12,7 @@ import type {
   listMcpServers,
   ProjectAgentType,
 } from "@/server/services/agents";
-import { InboundWizard, OutboundWizard } from "./agent-wizard";
+import { InboundWizard, OutreachWizard, ProspectingWizard } from "./agent-wizard";
 
 /**
  * «Añadir agente», inside its modal: first which kind of agent, then its
@@ -25,6 +25,7 @@ export function NewAgentFlow({
   options,
   servers,
   defaults,
+  bases,
   process,
 }: {
   projectId: string;
@@ -33,7 +34,9 @@ export function NewAgentFlow({
   initial?: ProjectAgentType;
   options: Awaited<ReturnType<typeof listChannelOptions>>;
   servers: Awaited<ReturnType<typeof listMcpServers>>;
-  defaults: (typeof AGENT_DEFAULTS)["outbound"];
+  defaults: typeof AGENT_DEFAULTS;
+  /** Tables an outbound agent can work with. */
+  bases: { id: string; name: string }[];
   process: { objective: string; nextSteps: NextStep[] } | null;
 }) {
   const [type, setType] = useState<ProjectAgentType | null>(initial ?? null);
@@ -51,8 +54,16 @@ export function NewAgentFlow({
             Otro tipo de agente
           </button>
         ) : null}
-        {type === "outbound" ? (
-          <OutboundWizard projectId={projectId} defaults={defaults} servers={servers} />
+        {type === "prospecting" ? (
+          <ProspectingWizard projectId={projectId} defaults={defaults.prospecting} servers={servers} />
+        ) : type === "outbound" ? (
+          <OutreachWizard
+            projectId={projectId}
+            defaults={defaults.outbound}
+            bases={bases}
+            mailboxes={options.mailboxes.filter((m) => m.canSend)}
+            process={process}
+          />
         ) : (
           <InboundWizard projectId={projectId} options={options} process={process} />
         )}

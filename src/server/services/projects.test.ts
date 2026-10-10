@@ -111,7 +111,7 @@ describe("projects service", () => {
 
   it("deletes a project with its agents, only when its name is confirmed; its tables stay, on their own", async () => {
     const project = await createProject(db, tenant, { name: "Para borrar" });
-    const agent = await addAgent(db, tenant, project.id, "outbound", "b2b_consultative");
+    const agent = await addAgent(db, tenant, project.id, "prospecting", "b2b_consultative");
     const base = await ensureAgentBase(db, tenant, agent.id);
     await saveProspects(db, tenant, { baseId: base.id, items: [{ companyName: "Talleres Pérez" }] });
 

@@ -106,6 +106,26 @@ export async function listRuns(
     next: rows.length > limit ? rows[limit - 1].startedAt : null,
   };
 }
+/**
+ * Rows of a table an agent is filling right now: those of its runs still
+ * going (started in the last 10 minutes; older ones were cut off).
+ */
+export async function fillingRows(db: Db, tenant: Pick<TenantContext, "orgId">, baseId: string) {
+  const runs = await withTenant(db, tenant, (tx) =>
+    tx
+      .select({ target: agentRuns.target })
+      .from(agentRuns)
+      .where(
+        and(
+          eq(agentRuns.status, "running"),
+          gte(agentRuns.startedAt, new Date(Date.now() - 10 * 60_000)),
+          sql`${agentRuns.target}->>'baseId' = ${baseId}`,
+        ),
+      ),
+  );
+  return new Set(runs.flatMap((r) => r.target?.rowIds ?? []));
+}
+
 export type RunLogRow = Awaited<ReturnType<typeof listRuns>>["runs"][number];
 
 /** Runs and spending since a date, in total and by agent (the most expensive first). */

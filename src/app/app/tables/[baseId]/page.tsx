@@ -19,9 +19,9 @@ import { AgentTile, agentState } from "@/components/agent-look-fields";
 import { MenuButton } from "@/components/menu-button";
 import { connectionCapabilities } from "@/server/connectors/service";
 import { listOrgConnections } from "@/server/services/projects";
-import { DataGrid, GridCell, GridHead, GridRow } from "@/components/data-grid";
+import { DataGrid, GridCell, GridHead, GridRow, NARROW_COLUMN } from "@/components/data-grid";
 import { Badge, Button, cx, Input, LinkButton, Notice, PageHeader, Tooltip } from "@/components/ui";
-import { plural } from "@/lib/format";
+import { formatDateTime, plural } from "@/lib/format";
 import {
   isPendingCell,
   primaryField,
@@ -52,6 +52,7 @@ import {
   toggleColumnAction,
   toggleFieldAction,
 } from "../actions";
+import { fillingRows } from "@/server/agents/runs";
 import { CellState, cellTitle, COLUMN_ICONS, NotFound, Pending, ScoreBar, WebLink } from "../cells";
 import { AddColumnHeader, ColumnHeader, FieldHeader, HiddenColumns } from "./column-header";
 import { EditableCell, ExpandRow, NewRow, type CellEditor, type NewRowField } from "./grid-editing";
@@ -85,6 +86,7 @@ const system = (key: SystemField): GridField => ({ kind: "system", key });
 
 /** How the table sorts by each fixed field (the sources don't sort). */
 const SORT_KEYS: Partial<Record<SystemField, string>> = {
+  created: "created",
   person: "person",
   company: "name",
   web: "web",
@@ -158,9 +160,9 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
   const sending = canEdit && query.send === "1";
   const agents = await baseAgents(db, tenant, baseId);
   // The prospecting agent that fills it (the first active one, if several do).
-  const outbound = agents.filter((a) => a.agentType === "outbound");
-  const filler = outbound.find((a) => a.enabled) ?? outbound[0] ?? null;
-  const [data, projects, runs, openRow, pendingCells] = await Promise.all([
+  const prospecting = agents.filter((a) => a.agentType === "prospecting");
+  const filler = prospecting.find((a) => a.enabled) ?? prospecting[0] ?? null;
+  const [data, projects, runs, openRow, pendingCells, filling] = await Promise.all([
     listProspects(db, tenant, baseId, {
       status,
       q,
@@ -173,6 +175,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
     filler ? listAgentRuns(db, tenant, filler.projectId, filler.id, 1) : Promise.resolve([]),
     rowParam && rowParam !== "new" ? getProspect(db, tenant, baseId, rowParam).catch(() => null) : null,
     countPendingCells(db, tenant, baseId),
+    fillingRows(db, tenant, baseId),
   ]);
   const filledByAgent = Boolean(filler);
   const running = filledByAgent && runs[0]?.status === "running" && isRecent(runs[0].startedAt);
@@ -189,7 +192,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
     { kind: "system", key: primary },
     ...(["company", "web"] as const).filter((f) => f !== primary && shown(f)).map(system),
     ...columns.map((column) => ({ kind: "column" as const, column })),
-    ...(["fit", "status", "sources"] as const).filter(shown).map(system),
+    ...(["fit", "status", "sources", "created"] as const).filter(shown).map(system),
   ];
   const hidden = [
     ...hiddenFields.map((f) => ({ id: `field:${f}`, name: SYSTEM_FIELD_LABELS[f] })),
@@ -413,12 +416,19 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
             <DataGrid
               head={
                 <>
+                  <GridHead sticky className={cx(NARROW_COLUMN, "px-2")} align="end">
+                    {sortLink("id", "ID", "end")}
+                  </GridHead>
                   {fields.map((f, i) => {
                     if (f.kind === "system") {
                       const key = SORT_KEYS[f.key];
                       const label = SYSTEM_FIELD_LABELS[f.key];
                       return (
-                        <GridHead key={f.key} sticky={i === 0} align={f.key === "fit" ? "end" : "start"}>
+                        <GridHead
+                          key={f.key}
+                          sticky={i === 0 ? "second" : false}
+                          align={f.key === "fit" ? "end" : "start"}
+                        >
                           {canEdit ? (
                             <FieldHeader
                               label={label}
@@ -500,6 +510,9 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                 const name = (person ? r.personName : r.companyName) || "esta fila";
                 return (
                   <GridRow key={r.id}>
+                    <GridCell sticky align="end" className={cx(NARROW_COLUMN, "px-2 font-normal text-muted")}>
+                      {r.seq}
+                    </GridCell>
                     {fields.map((f, i) => {
                       if (f.kind === "column") {
                         const c = f.column;
@@ -527,6 +540,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                                   r.status !== "discarded" &&
                                   isPendingCell(c, r.data[c.id], r.cellMeta[c.id])
                                 }
+                                filling={filling.has(r.id)}
                               />
                             </EditableCell>
                           </GridCell>
@@ -538,7 +552,11 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                         case "company": {
                           const value = f.key === "person" ? r.personName : r.companyName;
                           return (
-                            <GridCell key={f.key} sticky={i === 0} className={i === 0 ? "pr-8" : undefined}>
+                            <GridCell
+                              key={f.key}
+                              sticky={i === 0 ? "second" : false}
+                              className={i === 0 ? "pr-8" : undefined}
+                            >
                               <EditableCell
                                 rowId={r.id}
                                 field={f.key}
@@ -587,6 +605,12 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                           return (
                             <GridCell key={f.key}>
                               <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge>
+                            </GridCell>
+                          );
+                        case "created":
+                          return (
+                            <GridCell key={f.key} className="text-muted tabular-nums">
+                              {formatDateTime(r.createdAt)}
                             </GridCell>
                           );
                         case "sources":
@@ -649,6 +673,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                 startOpen={data.total === 0}
                 add={addRowAction.bind(null, baseId)}
                 fields={[
+                  { key: "_id", editor: null, sticky: true },
                   ...fields.map((f, i): NewRowField => {
                     if (f.kind === "column") {
                       return {
@@ -663,7 +688,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                           key: f.key,
                           editor,
                           label: SYSTEM_FIELD_LABELS[f.key],
-                          sticky: i === 0,
+                          sticky: i === 0 ? "second" : undefined,
                           required: f.key === primary,
                         }
                       : { key: f.key, editor: null };
@@ -674,8 +699,12 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
               {data.total === 0
                 ? [0, 1].map((n) => (
                     <GridRow key={`empty-${n}`}>
+                      <GridCell sticky className={NARROW_COLUMN} />
                       {fields.map((f, i) => (
-                        <GridCell key={f.kind === "system" ? f.key : f.column.id} sticky={i === 0} />
+                        <GridCell
+                          key={f.kind === "system" ? f.key : f.column.id}
+                          sticky={i === 0 ? "second" : false}
+                        />
                       ))}
                       <GridCell />
                     </GridRow>

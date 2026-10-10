@@ -29,11 +29,14 @@ export async function GET(request: Request) {
     skipped: report.skipped,
     runs: report.runs.map((r) => ({
       projectId: r.projectId,
+      agentId: r.agentId,
       ...("error" in r.result
         ? { error: r.result.error }
         : "outcomes" in r.result
           ? { queued: r.result.queued, leads: r.result.outcomes.map((o) => o.status) }
-          : { status: r.result.status, added: r.result.added, costUsd: r.result.costUsd }),
+          : "proposed" in r.result
+            ? { status: r.result.status, proposed: r.result.proposed, costUsd: r.result.costUsd }
+            : { status: r.result.status, added: r.result.added, costUsd: r.result.costUsd }),
     })),
   });
 }

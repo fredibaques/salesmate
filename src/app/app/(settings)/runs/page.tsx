@@ -17,7 +17,8 @@ const PERIODS = [
   { value: "90d", label: "Últimos 90 días" },
 ];
 const AGENTS: { value: AgentType; label: string }[] = [
-  { value: "outbound", label: "Prospección" },
+  { value: "prospecting", label: "Prospección" },
+  { value: "outbound", label: "Outbound" },
   { value: "inbound", label: "Inbound" },
   { value: "account_manager", label: "Cuentas" },
   { value: "copilot", label: "Copilot" },

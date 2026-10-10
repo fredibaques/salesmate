@@ -24,6 +24,14 @@ export function DataGrid({ head, children }: { head: ReactNode; children: ReactN
 
 const cellBase = "h-10 border-r border-b border-ink-100 px-3 whitespace-nowrap";
 
+/** Width of a narrow first column (the row's ID) that the second sticky column sits after. */
+export const NARROW_COLUMN = "w-14 min-w-14 max-w-14";
+
+/** Where a sticky column sits: at the edge, or after the narrow first column. */
+export function stickyLeft(sticky: true | "second") {
+  return sticky === "second" ? "left-14" : "left-0";
+}
+
 export function GridHead({
   children,
   sticky = false,
@@ -34,8 +42,8 @@ export function GridHead({
   children: ReactNode;
   /** A column that others can be dropped next to (dragging headers). */
   dropId?: string;
-  /** The first column: stays visible while scrolling sideways. */
-  sticky?: boolean;
+  /** Stays visible while scrolling sideways: the first column, or "second" right after a narrow first one. */
+  sticky?: boolean | "second";
   align?: "start" | "end";
   className?: string;
 }) {
@@ -46,7 +54,7 @@ export function GridHead({
       className={cx(
         "group/head sticky top-0 h-9 border-r border-b border-border bg-ink-50 px-3 text-left font-medium whitespace-nowrap text-ink-700",
         "data-[dragging=true]:opacity-40 data-[drop=after]:shadow-[inset_-3px_0_0_var(--color-accent)] data-[drop=before]:shadow-[inset_3px_0_0_var(--color-accent)]",
-        sticky ? "left-0 z-30 shadow-[1px_0_0_var(--color-border)]" : "z-20",
+        sticky ? cx(stickyLeft(sticky), "z-30 shadow-[1px_0_0_var(--color-border)]") : "z-20",
         align === "end" && "text-right",
         className,
       )}
@@ -68,7 +76,7 @@ export function GridCell({
   className,
 }: {
   children?: ReactNode;
-  sticky?: boolean;
+  sticky?: boolean | "second";
   align?: "start" | "end";
   title?: string;
   className?: string;
@@ -80,7 +88,10 @@ export function GridCell({
         cellBase,
         "group-hover/row:bg-ink-25",
         sticky &&
-          "sticky left-0 z-10 bg-surface font-medium shadow-[1px_0_0_var(--color-border)] group-hover/row:bg-ink-50",
+          cx(
+            "sticky z-10 bg-surface font-medium shadow-[1px_0_0_var(--color-border)] group-hover/row:bg-ink-50",
+            stickyLeft(sticky),
+          ),
         align === "end" && "text-right tabular-nums",
         className,
       )}

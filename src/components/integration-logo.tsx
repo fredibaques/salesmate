@@ -4,6 +4,7 @@ import {
   siAirtable,
   siGmail,
   siGoogle,
+  siGooglecalendar,
   siGoogledocs,
   siGooglemeet,
   siGooglesheets,
@@ -63,6 +64,7 @@ const MondayMark = (
 const MARKS: Record<string, ReactNode> = {
   google: <Brand icon={siGoogle} />,
   gmail: <Brand icon={siGmail} />,
+  google_calendar: <Brand icon={siGooglecalendar} />,
   hubspot: <Brand icon={siHubspot} />,
   twenty: <Brand icon={siTwenty} />,
   mcp: <Brand icon={siModelcontextprotocol} />,
@@ -79,7 +81,12 @@ const MARKS: Record<string, ReactNode> = {
   database: <Database className="size-full text-ink-600" strokeWidth={1.75} />,
 };
 
-const SIZES = { sm: "size-8 p-1.5 text-sm", md: "size-9 p-2 text-sm", lg: "size-11 p-2.5 text-lg" };
+const SIZES = {
+  xs: "size-6 p-1 text-xs",
+  sm: "size-8 p-1.5 text-sm",
+  md: "size-9 p-2 text-sm",
+  lg: "size-11 p-2.5 text-lg",
+};
 
 export function IntegrationLogo({
   id,

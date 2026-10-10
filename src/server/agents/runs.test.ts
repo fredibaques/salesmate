@@ -6,7 +6,7 @@ import { agentRuns, projects } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
 import { costBreakdown } from "../llm/client";
 import { addAgent, getAgent, listProjectAgents } from "../services/agents";
-import { costSeries, getRun, listRuns, monthStart, runTotals } from "./runs";
+import { costSeries, fillingRows, getRun, listRuns, monthStart, runTotals } from "./runs";
 
 let db: Db;
 let close: () => Promise<void>;
@@ -30,13 +30,13 @@ beforeAll(async () => {
       .returning(),
   );
   projectId = p.id;
-  agentId = (await addAgent(db, tenant, projectId, "outbound", "b2b_consultative")).id;
+  agentId = (await addAgent(db, tenant, projectId, "prospecting", "b2b_consultative")).id;
   await withTenant(db, tenant, (tx) =>
     tx.insert(agentRuns).values([
       {
         orgId: tenant.orgId,
         projectId,
-        agentType: "outbound",
+        agentType: "prospecting",
         trigger: "manual",
         status: "completed",
         model: MODEL,
@@ -54,7 +54,7 @@ beforeAll(async () => {
       {
         orgId: tenant.orgId,
         projectId,
-        agentType: "outbound",
+        agentType: "prospecting",
         trigger: "schedule",
         status: "completed",
         model: MODEL,
@@ -118,7 +118,7 @@ describe("costBreakdown", () => {
 describe("runs log", () => {
   it("lists runs newest first, with label, duration and cost lines, page by page", async () => {
     const first = await listRuns(db, tenant, { limit: 2 });
-    expect(first.runs.map((r) => r.agentType)).toEqual(["copilot", "outbound"]);
+    expect(first.runs.map((r) => r.agentType)).toEqual(["copilot", "prospecting"]);
     expect(first.runs[0]).toMatchObject({ label: "Copilot", status: "running", durationMs: null });
     expect(first.runs[1]).toMatchObject({ projectName: "Swipoo", durationMs: 120_000, steps: 0 });
     expect(first.runs[1].cost.map((l) => l.key)).toEqual(["input", "output", "cache", "search", "other"]);
@@ -129,12 +129,12 @@ describe("runs log", () => {
   });
 
   it("filters by agent and period and adds up the cost by agent", async () => {
-    const outbound = await listRuns(db, tenant, { agentType: "outbound" });
+    const outbound = await listRuns(db, tenant, { agentType: "prospecting" });
     expect(outbound.runs).toHaveLength(2);
     const october = await runTotals(db, tenant, { since: new Date("2026-10-01T00:00:00Z") });
     expect(october.runs).toBe(2);
     expect(october.costUsd).toBeCloseTo(0.8);
-    expect(october.byAgent[0]).toMatchObject({ agentType: "outbound", runs: 1, webSearches: 5 });
+    expect(october.byAgent[0]).toMatchObject({ agentType: "prospecting", runs: 1, webSearches: 5 });
     const september = await runTotals(db, tenant, {
       since: new Date("2026-09-01T00:00:00Z"),
       until: new Date("2026-10-01T00:00:00Z"),
@@ -187,7 +187,7 @@ describe("runs log", () => {
         .values({
           orgId: tenant.orgId,
           projectId,
-          agentType: "outbound",
+          agentType: "prospecting",
           agentConfigId: agentId,
           trigger: "manual",
           status: "running",
@@ -197,6 +197,15 @@ describe("runs log", () => {
         .returning(),
     );
     expect((await getAgent(db, tenant, projectId, agentId))?.working).toBe(true);
+    // The rows it fills show as being filled, in their table only.
+    await withTenant(db, tenant, (tx) =>
+      tx
+        .update(agentRuns)
+        .set({ target: { baseId: "b1", rowIds: ["r1", "r2"] } })
+        .where(eq(agentRuns.id, run.id)),
+    );
+    expect([...(await fillingRows(db, tenant, "b1"))]).toEqual(["r1", "r2"]);
+    expect((await fillingRows(db, tenant, "b2")).size).toBe(0);
     expect((await listProjectAgents(db, tenant, projectId)).map((a) => a.working)).toEqual([true]);
     await withTenant(db, tenant, (tx) =>
       tx
@@ -205,5 +214,6 @@ describe("runs log", () => {
         .where(eq(agentRuns.id, run.id)),
     );
     expect((await getAgent(db, tenant, projectId, agentId))?.working).toBe(false);
+    expect((await fillingRows(db, tenant, "b1")).size).toBe(0);
   });
 });

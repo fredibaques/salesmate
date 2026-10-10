@@ -36,23 +36,23 @@ import { PROCESS_FIELDS, parseSalesProfile, salesProfileSchema, type PlaybookSpe
  * that talk to people follow it; prospecting agents don't need it.
  */
 
-/** Agents a project can have, in display order. Others run at organization level. */
-export const PROJECT_AGENT_TYPES = ["inbound", "outbound", "account_manager"] as const;
+/**
+ * Agents a project can have, in the order of the sale: prospecting finds
+ * and completes rows, outbound starts the conversation with them, inbound
+ * attends who shows interest on their own. Others run at organization level.
+ */
+export const PROJECT_AGENT_TYPES = ["prospecting", "outbound", "inbound", "account_manager"] as const;
 export type ProjectAgentType = (typeof PROJECT_AGENT_TYPES)[number];
 
 /** Agents whose runtime exists today; the rest can't be added yet. */
-export const AVAILABLE_AGENT_TYPES: readonly ProjectAgentType[] = ["inbound", "outbound"];
-
-/** Agents that work on a schedule (the rest react to what arrives). */
-export const SCHEDULED_AGENT_TYPES: readonly ProjectAgentType[] = ["outbound"];
+export const AVAILABLE_AGENT_TYPES: readonly ProjectAgentType[] = ["prospecting", "outbound", "inbound"];
 
 /** Starting configuration of each template; the user edits all of it. */
 export const AGENT_DEFAULTS: Record<
   ProjectAgentType,
   { instructions: string; tools: AgentTools; schedule: AgentSchedule | null; settings: AgentSettings }
 > = {
-  inbound: { instructions: "", tools: {}, schedule: null, settings: {} },
-  outbound: {
+  prospecting: {
     instructions: [
       "Busca en fuentes públicas (webs de empresas, directorios, asociaciones del sector, noticias) empresas que encajen con nuestro cliente ideal.",
       "Para cada una, recoge el nombre, la web, la ciudad, un teléfono y un email de contacto públicos si los hay, y explica en una frase por qué encaja.",
@@ -62,6 +62,16 @@ export const AGENT_DEFAULTS: Record<
     schedule: { kind: "weekly", time: "08:00", days: [1, 2, 3, 4, 5] },
     settings: { prospectsPerRun: 10, mode: "both", cellsPerRun: 20 },
   },
+  outbound: {
+    instructions: [
+      "Escribe un primer email breve y personal: menciona algo concreto de su empresa y por qué encaja, explica en una frase qué ofrecemos y termina con una pregunta fácil de responder.",
+      "Nada de adjuntos ni de promesas que no estén en lo que sabemos.",
+    ].join("\n"),
+    tools: {},
+    schedule: { kind: "weekly", time: "09:30", days: [1, 2, 3, 4, 5] },
+    settings: { handoff: { enabled: true, minFit: 70, perRun: 5 } },
+  },
+  inbound: { instructions: "", tools: {}, schedule: null, settings: {} },
   account_manager: { instructions: "", tools: {}, schedule: null, settings: {} },
 };
 
@@ -140,7 +150,7 @@ export async function getAgent(
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Agents that talk to people and so follow the project's sales process. */
-export const PROCESS_AGENT_TYPES: readonly ProjectAgentType[] = ["inbound", "account_manager"];
+export const PROCESS_AGENT_TYPES: readonly ProjectAgentType[] = ["outbound", "inbound", "account_manager"];
 
 /**
  * Adds an agent to a project: as many of each kind as the user wants. One
@@ -189,7 +199,7 @@ export async function addAgent(
     if (PROCESS_AGENT_TYPES.includes(agentType))
       await ensureProjectProcessIn(tx, tenant, projectId, salesMotion);
     // A prospecting agent fills a base of the project from the start.
-    if (agentType === "outbound") await ensureAgentBaseIn(tx, tenant, config.id);
+    if (agentType === "prospecting") await ensureAgentBaseIn(tx, tenant, config.id);
     await audit(tx, tenant, {
       event: "agent.added",
       projectId,
@@ -963,6 +973,48 @@ export async function saveAgentTriggers(
       entityType: "agent_config",
       entityId: current.id,
       data: { agentType: current.agentType, triggers },
+    });
+  });
+}
+
+/**
+ * Whom the outbound agent writes to and from where: rows of its table with
+ * at least `minFit`, up to `perRun` a run, from the mailbox `mailboxId`.
+ */
+export async function saveAgentOutreach(
+  db: Db,
+  tenant: TenantContext,
+  projectId: string,
+  agentId: string,
+  input: { minFit: number; perRun: number; mailboxId: string | null },
+) {
+  const minFit = Math.max(0, Math.min(100, Math.round(input.minFit)));
+  const perRun = Math.max(1, Math.min(25, Math.round(input.perRun)));
+  return withTenant(db, tenant, async (tx) => {
+    const current = await findConfig(tx, projectId, agentId);
+    if (!current?.addedAt) throw new Error("Agente no encontrado.");
+    if (input.mailboxId) {
+      const [mailbox] = await tx
+        .select({ id: identities.id })
+        .from(identities)
+        .where(and(eq(identities.id, input.mailboxId), eq(identities.kind, "email")));
+      if (!mailbox) throw new Error("Buzón no encontrado.");
+    }
+    const settings: AgentSettings = {
+      ...current.settings,
+      handoff: { ...current.settings.handoff, enabled: true, minFit, perRun },
+    };
+    await tx
+      .update(agentConfigs)
+      .set({ settings, channels: { ...current.channels, mailboxId: input.mailboxId } })
+      .where(eq(agentConfigs.id, current.id));
+    await syncProjectChannels(tx, tenant.orgId, projectId);
+    await audit(tx, tenant, {
+      event: "agent.outreach_updated",
+      projectId,
+      entityType: "agent_config",
+      entityId: current.id,
+      data: { agentType: current.agentType, minFit, perRun, mailboxId: input.mailboxId },
     });
   });
 }

@@ -4,6 +4,7 @@ import { agentConfigs, agentRuns, projects, type AgentSchedule } from "../db/sch
 import { withSystem, withTenant } from "../db/tenant";
 import type { LlmClient } from "../llm/client";
 import { dayInWords } from "@/lib/schedule";
+import { runOutreach, type OutreachResult } from "./outreach";
 import { runProspecting, type AgentRunDeps, type ProspectingResult } from "./prospector";
 
 const WEEKDAYS: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
@@ -94,7 +95,8 @@ export async function closeStaleRuns(db: AgentRunDeps["db"], now: Date): Promise
 export type ScheduledRun = {
   projectId: string;
   agentId: string;
-  result: ProspectingResult | Awaited<ReturnType<typeof runInboundSweep>> | { error: string };
+  result:
+    ProspectingResult | OutreachResult | Awaited<ReturnType<typeof runInboundSweep>> | { error: string };
 };
 export type SkippedAgent = { projectId: string; reason: "no_ai" | "taken" | "over_limit" };
 
@@ -127,7 +129,7 @@ export async function runDueAgents(
       .innerJoin(projects, eq(projects.id, agentConfigs.projectId))
       .where(
         and(
-          inArray(agentConfigs.agentType, ["outbound", "inbound"]),
+          inArray(agentConfigs.agentType, ["prospecting", "outbound", "inbound"]),
           eq(agentConfigs.enabled, true),
           isNotNull(agentConfigs.addedAt),
           isNotNull(agentConfigs.schedule),
@@ -205,11 +207,13 @@ export async function runDueAgents(
     claimed.map(async ({ agent, projectId, llm }): Promise<ScheduledRun> => {
       const tenant = { orgId: agent.orgId };
       try {
-        // The inbound agent's run reads its mailbox and attends what is waiting.
+        // What a run does depends on the kind: read and attend, write first emails, or find rows.
         const result =
           agent.agentType === "inbound"
             ? await runInboundSweep({ ...deps, llm }, tenant, agent.id)
-            : await runProspecting({ ...deps, llm }, tenant, { agentId: agent.id, trigger: "schedule" });
+            : agent.agentType === "outbound"
+              ? await runOutreach({ ...deps, llm }, tenant, { agentId: agent.id, trigger: "schedule" })
+              : await runProspecting({ ...deps, llm }, tenant, { agentId: agent.id, trigger: "schedule" });
         await note(agent.id, agent.orgId, null);
         return { projectId, agentId: agent.id, result };
       } catch (err) {
