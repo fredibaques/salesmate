@@ -335,7 +335,15 @@ function newColumns(drafts: ColumnDraft[], existing: BaseColumn[] = []): BaseCol
     });
   }
   if (out.length > MAX_COLUMNS) throw new Error(`Una base admite hasta ${MAX_COLUMNS} columnas.`);
+  assertOneStage(out);
   return out.slice(existing.length);
+}
+
+/** The board view lists rows by one column: a table has one pipeline column at most. */
+function assertOneStage(columns: BaseColumn[]) {
+  if (columns.filter((c) => c.type === "stage").length > 1) {
+    throw new Error("Esta tabla ya tiene una columna de fase del pipeline: solo puede tener una.");
+  }
 }
 
 function assertFreeName(columns: BaseColumn[], name: string, except?: string) {
@@ -477,6 +485,7 @@ export async function saveColumn(
     const before = base.columns[index];
     const column: BaseColumn = { ...before, ...parsed.data, id: before.id };
     const columns = base.columns.map((c, i) => (i === index ? column : c));
+    assertOneStage(columns);
     const reshaped =
       before.type !== column.type ||
       JSON.stringify(before.options ?? []) !== JSON.stringify(column.options ?? []);

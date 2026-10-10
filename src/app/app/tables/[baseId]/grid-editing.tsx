@@ -8,7 +8,7 @@ import { stickyLeft } from "@/components/data-grid";
 import { Popover } from "@/components/popover";
 import { useToast } from "@/components/toast";
 import { buttonClass, cx } from "@/components/ui";
-import type { ColumnType } from "@/lib/prospect-columns";
+import { hasOptions, isSingleChoice, type ColumnType } from "@/lib/prospect-columns";
 
 /**
  * Typing in the table, as in a spreadsheet: a click on a cell edits it in
@@ -91,7 +91,7 @@ export function EditableCell({
     );
   }
 
-  if (editor.type === "select" || editor.type === "multi") {
+  if (hasOptions(editor.type)) {
     const multi = editor.type === "multi";
     const picked = Array.isArray(value) ? (value as string[]) : value ? [String(value)] : [];
     return (
@@ -291,7 +291,7 @@ export function NewRow({
 
   // The first field that takes text gets the focus.
   const firstText = fields.findIndex(
-    (f) => f.editor && f.editor.type !== "bool" && f.editor.type !== "select",
+    (f) => f.editor && f.editor.type !== "bool" && !isSingleChoice(f.editor.type),
   );
   return (
     <tr
@@ -333,7 +333,7 @@ export function NewRow({
               ) : null
             ) : f.editor.type === "bool" ? (
               <input type="checkbox" data-key={f.key} aria-label={f.label} className="mx-1.5 size-4" />
-            ) : f.editor.type === "select" ? (
+            ) : isSingleChoice(f.editor.type) ? (
               <select data-key={f.key} aria-label={f.label} defaultValue="" className={newFieldClass}>
                 <option value="" />
                 {(f.editor.options ?? []).map((o) => (

@@ -15,6 +15,8 @@ export type Integration = {
   color: string;
   /** What the agents can do once connected, in plain words. */
   abilities?: string[];
+  /** Not a tile of «Añadir conexión» (e.g. the Google account behind its tools). */
+  hidden?: boolean;
 };
 
 export const INTEGRATION_CATEGORIES: Record<IntegrationCategory, string> = {
@@ -28,16 +30,35 @@ export const INTEGRATION_CATEGORIES: Record<IntegrationCategory, string> = {
 export const INTEGRATIONS: Integration[] = [
   {
     id: "google",
-    name: "Google Workspace",
-    tagline: "Gmail y Google Calendar",
+    name: "Google",
+    tagline: "Cuenta de Google",
+    category: "email_calendar",
+    status: "available",
+    color: "#4285F4",
+    hidden: true,
+  },
+  {
+    id: "gmail",
+    name: "Gmail",
+    tagline: "Tu buzón de Google",
+    category: "email_calendar",
+    status: "available",
+    color: "#EA4335",
+    abilities: [
+      "Preparar borradores y enviar emails desde tu buzón",
+      "Leer los emails que llegan para responder leads (si le das permiso)",
+    ],
+  },
+  {
+    id: "google_calendar",
+    name: "Google Calendar",
+    tagline: "Disponibilidad y reuniones",
     category: "email_calendar",
     status: "available",
     color: "#4285F4",
     abilities: [
       "Consultar tu disponibilidad para ofrecer huecos reales",
-      "Crear reuniones con invitación",
-      "Preparar borradores y enviar emails desde tu buzón",
-      "Leer los emails que llegan para responder leads",
+      "Crear reuniones con invitación (si le das permiso)",
     ],
   },
   {
@@ -241,21 +262,28 @@ export function getIntegration(id: string): Integration | undefined {
   return INTEGRATIONS.find((i) => i.id === id);
 }
 
-/** Plain-language description of what a stored connection is allowed to do. */
 /**
- * The Google tools one Google connection gives, by what was granted (they
- * are permissions of the same account, not separate connections).
+ * The Google tools, each connected on its own: what it uses of the account
+ * (the scope the connection keeps for it while it is on).
  */
-export function googleToolsOf(read: string[], write: string[]): { id: string; name: string }[] {
-  const out: { id: string; name: string }[] = [];
-  if (read.includes("email") || write.includes("email")) out.push({ id: "gmail", name: "Gmail" });
-  if (read.includes("calendar") || write.includes("calendar"))
-    out.push({ id: "google_calendar", name: "Google Calendar" });
-  if (read.includes("meet")) out.push({ id: "google_meet", name: "Google Meet" });
-  if (read.includes("docs")) out.push({ id: "google_docs", name: "Google Docs" });
-  if (read.includes("sheets") || write.includes("sheets"))
-    out.push({ id: "google_sheets", name: "Google Sheets" });
-  return out;
+export const GOOGLE_TOOLS = {
+  gmail: { name: "Gmail", scope: "email" },
+  google_calendar: { name: "Google Calendar", scope: "calendar" },
+  google_meet: { name: "Google Meet", scope: "meet" },
+  google_docs: { name: "Google Docs", scope: "docs" },
+  google_sheets: { name: "Google Sheets", scope: "sheets" },
+} as const;
+export type GoogleTool = keyof typeof GOOGLE_TOOLS;
+
+export function isGoogleTool(value: string): value is GoogleTool {
+  return value in GOOGLE_TOOLS;
+}
+
+/** The Google tools a Google connection has on, by the scopes it keeps. */
+export function googleToolsOf(read: string[], write: string[]): { id: GoogleTool; name: string }[] {
+  return (Object.keys(GOOGLE_TOOLS) as GoogleTool[])
+    .filter((id) => read.includes(GOOGLE_TOOLS[id].scope) || write.includes(GOOGLE_TOOLS[id].scope))
+    .map((id) => ({ id, name: GOOGLE_TOOLS[id].name }));
 }
 
 /** The tools of the «Añadir conexión» grid that are already connected. */
@@ -268,6 +296,7 @@ export function connectedTools(rows: { provider: string; readScopes: string[]; w
   return [...ids];
 }
 
+/** Plain-language description of what a stored connection is allowed to do. */
 export function describeScopes(read: string[], write: string[]): string[] {
   const out: string[] = [];
   if (read.includes("calendar")) out.push("Ver disponibilidad");

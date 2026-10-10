@@ -23,8 +23,10 @@ import { DataGrid, GridCell, GridHead, GridRow, NARROW_COLUMN } from "@/componen
 import { Badge, Button, cx, Input, LinkButton, Notice, PageHeader, Tooltip } from "@/components/ui";
 import { formatDateTime, plural } from "@/lib/format";
 import {
+  formatCell,
   isPendingCell,
   primaryField,
+  stageColumn,
   SYSTEM_FIELD_LABELS,
   systemFields,
   type BaseColumn,
@@ -60,12 +62,16 @@ import { env } from "@/server/env";
 import { TableIntake, TableSettings } from "./table-settings";
 import { SendTableModal } from "./send-table";
 import { RowPanel } from "./row-panel";
+import { KanbanBoard } from "./kanban-board";
+import { SegmentedLinks } from "@/components/nav-link";
 import { personOfRow } from "@/server/conversations/inbox";
 
 // «Buscar ahora» keeps running after the response.
 export const maxDuration = 300;
 
 const PAGE_SIZE = 100;
+/** The board shows every row at once, up to this many. */
+const BOARD_SIZE = 500;
 
 const STATUS: Record<ProspectStatus, { label: string; tone: "accent" | "neutral" | "warning" }> = {
   new: { label: "Nuevo", tone: "accent" },
@@ -157,6 +163,9 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
   const page = Math.max(1, Number(query.page) || 1);
   const rowParam = typeof query.row === "string" ? query.row : undefined;
   const canEdit = tenant.role !== "member";
+  // With a pipeline column, the table can also be seen as a board (?view=board).
+  const stage = stageColumn(base.columns);
+  const board = Boolean(stage) && query.view === "board";
   const sending = canEdit && query.send === "1";
   const agents = await baseAgents(db, tenant, baseId);
   // The prospecting agent that fills it (the first active one, if several do).
@@ -168,8 +177,8 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
       q,
       sort,
       dir,
-      limit: PAGE_SIZE,
-      offset: (page - 1) * PAGE_SIZE,
+      limit: board ? BOARD_SIZE : PAGE_SIZE,
+      offset: board ? 0 : (page - 1) * PAGE_SIZE,
     }),
     canEdit ? listProjects(db, tenant) : Promise.resolve([]),
     filler ? listAgentRuns(db, tenant, filler.projectId, filler.id, 1) : Promise.resolve([]),
@@ -202,7 +211,15 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
   const path = `/app/tables/${baseId}`;
   const href = (changes: Record<string, string | number | undefined>) => {
     const params = new URLSearchParams();
-    const next = { status, q: q || undefined, sort, dir, page, ...changes };
+    const next = {
+      status,
+      q: q || undefined,
+      sort,
+      dir,
+      page,
+      view: board ? "board" : undefined,
+      ...changes,
+    };
     for (const [k, v] of Object.entries(next)) {
       if (v === undefined || v === "" || (k === "page" && Number(v) === 1)) continue;
       params.set(k, String(v));
@@ -396,7 +413,16 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
               </>
             ) : null}
             <span className="ml-auto flex flex-wrap items-center gap-1">
-              {canEdit && hidden.length ? (
+              {stage && data.total > 0 ? (
+                <SegmentedLinks
+                  label="Vista"
+                  options={[
+                    { href: href({ view: undefined, page: undefined }), label: "Tabla", active: !board },
+                    { href: href({ view: "board", page: undefined }), label: "Tablero", active: board },
+                  ]}
+                />
+              ) : null}
+              {canEdit && hidden.length && !board ? (
                 <HiddenColumns
                   columns={hidden}
                   show={async (id: string) => {
@@ -412,6 +438,27 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
 
           {data.total > 0 && data.rows.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted">Nada coincide con este filtro.</p>
+          ) : board && stage ? (
+            <KanbanBoard
+              stages={stage.options ?? []}
+              field={stage.id}
+              save={saveCell}
+              cards={data.rows.map((r) => ({
+                id: r.id,
+                seq: r.seq,
+                name: (person ? r.personName : r.companyName) || "Sin nombre",
+                stage: typeof r.data[stage.id] === "string" ? (r.data[stage.id] as string) : null,
+                fitScore: shown("fit") ? r.fitScore : null,
+                details: [
+                  ...(person && r.companyName ? [r.companyName] : []),
+                  ...columns
+                    .filter((c) => c.id !== stage.id && formatCell(c, r.data[c.id]))
+                    .map((c) => `${c.name}: ${formatCell(c, r.data[c.id])}`),
+                ].slice(0, 3),
+                discarded: r.status === "discarded",
+                href: href({ row: r.id }),
+              }))}
+            />
           ) : (
             <DataGrid
               head={
@@ -718,7 +765,13 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
               {data.matching === data.total
                 ? plural(data.total, "fila", "filas")
                 : `${data.matching} de ${plural(data.total, "fila", "filas")}`}
-              {pages > 1 ? ` · página ${page} de ${pages}` : ""}
+              {board
+                ? data.matching > BOARD_SIZE
+                  ? ` · el tablero muestra las ${BOARD_SIZE} primeras`
+                  : ""
+                : pages > 1
+                  ? ` · página ${page} de ${pages}`
+                  : ""}
               {filledByAgent && pendingCells > 0
                 ? ` · ${plural(pendingCells, "celda", "celdas")} por completar en toda la tabla`
                 : ""}
@@ -732,7 +785,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                 </span>
               </span>
             ) : null}
-            {pages > 1 ? (
+            {pages > 1 && !board ? (
               <span className="flex gap-1">
                 {page > 1 ? (
                   <LinkButton href={href({ page: page - 1 })} variant="ghost" size="sm">

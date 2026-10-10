@@ -448,7 +448,7 @@ export async function saveMcpToolsAction(
 async function startRun(
   projectId: string,
   agentId: string,
-  options: { mode?: ProspectingMode; rowIds?: string[] },
+  options: { mode?: ProspectingMode; rowIds?: string[]; allPending?: boolean },
 ) {
   const tenant = await admin();
   const db = getDb();
@@ -541,8 +541,11 @@ export async function completeProspectsNow(
   form?: FormData,
 ): Promise<FormState> {
   const result = await runForm(async () => {
-    await startRun(projectId, agentId, { mode: "complete", rowIds: rowIds ?? undefined });
-    return "En marcha. Los datos irán apareciendo en la tabla en unos minutos.";
+    // One row's «Completar esta fila», or every empty cell of the table (by batches).
+    await startRun(projectId, agentId, rowIds ? { mode: "complete", rowIds } : { allPending: true });
+    return rowIds
+      ? "En marcha. Los datos irán apareciendo en la tabla en unos minutos."
+      : "En marcha: completa toda la tabla por tandas. Los datos irán apareciendo según los encuentra.";
   });
   const back = result?.ok ? backTo(form) : null;
   if (back) redirect(back);

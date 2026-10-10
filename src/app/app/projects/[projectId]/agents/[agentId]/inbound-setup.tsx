@@ -188,7 +188,7 @@ export async function InboundSetup({ projectId, agentId }: { projectId: string; 
               hint={
                 options.mailboxes.length === 0 ? (
                   <>
-                    No hay buzones conectados. <ConnectLink>Conecta uno</ConnectLink>.
+                    No hay buzones conectados. <ConnectLink add="gmail">Conecta uno</ConnectLink>.
                   </>
                 ) : undefined
               }
@@ -210,7 +210,8 @@ export async function InboundSetup({ projectId, agentId }: { projectId: string; 
                 hint={
                   options.calendars.length === 0 ? (
                     <>
-                      No hay calendarios conectados. <ConnectLink>Conecta uno</ConnectLink>.
+                      No hay calendarios conectados.{" "}
+                      <ConnectLink add="google_calendar">Conecta uno</ConnectLink>.
                     </>
                   ) : undefined
                 }

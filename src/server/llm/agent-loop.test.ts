@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { lastToolResults, scriptedLlm } from "../../../tests/helpers/fake-llm";
-import { defineTool, runAgentLoop } from "./agent-loop";
+import { defineTool, runAgentLoop, serverToolError } from "./agent-loop";
 
 const echo = defineTool({
   name: "echo",
@@ -128,5 +128,37 @@ describe("runAgentLoop", () => {
     const last = requests[1].messages.at(-1)!;
     expect(Array.isArray(last.content) && last.content.map((b) => b.type)).toEqual(["tool_result", "text"]);
     expect(Array.isArray(last.content) && last.content[1]).toMatchObject({ text: "Llevas 2 pasos." });
+  });
+  it("keeps going when the model ends but there is work left, as often as the hook says", async () => {
+    const { llm, requests } = scriptedLlm([
+      { blocks: [{ type: "text", text: "He hecho una parte." }] },
+      { blocks: [{ type: "tool_use", name: "echo", input: { value: 2 } }] },
+      { blocks: [{ type: "text", text: "Hecho todo." }] },
+    ]);
+    let asked = 0;
+    const result = await runAgentLoop({
+      llm,
+      system: "sys",
+      messages: [{ role: "user", content: "hola" }],
+      tools: [echo],
+      onEnd: async () => (asked++ === 0 ? "Aún quedan 3 celdas: sigue." : null),
+    });
+    expect(result).toMatchObject({ status: "completed", finalText: "Hecho todo." });
+    expect(requests).toHaveLength(3);
+    expect(JSON.stringify(requests[1].messages.at(-1))).toContain("Aún quedan 3 celdas");
+    expect(result.steps.some((s) => s.type === "text" && s.text.startsWith("(SalesMate)"))).toBe(true);
+  });
+
+  it("tells which server tool failed and why", () => {
+    expect(
+      serverToolError({
+        type: "web_fetch_tool_result",
+        content: { type: "web_fetch_tool_error", error_code: "url_not_accessible" },
+      }),
+    ).toEqual({ name: "web_fetch", code: "url_not_accessible" });
+    expect(
+      serverToolError({ type: "web_search_tool_result", content: [{ type: "web_search_result" }] }),
+    ).toBeNull();
+    expect(serverToolError({ type: "text", text: "hola" })).toBeNull();
   });
 });

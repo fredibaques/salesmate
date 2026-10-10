@@ -15,6 +15,7 @@ export const COLUMN_TYPES = [
   "bool",
   "select",
   "multi",
+  "stage",
   "url",
   "email",
   "phone",
@@ -30,11 +31,42 @@ export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   bool: "Sí / no",
   select: "Selección única",
   multi: "Selección múltiple",
+  stage: "Fase del pipeline",
   url: "Enlace",
   email: "Email",
   phone: "Teléfono",
   score: "Puntuación 0–100",
 };
+
+/** Types whose values are picked from the column's options. */
+export function hasOptions(type: ColumnType): boolean {
+  return type === "select" || type === "multi" || type === "stage";
+}
+
+/** Types that hold one of the column's options. */
+export function isSingleChoice(type: ColumnType): boolean {
+  return type === "select" || type === "stage";
+}
+
+/** The phases a new pipeline column starts with. */
+export const DEFAULT_STAGES = [
+  "Nuevo",
+  "Contactado",
+  "Interesado",
+  "Reunión",
+  "Propuesta",
+  "Ganado",
+  "Perdido",
+];
+
+/**
+ * The pipeline column of a table: its options are the phases, in order, and
+ * the table can be seen as a board with one list per phase. A table has one
+ * at most.
+ */
+export function stageColumn(columns: BaseColumn[]): BaseColumn | undefined {
+  return columns.find((c) => c.type === "stage");
+}
 
 export const FILLED_BY = ["agent", "person", "both"] as const;
 export type FilledBy = (typeof FILLED_BY)[number];
@@ -175,7 +207,7 @@ export const columnDraft = z
   })
   .transform((c) => ({
     ...c,
-    options: c.type === "select" || c.type === "multi" ? [...new Set(c.options ?? [])] : undefined,
+    options: hasOptions(c.type) ? [...new Set(c.options ?? [])] : undefined,
     instructions: c.instructions || undefined,
   }))
   .refine((c) => !c.options || c.options.length > 0, {
@@ -271,7 +303,8 @@ export function checkCell(column: BaseColumn, raw: unknown): CellCheck {
       if (typeof text === "string" && /^(s[ií]|true|yes)$/i.test(text)) return { ok: true, value: true };
       if (typeof text === "string" && /^(no|false)$/i.test(text)) return { ok: true, value: false };
       return fail("debe ser sí o no");
-    case "select": {
+    case "select":
+    case "stage": {
       const match = (column.options ?? []).find((o) => o.toLowerCase() === String(text).toLowerCase());
       return match
         ? { ok: true, value: match }

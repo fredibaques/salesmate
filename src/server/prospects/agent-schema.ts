@@ -24,6 +24,7 @@ function columnSchema(column: BaseColumn): Record<string, unknown> {
     case "date":
       return { type: "string", description: `${description} (AAAA-MM-DD)` };
     case "select":
+    case "stage":
       return { type: "string", enum: column.options ?? [], description };
     case "multi":
       return { type: "array", items: { type: "string", enum: column.options ?? [] }, description };

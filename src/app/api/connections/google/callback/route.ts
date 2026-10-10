@@ -6,6 +6,7 @@ import { saveGoogleConnection } from "@/server/connectors/service";
 import { verifySigned } from "@/server/crypto";
 import { getDb } from "@/server/db/client";
 import { env } from "@/server/env";
+import { GOOGLE_TOOLS, isGoogleTool } from "@/lib/integrations";
 
 export async function GET(request: NextRequest) {
   const back = (query: string) => NextResponse.redirect(new URL(`/app/connections?${query}`, request.url));
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
 
   const raw = verifySigned(params.get("state") ?? "");
   const state = raw
-    ? (JSON.parse(raw) as { orgId: string; userId: string; nonce: string; exp: number })
+    ? (JSON.parse(raw) as { orgId: string; userId: string; nonce: string; exp: number; tool?: string })
     : null;
   if (
     !state ||
@@ -41,8 +42,10 @@ export async function GET(request: NextRequest) {
       },
       params.get("code") ?? "",
     );
-    await saveGoogleConnection({ db: getDb() }, tenant, { ...result, ownerUserId: tenant.userId });
-    return back(`connected=${encodeURIComponent(result.email)}`);
+    const tool = state.tool && isGoogleTool(state.tool) ? state.tool : undefined;
+    await saveGoogleConnection({ db: getDb() }, tenant, { ...result, ownerUserId: tenant.userId, tool });
+    const what = tool ? `${GOOGLE_TOOLS[tool].name} · ${result.email}` : result.email;
+    return back(`connected=${encodeURIComponent(what)}`);
   } catch (err) {
     return back(`error=${encodeURIComponent(err instanceof Error ? err.message : "google_failed")}`);
   }

@@ -25,6 +25,8 @@ export async function countPendingCells(
   db: Db,
   tenant: Pick<TenantContext, "orgId">,
   baseId: string,
+  /** Only these rows (e.g. those a run is working on). */
+  rowIds?: string[],
 ): Promise<number> {
   const base = await baseInfo(db, tenant, baseId);
   const columns = agentColumns(base.columns);
@@ -38,7 +40,13 @@ export async function countPendingCells(
         )}), 0)`,
       })
       .from(prospects)
-      .where(and(eq(prospects.baseId, baseId), ne(prospects.status, "discarded"))),
+      .where(
+        and(
+          eq(prospects.baseId, baseId),
+          ne(prospects.status, "discarded"),
+          rowIds ? inArray(prospects.id, rowIds.length ? rowIds : [""]) : undefined,
+        ),
+      ),
   );
   return Number(row?.n ?? 0);
 }

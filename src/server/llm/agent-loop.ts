@@ -93,6 +93,11 @@ export async function runAgentLoop(input: {
     costUsd: number;
     webSearches: number;
   }) => string | null;
+  /**
+   * When the model ends its turn: a note to keep it going (e.g. "there are
+   * still cells to fill"), or null to finish. The hook decides how often.
+   */
+  onEnd?: (state: { turn: number; steps: readonly AgentRunStep[] }) => Promise<string | null> | string | null;
 }): Promise<AgentLoopResult> {
   const messages = [...input.messages];
   const steps: AgentRunStep[] = [];
@@ -134,10 +139,13 @@ export async function runAgentLoop(input: {
     usage.cacheWrite += response.usage.cache_creation_input_tokens ?? 0;
     usage.webSearches += response.usage.server_tool_use?.web_search_requests ?? 0;
 
-    // Searches and fetches Claude ran on the server side, for the trace.
+    // Searches and fetches Claude ran on the server side, for the trace (and why one failed).
     for (const block of response.content) {
       if (block.type === "server_tool_use")
         steps.push({ type: "tool_call", name: block.name, input: block.input });
+      const failed = serverToolError(block);
+      if (failed)
+        steps.push({ type: "tool_result", name: failed.name, output: { error: failed.code }, isError: true });
     }
 
     const text = response.content
@@ -163,7 +171,13 @@ export async function runAgentLoop(input: {
     if (response.stop_reason === "max_tokens") return result("truncated");
     messages.push({ role: "assistant", content: response.content });
     if (response.stop_reason === "pause_turn") continue;
-    if (response.stop_reason !== "tool_use") return result("completed");
+    if (response.stop_reason !== "tool_use") {
+      const more = response.stop_reason === "end_turn" ? await input.onEnd?.({ turn, steps }) : null;
+      if (!more) return result("completed");
+      steps.push({ type: "text", text: `(SalesMate) ${more}` });
+      messages.push({ role: "user", content: [{ type: "text", text: more }] });
+      continue;
+    }
 
     const calls = response.content.filter(
       (b): b is Extract<BetaContentBlock, { type: "tool_use" }> => b.type === "tool_use",
@@ -215,4 +229,16 @@ export async function runAgentLoop(input: {
     costUsd: cost(),
     model,
   };
+}
+
+/** A server tool (web search, web fetch…) that answered with an error: its name and error code. */
+export function serverToolError(block: unknown): { name: string; code: string } | null {
+  if (!block || typeof block !== "object") return null;
+  const { type, content } = block as { type?: unknown; content?: unknown };
+  if (typeof type !== "string" || !type.endsWith("_tool_result")) return null;
+  const code =
+    content && typeof content === "object" && !Array.isArray(content)
+      ? (content as { error_code?: unknown }).error_code
+      : undefined;
+  return typeof code === "string" ? { name: type.replace(/_tool_result$/, ""), code } : null;
 }

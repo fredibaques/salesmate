@@ -1,9 +1,10 @@
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, seedOrg } from "../../../tests/helpers/db";
 import { lastToolResults, scriptedLlm } from "../../../tests/helpers/fake-llm";
 import { runProspecting } from "../agents/prospector";
 import type { Db } from "../db/client";
-import { projects } from "../db/schema";
+import { agentEvents, projects } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
 import { addAgent, saveAgentInstructions } from "../services/agents";
 import { createBase, setAgentBase } from "./bases";
@@ -159,7 +160,11 @@ describe("a run that completes the base", () => {
       },
     ]);
     const gateway = { db, executor: { execute: async () => ({}) } };
-    const result = await runProspecting({ db, llm, gateway }, tenant, { agentId, trigger: "manual" });
+    // A short run: with little time left it isn't asked to go on.
+    const result = await runProspecting({ db, llm, gateway, timeBudgetMs: 50_000 }, tenant, {
+      agentId,
+      trigger: "manual",
+    });
     expect(result).toMatchObject({ status: "completed", added: 0, completed: 1 });
     const tools = requests[0].tools?.map((t) => ("name" in t ? t.name : t.type));
     expect(tools).toContain("update_prospects");
@@ -168,6 +173,31 @@ describe("a run that completes the base", () => {
     expect(system).toContain("## Filas por completar");
     expect(system).toMatch(/F1 · Coches Norte[\s\S]*F2 · Motor Sur/);
     expect((await getProspect(db, tenant, baseId, ids["Motor Sur"]))!.data.email).toBe("info@motorsur.es");
+
+    // «Completar vacíos» of the whole table: cells left after a run that made progress → next batch queued.
+    const batch = scriptedLlm([
+      {
+        blocks: [
+          {
+            type: "tool_use",
+            name: "update_prospects",
+            input: { rows: [{ ref: "F1", fields: { email: "info@cochesnorte.es" } }] },
+          },
+        ],
+      },
+      { blocks: [{ type: "text", text: "Una más." }] },
+    ]);
+    const first = await runProspecting({ db, llm: batch.llm, gateway, timeBudgetMs: 50_000 }, tenant, {
+      agentId,
+      trigger: "manual",
+      allPending: true,
+    });
+    expect(first.completed).toBe(1);
+    expect(first.summary).toMatch(/Quedan \d+ celdas por completar/);
+    const queued = await withTenant(db, tenant, (tx) =>
+      tx.select().from(agentEvents).where(eq(agentEvents.agentConfigId, agentId)),
+    );
+    expect(queued.map((e) => e.kind)).toEqual(["continue"]);
 
     // Nothing left to fill: the run ends without calling the model.
     const rest = await rowsToComplete(db, tenant, baseId, { limit: 50 });

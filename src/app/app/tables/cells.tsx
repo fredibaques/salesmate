@@ -51,6 +51,7 @@ export function CellValue({ column, value }: { column: BaseColumn; value: unknow
         <span className="text-muted">No</span>
       );
     case "select":
+    case "stage":
       return (
         <span className="rounded-sm bg-ink-100 px-1.5 py-0.5 text-xs text-ink-700">{String(value)}</span>
       );

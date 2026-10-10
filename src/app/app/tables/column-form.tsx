@@ -4,15 +4,20 @@ import { useState } from "react";
 import { ActionForm, type FormAction } from "@/components/action-form";
 import { ListInput } from "@/components/list-input";
 import { Field, Input, Segmented, Select, Textarea } from "@/components/ui";
-import { COLUMN_TYPE_LABELS, COLUMN_TYPES, type BaseColumn, type ColumnType } from "@/lib/prospect-columns";
+import {
+  COLUMN_TYPE_LABELS,
+  COLUMN_TYPES,
+  DEFAULT_STAGES,
+  hasOptions,
+  type BaseColumn,
+  type ColumnType,
+} from "@/lib/prospect-columns";
 
 const FILLED_BY_OPTIONS = [
   { value: "agent", label: "El agente" },
   { value: "person", label: "Una persona" },
   { value: "both", label: "Los dos" },
 ];
-
-const hasOptions = (type: ColumnType) => type === "select" || type === "multi";
 
 /** Adds a column or changes one: name, type, choices and how the agent fills it. */
 export function ColumnForm({ action, column }: { action: FormAction; column?: BaseColumn }) {
@@ -44,9 +49,28 @@ export function ColumnForm({ action, column }: { action: FormAction; column?: Ba
           ))}
         </Select>
       </Field>
-      {hasOptions(type) ? (
+      {type === "stage" ? (
+        <Field
+          label="Fases"
+          group
+          hint="En orden. Con esta columna puedes ver la tabla como un tablero, con una lista por fase."
+          tip="Una tabla solo tiene una columna de fase. El agente solo puede elegir entre estas."
+        >
+          <ListInput
+            key="stage"
+            name="options"
+            defaultValue={column?.type === "stage" ? (column.options ?? []) : DEFAULT_STAGES}
+            addLabel="Añadir fase"
+          />
+        </Field>
+      ) : hasOptions(type) ? (
         <Field label="Opciones" group hint="El agente solo puede elegir entre estas.">
-          <ListInput name="options" defaultValue={column?.options ?? []} addLabel="Añadir opción" />
+          <ListInput
+            key="options"
+            name="options"
+            defaultValue={column?.options ?? []}
+            addLabel="Añadir opción"
+          />
         </Field>
       ) : null}
       <Field
@@ -57,7 +81,13 @@ export function ColumnForm({ action, column }: { action: FormAction; column?: Ba
         <Textarea name="instructions" defaultValue={column?.instructions ?? ""} className="min-h-24" />
       </Field>
       <Field label="La rellena" group tip="Las columnas de una persona no se le muestran al agente.">
-        <Segmented name="filledBy" options={FILLED_BY_OPTIONS} defaultValue={column?.filledBy ?? "agent"} />
+        {/* The phase of a row is moved by people (or the board), not looked up by the agent. */}
+        <Segmented
+          key={column ? "saved" : type === "stage" ? "stage" : "other"}
+          name="filledBy"
+          options={FILLED_BY_OPTIONS}
+          defaultValue={column?.filledBy ?? (type === "stage" ? "person" : "agent")}
+        />
       </Field>
     </ActionForm>
   );

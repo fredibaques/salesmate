@@ -106,7 +106,8 @@ export async function proposeColumns(
     const candidate = raw as Record<string, unknown>;
     const options = Array.isArray(candidate.options) ? candidate.options : [];
     const type =
-      (candidate.type === "select" || candidate.type === "multi") && options.length === 0
+      (candidate.type === "select" || candidate.type === "multi" || candidate.type === "stage") &&
+      options.length === 0
         ? "text"
         : candidate.type;
     const parsed = columnDraft.safeParse({ ...candidate, type, options });

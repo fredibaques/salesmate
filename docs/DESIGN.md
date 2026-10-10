@@ -69,12 +69,16 @@ screen needs something new, add it here and as a component, not inline.
     inbox, filtered.
   - **Tablas**: every table of every project (the prospect bases the agents
     fill), most recently active first, and «Nueva tabla» (pick the project).
+    A table with a «Fase del pipeline» column offers Tabla · Tablero
+    (`SegmentedLinks`): the board is one list per phase, cards dragged
+    between lists.
   - **Conocimiento**: the account's knowledge, used by every project (each
     project's tab adds its own).
   - **Integraciones** (`/app/connections`): the connected tools, shared by
     every project. «Añadir conexión» is one modal: a grid of every
     tool and, once one is picked, what the agents can do with it and its
-    form (`?add=1` or `?add=<tool>` opens it from a link).
+    form (`?add=1` or `?add=<tool>` opens it from a link). Each Google tool
+    (Gmail, Calendar, Meet, Docs, Sheets) is its own tile and its own card.
   - **Por aprobar**: what the agents want to do and waits for a person, with
     its count. Its own entry, because deciding is the daily job. It lists only
     what is pending (what was decided is in Auditoría).

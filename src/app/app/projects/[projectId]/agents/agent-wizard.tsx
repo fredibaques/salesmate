@@ -513,7 +513,7 @@ export function OutreachWizard({
               tone="warning"
               action={
                 <Link
-                  href="/app/connections?add=google"
+                  href="/app/connections?add=gmail"
                   target="_blank"
                   className="inline-flex items-center gap-1 text-sm text-accent hover:underline"
                 >

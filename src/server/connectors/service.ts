@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { GOOGLE_TOOLS, googleToolsOf, type GoogleTool } from "@/lib/integrations";
 import { and, eq } from "drizzle-orm";
 import { audit } from "../audit";
 import { decryptJson, encryptJson } from "../crypto";
@@ -391,24 +392,56 @@ export async function createSlackConnection(
 // Google
 // ---------------------------------------------------------------------------
 
+/**
+ * A Google account connected (or a tool of it added). Each Google tool
+ * (Gmail, Calendar, Meet, Docs, Sheets) is turned on by itself: the
+ * connection only uses the scopes of the tools that are on, even when the
+ * token Google returns carries more (it keeps the ones granted before).
+ * Without `tool` (older links), every tool granted is on.
+ */
 export async function saveGoogleConnection(
   deps: Pick<ConnectorDeps, "db">,
   tenant: TenantContext,
-  input: { email: string; name: string | null; credentials: GoogleCredentials; ownerUserId: string },
+  input: {
+    email: string;
+    name: string | null;
+    credentials: GoogleCredentials;
+    ownerUserId: string;
+    tool?: GoogleTool;
+  },
 ): Promise<ConnectionRow> {
   const sets = grantedScopeSets(input.credentials.scope);
-  const read = [
-    ...(sets.includes("calendar_read") || sets.includes("calendar_write") ? ["calendar"] : []),
-    ...(sets.includes("gmail_read") ? ["email"] : []),
-    ...(sets.includes("docs_read") ? ["docs"] : []),
-    ...(sets.includes("sheets") ? ["sheets"] : []),
-    ...(sets.includes("meet_read") ? ["meet"] : []),
-  ];
-  const write = [
-    ...(sets.includes("calendar_write") ? ["calendar"] : []),
-    ...(sets.includes("gmail_write") ? ["email"] : []),
-    ...(sets.includes("sheets") ? ["sheets"] : []),
-  ];
+  const granted = {
+    read: [
+      ...(sets.includes("calendar_read") || sets.includes("calendar_write") ? ["calendar"] : []),
+      ...(sets.includes("gmail_read") ? ["email"] : []),
+      ...(sets.includes("docs_read") ? ["docs"] : []),
+      ...(sets.includes("sheets") ? ["sheets"] : []),
+      ...(sets.includes("meet_read") ? ["meet"] : []),
+    ],
+    write: [
+      ...(sets.includes("calendar_write") ? ["calendar"] : []),
+      ...(sets.includes("gmail_write") ? ["email"] : []),
+      ...(sets.includes("sheets") ? ["sheets"] : []),
+    ],
+  };
+  const [existing] = await withTenant(deps.db, tenant, (tx) =>
+    tx
+      .select()
+      .from(connections)
+      .where(and(eq(connections.provider, "google"), eq(connections.accountRef, input.email))),
+  );
+  const on = new Set<string>(
+    input.tool
+      ? [
+          ...(existing ? googleToolsOf(existing.readScopes, existing.writeScopes).map((t) => t.id) : []),
+          input.tool,
+        ]
+      : googleToolsOf(granted.read, granted.write).map((t) => t.id),
+  );
+  const scopesOn = new Set([...on].map((t) => GOOGLE_TOOLS[t as GoogleTool].scope as string));
+  const read = granted.read.filter((x) => scopesOn.has(x));
+  const write = granted.write.filter((x) => scopesOn.has(x));
 
   return withTenant(deps.db, tenant, async (tx) => {
     const [row] = await tx
@@ -460,7 +493,7 @@ export async function saveGoogleConnection(
       event: "connection.saved",
       entityType: "connection",
       entityId: row.id,
-      data: { provider: "google", accountRef: input.email, read, write },
+      data: { provider: "google", accountRef: input.email, tool: input.tool, read, write },
     });
     return row;
   });

@@ -5,6 +5,16 @@ import { requireRole } from "@/server/auth/session";
 import { googleAuthUrl, GOOGLE_SCOPE_SETS, type GoogleScopeSet } from "@/server/connectors/google";
 import { sign } from "@/server/crypto";
 import { env } from "@/server/env";
+import { isGoogleTool, type GoogleTool } from "@/lib/integrations";
+
+/** What each Google tool asks for when the form doesn't say. */
+const TOOL_SETS: Record<GoogleTool, GoogleScopeSet[]> = {
+  gmail: ["gmail_write"],
+  google_calendar: ["calendar_read"],
+  google_meet: ["meet_read"],
+  google_docs: ["docs_read"],
+  google_sheets: ["sheets"],
+};
 
 export async function GET(request: NextRequest) {
   const tenant = await requireRole(["owner", "admin"]);
@@ -21,9 +31,18 @@ export async function GET(request: NextRequest) {
         .filter((s): s is GoogleScopeSet => s in GOOGLE_SCOPE_SETS),
     ),
   ];
+  // The Google tool being connected (Gmail, Calendar…): only it is turned on.
+  const toolParam = request.nextUrl.searchParams.get("tool") ?? "";
+  const tool = isGoogleTool(toolParam) ? toolParam : undefined;
   const nonce = randomBytes(16).toString("hex");
   const state = sign(
-    JSON.stringify({ orgId: tenant.orgId, userId: tenant.userId, nonce, exp: Date.now() + 10 * 60_000 }),
+    JSON.stringify({
+      orgId: tenant.orgId,
+      userId: tenant.userId,
+      nonce,
+      exp: Date.now() + 10 * 60_000,
+      tool,
+    }),
   );
   (await cookies()).set("sm_google_oauth", nonce, {
     httpOnly: true,
@@ -38,7 +57,7 @@ export async function GET(request: NextRequest) {
       clientSecret: GOOGLE_CLIENT_SECRET,
       redirectUri: `${APP_URL}/api/connections/google/callback`,
     },
-    sets.length ? sets : ["calendar_read"],
+    sets.length ? sets : tool ? TOOL_SETS[tool] : ["calendar_read"],
     state,
     request.nextUrl.searchParams.get("hint") ?? undefined,
   );

@@ -314,7 +314,7 @@ export async function ProspectingSetup({ projectId, agentId }: { projectId: stri
               ) : (
                 <p className="text-sm text-muted">
                   No hay buzones que puedan enviar.{" "}
-                  <Link href="/app/connections?add=google" className="text-accent hover:underline">
+                  <Link href="/app/connections?add=gmail" className="text-accent hover:underline">
                     Conecta uno
                   </Link>
                   .

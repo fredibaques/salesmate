@@ -5,14 +5,21 @@ import { Badge, Button, CardGrid, EmptyState, EntityCard, Notice, PageHeader } f
 import { formatDateTime } from "@/lib/format";
 import { Trash2 } from "lucide-react";
 import { ConfirmForm } from "@/components/confirm-form";
-import { connectedTools, describeScopes, getIntegration, googleToolsOf } from "@/lib/integrations";
+import {
+  connectedTools,
+  describeScopes,
+  getIntegration,
+  GOOGLE_TOOLS,
+  googleToolsOf,
+  type GoogleTool,
+} from "@/lib/integrations";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { env } from "@/server/env";
 import { listOrgConnections, listOrgIdentities } from "@/server/services/projects";
 import { mcpToolsOf } from "@/server/connectors/mcp";
 import { whatsappVerifyToken } from "@/server/connectors/service";
-import { removeConnectionAction, testConnection } from "./actions";
+import { removeConnectionAction, removeGoogleToolAction, testConnection } from "./actions";
 import { AddConnectionButton } from "./add-connection";
 import { TaskTargetForm } from "./target-picker";
 
@@ -30,6 +37,12 @@ const STATUS = {
   error: { label: "Con errores", tone: "danger" },
   revoked: { label: "Revocada", tone: "danger" },
 } as const;
+
+/** The mailbox or calendar each Google tool brings. */
+const GOOGLE_TOOL_IDENTITY: Partial<Record<GoogleTool, "email" | "calendar">> = {
+  gmail: "email",
+  google_calendar: "calendar",
+};
 
 const ERRORS: Record<string, string> = {
   google_not_configured:
@@ -95,158 +108,161 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/app/
         />
       ) : (
         <CardGrid className="xl:grid-cols-2">
-          {connections.map((c) => {
-            const integration = getIntegration(c.provider);
-            const own = identities.filter((i) => i.connectionId === c.id);
-            const scopes = describeScopes(c.readScopes, c.writeScopes);
-            return (
-              <EntityCard
-                key={c.id}
-                media={
-                  <IntegrationLogo
-                    id={c.provider}
-                    name={integration?.name ?? c.provider}
-                    color={integration?.color}
-                  />
-                }
-                title={c.label}
-                meta={`${integration?.name ?? c.provider} · ${c.accountRef}`}
-                badge={<Badge tone={STATUS[c.status].tone}>{STATUS[c.status].label}</Badge>}
-                footer={
-                  <>
-                    <span className="text-xs text-muted">Conectada el {formatDateTime(c.createdAt)}</span>
-                    <span className="flex flex-wrap items-center gap-2">
-                      {canEdit ? (
-                        <ConfirmForm
-                          action={removeConnectionAction.bind(null, c.id)}
-                          message={`¿Desconectar «${c.label}»? Los agentes dejarán de usarla${own.length ? ` y de usar ${own.map((i) => i.address).join(", ")}` : ""}. Lo que ya hicieron se conserva.`}
-                        >
-                          <Button variant="dangerGhost" size="sm">
-                            <Trash2 className="size-4" />
-                            Desconectar
-                          </Button>
-                        </ConfirmForm>
-                      ) : null}
-                      <ActionForm
-                        action={testConnection.bind(null, c.id)}
-                        submitLabel="Probar conexión"
-                        submitVariant="secondary"
-                        className="flex flex-wrap items-center gap-3"
-                      />
-                    </span>
-                  </>
-                }
-              >
-                {c.provider === "google" ? (
-                  <div className="mb-4">
-                    <p className="text-xs font-medium tracking-wide text-muted uppercase">Herramientas</p>
-                    <ul className="mt-2 flex flex-wrap gap-2">
-                      {googleToolsOf(c.readScopes, c.writeScopes).map((t) => (
-                        <li
-                          key={t.id}
-                          className="flex items-center gap-1.5 rounded-lg border border-border py-1 pr-2.5 pl-1 text-sm"
-                        >
-                          <IntegrationLogo id={t.id} name={t.name} size="xs" />
-                          {t.name}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-
-                {scopes.length > 0 ? (
-                  <div>
-                    <p className="text-xs font-medium tracking-wide text-muted uppercase">Permisos</p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {scopes.map((s) => (
-                        <Badge key={s}>{s}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
-                {own.length > 0 ? (
-                  <div className="mt-4">
-                    <p className="text-xs font-medium tracking-wide text-muted uppercase">
-                      Buzones y calendarios
-                    </p>
-                    <ul className="mt-2 space-y-1.5 text-sm">
-                      {own.map((i) => {
-                        const { label, icon: Icon } = IDENTITY[i.kind];
-                        return (
-                          <li key={i.id} className="flex items-center gap-2">
-                            <Icon className="size-4 text-muted" />
-                            <span className="truncate">{i.address}</span>
-                            <span className="text-xs text-muted">{label}</span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                ) : null}
-
-                {c.provider === "mcp" ? (
-                  <div className="mt-4">
-                    <p className="text-xs font-medium tracking-wide text-muted uppercase">
-                      Herramientas ({mcpToolsOf(c).length})
-                    </p>
-                    <ul className="mt-2 space-y-1.5 text-sm">
-                      {mcpToolsOf(c).map((t) => (
-                        <li key={t.name} className="flex flex-wrap items-center gap-2">
-                          <code className="text-xs">{t.name}</code>
-                          {t.readOnly ? (
-                            <Badge>Solo lectura</Badge>
-                          ) : (
-                            <Badge tone="warning">Modifica datos</Badge>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-
-                {c.provider === "whatsapp" && canEdit ? (
-                  <div className="mt-4 space-y-2">
-                    <p className="text-xs font-medium tracking-wide text-muted uppercase">
-                      Webhook para Meta
-                    </p>
-                    <p className="text-xs text-muted">
-                      En tu app de Meta → WhatsApp → Configuración, pega esta URL y el token, y suscríbete a
-                      «messages».
-                    </p>
-                    <code className="block text-xs break-all">{`${appUrl}/api/webhooks/whatsapp/${c.id}`}</code>
-                    <code className="block text-xs break-all text-muted">
-                      Token de verificación: {whatsappTokens.get(c.id) ?? "—"}
-                    </code>
-                  </div>
-                ) : null}
-
-                {(c.provider === "trello" || c.provider === "monday") && canEdit ? (
-                  <div className="mt-4 space-y-2">
-                    <p className="text-xs font-medium tracking-wide text-muted uppercase">
-                      Tareas de los agentes
-                    </p>
-                    <TaskTargetForm
-                      connectionId={c.id}
-                      current={
-                        (c.metadata as { taskTarget?: { id: string; label: string } | null }).taskTarget ??
-                        null
-                      }
+          {connections
+            // A Google account is one card per tool it has on: each is connected and disconnected by itself.
+            .flatMap((c): { c: (typeof connections)[number]; tool: GoogleTool | null }[] =>
+              c.provider === "google"
+                ? googleToolsOf(c.readScopes, c.writeScopes).map((t) => ({ c, tool: t.id }))
+                : [{ c, tool: null }],
+            )
+            .map(({ c, tool }) => {
+              const integration = getIntegration(tool ?? c.provider);
+              const scope = tool ? (GOOGLE_TOOLS[tool].scope as string) : null;
+              const own = identities.filter(
+                (i) => i.connectionId === c.id && (!tool || i.kind === GOOGLE_TOOL_IDENTITY[tool]),
+              );
+              const scopes = scope
+                ? describeScopes(
+                    c.readScopes.filter((x) => x === scope),
+                    c.writeScopes.filter((x) => x === scope),
+                  )
+                : describeScopes(c.readScopes, c.writeScopes);
+              const name = tool ? GOOGLE_TOOLS[tool].name : c.label;
+              return (
+                <EntityCard
+                  key={tool ? `${c.id}:${tool}` : c.id}
+                  media={
+                    <IntegrationLogo
+                      id={tool ?? c.provider}
+                      name={integration?.name ?? c.provider}
+                      color={integration?.color}
                     />
-                  </div>
-                ) : null}
+                  }
+                  title={name}
+                  meta={`${tool ? "Google" : (integration?.name ?? c.provider)} · ${c.accountRef}`}
+                  badge={<Badge tone={STATUS[c.status].tone}>{STATUS[c.status].label}</Badge>}
+                  footer={
+                    <>
+                      <span className="text-xs text-muted">Conectada el {formatDateTime(c.createdAt)}</span>
+                      <span className="flex flex-wrap items-center gap-2">
+                        {canEdit ? (
+                          <ConfirmForm
+                            action={
+                              tool
+                                ? removeGoogleToolAction.bind(null, c.id, tool)
+                                : removeConnectionAction.bind(null, c.id)
+                            }
+                            message={`¿Desconectar «${tool ? `${name} · ${c.accountRef}` : name}»? Los agentes dejarán de usarla${own.length ? ` y de usar ${own.map((i) => i.address).join(", ")}` : ""}. Lo que ya hicieron se conserva.`}
+                          >
+                            <Button variant="dangerGhost" size="sm">
+                              <Trash2 className="size-4" />
+                              Desconectar
+                            </Button>
+                          </ConfirmForm>
+                        ) : null}
+                        <ActionForm
+                          action={testConnection.bind(null, c.id)}
+                          submitLabel="Probar conexión"
+                          submitVariant="secondary"
+                          className="flex flex-wrap items-center gap-3"
+                        />
+                      </span>
+                    </>
+                  }
+                >
+                  {scopes.length > 0 ? (
+                    <div>
+                      <p className="text-xs font-medium tracking-wide text-muted uppercase">Permisos</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {scopes.map((s) => (
+                          <Badge key={s}>{s}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
 
-                {c.provider === "twenty" ? (
-                  <div className="mt-4">
-                    <p className="text-xs font-medium tracking-wide text-muted uppercase">Webhook</p>
-                    <code className="mt-1 block text-xs break-all text-muted">{`${appUrl}/api/webhooks/twenty/${c.id}`}</code>
-                  </div>
-                ) : null}
+                  {own.length > 0 ? (
+                    <div className="mt-4">
+                      <p className="text-xs font-medium tracking-wide text-muted uppercase">
+                        Buzones y calendarios
+                      </p>
+                      <ul className="mt-2 space-y-1.5 text-sm">
+                        {own.map((i) => {
+                          const { label, icon: Icon } = IDENTITY[i.kind];
+                          return (
+                            <li key={i.id} className="flex items-center gap-2">
+                              <Icon className="size-4 text-muted" />
+                              <span className="truncate">{i.address}</span>
+                              <span className="text-xs text-muted">{label}</span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ) : null}
 
-                {c.lastError ? <p className="mt-3 text-xs text-danger">{c.lastError}</p> : null}
-              </EntityCard>
-            );
-          })}
+                  {c.provider === "mcp" ? (
+                    <div className="mt-4">
+                      <p className="text-xs font-medium tracking-wide text-muted uppercase">
+                        Herramientas ({mcpToolsOf(c).length})
+                      </p>
+                      <ul className="mt-2 space-y-1.5 text-sm">
+                        {mcpToolsOf(c).map((t) => (
+                          <li key={t.name} className="flex flex-wrap items-center gap-2">
+                            <code className="text-xs">{t.name}</code>
+                            {t.readOnly ? (
+                              <Badge>Solo lectura</Badge>
+                            ) : (
+                              <Badge tone="warning">Modifica datos</Badge>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  {c.provider === "whatsapp" && canEdit ? (
+                    <div className="mt-4 space-y-2">
+                      <p className="text-xs font-medium tracking-wide text-muted uppercase">
+                        Webhook para Meta
+                      </p>
+                      <p className="text-xs text-muted">
+                        En tu app de Meta → WhatsApp → Configuración, pega esta URL y el token, y suscríbete a
+                        «messages».
+                      </p>
+                      <code className="block text-xs break-all">{`${appUrl}/api/webhooks/whatsapp/${c.id}`}</code>
+                      <code className="block text-xs break-all text-muted">
+                        Token de verificación: {whatsappTokens.get(c.id) ?? "—"}
+                      </code>
+                    </div>
+                  ) : null}
+
+                  {(c.provider === "trello" || c.provider === "monday") && canEdit ? (
+                    <div className="mt-4 space-y-2">
+                      <p className="text-xs font-medium tracking-wide text-muted uppercase">
+                        Tareas de los agentes
+                      </p>
+                      <TaskTargetForm
+                        connectionId={c.id}
+                        current={
+                          (c.metadata as { taskTarget?: { id: string; label: string } | null }).taskTarget ??
+                          null
+                        }
+                      />
+                    </div>
+                  ) : null}
+
+                  {c.provider === "twenty" ? (
+                    <div className="mt-4">
+                      <p className="text-xs font-medium tracking-wide text-muted uppercase">Webhook</p>
+                      <code className="mt-1 block text-xs break-all text-muted">{`${appUrl}/api/webhooks/twenty/${c.id}`}</code>
+                    </div>
+                  ) : null}
+
+                  {c.lastError ? <p className="mt-3 text-xs text-danger">{c.lastError}</p> : null}
+                </EntityCard>
+              );
+            })}
         </CardGrid>
       )}
     </>
