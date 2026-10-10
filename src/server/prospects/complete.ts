@@ -225,3 +225,41 @@ export async function completeProspects(
   });
   return result;
 }
+
+/**
+ * What completing a row brought besides its cells: the website found for a
+ * row without one (only if it still has none) and what it cost.
+ */
+export async function recordRowWork(
+  db: Db,
+  tenant: Pick<TenantContext, "orgId">,
+  input: { baseId: string; rowId: string; website?: string | null; costUsd: number },
+) {
+  await withTenant(db, tenant, (tx) =>
+    tx
+      .update(prospects)
+      .set({
+        costUsd: sql`${prospects.costUsd} + ${input.costUsd}`,
+        ...(input.website ? { website: sql`coalesce(${prospects.website}, ${input.website})` } : {}),
+      })
+      .where(and(eq(prospects.id, input.rowId), eq(prospects.baseId, input.baseId))),
+  );
+}
+
+/** What completing a table's rows has cost, and over how many rows. */
+export async function completionCost(
+  db: Db,
+  tenant: Pick<TenantContext, "orgId">,
+  baseId: string,
+): Promise<{ usd: number; rows: number }> {
+  const [row] = await withTenant(db, tenant, (tx) =>
+    tx
+      .select({
+        usd: sql<number>`coalesce(sum(${prospects.costUsd}), 0)`,
+        rows: sql<number>`count(*) filter (where ${prospects.costUsd} > 0)`,
+      })
+      .from(prospects)
+      .where(eq(prospects.baseId, baseId)),
+  );
+  return { usd: Number(row?.usd ?? 0), rows: Number(row?.rows ?? 0) };
+}

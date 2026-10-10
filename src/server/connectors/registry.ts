@@ -13,6 +13,7 @@ export const PROVIDER_IDS = [
   "apollo",
   "lusha",
   "hunter",
+  "serper",
   "slack",
   "whatsapp",
   "airtable",
@@ -36,6 +37,7 @@ export function getProvider(id: string): ConnectorProvider<unknown> {
     case "apollo":
     case "lusha":
     case "hunter":
+    case "serper":
       return dataProvider(id) as ConnectorProvider<unknown>;
     case "google": {
       const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } = env();

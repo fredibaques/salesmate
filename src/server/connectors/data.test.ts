@@ -5,7 +5,7 @@ import { dataTools } from "../agents/tools";
 import type { Db } from "../db/client";
 import { projects } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
-import { createApolloClient, createHunterClient, createLushaClient } from "./data";
+import { createApolloClient, createHunterClient, createLushaClient, createSerperClient } from "./data";
 import { createDataConnection } from "./service";
 
 const creds = { apiKey: "key-1234567890abcd" };
@@ -137,6 +137,37 @@ describe("Lusha", () => {
     const client = createLushaClient(creds, { fetch });
     expect(await client["data.enrich_person"]({ email: "nadie@x.es" })).toBeNull();
     expect(await client["data.check"]()).toEqual({ ok: true, detail: "Créditos disponibles · credits: 90" });
+  });
+});
+
+describe("Serper", () => {
+  it("searches Google with the key, in Spanish, and gives the company's site when Google knows it", async () => {
+    const { fetch, requests } = mockFetch({
+      "POST https://google.serper.dev/search": () => ({
+        knowledgeGraph: { title: "Autos García", website: "https://autosgarcia.es/" },
+        organic: [
+          { title: "Autos García", link: "https://autosgarcia.es/", snippet: "Concesionario en Málaga" },
+          { title: "Sin enlace" },
+        ],
+      }),
+    });
+    const found = await createSerperClient(creds, { fetch })["data.web_search"]({
+      query: "Autos García web oficial",
+      limit: 5,
+    });
+    expect(requests[0].headers["x-api-key"]).toBe("key-1234567890abcd");
+    expect(requests[0].body).toEqual({
+      q: "Autos García web oficial",
+      gl: "es",
+      hl: "es",
+      num: 5,
+    });
+    expect(found).toEqual({
+      website: "https://autosgarcia.es/",
+      results: [
+        { title: "Autos García", url: "https://autosgarcia.es/", snippet: "Concesionario en Málaga" },
+      ],
+    });
   });
 });
 

@@ -9,6 +9,7 @@ import {
   type DataCompany,
   type DataPerson,
   type PeopleSearch,
+  type WebSearchResult,
 } from "./types";
 
 /**
@@ -20,6 +21,9 @@ import {
  * - Lusha (v2 API): https://api.lusha.com with the `api_key` header.
  * - Hunter.io: https://api.hunter.io/v2 with the `X-API-KEY` header. Finds
  *   who works at a domain with their work emails, and verifies emails.
+ * - Serper: https://google.serper.dev with the `X-API-KEY` header. Google
+ *   results, a credit per search: how the completion engine finds a
+ *   company's site, and a cheaper search for the agents.
  */
 
 export const dataCredentials = z.object({
@@ -462,7 +466,48 @@ export function createHunterClient(creds: DataCredentials, ctx: ConnectorContext
   };
 }
 
-export const DATA_PROVIDERS = ["apollo", "lusha", "hunter"] as const;
+// ---------------------------------------------------------------------------
+// Serper
+// ---------------------------------------------------------------------------
+
+export function createSerperClient(creds: DataCredentials, ctx: ConnectorContext) {
+  const search = async (input: {
+    query: string;
+    country?: string;
+    limit?: number;
+  }): Promise<WebSearchResult> => {
+    const res = await ctx.fetch("https://google.serper.dev/search", {
+      method: "POST",
+      headers: { "X-API-KEY": creds.apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        q: input.query,
+        gl: (input.country ?? "es").toLowerCase(),
+        hl: "es",
+        num: clampLimit(input.limit, 10),
+      }),
+    });
+    const data = (await expectOk(res, "Serper search")) as {
+      organic?: { title?: string; link?: string; snippet?: string }[];
+      knowledgeGraph?: { website?: string };
+    };
+    return {
+      results: (data.organic ?? [])
+        .filter((r) => str(r.link))
+        .map((r) => ({ title: str(r.title) ?? "", url: r.link!, snippet: str(r.snippet) ?? "" })),
+      website: str(data.knowledgeGraph?.website),
+    };
+  };
+  return {
+    // Serper has no free endpoint to check a key: one search (a credit) does it.
+    "data.check": async () => {
+      await search({ query: "serper", limit: 1 });
+      return { ok: true as const, detail: "Serper responde" };
+    },
+    "data.web_search": search,
+  };
+}
+
+export const DATA_PROVIDERS = ["apollo", "lusha", "hunter", "serper"] as const;
 export type DataProviderId = (typeof DATA_PROVIDERS)[number];
 
 const CAPABILITIES: Record<DataProviderId, Capability[]> = {
@@ -481,12 +526,14 @@ const CAPABILITIES: Record<DataProviderId, Capability[]> = {
     "data.enrich_company",
     "data.verify_email",
   ],
+  serper: ["data.check", "data.web_search"],
 };
 
 export const DATA_PROVIDER_LABELS: Record<DataProviderId, string> = {
   apollo: "Apollo",
   lusha: "Lusha",
   hunter: "Hunter",
+  serper: "Serper",
 };
 
 export function dataProvider(id: DataProviderId): ConnectorProvider<DataCredentials> {
@@ -501,6 +548,8 @@ export function dataProvider(id: DataProviderId): ConnectorProvider<DataCredenti
         ? createApolloClient(creds, ctx)
         : id === "hunter"
           ? createHunterClient(creds, ctx)
-          : createLushaClient(creds, ctx),
+          : id === "serper"
+            ? createSerperClient(creds, ctx)
+            : createLushaClient(creds, ctx),
   };
 }

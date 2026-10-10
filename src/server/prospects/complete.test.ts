@@ -125,7 +125,7 @@ describe("completeProspects", () => {
 });
 
 describe("a run that completes the base", () => {
-  it("fills the pending cells by reference and doesn't look for new rows", async () => {
+  it("searches the rows a person asks for in depth, and hands the engine's unreadable rows to the agent", async () => {
     const agent = await addAgent(db, tenant, projectId, "prospecting", "b2b_consultative");
     agentId = agent.id;
     await setAgentBase(db, tenant, projectId, agent.id, baseId);
@@ -160,10 +160,12 @@ describe("a run that completes the base", () => {
       },
     ]);
     const gateway = { db, executor: { execute: async () => ({}) } };
+    // «Completar esta fila» on two rows: the agent's search, by reference.
     // A short run: with little time left it isn't asked to go on.
     const result = await runProspecting({ db, llm, gateway, timeBudgetMs: 50_000 }, tenant, {
       agentId,
       trigger: "manual",
+      rowIds: [ids["Coches Norte"], ids["Motor Sur"]],
     });
     expect(result).toMatchObject({ status: "completed", added: 0, completed: 1 });
     const tools = requests[0].tools?.map((t) => ("name" in t ? t.name : t.type));
@@ -174,7 +176,8 @@ describe("a run that completes the base", () => {
     expect(system).toMatch(/F1 · Coches Norte[\s\S]*F2 · Motor Sur/);
     expect((await getProspect(db, tenant, baseId, ids["Motor Sur"]))!.data.email).toBe("info@motorsur.es");
 
-    // «Completar vacíos» of the whole table: cells left after a run that made progress → next batch queued.
+    // «Completar vacíos» of the whole table: the engine can't read rows without a website (no
+    // Serper here), so the agent takes them; what it doesn't find is answered as not found.
     const batch = scriptedLlm([
       {
         blocks: [
@@ -187,24 +190,27 @@ describe("a run that completes the base", () => {
       },
       { blocks: [{ type: "text", text: "Una más." }] },
     ]);
-    const first = await runProspecting({ db, llm: batch.llm, gateway, timeBudgetMs: 50_000 }, tenant, {
-      agentId,
-      trigger: "manual",
-      allPending: true,
-    });
+    const first = await runProspecting(
+      {
+        db,
+        llm: batch.llm,
+        gateway,
+        timeBudgetMs: 50_000,
+        reader: { resolve: async () => ["93.184.216.34"] },
+      },
+      tenant,
+      { agentId, trigger: "manual", allPending: true },
+    );
     expect(first.completed).toBe(1);
-    expect(first.summary).toMatch(/Quedan \d+ celdas por completar/);
+    expect(first.summary).toMatch(/no tienen web conocida \(conecta Serper/);
+    expect(await countPendingCells(db, tenant, baseId)).toBe(0);
+    // Every row taken was answered: no next batch.
     const queued = await withTenant(db, tenant, (tx) =>
       tx.select().from(agentEvents).where(eq(agentEvents.agentConfigId, agentId)),
     );
-    expect(queued.map((e) => e.kind)).toEqual(["continue"]);
+    expect(queued).toEqual([]);
 
     // Nothing left to fill: the run ends without calling the model.
-    const rest = await rowsToComplete(db, tenant, baseId, { limit: 50 });
-    await completeProspects(db, agentActor(), {
-      baseId,
-      items: rest.rows.map((r) => ({ id: r.id, notFound: r.columns })),
-    });
     const idle = await runProspecting({ db, llm: scriptedLlm([]).llm, gateway }, tenant, {
       agentId,
       trigger: "manual",

@@ -342,7 +342,12 @@ export async function mcpTools(
   return out;
 }
 
-const DATA_PROVIDER_NAMES: Record<string, string> = { apollo: "Apollo", lusha: "Lusha", hunter: "Hunter" };
+const DATA_PROVIDER_NAMES: Record<string, string> = {
+  apollo: "Apollo",
+  lusha: "Lusha",
+  hunter: "Hunter",
+  serper: "Serper",
+};
 
 /**
  * Tools of the B2B data providers the agent may use (Apollo, Lusha): find
@@ -457,6 +462,24 @@ export async function dataTools(ctx: AgentToolContext, connectionIds: string[]):
           description: `[${label}] Comprueba si un email existe y acepta correo (deliverable, risky, undeliverable). Úsalo antes de guardar un email deducido. Gasta una verificación.`,
           input: z.object({ email: z.string().email() }),
           run: (input) => call((c) => c["data.verify_email"]?.(input)),
+        }),
+      );
+    }
+    if (caps.includes("data.web_search")) {
+      out.push(
+        defineTool({
+          name: `${row.provider}_search`,
+          description: `[${label}] Busca en Google: devuelve título, URL y extracto de cada resultado, y la web oficial si Google la conoce. Mucho más barato que web_search: úsalo primero para encontrar webs, directorios y noticias. Cita como fuente la URL del resultado (o la página que leas).`,
+          input: z.object({
+            query: z.string().min(2),
+            country: z
+              .string()
+              .length(2)
+              .optional()
+              .describe("País de los resultados (código ISO), p. ej. es"),
+            limit: z.number().int().min(1).max(10).optional(),
+          }),
+          run: (input) => call((c) => c["data.web_search"]?.(input)),
         }),
       );
     }

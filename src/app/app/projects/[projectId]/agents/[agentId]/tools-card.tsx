@@ -59,7 +59,7 @@ function logoOf(provider: string | null, size: "sm" | "md" = "md") {
 }
 
 /** Tools of the platform that aren't connected yet: offered with a link to connect them. */
-const CONNECTABLE = ["apollo", "hunter", "lusha", "mcp"] as const;
+const CONNECTABLE = ["serper", "apollo", "hunter", "lusha", "mcp"] as const;
 
 function AvailableToolsButton({
   projectId,

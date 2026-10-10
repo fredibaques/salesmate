@@ -981,6 +981,8 @@ export const prospects = pgTable(
     status: text("status", { enum: PROSPECT_STATUSES }).notNull().default("new"),
     /** The first email the agent proposed for this row (gateway action), once it did. */
     contactActionId: uuid("contact_action_id"),
+    /** What completing this row has cost so far (model, searches), in USD. */
+    costUsd: doublePrecision("cost_usd").notNull().default(0),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

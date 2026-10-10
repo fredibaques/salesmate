@@ -18,6 +18,8 @@ export type AiModel = {
   price: { input: number; output: number; cacheRead: number; cacheWrite: number };
   /** Reasoning levels the model accepts; requests snap to the nearest one. None: not sent. */
   efforts?: readonly Effort[];
+  /** The provider's cheap model, for simple bulk work (reading a company's pages). */
+  small?: boolean;
 };
 
 export type AiProviderInfo = {
@@ -60,6 +62,7 @@ export const AI_PROVIDER_INFO: Record<AiProvider, AiProviderInfo> = {
         label: "Claude Haiku 4.5",
         hint: "Rápido y económico, para tareas sencillas.",
         price: { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 },
+        small: true,
       },
     ],
   },
@@ -90,6 +93,7 @@ export const AI_PROVIDER_INFO: Record<AiProvider, AiProviderInfo> = {
         hint: "Muy económico, para tareas sencillas.",
         price: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
         efforts: ALL_EFFORTS,
+        small: true,
       },
     ],
   },
@@ -112,6 +116,7 @@ export const AI_PROVIDER_INFO: Record<AiProvider, AiProviderInfo> = {
         label: "Kimi K2.6",
         hint: "Más económico.",
         price: { input: 0.95, output: 4, cacheRead: 0.16, cacheWrite: 0.95 },
+        small: true,
       },
     ],
   },
@@ -123,6 +128,12 @@ export function isAiProvider(value: unknown): value is AiProvider {
 
 export function defaultModel(provider: AiProvider): string {
   return AI_PROVIDER_INFO[provider].models[0].id;
+}
+
+/** The provider's cheap model (its last one if none is marked). */
+export function smallModel(provider: AiProvider): string {
+  const models = AI_PROVIDER_INFO[provider].models;
+  return (models.find((m) => m.small) ?? models[models.length - 1]).id;
 }
 
 export function findModel(model: string): (AiModel & { provider: AiProvider }) | undefined {

@@ -44,6 +44,13 @@ export type DataPerson = {
   sourceUrl: string;
 };
 
+/** What a web search returns: the results, and the company's site when Google knows it. */
+export type WebSearchResult = {
+  results: { title: string; url: string; snippet: string }[];
+  /** The official site of what was searched (Google's knowledge panel), if any. */
+  website: string | null;
+};
+
 /** A company from a B2B data provider. */
 export type DataCompany = {
   id: string | null;
@@ -135,6 +142,8 @@ export type Capabilities = {
   "data.verify_email": (input: {
     email: string;
   }) => Promise<{ email: string; status: string; score: number | null; sourceUrl: string }>;
+  /** Google results for a query (Serper). */
+  "data.web_search": (input: { query: string; country?: string; limit?: number }) => Promise<WebSearchResult>;
   /** Checks the key, and the credits left when the provider says. */
   "data.check": () => Promise<{ ok: true; detail: string }>;
   /**

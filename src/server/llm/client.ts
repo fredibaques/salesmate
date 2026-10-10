@@ -117,7 +117,7 @@ export function costBreakdown(
       key: "other",
       label: found ? "Otros" : "Modelo",
       detail: found
-        ? "Borradores de primeros emails y pasos sin desglose"
+        ? "Completado de filas con el modelo pequeño, búsquedas de Serper, borradores de emails y otros pasos"
         : `Precios de ${model} no conocidos`,
       usd: rest,
     });

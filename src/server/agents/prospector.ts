@@ -1,19 +1,22 @@
 import { and, eq, isNotNull } from "drizzle-orm";
 import { z } from "zod";
+import { smallModel } from "@/lib/ai-providers";
 import { audit } from "../audit";
-import type { ConnectorDeps } from "../connectors/service";
+import { openConnection, type ConnectorDeps } from "../connectors/service";
 import type { McpDeps } from "../connectors/mcp";
 import type { Db } from "../db/client";
 import {
   agentConfigs,
   agentEvents,
   agentRuns,
+  connections,
   projects,
   type AgentEventKind,
   type AgentRunStep,
   type ProspectingMode,
 } from "../db/schema";
-import { withTenant } from "../db/tenant";
+import { withTenant, type TenantContext } from "../db/tenant";
+import { env } from "../env";
 import type { GatewayDeps } from "../gateway/gateway";
 import { defineTool, runAgentLoop, type AgentLoopResult } from "../llm/agent-loop";
 import { withModel, type LlmClient } from "../llm/client";
@@ -25,7 +28,15 @@ import {
   saveRowsSchema,
 } from "../prospects/agent-schema";
 import { ensureAgentBase } from "../prospects/bases";
-import { completeProspects, countPendingCells, rowsToComplete } from "../prospects/complete";
+import {
+  completeProspects,
+  countPendingCells,
+  recordRowWork,
+  rowsToComplete,
+  type RowToComplete,
+} from "../prospects/complete";
+import { runCompletionEngine, type EngineDeps, type EngineResult } from "../prospects/engine/engine";
+import type { ReaderDeps } from "../prospects/engine/reader";
 import { fitCriteria, fitPrompt } from "../prospects/fit";
 import { knownProspects, prospectInput, recentProspectNames, saveProspects } from "../prospects/service";
 import { goalProgress, monthSpendUsd, notifyTeam, pauseAgent, type RunNotice } from "./automation";
@@ -43,6 +54,8 @@ export type AgentRunDeps = {
    * function off at 300 s; the last turn (searches included) needs headroom.
    */
   timeBudgetMs?: number;
+  /** How the completion engine reads pages (tests). */
+  reader?: ReaderDeps;
 };
 
 /** Default time budget of a run, well under the 300 s a serverless function gets. */
@@ -136,8 +149,69 @@ export type RunEvent = { kind: AgentEventKind; payload: Record<string, unknown> 
 
 /** Default cap of empty cells to fill per run. */
 export const DEFAULT_CELLS_PER_RUN = 20;
-/** Cap when a person asks to complete specific rows. */
+/** Cap when a person asks to complete specific rows (the agent searches them in depth). */
 const ROWS_CELL_CAP = 100;
+/**
+ * Cells a run of «Completar vacíos» takes for the engine: the time is the
+ * real limit (what's left goes in the next batch), this only bounds the query.
+ */
+const ENGINE_CELL_CAP = 3000;
+/** Rows the engine couldn't read that the agent takes on in one run. */
+const HANDOVER_ROWS = 8;
+/** Time the agent needs left to be worth calling for those rows. */
+const HANDOVER_MIN_MS = 45_000;
+/** Time kept for the agent to look for new rows after the engine, in runs that do both. */
+const FIND_RESERVE_MS = 90_000;
+
+/** Google search through the organization's Serper connection, if it has one. */
+async function orgSearch(deps: AgentRunDeps, tenant: { orgId: string }): Promise<EngineDeps["search"]> {
+  const [row] = await withTenant(deps.db, tenant, (tx) =>
+    tx
+      .select({ id: connections.id })
+      .from(connections)
+      .where(and(eq(connections.provider, "serper"), eq(connections.status, "active")))
+      .limit(1),
+  );
+  if (!row) return undefined;
+  let client: Promise<Awaited<ReturnType<typeof openConnection>>["client"]> | null = null;
+  return async (input) => {
+    client ??= openConnection({ db: deps.db, ...deps.connectors }, tenant, row.id).then((c) => c.client);
+    const search = (await client)["data.web_search"];
+    if (!search) throw new Error("Serper no ofrece búsquedas.");
+    return search(input);
+  };
+}
+
+/** Every cell still empty in these rows, marked as not found: a run always answers the rows it took. */
+async function closeRows(db: Db, actor: TenantContext, baseId: string, runId: string, rows: RowToComplete[]) {
+  if (rows.length === 0) return;
+  await completeProspects(db, actor, {
+    baseId,
+    runId,
+    items: rows.map((r) => ({ id: r.id, notFound: r.columns })),
+  });
+}
+
+/** What the engine did, for the run's summary. */
+function engineSummary(engine: EngineResult, searchConnected: boolean): string {
+  const done = engine.rows.filter((r) => r.status === "completed");
+  const noSite = engine.rows.filter((r) => r.status === "no_site").length;
+  const unreadable = engine.rows.filter((r) => r.status === "unreadable").length;
+  const perRow = done.length ? engine.costUsd / engine.rows.length : 0;
+  return [
+    `Ha completado ${engine.filled} ${engine.filled === 1 ? "celda" : "celdas"} en ${done.length} ${done.length === 1 ? "fila" : "filas"} leyendo sus webs (${engine.pagesRead} páginas${engine.searches ? `, ${engine.searches} búsquedas en Google` : ""}).`,
+    engine.notFound ? `${engine.notFound} celdas no aparecen en sus webs: quedan como «no encontrado».` : "",
+    noSite
+      ? `${noSite} ${noSite === 1 ? "fila no tiene" : "filas no tienen"} web conocida${searchConnected ? "" : " (conecta Serper en Integraciones para que la busque en Google)"}.`
+      : "",
+    unreadable
+      ? `${unreadable} ${unreadable === 1 ? "web no se ha podido" : "webs no se han podido"} leer.`
+      : "",
+    engine.rows.length ? `Coste: ${engine.costUsd.toFixed(3)} $ (${perRow.toFixed(4)} $ por fila).` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
 
 /**
  * One prospecting run on the base the agent works on. Depending on its mode
@@ -234,6 +308,17 @@ export async function runProspecting(
       console.error("notify failed", err);
     }
   };
+  /** «Completar vacíos» of the whole table: the next batch, run by the scheduler in a few minutes. */
+  const queueNextBatch = (left: number) =>
+    withTenant(deps.db, tenant, (tx) =>
+      tx.insert(agentEvents).values({
+        orgId: tenant.orgId,
+        projectId: project.id,
+        agentConfigId: agent.id,
+        kind: "continue",
+        payload: { left },
+      }),
+    );
   /** Ends the run without working, saying why. */
   const skip = async (summary: string, notice: RunNotice) => {
     await finish({ status: "completed", summary, costUsd: 0 });
@@ -291,12 +376,15 @@ export async function runProspecting(
     if (goal?.met && mode === "both") mode = "complete";
     if (goal && !goal.met) target = Math.min(target, goal.remaining);
 
-    const work =
+    let work =
       mode === "find" || goalStops
         ? { rows: [], cells: 0 }
         : await rowsToComplete(deps.db, tenant, base.id, {
-            limit:
-              rowIds?.length || allPending ? ROWS_CELL_CAP : (settings.cellsPerRun ?? DEFAULT_CELLS_PER_RUN),
+            limit: input.rowIds?.length
+              ? ROWS_CELL_CAP
+              : allPending
+                ? ENGINE_CELL_CAP
+                : (settings.cellsPerRun ?? DEFAULT_CELLS_PER_RUN),
             rowIds,
           });
     if (goal?.met && work.rows.length === 0) {
@@ -311,14 +399,96 @@ export async function runProspecting(
     }
     if (work.rows.length === 0) mode = "find";
     const finds = mode !== "complete";
-    const completes = work.rows.length > 0;
-    if (completes) {
+    if (work.rows.length > 0) {
+      const ids = work.rows.map((r) => r.id);
       await withTenant(deps.db, tenant, (tx) =>
         tx
           .update(agentRuns)
-          .set({ target: { baseId: base.id, rowIds: work.rows.map((r) => r.id) } })
+          .set({ target: { baseId: base.id, rowIds: ids } })
           .where(eq(agentRuns.id, run.id)),
       );
+    }
+    const deadline = startedAt + (deps.timeBudgetMs ?? RUN_TIME_BUDGET_MS);
+    const clock = () => (deps.now?.() ?? new Date()).getTime();
+
+    // The rows to complete go through the engine first (cheap, row by row); a person asking for
+    // specific rows gets the agent's in-depth search instead.
+    let engine: EngineResult | null = null;
+    let handedOver: RowToComplete[] = [];
+    const search = work.rows.length && !input.rowIds?.length ? await orgSearch(deps, tenant) : undefined;
+    if (work.rows.length && !input.rowIds?.length) {
+      engine = await runCompletionEngine(
+        {
+          db: deps.db,
+          llm: withModel(deps.llm, smallModel(deps.llm.provider)),
+          search,
+          reader: deps.reader ?? { fetch: deps.connectors?.fetch, jinaApiKey: env().JINA_API_KEY },
+          now: clock,
+        },
+        actor,
+        {
+          base,
+          rows: work.rows,
+          runId: run.id,
+          deadline: finds ? deadline - FIND_RESERVE_MS : deadline,
+          budgetUsd: settings.budget?.maxCostPerRunUsd,
+          context: project.description?.slice(0, 300) ?? undefined,
+          country:
+            project.timezone === "Europe/Madrid" || project.timezone === "Atlantic/Canary" ? "es" : undefined,
+        },
+      );
+      completed += engine.filled;
+      // What it couldn't read goes to the agent, which searches the web (a few rows per run);
+      // without web or data tools nobody can, so their cells are not found.
+      const hard = new Set(
+        engine.rows.filter((r) => r.status === "no_site" || r.status === "unreadable").map((r) => r.id),
+      );
+      const canSearch = agent.tools.web || (agent.tools.data?.length ?? 0) > 0;
+      const stuck = work.rows.filter((r) => hard.has(r.id));
+      handedOver = canSearch && deadline - clock() > HANDOVER_MIN_MS ? stuck.slice(0, HANDOVER_ROWS) : [];
+      if (!canSearch) await closeRows(deps.db, actor, base.id, run.id, stuck);
+      work = { rows: handedOver, cells: handedOver.reduce((n, r) => n + r.columns.length, 0) };
+    }
+    const completes = work.rows.length > 0;
+
+    // The engine did it all: no agent this time.
+    if (engine && !completes && !finds) {
+      let summary = engineSummary(engine, Boolean(search));
+      const progress = engine.filled + engine.notFound > 0;
+      const left = allPending && progress ? await countPendingCells(deps.db, tenant, base.id) : 0;
+      if (left > 0) {
+        await queueNextBatch(left);
+        summary += `\n\nQuedan ${left} celdas por completar en la tabla: sigue con la siguiente tanda en unos minutos.`;
+      }
+      const failed = engine.rows.length > 0 && engine.rows.every((r) => r.status === "failed");
+      await finish({
+        status: failed ? "failed" : "completed",
+        error: failed ? engine.rows[0].note : undefined,
+        model: withModel(deps.llm, smallModel(deps.llm.provider)).model,
+        inputTokens: engine.usage.input,
+        outputTokens: engine.usage.output,
+        cacheReadTokens: engine.usage.cacheRead,
+        cacheWriteTokens: engine.usage.cacheWrite,
+        webSearches: 0,
+        costUsd: engine.costUsd,
+        steps: engine.steps,
+        summary,
+      });
+      await tell(
+        failed
+          ? { problem: true, headline: "La ejecución no ha terminado bien", details: summary }
+          : engine.filled
+            ? { problem: false, headline: `Ha completado ${engine.filled} celdas`, details: summary }
+            : { problem: true, headline: "No ha completado ninguna celda", details: summary },
+      );
+      return {
+        runId: run.id,
+        status: failed ? "failed" : "completed",
+        added,
+        completed,
+        summary,
+        costUsd: engine.costUsd,
+      };
     }
     // Short references for the rows to complete: models copy them better than ids.
     const refs = new Map(work.rows.map((r, i) => [`F${i + 1}`, r.id]));
@@ -485,6 +655,9 @@ ${[
     : sources.prefer === "web" && dataProviders
       ? `- Empieza por la web; usa ${dataProviders} solo para lo que no encuentres publicado.`
       : "",
+  tools.some((t) => t.name === "serper_search")
+    ? "- Para buscar en Google usa primero serper_search: cuesta mucho menos que web_search. Usa web_search solo si no basta."
+    : "",
   finds
     ? "- Antes de investigar a fondo una empresa nueva, comprueba con check_prospects que no la tenemos ya."
     : "",
@@ -531,7 +704,6 @@ ${[
         : "Completa los datos que faltan en las filas pendientes."
       : `Busca ${target} prospectos nuevos para el proyecto y guárdalos.`;
     const askWithNotices = notices.length ? `${ask} Ten en cuenta los avisos recibidos.` : ask;
-    const deadline = startedAt + (deps.timeBudgetMs ?? RUN_TIME_BUDGET_MS);
     let pushes = 0;
     const budget = {
       usd: settings.budget?.maxCostPerRunUsd,
@@ -582,21 +754,26 @@ ${[
         : result.finalText || `Guardado: ${tally}.`;
     const ok = result.status === "completed" || outOfTime || outOfBudget;
 
+    // The rows handed over are answered: what the agent didn't find is not found.
+    await closeRows(deps.db, actor, base.id, run.id, handedOver);
+    if (handedOver.length && !finds) {
+      for (const r of handedOver) {
+        await recordRowWork(deps.db, actor, {
+          baseId: base.id,
+          rowId: r.id,
+          costUsd: result.costUsd / handedOver.length,
+        });
+      }
+    }
+    if (engine) summary = `${engineSummary(engine, Boolean(search))}\n\n${summary}`;
+
     // Writing to the rows that fit is the outbound agent's job (agents/outreach.ts).
-    const costUsd = result.costUsd;
+    const costUsd = result.costUsd + (engine?.costUsd ?? 0);
     // «Completar vacíos» of the whole table: while it makes progress, the next batch goes by itself.
-    if (allPending && ok && !outOfBudget && completed > 0) {
+    if (allPending && ok && !outOfBudget && completed + (engine?.notFound ?? 0) + handedOver.length > 0) {
       const left = await countPendingCells(deps.db, tenant, base.id);
       if (left > 0) {
-        await withTenant(deps.db, tenant, (tx) =>
-          tx.insert(agentEvents).values({
-            orgId: tenant.orgId,
-            projectId: project.id,
-            agentConfigId: agent.id,
-            kind: "continue",
-            payload: { left },
-          }),
-        );
+        await queueNextBatch(left);
         summary += `\n\nQuedan ${left} celdas por completar en la tabla: sigue con la siguiente tanda en unos minutos.`;
       }
     }
@@ -609,7 +786,7 @@ ${[
       cacheWriteTokens: result.usage.cacheWrite,
       webSearches: result.usage.webSearches,
       costUsd,
-      steps: result.steps,
+      steps: [...(engine?.steps ?? []), ...result.steps],
       summary,
     });
     const nothing = added + completed === 0;

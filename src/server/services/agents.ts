@@ -622,7 +622,7 @@ export async function listDataSources(db: Db, tenant: Pick<TenantContext, "orgId
     const rows = await tx
       .select()
       .from(connections)
-      .where(inArray(connections.provider, ["apollo", "lusha", "hunter"]))
+      .where(inArray(connections.provider, ["apollo", "lusha", "hunter", "serper"]))
       .orderBy(desc(connections.createdAt));
     return rows.map((c) => ({ id: c.id, label: c.label, provider: c.provider, status: c.status }));
   });
