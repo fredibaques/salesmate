@@ -157,8 +157,9 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
   const canEdit = tenant.role !== "member";
   const sending = canEdit && query.send === "1";
   const agents = await baseAgents(db, tenant, baseId);
-  // The prospecting agent that fills it works from its own project.
-  const filler = agents.find((a) => a.agentType === "outbound") ?? null;
+  // The prospecting agent that fills it (the first active one, if several do).
+  const outbound = agents.filter((a) => a.agentType === "outbound");
+  const filler = outbound.find((a) => a.enabled) ?? outbound[0] ?? null;
   const [data, projects, runs, openRow, pendingCells] = await Promise.all([
     listProspects(db, tenant, baseId, {
       status,
@@ -169,7 +170,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
       offset: (page - 1) * PAGE_SIZE,
     }),
     canEdit ? listProjects(db, tenant) : Promise.resolve([]),
-    filler ? listAgentRuns(db, tenant, filler.projectId, "outbound", 1) : Promise.resolve([]),
+    filler ? listAgentRuns(db, tenant, filler.projectId, filler.id, 1) : Promise.resolve([]),
     rowParam && rowParam !== "new" ? getProspect(db, tenant, baseId, rowParam).catch(() => null) : null,
     countPendingCells(db, tenant, baseId),
   ]);
@@ -252,7 +253,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
           <>
             {filledByAgent && canEdit && pendingCells > 0 ? (
               <ActionForm
-                action={completeProspectsNow.bind(null, filler!.projectId, null)}
+                action={completeProspectsNow.bind(null, filler!.projectId, filler!.id, null)}
                 submitLabel={`Completar vacíos (${pendingCells})`}
                 submitVariant="secondary"
                 className="flex flex-wrap items-center gap-3"
@@ -262,7 +263,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
             ) : null}
             {filledByAgent && canEdit ? (
               <ActionForm
-                action={runProspectingNow.bind(null, filler!.projectId)}
+                action={runProspectingNow.bind(null, filler!.projectId, filler!.id)}
                 submitLabel="Buscar ahora"
                 submitVariant="secondary"
                 className="flex flex-wrap items-center gap-3"
@@ -336,7 +337,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
             tone={lastRun.status === "failed" ? "danger" : "success"}
             action={
               <LinkButton
-                href={`/app/projects/${filler!.projectId}/agents/outbound`}
+                href={`/app/projects/${filler!.projectId}/agents/${filler!.id}/log`}
                 variant="secondary"
                 size="sm"
               >
@@ -725,7 +726,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
       {rowParam === "new" || openRow ? (
         <RowPanel
           key={openRow?.id ?? "new"}
-          agentProjectId={filler?.projectId ?? null}
+          filler={filler ? { projectId: filler.projectId, id: filler.id } : null}
           base={base}
           row={openRow}
           closeHref={href({ row: undefined })}
@@ -742,6 +743,7 @@ function TableAgents({
   agents,
 }: {
   agents: {
+    id: string;
     projectId: string;
     projectName: string;
     agentType: string;
@@ -756,13 +758,9 @@ function TableAgents({
   return (
     <span className="ml-1 flex items-center gap-1.5">
       {agents.map((a) => (
-        <Tooltip
-          key={`${a.projectId}:${a.agentType}`}
-          content={`${a.label} · ${a.projectName} · ${STATE[agentState(a)]}`}
-          side="bottom"
-        >
+        <Tooltip key={a.id} content={`${a.label} · ${a.projectName} · ${STATE[agentState(a)]}`} side="bottom">
           <Link
-            href={`/app/projects/${a.projectId}/agents/${a.agentType}`}
+            href={`/app/projects/${a.projectId}/agents/${a.id}`}
             aria-label={`${a.label} (${a.projectName})`}
             className="rounded-lg transition-transform hover:-translate-y-0.5"
           >

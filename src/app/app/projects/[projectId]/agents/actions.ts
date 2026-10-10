@@ -97,31 +97,32 @@ export async function setupAgentAction(
   _: FormState,
   form: FormData,
 ): Promise<FormState> {
-  let added: ProjectAgentType | undefined;
+  let added: string | undefined;
   const result = await runForm(async () => {
     const tenant = await admin();
     const db = getDb();
     const kind = agentType(type);
+    // Gives the project a process from this template only if it has none yet.
+    const agent = await addAgent(
+      db,
+      tenant,
+      projectId,
+      kind,
+      SALES_MOTIONS.find((m) => m === str(form, "salesMotion")),
+    );
+    const name = str(form, "name");
+    if (name) await customizeAgent(db, tenant, projectId, agent.id, { name });
     if (kind === "outbound") {
-      await addAgent(db, tenant, projectId, kind, "b2b_consultative");
-      await saveAgentInstructions(db, tenant, projectId, kind, instructionsFromForm(form, true));
-      await saveAgentTools(db, tenant, projectId, kind, toolsFromForm(form));
+      await saveAgentInstructions(db, tenant, projectId, agent.id, instructionsFromForm(form, true));
+      await saveAgentTools(db, tenant, projectId, agent.id, toolsFromForm(form));
     } else {
-      // Gives the project a process from this template only if it has none yet.
-      await addAgent(
-        db,
-        tenant,
-        projectId,
-        kind,
-        SALES_MOTIONS.find((m) => m === str(form, "salesMotion")),
-      );
-      await saveAgentChannels(db, tenant, projectId, kind, channelsFromForm(form));
-      await updateAgentAutonomy(db, tenant, projectId, kind, {
+      await saveAgentChannels(db, tenant, projectId, agent.id, channelsFromForm(form));
+      await updateAgentAutonomy(db, tenant, projectId, agent.id, {
         defaultLevel: num(form, "defaultLevel") ?? 1,
       });
     }
-    if (bool(form, "activate")) await setAgentEnabled(db, tenant, projectId, kind, true);
-    added = kind;
+    if (bool(form, "activate")) await setAgentEnabled(db, tenant, projectId, agent.id, true);
+    added = agent.id;
   });
   if (added) {
     refresh(projectId);
@@ -130,22 +131,22 @@ export async function setupAgentAction(
   return result;
 }
 
-export async function removeAgentAction(projectId: string, type: string) {
+export async function removeAgentAction(projectId: string, agentId: string) {
   const tenant = await admin();
-  await removeAgent(getDb(), tenant, projectId, agentType(type));
+  await removeAgent(getDb(), tenant, projectId, agentId);
   refresh(projectId);
   redirect(`/app/projects/${projectId}`);
 }
 
 export async function customizeAgentAction(
   projectId: string,
-  type: string,
+  agentId: string,
   _: FormState,
   form: FormData,
 ): Promise<FormState> {
   const result = await runForm(async () => {
     const tenant = await admin();
-    await customizeAgent(getDb(), tenant, projectId, agentType(type), {
+    await customizeAgent(getDb(), tenant, projectId, agentId, {
       name: str(form, "name") ?? "",
       icon: str(form, "icon"),
       color: str(form, "color"),
@@ -155,15 +156,15 @@ export async function customizeAgentAction(
   return result;
 }
 
-export async function toggleAgent(projectId: string, type: string, enabled: boolean) {
+export async function toggleAgent(projectId: string, agentId: string, enabled: boolean) {
   const tenant = await admin();
-  await setAgentEnabled(getDb(), tenant, projectId, agentType(type), enabled);
+  await setAgentEnabled(getDb(), tenant, projectId, agentId, enabled);
   refresh(projectId);
 }
 
 export async function saveAutonomy(
   projectId: string,
-  type: string,
+  agentId: string,
   _: FormState,
   form: FormData,
 ): Promise<FormState> {
@@ -177,7 +178,7 @@ export async function saveAutonomy(
       const limit = num(form, `limit:${action}`);
       if (limit !== undefined) dailyLimits[action] = limit;
     }
-    await updateAgentAutonomy(getDb(), tenant, projectId, agentType(type), {
+    await updateAgentAutonomy(getDb(), tenant, projectId, agentId, {
       defaultLevel: num(form, "defaultLevel") ?? 1,
       actionLevels,
       dailyLimits,
@@ -240,19 +241,18 @@ function automationFromForm(form: FormData): Parameters<typeof saveAgentAutomati
  */
 export async function saveAgentSetup(
   projectId: string,
-  type: string,
+  agentId: string,
   _: FormState,
   form: FormData,
 ): Promise<FormState> {
   const result = await runForm(async () => {
     const tenant = await admin();
-    const kind = agentType(type);
     const db = getDb();
-    await saveAgentInstructions(db, tenant, projectId, kind, instructionsFromForm(form, true));
-    await saveAgentAutomation(db, tenant, projectId, kind, automationFromForm(form));
+    await saveAgentInstructions(db, tenant, projectId, agentId, instructionsFromForm(form, true));
+    await saveAgentAutomation(db, tenant, projectId, agentId, automationFromForm(form));
     const baseId = str(form, "baseId");
-    if (kind === "outbound" && baseId) {
-      const agent = await getAgent(db, tenant, projectId, kind);
+    if (baseId) {
+      const agent = await getAgent(db, tenant, projectId, agentId);
       if (agent && agent.config.prospectBaseId !== baseId) {
         await setAgentBase(db, tenant, projectId, agent.config.id, baseId);
       }
@@ -266,26 +266,31 @@ export async function saveAgentSetup(
  * The inbound agent's whole setup in one form: what it does and on which
  * table, where it listens, its model and the accounts it writes from.
  */
-export async function saveInboundSetup(projectId: string, _: FormState, form: FormData): Promise<FormState> {
+export async function saveInboundSetup(
+  projectId: string,
+  agentId: string,
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
   const result = await runForm(async () => {
     const tenant = await admin();
     const db = getDb();
-    await saveAgentInstructions(db, tenant, projectId, "inbound", {
+    await saveAgentInstructions(db, tenant, projectId, agentId, {
       instructions: str(form, "instructions") ?? "",
       schedule: scheduleFromForm(form),
       settings: { model: str(form, "model") ?? "" },
     });
-    await saveAgentTriggers(db, tenant, projectId, "inbound", {
+    await saveAgentTriggers(db, tenant, projectId, agentId, {
       form: bool(form, "triggerForm"),
       newRows: bool(form, "triggerNewRows"),
       webhook: bool(form, "triggerWebhook"),
     });
     // WhatsApp is listened to only while its event is on.
-    await saveAgentChannels(db, tenant, projectId, "inbound", {
+    await saveAgentChannels(db, tenant, projectId, agentId, {
       ...channelsFromForm(form),
       whatsappId: bool(form, "triggerWhatsapp") ? (str(form, "whatsappId") ?? null) : null,
     });
-    const agent = await getAgent(db, tenant, projectId, "inbound");
+    const agent = await getAgent(db, tenant, projectId, agentId);
     const baseId = str(form, "baseId") ?? null;
     if (agent && agent.config.prospectBaseId !== baseId) {
       await setAgentBase(db, tenant, projectId, agent.config.id, baseId);
@@ -295,10 +300,10 @@ export async function saveInboundSetup(projectId: string, _: FormState, form: Fo
   return result;
 }
 
-export async function rotateHook(projectId: string, type: string, _: FormState): Promise<FormState> {
+export async function rotateHook(projectId: string, agentId: string, _: FormState): Promise<FormState> {
   const result = await runForm(async () => {
     const tenant = await admin();
-    await rotateAgentHook(getDb(), tenant, projectId, agentType(type));
+    await rotateAgentHook(getDb(), tenant, projectId, agentId);
   }, "Nueva dirección creada: la anterior ya no funciona.");
   refresh(projectId);
   return result;
@@ -307,14 +312,14 @@ export async function rotateHook(projectId: string, type: string, _: FormState):
 /** «Añadir» in the available tools: the agent can use it from now on. */
 export async function addToolAction(
   projectId: string,
-  type: string,
+  agentId: string,
   key: AgentToolKey,
   label: string,
   _: FormState,
 ): Promise<FormState> {
   const result = await runForm(async () => {
     const tenant = await admin();
-    await addAgentTool(getDb(), tenant, projectId, agentType(type), key);
+    await addAgentTool(getDb(), tenant, projectId, agentId, key);
     return `${label}: añadida.`;
   });
   refresh(projectId);
@@ -323,14 +328,14 @@ export async function addToolAction(
 
 export async function removeToolAction(
   projectId: string,
-  type: string,
+  agentId: string,
   key: AgentToolKey,
   label: string,
   _: FormState,
 ): Promise<FormState> {
   const result = await runForm(async () => {
     const tenant = await admin();
-    await removeAgentTool(getDb(), tenant, projectId, agentType(type), key);
+    await removeAgentTool(getDb(), tenant, projectId, agentId, key);
     return `${label}: quitada.`;
   });
   refresh(projectId);
@@ -340,32 +345,38 @@ export async function removeToolAction(
 /** The functions of an MCP server the agent may call. */
 export async function saveMcpToolsAction(
   projectId: string,
-  type: string,
+  agentId: string,
   connectionId: string,
   _: FormState,
   form: FormData,
 ): Promise<FormState> {
   const result = await runForm(async () => {
     const tenant = await admin();
-    await setAgentMcpTools(getDb(), tenant, projectId, agentType(type), connectionId, list(form, "tool"));
+    await setAgentMcpTools(getDb(), tenant, projectId, agentId, connectionId, list(form, "tool"));
   }, "Funciones guardadas.");
   refresh(projectId);
   return result;
 }
 
-/** Starts a run now in the background; what it finds appears as it is saved. */
-async function startRun(projectId: string, options: { mode?: ProspectingMode; rowIds?: string[] }) {
+/** Starts a run of a prospecting agent now in the background; what it finds appears as it is saved. */
+async function startRun(
+  projectId: string,
+  agentId: string,
+  options: { mode?: ProspectingMode; rowIds?: string[] },
+) {
   const tenant = await admin();
   const db = getDb();
+  const agent = await getAgent(db, tenant, projectId, agentId);
+  if (agent?.config.agentType !== "outbound") throw new Error("Agente no encontrado.");
   const llm = await requireOrgLlm(db, tenant);
   await closeStaleRuns(db, new Date());
-  const [last] = await listAgentRuns(db, tenant, projectId, "outbound", 1);
+  const [last] = await listAgentRuns(db, tenant, projectId, agentId, 1);
   if (last?.status === "running")
     throw new Error("El agente ya está trabajando. Espera a que termine (unos minutos).");
   after(async () => {
     try {
       await runProspecting(agentRunDeps(llm), tenant, {
-        projectId,
+        agentId,
         trigger: "manual",
         triggerRef: tenant.userId,
         ...options,
@@ -392,16 +403,21 @@ function backTo(form: FormData | undefined) {
  * «Ejecutar ahora» of the inbound agent: reads its mailbox and attends
  * what is waiting, after answering. Its runs show in its Log.
  */
-export async function runInboundNow(projectId: string, _: FormState, form?: FormData): Promise<FormState> {
+export async function runInboundNow(
+  projectId: string,
+  agentId: string,
+  _: FormState,
+  form?: FormData,
+): Promise<FormState> {
   const result = await runForm(async () => {
     const tenant = await admin();
     const db = getDb();
-    const agent = await getAgent(db, tenant, projectId, "inbound");
-    if (!agent) throw new Error("Agente no encontrado.");
+    const agent = await getAgent(db, tenant, projectId, agentId);
+    if (agent?.config.agentType !== "inbound") throw new Error("Agente no encontrado.");
     const llm = await requireOrgLlm(db, tenant);
     after(async () => {
       try {
-        await runInboundSweep(inboundDeps(llm), tenant, projectId);
+        await runInboundSweep(inboundDeps(llm), tenant, agentId);
       } catch (err) {
         console.error("inbound run failed", err);
       }
@@ -417,11 +433,12 @@ export async function runInboundNow(projectId: string, _: FormState, form?: Form
 /** «Buscar ahora»: a run in the agent's own mode. */
 export async function runProspectingNow(
   projectId: string,
+  agentId: string,
   _: FormState,
   form?: FormData,
 ): Promise<FormState> {
   const result = await runForm(async () => {
-    await startRun(projectId, {});
+    await startRun(projectId, agentId, {});
     return "En marcha. Lo que encuentre irá apareciendo en unos minutos.";
   });
   const back = result?.ok ? backTo(form) : null;
@@ -432,12 +449,13 @@ export async function runProspectingNow(
 /** «Completar vacíos» (or one row's «Completar esta fila»): fills empty cells, without looking for new rows. */
 export async function completeProspectsNow(
   projectId: string,
+  agentId: string,
   rowIds: string[] | null,
   _: FormState,
   form?: FormData,
 ): Promise<FormState> {
   const result = await runForm(async () => {
-    await startRun(projectId, { mode: "complete", rowIds: rowIds ?? undefined });
+    await startRun(projectId, agentId, { mode: "complete", rowIds: rowIds ?? undefined });
     return "En marcha. Los datos irán apareciendo en la tabla en unos minutos.";
   });
   const back = result?.ok ? backTo(form) : null;

@@ -127,7 +127,7 @@ const STATUS = {
  * editable by any member. Without `row`, the same form adds a row by hand.
  */
 export function RowPanel({
-  agentProjectId,
+  filler,
   base,
   row,
   closeHref,
@@ -135,7 +135,8 @@ export function RowPanel({
   conversationKey = null,
 }: {
   /** Project of the prospecting agent that fills this table, if one does. */
-  agentProjectId: string | null;
+  /** The prospecting agent that fills the table, if any. */
+  filler: { projectId: string; id: string } | null;
   base: ProspectBase;
   row: ProspectRow | null;
   closeHref: string;
@@ -249,7 +250,7 @@ export function RowPanel({
                           c,
                           row.data[c.id],
                           row.cellMeta[c.id],
-                          Boolean(agentProjectId) && c.filledBy !== "person",
+                          Boolean(filler) && c.filledBy !== "person",
                         )
                       : c.instructions
                   }
@@ -299,9 +300,9 @@ export function RowPanel({
               </Button>
             )}
           </form>
-          {agentProjectId && canRun && row.status !== "discarded" ? (
+          {filler && canRun && row.status !== "discarded" ? (
             <ActionForm
-              action={completeProspectsNow.bind(null, agentProjectId, [row.id])}
+              action={completeProspectsNow.bind(null, filler.projectId, filler.id, [row.id])}
               submitLabel="Completar esta fila"
               submitVariant="secondary"
               cancel={false}

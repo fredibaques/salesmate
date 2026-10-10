@@ -13,6 +13,7 @@ let close: () => Promise<void>;
 let tenant: TenantContext;
 let other: TenantContext;
 let projectId: string;
+let agentId: string;
 
 const MODEL = "claude-opus-5-5";
 
@@ -29,7 +30,7 @@ beforeAll(async () => {
       .returning(),
   );
   projectId = p.id;
-  await addAgent(db, tenant, projectId, "outbound", "b2b_consultative");
+  agentId = (await addAgent(db, tenant, projectId, "outbound", "b2b_consultative")).id;
   await withTenant(db, tenant, (tx) =>
     tx.insert(agentRuns).values([
       {
@@ -179,7 +180,7 @@ describe("runs log", () => {
 
   it("knows which agent is working right now", async () => {
     // Only the copilot has a run going: the prospecting agent rests.
-    expect((await getAgent(db, tenant, projectId, "outbound"))?.working).toBe(false);
+    expect((await getAgent(db, tenant, projectId, agentId))?.working).toBe(false);
     const [run] = await withTenant(db, tenant, (tx) =>
       tx
         .insert(agentRuns)
@@ -187,6 +188,7 @@ describe("runs log", () => {
           orgId: tenant.orgId,
           projectId,
           agentType: "outbound",
+          agentConfigId: agentId,
           trigger: "manual",
           status: "running",
           model: MODEL,
@@ -194,7 +196,7 @@ describe("runs log", () => {
         })
         .returning(),
     );
-    expect((await getAgent(db, tenant, projectId, "outbound"))?.working).toBe(true);
+    expect((await getAgent(db, tenant, projectId, agentId))?.working).toBe(true);
     expect((await listProjectAgents(db, tenant, projectId)).map((a) => a.working)).toEqual([true]);
     await withTenant(db, tenant, (tx) =>
       tx
@@ -202,6 +204,6 @@ describe("runs log", () => {
         .set({ status: "completed", finishedAt: new Date() })
         .where(eq(agentRuns.id, run.id)),
     );
-    expect((await getAgent(db, tenant, projectId, "outbound"))?.working).toBe(false);
+    expect((await getAgent(db, tenant, projectId, agentId))?.working).toBe(false);
   });
 });

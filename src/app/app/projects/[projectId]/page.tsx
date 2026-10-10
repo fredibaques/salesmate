@@ -151,9 +151,7 @@ export default async function ProjectOverviewPage({
         <AgentCards
           projectId={projectId}
           agents={agents}
-          addCard={
-            canEdit ? <AddAgentButton projectId={projectId} agents={agents} open={agentParam} card /> : null
-          }
+          addCard={canEdit ? <AddAgentButton projectId={projectId} open={agentParam} card /> : null}
         />
       </section>
     </div>

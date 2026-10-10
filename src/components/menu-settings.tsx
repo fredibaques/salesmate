@@ -25,6 +25,7 @@ import { SidebarDot } from "./sidebar";
 import { buttonClass, cx, Field, Input } from "./ui";
 
 export type MenuAgent = {
+  id: string;
   type: ProjectAgentKey;
   name: string | null;
   icon: string | null;
@@ -118,7 +119,7 @@ function MenuEditor({
   const [sectionOrder, setSectionOrder] = useState(sections);
   const [projectOrder, setProjectOrder] = useState(projects.map((p) => p.id));
   const [agentOrder, setAgentOrder] = useState<Record<string, string[]>>(
-    Object.fromEntries(projects.map((p) => [p.id, p.agents.map((a) => a.type)])),
+    Object.fromEntries(projects.map((p) => [p.id, p.agents.map((a) => a.id)])),
   );
   const [editing, setEditing] = useState<string | null>(null);
 
@@ -129,13 +130,13 @@ function MenuEditor({
   );
   const agentsOf = (p: MenuProject) =>
     ordered(
-      p.agents.map((a) => a.type),
+      p.agents.map((a) => a.id),
       agentOrder[p.id] ?? [],
-    ).map((type) => p.agents.find((a) => a.type === type)!);
+    ).map((agentId) => p.agents.find((a) => a.id === agentId)!);
   const nav = {
     sections: sectionKeys,
     projects: projectIds,
-    agents: Object.fromEntries(projects.map((p) => [p.id, agentsOf(p).map((a) => a.type)])),
+    agents: Object.fromEntries(projects.map((p) => [p.id, agentsOf(p).map((a) => a.id)])),
   };
 
   return (
@@ -206,10 +207,10 @@ function MenuEditor({
               ) : null}
               {agents.map((agent, j) => {
                 const name = agentName(agent.type, agent.name);
-                const editKey = `${id}:${agent.type}`;
+                const editKey = `${id}:${agent.id}`;
                 const open = editing === editKey;
                 return (
-                  <div key={agent.type}>
+                  <div key={agent.id}>
                     <div className={cx(rowClass, "pl-9")}>
                       <AgentIcon type={agent.type} icon={agent.icon} color={agent.color} className="size-4" />
                       <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
@@ -235,7 +236,7 @@ function MenuEditor({
                           setAgentOrder({
                             ...agentOrder,
                             [id]: move(
-                              agents.map((a) => a.type),
+                              agents.map((a) => a.id),
                               j,
                               to,
                             ),
@@ -248,7 +249,7 @@ function MenuEditor({
                         <ActionForm
                           // Fresh fields after each save.
                           key={`${agent.name}|${agent.icon}|${agent.color}`}
-                          action={customizeAgentAction.bind(null, id, agent.type)}
+                          action={customizeAgentAction.bind(null, id, agent.id)}
                           submitLabel="Guardar el agente"
                           submitVariant="secondary"
                           cancel={false}

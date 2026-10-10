@@ -28,32 +28,26 @@ type Agents = Awaited<ReturnType<typeof listProjectAgents>>;
 
 /**
  * «Añadir agente»: a modal to choose the kind of agent and set it up step by
- * step. Kinds the project already has, or that aren't ready, show why they
- * can't be added. As `card`, it is the last card of the agents' grid.
- * `open` opens it on arrival with that kind chosen (old links to the page).
+ * step. A project can have as many agents of each kind as it needs (one
+ * fills a table, another enriches it…); kinds that aren't ready say so.
+ * As `card`, it is the last card of the agents' grid. `open` opens it on
+ * arrival with that kind chosen (old links to the page).
  */
 export async function AddAgentButton({
   projectId,
-  agents,
   variant = "primary",
   card = false,
   open,
 }: {
   projectId: string;
-  agents: Agents;
   variant?: "primary" | "secondary";
   card?: boolean;
   open?: string;
 }) {
-  const added = new Set(agents.map((a) => a.config.agentType));
   const types = PROJECT_AGENT_TYPES.map((type) => ({
     type,
-    available: AVAILABLE_AGENT_TYPES.includes(type) && !added.has(type),
-    note: added.has(type)
-      ? "Ya está en el proyecto"
-      : AVAILABLE_AGENT_TYPES.includes(type)
-        ? null
-        : "Próximamente",
+    available: AVAILABLE_AGENT_TYPES.includes(type),
+    note: AVAILABLE_AGENT_TYPES.includes(type) ? null : "Próximamente",
   }));
   const tenant = await requireTenant();
   const db = getDb();
@@ -145,12 +139,12 @@ export function AgentCards({
       {agents.map((agent) => {
         const type = agent.config.agentType as ProjectAgentType;
         const info = AGENT_INFO[type];
-        const href = `/app/projects/${projectId}/agents/${type}`;
+        const href = `/app/projects/${projectId}/agents/${agent.config.id}`;
         const warning = missingSetup(type, agent.config.channels);
         const schedule = agent.config.schedule;
         return (
           <EntityCard
-            key={type}
+            key={agent.config.id}
             href={href}
             media={
               <AgentTile
@@ -172,7 +166,7 @@ export function AgentCards({
             badge={
               // Above the card's link, so it switches instead of opening the agent.
               <form
-                action={toggleAgent.bind(null, projectId, type, !agent.config.enabled)}
+                action={toggleAgent.bind(null, projectId, agent.config.id, !agent.config.enabled)}
                 className="relative z-10 -mt-1"
               >
                 <SwitchButton

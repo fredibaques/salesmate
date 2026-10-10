@@ -32,11 +32,11 @@ function ConnectLink({ children, add = "1" }: { children: React.ReactNode; add?:
  * agent's: its goal (and the table it keeps), where it listens, its model
  * and the accounts it works with. How it sells is the project's process.
  */
-export async function InboundSetup({ projectId }: { projectId: string }) {
+export async function InboundSetup({ projectId, agentId }: { projectId: string; agentId: string }) {
   const tenant = await requireTenant();
   const db = getDb();
   const [agent, project, options, bases, ai, process] = await Promise.all([
-    getAgent(db, tenant, projectId, "inbound"),
+    getAgent(db, tenant, projectId, agentId),
     getProject(db, tenant, projectId),
     listChannelOptions(db, tenant),
     listBases(db, tenant, projectId, { standalone: true }),
@@ -67,7 +67,7 @@ export async function InboundSetup({ projectId }: { projectId: string }) {
             config.hookToken,
             channels,
           ])}
-          action={saveInboundSetup.bind(null, projectId)}
+          action={saveInboundSetup.bind(null, projectId, agentId)}
           submitLabel="Guardar"
           className="space-y-8"
         >

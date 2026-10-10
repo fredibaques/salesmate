@@ -54,18 +54,19 @@ export async function baseName(db: Db, tenant: Pick<TenantContext, "orgId">, id:
   return rows[0]?.name ?? null;
 }
 
-/** The name the user gave an agent; null when it keeps its template's. */
-export async function agentCustomName(
+/** An agent's kind and the name the user gave it (null = its template's); null when not found. */
+export async function agentLabel(
   db: Db,
   tenant: Pick<TenantContext, "orgId">,
   projectId: string,
-  agentType: string,
+  agentId: string,
 ) {
+  if (!/^[0-9a-f-]{36}$/i.test(agentId)) return null;
   const rows = await withTenant(db, tenant, (tx) =>
     tx
-      .select({ name: agentConfigs.name })
+      .select({ name: agentConfigs.name, agentType: agentConfigs.agentType })
       .from(agentConfigs)
-      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.agentType, agentType as "outbound"))),
+      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.id, agentId))),
   );
-  return rows[0]?.name ?? null;
+  return rows[0] ?? null;
 }

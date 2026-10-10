@@ -105,9 +105,9 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
                   paused: p.agentsPaused,
                   agents: inOrder(
                     agents.filter((a) => a.projectId === p.id),
-                    (a) => a.agentType,
+                    (a) => a.id,
                     nav.agents?.[p.id],
-                  ).map((a) => ({ type: a.agentType, name: a.name, icon: a.icon, color: a.color })),
+                  ).map((a) => ({ id: a.id, type: a.agentType, name: a.name, icon: a.icon, color: a.color })),
                 }))}
               />
             }
@@ -136,10 +136,10 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
                 }
                 items={inOrder(
                   agents.filter((a) => a.projectId === p.id),
-                  (a) => a.agentType,
+                  (a) => a.id,
                   nav.agents?.[p.id],
                 ).map((a) => ({
-                  href: `/app/projects/${p.id}/agents/${a.agentType}`,
+                  href: `/app/projects/${p.id}/agents/${a.id}`,
                   icon: <AgentIcon type={a.agentType} icon={a.icon} color={a.color} working={a.working} />,
                   label: agentName(a.agentType, a.name),
                   badge: <AgentStatusDot state={agentState(a)} />,

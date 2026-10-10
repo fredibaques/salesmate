@@ -448,10 +448,7 @@ export const agentConfigs = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [
-    unique("agent_configs_project_agent_uq").on(t.projectId, t.agentType),
-    tenantPolicy("agent_configs"),
-  ],
+  (t) => [index("agent_configs_project_idx").on(t.projectId), tenantPolicy("agent_configs")],
 );
 
 /** How each person arranges the sidebar: order of sections, projects and each project's agents. */
@@ -706,6 +703,10 @@ export const actions = pgTable(
       .references(() => projects.id, { onDelete: "cascade" }),
     runId: uuid("run_id"),
     agentType: text("agent_type", { enum: AGENT_TYPES }),
+    /** The agent that proposed it (a project may have several of a kind). */
+    agentConfigId: uuid("agent_config_id").references((): AnyPgColumn => agentConfigs.id, {
+      onDelete: "set null",
+    }),
     actorType: text("actor_type", { enum: ["agent", "user", "system", "mcp_client"] }).notNull(),
     actorId: text("actor_id"),
     type: text("type").notNull(),
@@ -793,6 +794,10 @@ export const inboundEvents = pgTable(
     }),
     /** Set when the source already knows the project (forms, project mailboxes). */
     projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+    /** The inbound agent it is for (its webhook, table or WhatsApp); null = any of the project's. */
+    agentConfigId: uuid("agent_config_id").references((): AnyPgColumn => agentConfigs.id, {
+      onDelete: "set null",
+    }),
     source: text("source").notNull(),
     eventType: text("event_type").notNull(),
     /** Id in the source system (Gmail message id, CRM record id…) used to avoid duplicates. */
@@ -1105,6 +1110,10 @@ export const agentRuns = pgTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     agentType: text("agent_type", { enum: AGENT_TYPES }).notNull(),
+    /** The agent that ran; null for the copilot and for runs of a deleted agent. */
+    agentConfigId: uuid("agent_config_id").references((): AnyPgColumn => agentConfigs.id, {
+      onDelete: "set null",
+    }),
     trigger: text("trigger", { enum: ["inbound_event", "copilot", "manual", "schedule", "event"] }).notNull(),
     triggerRef: text("trigger_ref"),
     playbookVersionId: uuid("playbook_version_id").references(() => playbookVersions.id, {
@@ -1127,7 +1136,11 @@ export const agentRuns = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
   },
-  (t) => [index("agent_runs_project_idx").on(t.projectId, t.startedAt), tenantPolicy("agent_runs")],
+  (t) => [
+    index("agent_runs_project_idx").on(t.projectId, t.startedAt),
+    index("agent_runs_agent_idx").on(t.agentConfigId, t.startedAt),
+    tenantPolicy("agent_runs"),
+  ],
 );
 
 // ---------------------------------------------------------------------------

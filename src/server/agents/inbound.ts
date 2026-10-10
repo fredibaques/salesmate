@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import type { ConnectorDeps } from "../connectors/service";
 import type { Db } from "../db/client";
@@ -14,7 +14,7 @@ import {
   messages,
   projects,
 } from "../db/schema";
-import { withTenant } from "../db/tenant";
+import { withTenant, type Tx } from "../db/tenant";
 import type { GatewayDeps } from "../gateway/gateway";
 import { runAgentLoop, defineTool, type AgentTool } from "../llm/agent-loop";
 import { withModel, type LlmClient } from "../llm/client";
@@ -238,15 +238,58 @@ function leadStateTool(ctx: { db: Db; orgId: string; contactId: string; conversa
   });
 }
 
-/** Whether the project's inbound agent has its web form trigger turned off. */
-async function formsOff(db: Db, tenant: { orgId: string }, projectId: string) {
-  const [agent] = await withTenant(db, tenant, (tx) =>
-    tx
-      .select({ settings: agentConfigs.settings })
-      .from(agentConfigs)
-      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.agentType, "inbound"))),
-  );
-  return agent?.settings.triggers?.form === false;
+type AgentConfigRow = typeof agentConfigs.$inferSelect;
+
+/**
+ * Which of the project's inbound agents attends an event. One sent to an
+ * agent (its webhook, its table, its WhatsApp) goes to that agent. Otherwise
+ * the web form goes to those that attend it, an email to those that read
+ * its mailbox (if any does); among them the preferred one (the agent whose
+ * run is sweeping), else the first active, else the first. `off` = there are
+ * agents but none attends this source.
+ */
+async function inboundAgentFor(
+  tx: Tx,
+  event: typeof inboundEvents.$inferSelect,
+  preferred?: string,
+): Promise<{ agent: AgentConfigRow | null; off?: true }> {
+  const candidates = await tx
+    .select()
+    .from(agentConfigs)
+    .where(
+      and(
+        eq(agentConfigs.projectId, event.projectId!),
+        eq(agentConfigs.agentType, "inbound"),
+        isNotNull(agentConfigs.addedAt),
+      ),
+    )
+    .orderBy(asc(agentConfigs.addedAt));
+  if (event.agentConfigId) return { agent: candidates.find((a) => a.id === event.agentConfigId) ?? null };
+  if (!candidates.length) return { agent: null };
+  let pool = candidates;
+  if (event.source === "form") {
+    pool = pool.filter((a) => a.settings.triggers?.form !== false);
+    if (!pool.length) return { agent: null, off: true };
+  }
+  const mailbox = typeof event.payload.mailbox === "string" ? event.payload.mailbox.toLowerCase() : null;
+  if (event.source === "gmail" && mailbox) {
+    const ids = pool
+      .filter((a) => a.channels.readMailbox && a.channels.mailboxId)
+      .map((a) => a.channels.mailboxId!);
+    const own = ids.length
+      ? await tx
+          .select({ id: identities.id, address: identities.address })
+          .from(identities)
+          .where(inArray(identities.id, ids))
+      : [];
+    const readers = pool.filter((a) =>
+      own.some((i) => i.id === a.channels.mailboxId && i.address.toLowerCase() === mailbox),
+    );
+    if (readers.length) pool = readers;
+  }
+  const agent =
+    (preferred ? pool.find((a) => a.id === preferred) : undefined) ?? pool.find((a) => a.enabled) ?? pool[0];
+  return { agent };
 }
 
 /**
@@ -258,6 +301,8 @@ export async function processInboundEvent(
   deps: InboundDeps,
   orgId: string,
   eventId: string,
+  /** The agent whose run attends it, when the event isn't for a given one. */
+  preferredAgentId?: string,
 ): Promise<InboundOutcome> {
   const now = deps.now?.() ?? new Date();
   const tenant = { orgId };
@@ -298,10 +343,16 @@ export async function processInboundEvent(
       await finish("ignored", "El evento no está asociado a ningún proyecto.");
       return { status: "ignored", reason: "no_project" };
     }
-    if (event.source === "form" && (await formsOff(deps.db, tenant, event.projectId))) {
-      await finish("ignored", "El agente inbound no atiende el formulario de la web.");
+    const routed = await withTenant(deps.db, tenant, (tx) => inboundAgentFor(tx, event, preferredAgentId));
+    if (routed.off) {
+      await finish("ignored", "Ningún agente inbound atiende el formulario de la web.");
       return { status: "ignored", reason: "trigger_off" };
     }
+    if (event.agentConfigId && !routed.agent) {
+      await finish("ignored", "El agente al que iba ya no está en el proyecto.");
+      return { status: "ignored", reason: "no_agent" };
+    }
+    const agentConfig = routed.agent;
     const { lead, automated } = parsed;
     if (!lead.email && !lead.phone) {
       await finish("ignored", "Sin email ni teléfono de contacto.");
@@ -323,10 +374,6 @@ export async function processInboundEvent(
         if (own.length) return { ownMessage: true as const };
       }
       const playbook = await projectProcess(tx, project.id);
-      const [agentConfig] = await tx
-        .select()
-        .from(agentConfigs)
-        .where(and(eq(agentConfigs.projectId, project.id), eq(agentConfigs.agentType, "inbound")));
       const contact = await upsertContact(tx, orgId, project.id, lead, playbook?.spec.customerType ?? null);
       // The agent's table, if it works on one: the person becomes (or finds) their row.
       if (agentConfig?.prospectBaseId) {
@@ -380,6 +427,7 @@ export async function processInboundEvent(
           orgId,
           projectId: project.id,
           agentType: "inbound",
+          agentConfigId: agentConfig?.id ?? null,
           trigger: "inbound_event",
           triggerRef: event.id,
           playbookVersionId: playbook?.versionId ?? null,
@@ -391,7 +439,6 @@ export async function processInboundEvent(
         handedOff: false as const,
         project,
         playbook,
-        agentConfig: agentConfig ?? null,
         contact,
         conversation,
         history,
@@ -407,13 +454,14 @@ export async function processInboundEvent(
       await finish("processed");
       return { status: "handed_off", conversationId: prepared.conversation.id };
     }
-    const { project, playbook, agentConfig, contact, conversation, history, run } = prepared;
+    const { project, playbook, contact, conversation, history, run } = prepared;
 
     const toolCtx: AgentToolContext = {
       db: deps.db,
       orgId,
       projectId: project.id,
       agentType: "inbound",
+      agentConfigId: agentConfig?.id ?? null,
       runId: run.id,
       gateway: deps.gateway,
       connectors: deps.connectors,
@@ -529,34 +577,46 @@ export async function processInboundEvent(
   }
 }
 
-/** Processes pending events of an organization (oldest first). */
 /**
- * Processes queued leads of projects whose inbound agent is added and active.
- * Leads of other projects stay queued until the agent is activated.
+ * Processes queued leads (oldest first) that an added, active inbound agent
+ * of their project can attend: the one they were sent to, or any if none.
+ * The rest stay queued until an agent is activated. With `agentId`, only
+ * what that agent attends (its own and the project's unassigned).
  */
 export async function processPendingInbound(
   deps: InboundDeps,
   orgId: string,
   limit = 20,
-  /** Only this project's leads (a run of its agent). */
-  projectId?: string,
+  scope: { projectId?: string; agentId?: string } = {},
 ) {
-  const pending = await withTenant(deps.db, { orgId }, (tx) =>
-    tx
+  const pending = await withTenant(deps.db, { orgId }, async (tx) => {
+    let forAgent: SQL | undefined;
+    if (scope.agentId) {
+      const [agent] = await tx
+        .select({ projectId: agentConfigs.projectId })
+        .from(agentConfigs)
+        .where(eq(agentConfigs.id, scope.agentId));
+      if (!agent) return [];
+      forAgent = or(
+        eq(inboundEvents.agentConfigId, scope.agentId),
+        and(isNull(inboundEvents.agentConfigId), eq(inboundEvents.projectId, agent.projectId)),
+      );
+    }
+    return tx
       .select({ id: inboundEvents.id })
       .from(inboundEvents)
-      .innerJoin(
-        agentConfigs,
-        and(
-          eq(agentConfigs.projectId, inboundEvents.projectId),
-          eq(agentConfigs.agentType, "inbound"),
-          eq(agentConfigs.enabled, true),
-          isNotNull(agentConfigs.addedAt),
-        ),
-      )
       .where(
         and(
-          projectId ? eq(inboundEvents.projectId, projectId) : undefined,
+          scope.projectId ? eq(inboundEvents.projectId, scope.projectId) : undefined,
+          forAgent,
+          sql`exists (
+            select 1 from agent_configs c
+            where c.project_id = "inbound_events"."project_id"
+              and c.agent_type = 'inbound'
+              and c.enabled
+              and c.added_at is not null
+              and ("inbound_events"."agent_config_id" is null or c.id = "inbound_events"."agent_config_id")
+          )`,
           or(
             eq(inboundEvents.status, "pending"),
             and(eq(inboundEvents.status, "error"), lt(inboundEvents.attempts, MAX_ATTEMPTS)),
@@ -564,9 +624,9 @@ export async function processPendingInbound(
         ),
       )
       .orderBy(asc(inboundEvents.receivedAt))
-      .limit(limit),
-  );
+      .limit(limit);
+  });
   const outcomes: InboundOutcome[] = [];
-  for (const { id } of pending) outcomes.push(await processInboundEvent(deps, orgId, id));
+  for (const { id } of pending) outcomes.push(await processInboundEvent(deps, orgId, id, scope.agentId));
   return outcomes;
 }

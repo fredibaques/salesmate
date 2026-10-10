@@ -76,8 +76,8 @@ describe("MCP servers", () => {
       ["crear_lead", false],
     ]);
 
-    await addAgent(db, tenant, projectId, "outbound", "b2b_consultative");
-    await saveAgentTools(db, tenant, projectId, "outbound", {
+    const agent = await addAgent(db, tenant, projectId, "outbound", "b2b_consultative");
+    await saveAgentTools(db, tenant, projectId, agent.id, {
       web: true,
       mcp: [{ connectionId: conn.id, tools: ["buscar_empresas", "crear_lead", "no_existe"] }],
     });

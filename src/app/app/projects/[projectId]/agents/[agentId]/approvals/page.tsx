@@ -1,10 +1,7 @@
-import { notFound } from "next/navigation";
+import { requireAgent } from "../require-agent";
 import { ActionForm } from "@/components/action-form";
 import { Card, Field, Input, Select } from "@/components/ui";
-import { requireTenant } from "@/server/auth/session";
-import { getDb } from "@/server/db/client";
 import { ACTION_DEFINITIONS } from "@/server/gateway/definitions";
-import { getAgent, isProjectAgentType } from "@/server/services/agents";
 import { saveAutonomy } from "../../actions";
 
 /** Autonomy levels in plain words (the numbers are what the gateway stores). */
@@ -17,12 +14,9 @@ const LEVELS = [
 
 export default async function AgentApprovalsPage({
   params,
-}: PageProps<"/app/projects/[projectId]/agents/[agentType]/approvals">) {
-  const { projectId, agentType } = await params;
-  if (!isProjectAgentType(agentType)) notFound();
-  const tenant = await requireTenant();
-  const agent = await getAgent(getDb(), tenant, projectId, agentType);
-  if (!agent) notFound();
+}: PageProps<"/app/projects/[projectId]/agents/[agentId]/approvals">) {
+  const { projectId, agentId } = await params;
+  const { agent } = await requireAgent(projectId, agentId);
   const { autonomy, limits } = agent.config;
 
   return (
@@ -32,7 +26,7 @@ export default async function AgentApprovalsPage({
       className="max-w-4xl"
     >
       <ActionForm
-        action={saveAutonomy.bind(null, projectId, agentType)}
+        action={saveAutonomy.bind(null, projectId, agentId)}
         submitLabel="Guardar"
         className="space-y-5"
       >

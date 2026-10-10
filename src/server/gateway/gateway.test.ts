@@ -110,23 +110,20 @@ function email(
   };
 }
 
+/** The project's one prospecting agent, with this autonomy and limits. */
 async function setAutonomy(projectId: string, level: number, limits = {}) {
-  await withTenant(db, { orgId }, (tx) =>
-    tx
-      .insert(agentConfigs)
-      .values({
-        orgId,
-        projectId,
-        agentType: "outbound",
-        enabled: true,
-        autonomy: { default: level },
-        limits,
-      })
-      .onConflictDoUpdate({
-        target: [agentConfigs.projectId, agentConfigs.agentType],
-        set: { autonomy: { default: level }, limits },
-      }),
-  );
+  await withTenant(db, { orgId }, async (tx) => {
+    await tx.delete(agentConfigs).where(eq(agentConfigs.projectId, projectId));
+    await tx.insert(agentConfigs).values({
+      orgId,
+      projectId,
+      agentType: "outbound",
+      addedAt: new Date(),
+      enabled: true,
+      autonomy: { default: level },
+      limits,
+    });
+  });
 }
 
 beforeAll(async () => {

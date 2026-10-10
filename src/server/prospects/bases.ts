@@ -150,6 +150,7 @@ export async function baseAgents(db: Db, tenant: Pick<TenantContext, "orgId">, b
   const rows = await withTenant(db, tenant, (tx) =>
     tx
       .select({
+        id: agentConfigs.id,
         projectId: agentConfigs.projectId,
         projectName: projects.name,
         agentType: agentConfigs.agentType,

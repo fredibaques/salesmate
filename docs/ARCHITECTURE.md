@@ -252,10 +252,19 @@ src/server/
   services/agents.ts   Agentes de un proyecto: añadir, canales, autonomía, perfil y proceso de venta
 ```
 
-- **El agente es la unidad de configuración.** El usuario añade un agente a
-  un proyecto (`agent_configs.added_at`) y lo configura en su ficha: sus
+- **El agente es la unidad de configuración.** El usuario añade agentes a
+  un proyecto (`agent_configs.added_at`), **tantos de cada tipo como quiera**
+  (uno capta leads en una tabla, otro la enriquece…): el tipo (`agent_type`)
+  es la plantilla y decide qué hace una ejecución. Cada agente se identifica
+  por su id (`/app/projects/:id/agents/:agentId`; las direcciones antiguas
+  con el tipo llevan al primero de ese tipo) y se configura en su ficha: sus
   **canales** (`agent_configs.channels`: buzón, calendario y CRM elegidos
-  entre las conexiones de la organización) y su **autonomía**.
+  entre las conexiones de la organización) y su **autonomía**. El segundo de
+  un tipo se llama «Agente inbound 2» hasta que se le pone nombre (el
+  asistente lo pide). Las ejecuciones (`agent_runs.agent_config_id`), las
+  acciones (`actions.agent_config_id`: su autonomía y sus límites) y el estado
+  «trabajando» son de cada agente; la migración 0024 asignó lo anterior al
+  único agente de su tipo que había.
 - **La venta es del proyecto** (pestaña «Ventas»). «Oferta y cliente»
   (`projects.sales_profile`: oferta, cliente ideal, señales de encaje,
   objeciones, tono, firma) lo conocen todos los agentes. El **proceso de
@@ -273,8 +282,15 @@ src/server/
   canales de los agentes del proyecto (`syncProjectChannels`); el usuario no
   los toca. Leer correo entrante solo se habilita si el agente lo pide.
 - **Solo trabajan los agentes activos.** La cola de entradas solo procesa
-  proyectos con el agente inbound añadido y activado; el resto espera. El
-  lead simulado lo atiende igualmente para poder probar antes de activar.
+  lo que puede atender un agente inbound añadido y activado; el resto espera.
+  El lead simulado lo atiende igualmente para poder probar antes de activar.
+- **Cada entrada tiene su agente** (`inboundAgentFor` en `agents/inbound.ts`).
+  Lo que llega por el webhook, la tabla o el WhatsApp de un agente lleva su id
+  (`inbound_events.agent_config_id`) y solo lo atiende él. El formulario de la
+  web (uno por proyecto) va a los que lo atienden y un email a los que leen
+  ese buzón; entre ellos, el agente cuya ejecución está repasando la cola,
+  si no el primero activo. La ejecución de un agente (`runInboundSweep`)
+  atiende lo suyo y lo del proyecto que no es de nadie.
 
 - **Los agentes nunca actúan directamente.** Su única herramienta con efecto
   externo es `propose_action`, que entra en el Action Gateway con
@@ -623,7 +639,6 @@ nadie se quita a sí mismo. Todo queda en auditoría (`member.*`).
 
 ## Pendiente
 
-- Varios agentes de la misma plantilla en un proyecto (hoy uno por tipo).
 - Enviar prospectos al CRM o a una secuencia de emails (con aprobación).
 - Que el agente proponga el seguimiento (email, tarea) a partir de los
   siguientes pasos de una reunión.

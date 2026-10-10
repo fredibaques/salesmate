@@ -16,6 +16,7 @@ let db: Db;
 let close: () => Promise<void>;
 let tenant: TenantContext;
 let projectId: string;
+let agentId: string;
 
 const config = async () =>
   (
@@ -91,8 +92,8 @@ describe("schedule", () => {
 
 describe("runDueAgents", () => {
   it("runs the prospecting agent when its time comes, and only once", async () => {
-    await addAgent(db, tenant, projectId, "outbound", "b2b_consultative");
-    await saveAgentInstructions(db, tenant, projectId, "outbound", {
+    agentId = (await addAgent(db, tenant, projectId, "outbound", "b2b_consultative")).id;
+    await saveAgentInstructions(db, tenant, projectId, agentId, {
       instructions: "Concesionarios de Andalucía.",
       schedule: { time: "08:00", days: [1, 2, 3, 4, 5] },
       settings: { prospectsPerRun: 2 },
@@ -103,7 +104,7 @@ describe("runDueAgents", () => {
     expect(
       await runDueAgents({ db, llmFor: async () => scriptedLlm([]).llm, gateway: gateway(), now }),
     ).toEqual({ runs: [], skipped: [], checked: 0 });
-    await setAgentEnabled(db, tenant, projectId, "outbound", true);
+    await setAgentEnabled(db, tenant, projectId, agentId, true);
 
     const { llm, requests } = scriptedLlm([
       {
@@ -238,7 +239,7 @@ describe("time limits", () => {
       },
     ]);
     const result = await runProspecting({ db, llm, gateway: gateway(), timeBudgetMs: 0 }, tenant, {
-      projectId,
+      agentId,
       trigger: "manual",
     });
     expect(result).toMatchObject({ status: "deadline", added: 1 });
@@ -292,7 +293,7 @@ describe("time limits", () => {
       },
     ]);
     const result = await runProspecting({ db, llm, gateway: gateway() }, tenant, {
-      projectId,
+      agentId,
       trigger: "manual",
     });
     expect(result).toMatchObject({ status: "completed", added: 1 });
@@ -352,12 +353,12 @@ describe("scheduled inbound agent", () => {
       });
       return p.id;
     });
-    await addAgent(db, tenant, other, "inbound");
-    await saveAgentInstructions(db, tenant, other, "inbound", {
+    const inbound = await addAgent(db, tenant, other, "inbound");
+    await saveAgentInstructions(db, tenant, other, inbound.id, {
       instructions: "",
       schedule: { kind: "daily", time: "08:00" },
     });
-    await setAgentEnabled(db, tenant, other, "inbound", true);
+    await setAgentEnabled(db, tenant, other, inbound.id, true);
     // Thursday 8 October 2026, 08:30 in Madrid.
     const now = new Date("2026-10-08T06:30:00Z");
     const { llm } = scriptedLlm(

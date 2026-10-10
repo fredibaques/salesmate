@@ -98,7 +98,10 @@ export default async function RunsPage({ searchParams }: PageProps<"/app/runs">)
             {totals.byAgent.map((a) => {
               const share = totals.costUsd ? a.costUsd / totals.costUsd : 0;
               return (
-                <li key={`${a.projectId}:${a.agentType}`} className="flex items-center gap-3 text-sm">
+                <li
+                  key={`${a.projectId}:${a.agentId ?? a.agentType}`}
+                  className="flex items-center gap-3 text-sm"
+                >
                   <AgentTile type={a.agentType} icon={a.icon} color={a.color} size="sm" />
                   <span className="min-w-0 flex-1 sm:w-48 sm:flex-none sm:shrink-0">
                     <span className="block truncate font-medium">{a.label}</span>

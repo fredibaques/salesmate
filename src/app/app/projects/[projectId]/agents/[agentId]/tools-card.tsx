@@ -6,12 +6,7 @@ import { Badge, CardGrid, Choice, EmptyState, EntityCard, IconTile, LinkButton }
 import { InfoTip } from "@/components/tooltip";
 import { getIntegration } from "@/lib/integrations";
 import type { AgentTools } from "@/server/db/schema";
-import type {
-  AgentToolKey,
-  listDataSources,
-  listMcpServers,
-  ProjectAgentType,
-} from "@/server/services/agents";
+import type { AgentToolKey, listDataSources, listMcpServers } from "@/server/services/agents";
 import { addToolAction, removeToolAction, saveMcpToolsAction } from "../actions";
 
 type Servers = Awaited<ReturnType<typeof listMcpServers>>;
@@ -68,13 +63,13 @@ const CONNECTABLE = ["apollo", "hunter", "lusha", "mcp"] as const;
 
 function AvailableToolsButton({
   projectId,
-  agentType,
+  agentId,
   available,
   connectedProviders,
   variant = "secondary",
 }: {
   projectId: string;
-  agentType: ProjectAgentType;
+  agentId: string;
   available: Available[];
   connectedProviders: Set<string>;
   variant?: "primary" | "secondary";
@@ -111,7 +106,7 @@ function AvailableToolsButton({
                     <Badge tone="success">Añadida</Badge>
                   ) : (
                     <ActionForm
-                      action={addToolAction.bind(null, projectId, agentType, tool.key, tool.name)}
+                      action={addToolAction.bind(null, projectId, agentId, tool.key, tool.name)}
                       submitLabel="Añadir"
                       submitVariant="secondary"
                       cancel={false}
@@ -152,18 +147,18 @@ function AvailableToolsButton({
 
 function RemoveTool({
   projectId,
-  agentType,
+  agentId,
   toolKey,
   name,
 }: {
   projectId: string;
-  agentType: ProjectAgentType;
+  agentId: string;
   toolKey: AgentToolKey;
   name: string;
 }) {
   return (
     <ActionForm
-      action={removeToolAction.bind(null, projectId, agentType, toolKey, name)}
+      action={removeToolAction.bind(null, projectId, agentId, toolKey, name)}
       submitLabel="Quitar"
       submitVariant="ghost"
       confirm={`¿Quitar ${name} de este agente?`}
@@ -177,14 +172,14 @@ function RemoveTool({
  */
 export function ToolsCard({
   projectId,
-  agentType,
+  agentId,
   tools,
   servers,
   sources = [],
   canEdit = true,
 }: {
   projectId: string;
-  agentType: ProjectAgentType;
+  agentId: string;
   tools: AgentTools;
   servers: Servers;
   /** B2B data providers (Apollo, Lusha, Hunter) of the organization. */
@@ -225,7 +220,7 @@ export function ToolsCard({
   const picker = (variant?: "primary" | "secondary") => (
     <AvailableToolsButton
       projectId={projectId}
-      agentType={agentType}
+      agentId={agentId}
       available={available}
       connectedProviders={new Set(sources.map((s) => s.provider))}
       variant={variant}
@@ -260,7 +255,7 @@ export function ToolsCard({
         <CardGrid className="xl:grid-cols-2">
           {inUse.map((tool) => {
             const footer = canEdit ? (
-              <RemoveTool projectId={projectId} agentType={agentType} toolKey={tool.key} name={tool.name} />
+              <RemoveTool projectId={projectId} agentId={agentId} toolKey={tool.key} name={tool.name} />
             ) : null;
             if (!tool.key.startsWith("mcp:")) {
               return (
@@ -295,7 +290,7 @@ export function ToolsCard({
                         width="lg"
                       >
                         <ActionForm
-                          action={saveMcpToolsAction.bind(null, projectId, agentType, server.id)}
+                          action={saveMcpToolsAction.bind(null, projectId, agentId, server.id)}
                           submitLabel="Guardar"
                           className="space-y-4"
                         >

@@ -45,11 +45,11 @@ const PREFER = [
  * much it may spend), whom it tells and the next step after it finds rows.
  * Saved with one button.
  */
-export async function OutboundSetup({ projectId }: { projectId: string }) {
+export async function OutboundSetup({ projectId, agentId }: { projectId: string; agentId: string }) {
   const tenant = await requireTenant();
   const db = getDb();
   const [agent, project, options, slacks, team, bases, ai] = await Promise.all([
-    getAgent(db, tenant, projectId, "outbound"),
+    getAgent(db, tenant, projectId, agentId),
     getProject(db, tenant, projectId),
     listChannelOptions(db, tenant),
     listSlackConnections(db, tenant),
@@ -62,7 +62,7 @@ export async function OutboundSetup({ projectId }: { projectId: string }) {
   const s = config.settings;
   const base = bases.find((b) => b.id === config.prospectBaseId) ?? bases[0];
   const [spent, goal] = await Promise.all([
-    monthSpendUsd(db, tenant, { projectId, timezone: project.timezone }),
+    monthSpendUsd(db, tenant, { agentId, timezone: project.timezone }),
     s.goal && base ? goalProgress(db, tenant, base.id, s.goal) : null,
   ]);
   const models = ai ? AI_PROVIDER_INFO[ai.provider].models : [];
@@ -86,7 +86,7 @@ export async function OutboundSetup({ projectId }: { projectId: string }) {
             config.hookToken,
             config.channels.mailboxId,
           ])}
-          action={saveAgentSetup.bind(null, projectId, "outbound")}
+          action={saveAgentSetup.bind(null, projectId, agentId)}
           submitLabel="Guardar"
           className="space-y-8"
         >
@@ -425,7 +425,7 @@ export async function OutboundSetup({ projectId }: { projectId: string }) {
           <Notice
             action={
               <ActionForm
-                action={rotateHook.bind(null, projectId, "outbound")}
+                action={rotateHook.bind(null, projectId, agentId)}
                 submitLabel="Crear otra dirección"
                 submitVariant="secondary"
                 confirm="La dirección actual dejará de funcionar. ¿Seguir?"

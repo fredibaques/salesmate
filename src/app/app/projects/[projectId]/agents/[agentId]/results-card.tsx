@@ -7,17 +7,17 @@ import { countPendingCells } from "@/server/prospects/complete";
 import { firstEmailsWaiting, getAgent } from "@/server/services/agents";
 
 /** The prospecting agent's table at a glance. */
-export async function ResultsCard({ projectId }: { projectId: string }) {
+export async function ResultsCard({ projectId, agentId }: { projectId: string; agentId: string }) {
   const tenant = await requireTenant();
   const db = getDb();
   const [agent, bases] = await Promise.all([
-    getAgent(db, tenant, projectId, "outbound"),
+    getAgent(db, tenant, projectId, agentId),
     listBases(db, tenant, projectId, { standalone: true }),
   ]);
   const base = bases.find((b) => b.id === agent?.config.prospectBaseId) ?? bases[0];
   const [pending, waiting] = await Promise.all([
     base ? countPendingCells(db, tenant, base.id) : 0,
-    firstEmailsWaiting(db, tenant, projectId),
+    firstEmailsWaiting(db, tenant, agentId),
   ]);
   return (
     <Card

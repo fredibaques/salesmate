@@ -1,17 +1,15 @@
 import { Pencil, Trash2 } from "lucide-react";
+import { requireAgent } from "./require-agent";
 import { ActionForm } from "@/components/action-form";
 import { AgentLookFields, AgentTile, agentState } from "@/components/agent-look-fields";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { notFound } from "next/navigation";
 import { ConfirmForm } from "@/components/confirm-form";
 import { ModalButton } from "@/components/modal";
 import { TabLink, Tabs } from "@/components/nav-link";
 import { SwitchButton } from "@/components/switch";
 import { Button, Field, Input, PageHeader } from "@/components/ui";
 import { AGENT_INFO, agentName } from "@/lib/agents";
-import { requireTenant } from "@/server/auth/session";
-import { getDb } from "@/server/db/client";
-import { getAgent, isProjectAgentType } from "@/server/services/agents";
+import type { ProjectAgentType } from "@/server/services/agents";
 import {
   customizeAgentAction,
   removeAgentAction,
@@ -23,13 +21,11 @@ import {
 export default async function AgentLayout({
   children,
   params,
-}: LayoutProps<"/app/projects/[projectId]/agents/[agentType]">) {
-  const { projectId, agentType } = await params;
-  if (!isProjectAgentType(agentType)) notFound();
-  const tenant = await requireTenant();
-  const agent = await getAgent(getDb(), tenant, projectId, agentType);
-  if (!agent) notFound();
-  const base = `/app/projects/${projectId}/agents/${agentType}`;
+}: LayoutProps<"/app/projects/[projectId]/agents/[agentId]">) {
+  const { projectId, agentId } = await params;
+  const { tenant, agent } = await requireAgent(projectId, agentId);
+  const agentType = agent.config.agentType as ProjectAgentType;
+  const base = `/app/projects/${projectId}/agents/${agentId}`;
   const info = AGENT_INFO[agentType];
   const name = agentName(agentType, agent.config.name);
 
@@ -58,7 +54,7 @@ export default async function AgentLayout({
             iconOnly
           >
             <ActionForm
-              action={customizeAgentAction.bind(null, projectId, agentType)}
+              action={customizeAgentAction.bind(null, projectId, agentId)}
               submitLabel="Guardar"
               className="space-y-4"
             >
@@ -80,8 +76,8 @@ export default async function AgentLayout({
               <ActionForm
                 action={
                   agentType === "outbound"
-                    ? runProspectingNow.bind(null, projectId)
-                    : runInboundNow.bind(null, projectId)
+                    ? runProspectingNow.bind(null, projectId, agentId)
+                    : runInboundNow.bind(null, projectId, agentId)
                 }
                 submitLabel="Ejecutar ahora"
                 submitVariant="secondary"
@@ -92,8 +88,8 @@ export default async function AgentLayout({
               </ActionForm>
             ) : null}
             <ConfirmForm
-              action={removeAgentAction.bind(null, projectId, agentType)}
-              message={`¿Quitar «${name}» de este proyecto? Dejará de atender contactos. Su proceso se conserva por si lo vuelves a añadir.`}
+              action={removeAgentAction.bind(null, projectId, agentId)}
+              message={`¿Quitar «${name}» de este proyecto? Dejará de trabajar; sus ejecuciones se conservan en el registro.`}
             >
               <Button variant="dangerGhost">
                 <Trash2 className="size-4" />
@@ -101,7 +97,7 @@ export default async function AgentLayout({
               </Button>
             </ConfirmForm>
             <form
-              action={toggleAgent.bind(null, projectId, agentType, !agent.config.enabled)}
+              action={toggleAgent.bind(null, projectId, agentId, !agent.config.enabled)}
               className="rounded-lg border border-border bg-surface px-3 py-1"
             >
               <SwitchButton

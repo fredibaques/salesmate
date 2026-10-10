@@ -60,8 +60,8 @@ export async function recordAgentEvent(
   });
 }
 
-/** Who works on rows just added to a table: the prospecting agent's id, the inbound agent's project. */
-export type RowsAddedTo = { prospecting: string | null; inboundProject: string | null };
+/** Who works on rows just added to a table: the prospecting and the inbound agents that got them. */
+export type RowsAddedTo = { prospecting: string[]; inbound: string[] };
 
 /**
  * Rows a person (or a form) added to a table. The agents working on it that
@@ -73,7 +73,7 @@ export async function rowsAdded(
   tenant: { orgId: string },
   input: { baseId: string; rowIds: string[] },
 ): Promise<RowsAddedTo> {
-  const out: RowsAddedTo = { prospecting: null, inboundProject: null };
+  const out: RowsAddedTo = { prospecting: [], inbound: [] };
   if (!input.rowIds.length) return out;
   const agents = await withTenant(db, tenant, (tx) =>
     tx
@@ -90,20 +90,19 @@ export async function rowsAdded(
   for (const agent of agents) {
     if (agent.agentType === "inbound") {
       if (!agent.settings.triggers?.newRows) continue;
-      if (await queueRowsAsLeads(db, tenant, { ...input, projectId: agent.projectId })) {
-        out.inboundProject = agent.projectId;
+      if (await queueRowsAsLeads(db, tenant, { ...input, projectId: agent.projectId, agentId: agent.id })) {
+        out.inbound.push(agent.id);
       }
       continue;
     }
     if (
-      !out.prospecting &&
-      (await recordAgentEvent(db, tenant, {
+      await recordAgentEvent(db, tenant, {
         agentConfigId: agent.id,
         kind: "new_rows",
         payload: { rowIds: input.rowIds },
-      }))
+      })
     )
-      out.prospecting = agent.id;
+      out.prospecting.push(agent.id);
   }
   return out;
 }
@@ -126,11 +125,11 @@ function rowAsFields(
   return fields;
 }
 
-/** Rows of a table queued as leads of a project's inbound agent (those with an email or a phone). */
+/** Rows of a table queued as leads of an inbound agent (those with an email or a phone). */
 async function queueRowsAsLeads(
   db: AgentRunDeps["db"],
   tenant: { orgId: string },
-  input: { baseId: string; rowIds: string[]; projectId: string },
+  input: { baseId: string; rowIds: string[]; projectId: string; agentId: string },
 ) {
   return withTenant(db, tenant, async (tx) => {
     const [base] = await tx.select().from(prospectBases).where(eq(prospectBases.id, input.baseId));
@@ -142,9 +141,11 @@ async function queueRowsAsLeads(
       .map(({ row, fields }) => ({
         orgId: tenant.orgId,
         projectId: input.projectId,
+        agentConfigId: input.agentId,
         source: "table",
         eventType: "table.row_added",
-        externalId: `row:${row.id}`,
+        // Per agent: two inbound agents on the same table each attend the row.
+        externalId: `row:${row.id}:${input.agentId}`,
         payload: { fields, rowId: row.id, baseId: base.id },
       }));
     if (!events.length) return 0;
@@ -195,7 +196,7 @@ export async function processAgentEvents(
     const [last] = await tx
       .select({ status: agentRuns.status, startedAt: agentRuns.startedAt })
       .from(agentRuns)
-      .where(and(eq(agentRuns.projectId, row.agent.projectId), eq(agentRuns.agentType, row.agent.agentType)))
+      .where(eq(agentRuns.agentConfigId, row.agent.id))
       .orderBy(desc(agentRuns.startedAt))
       .limit(1);
     const busy = last?.status === "running" && now.getTime() - last.startedAt.getTime() < BUSY_MS;
@@ -229,7 +230,7 @@ export async function processAgentEvents(
   if (!claimed.length) return { status: "idle" };
 
   const result = await runProspecting(deps, tenant, {
-    projectId: state.agent.projectId,
+    agentId: state.agent.id,
     trigger: "event",
     triggerRef: [...new Set(claimed.map((e) => e.kind))].join(","),
     events: claimed.map((e) => ({ kind: e.kind, payload: e.payload })),
@@ -285,14 +286,14 @@ export async function runPendingEvents(
 }
 
 /**
- * A notice posted to the inbound agent's webhook, queued as a lead: its
+ * A notice posted to an inbound agent's webhook, queued as its lead: its
  * top-level values by name (nombre, email, telefono, mensaje…). Without an
  * email or a phone there is no one to attend.
  */
 export async function queueWebhookLead(
   db: AgentRunDeps["db"],
   tenant: { orgId: string },
-  projectId: string,
+  agent: { id: string; projectId: string },
   body: unknown,
 ) {
   const source =
@@ -309,7 +310,8 @@ export async function queueWebhookLead(
   await withTenant(db, tenant, (tx) =>
     tx.insert(inboundEvents).values({
       orgId: tenant.orgId,
-      projectId,
+      projectId: agent.projectId,
+      agentConfigId: agent.id,
       source: "webhook",
       eventType: "webhook.received",
       payload: { fields },

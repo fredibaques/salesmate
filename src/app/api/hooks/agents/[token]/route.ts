@@ -38,12 +38,12 @@ export async function POST(request: Request, ctx: RouteContext<"/api/hooks/agent
   const tenant = { orgId: agent.orgId };
   // The inbound agent attends the notice as a new lead (its fields by name).
   if (agent.agentType === "inbound") {
-    const queued = await queueWebhookLead(db, tenant, agent.projectId, body);
+    const queued = await queueWebhookLead(db, tenant, agent, body);
     if (!queued) return NextResponse.json({ error: "no_contact_data" }, { status: 422 });
     after(async () => {
       try {
         const llm = await orgLlm(db, tenant);
-        if (llm) await processPendingInbound(inboundDeps(llm), tenant.orgId, 5, agent.projectId);
+        if (llm) await processPendingInbound(inboundDeps(llm), tenant.orgId, 5, { agentId: agent.id });
       } catch (err) {
         console.error("inbound webhook run failed", err);
       }

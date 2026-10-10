@@ -2,6 +2,7 @@ import { FlaskConical, Inbox } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
 import { Badge, Card, EmptyState, Field, Input, PageHeader, Select, Textarea } from "@/components/ui";
+import { AGENT_INFO, agentName, type ProjectAgentKey } from "@/lib/agents";
 import { AGENT_LABELS, AUTONOMY_LABELS, formatDateTime } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
@@ -39,7 +40,13 @@ function PendingAction({ row }: { row: Row }) {
         <span className="font-medium">{def?.summary(action.payload) ?? action.type}</span>
         <span className="flex flex-wrap gap-2">
           <Badge>{row.projectName}</Badge>
-          {action.agentType ? <Badge tone="accent">{AGENT_LABELS[action.agentType]}</Badge> : null}
+          {action.agentType ? (
+            <Badge tone="accent">
+              {action.agentType in AGENT_INFO
+                ? agentName(action.agentType as ProjectAgentKey, row.agentName)
+                : AGENT_LABELS[action.agentType]}
+            </Badge>
+          ) : null}
           <Badge>{AUTONOMY_LABELS[action.autonomyLevel]}</Badge>
         </span>
       </div>

@@ -102,7 +102,8 @@ screen needs something new, add it here and as a component, not inline.
   with Por día / Por semana / Por mes as `SegmentedLinks`, and its tables, ¼,
   the same height; below, its agents as cards, the on/off switch at each
   card's top right, and always a dashed «Añadir agente» card the size of an
-  agent's; what the project needs is asked in its creation wizard), **Ventas** (sub-tabs «Oferta
+  agent's (as many agents of each kind as the project needs; the wizard asks
+  for a name to tell them apart); what the project needs is asked in its creation wizard), **Ventas** (sub-tabs «Oferta
   y cliente» and «Proceso de venta»: the sale is the project's, not each
   agent's), **Conocimiento** (documents and tables; text can be edited in
   place), **Conversaciones**, **Reuniones** and **Ajustes** (General:

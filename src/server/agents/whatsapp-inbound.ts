@@ -45,7 +45,7 @@ export async function queueWhatsappMessages(
       .where(and(eq(identities.connectionId, connection.id), eq(identities.kind, "whatsapp")));
     if (!identity) return { eventIds: [], reason: "no_identity" as const };
     const [agent] = await tx
-      .select({ projectId: agentConfigs.projectId })
+      .select({ id: agentConfigs.id, projectId: agentConfigs.projectId })
       .from(agentConfigs)
       .where(
         and(
@@ -82,6 +82,7 @@ export async function queueWhatsappMessages(
         .values({
           orgId: connection.orgId,
           projectId: agent.projectId,
+          agentConfigId: agent.id,
           connectionId: connection.id,
           source: "whatsapp",
           eventType: "whatsapp.message",

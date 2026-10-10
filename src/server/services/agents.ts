@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { AGENT_COLORS, AGENT_ICON_CHOICES } from "@/lib/agent-look";
+import { agentName } from "@/lib/agents";
 import { audit } from "../audit";
 import { workingSql } from "../agents/working";
 import { ensureAgentBaseIn } from "../prospects/bases";
@@ -22,7 +23,6 @@ import {
   type AgentSchedule,
   type AgentSettings,
   type AgentTools,
-  type AgentType,
   type SalesMotion,
 } from "../db/schema";
 import { withTenant, type TenantContext, type Tx } from "../db/tenant";
@@ -69,26 +69,30 @@ export function isProjectAgentType(value: string): value is ProjectAgentType {
   return (PROJECT_AGENT_TYPES as readonly string[]).includes(value);
 }
 
-async function findConfig(tx: Tx, projectId: string, agentType: AgentType) {
+async function findConfig(tx: Tx, projectId: string, agentId: string) {
   const [row] = await tx
     .select()
     .from(agentConfigs)
-    .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.agentType, agentType)));
+    .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.id, agentId)));
   return row ?? null;
 }
 
-/** Agents added to a project. */
+/** Kind order first, then the order they were added in. */
+function byKindThenAdded<T extends { agentType: string; addedAt: Date | null }>(a: T, b: T) {
+  const kind =
+    PROJECT_AGENT_TYPES.indexOf(a.agentType as ProjectAgentType) -
+    PROJECT_AGENT_TYPES.indexOf(b.agentType as ProjectAgentType);
+  return kind || (a.addedAt?.getTime() ?? 0) - (b.addedAt?.getTime() ?? 0);
+}
+
+/** Agents added to a project (a project may have several of each kind). */
 export async function listProjectAgents(db: Db, tenant: Pick<TenantContext, "orgId">, projectId: string) {
   return withTenant(db, tenant, async (tx) => {
     const rows = await tx
       .select({ config: agentConfigs, working: workingSql })
       .from(agentConfigs)
       .where(and(eq(agentConfigs.projectId, projectId), isNotNull(agentConfigs.addedAt)));
-    return rows.sort(
-      (a, b) =>
-        PROJECT_AGENT_TYPES.indexOf(a.config.agentType as ProjectAgentType) -
-        PROJECT_AGENT_TYPES.indexOf(b.config.agentType as ProjectAgentType),
-    );
+    return rows.sort((a, b) => byKindThenAdded(a.config, b.config));
   });
 }
 
@@ -97,12 +101,14 @@ export async function listSidebarAgents(db: Db, tenant: Pick<TenantContext, "org
   const rows = await withTenant(db, tenant, (tx) =>
     tx
       .select({
+        id: agentConfigs.id,
         projectId: agentConfigs.projectId,
         agentType: agentConfigs.agentType,
         name: agentConfigs.name,
         icon: agentConfigs.icon,
         color: agentConfigs.color,
         enabled: agentConfigs.enabled,
+        addedAt: agentConfigs.addedAt,
         working: workingSql,
       })
       .from(agentConfigs)
@@ -110,32 +116,37 @@ export async function listSidebarAgents(db: Db, tenant: Pick<TenantContext, "org
   );
   return rows
     .filter((r): r is typeof r & { agentType: ProjectAgentType } => isProjectAgentType(r.agentType))
-    .sort((a, b) => PROJECT_AGENT_TYPES.indexOf(a.agentType) - PROJECT_AGENT_TYPES.indexOf(b.agentType));
+    .sort(byKindThenAdded);
 }
 
-/** One added agent of a project. */
+/** One added agent of a project, by its id. */
 export async function getAgent(
   db: Db,
   tenant: Pick<TenantContext, "orgId">,
   projectId: string,
-  agentType: ProjectAgentType,
+  agentId: string,
 ) {
+  if (!UUID.test(agentId)) return null;
   const row = await withTenant(db, tenant, async (tx) => {
     const [found] = await tx
       .select({ config: agentConfigs, working: workingSql })
       .from(agentConfigs)
-      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.agentType, agentType)));
+      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.id, agentId)));
     return found;
   });
-  return row?.config.addedAt ? row : null;
+  return row?.config.addedAt && isProjectAgentType(row.config.agentType) ? row : null;
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Agents that talk to people and so follow the project's sales process. */
 export const PROCESS_AGENT_TYPES: readonly ProjectAgentType[] = ["inbound", "account_manager"];
 
 /**
- * Adds an agent to a project. One that talks to people gives the project a
- * sales process from the template of `salesMotion` if it has none yet.
+ * Adds an agent to a project: as many of each kind as the user wants. One
+ * that talks to people gives the project a sales process from the template
+ * of `salesMotion` if it has none yet. A second one of a kind is numbered
+ * («Agente inbound 2») until the user names it.
  */
 export async function addAgent(
   db: Db,
@@ -146,34 +157,35 @@ export async function addAgent(
 ) {
   if (!AVAILABLE_AGENT_TYPES.includes(agentType)) throw new Error("Este agente todavía no está disponible.");
   return withTenant(db, tenant, async (tx) => {
+    const siblings = await tx
+      .select({ name: agentConfigs.name })
+      .from(agentConfigs)
+      .where(
+        and(
+          eq(agentConfigs.projectId, projectId),
+          eq(agentConfigs.agentType, agentType),
+          isNotNull(agentConfigs.addedAt),
+        ),
+      );
+    const defaults = AGENT_DEFAULTS[agentType];
     const [config] = await tx
       .insert(agentConfigs)
       .values({
         orgId: tenant.orgId,
         projectId,
         agentType,
+        name: siblings.length
+          ? numberedName(
+              agentType,
+              siblings.map((s) => s.name),
+            )
+          : null,
         addedAt: new Date(),
         enabled: false,
-        ...AGENT_DEFAULTS[agentType],
-      })
-      .onConflictDoUpdate({
-        target: [agentConfigs.projectId, agentConfigs.agentType],
-        set: { addedAt: new Date() },
+        ...defaults,
+        instructions: defaults.instructions || null,
       })
       .returning();
-    // Every project creates its agent rows up front: give a never-configured one its template defaults.
-    if (!config.instructions && !config.schedule && Object.keys(config.tools).length === 0) {
-      const defaults = AGENT_DEFAULTS[agentType];
-      await tx
-        .update(agentConfigs)
-        .set({
-          instructions: defaults.instructions || null,
-          tools: defaults.tools,
-          schedule: defaults.schedule,
-          settings: defaults.settings,
-        })
-        .where(eq(agentConfigs.id, config.id));
-    }
     if (PROCESS_AGENT_TYPES.includes(agentType))
       await ensureProjectProcessIn(tx, tenant, projectId, salesMotion);
     // A prospecting agent fills a base of the project from the start.
@@ -189,18 +201,22 @@ export async function addAgent(
   });
 }
 
+/** «Agente inbound 2», «… 3»: the first number no sibling uses. */
+function numberedName(agentType: ProjectAgentType, taken: (string | null)[]) {
+  const base = agentName(agentType, null);
+  const used = new Set(taken.map((n) => n ?? base));
+  let n = 2;
+  while (used.has(`${base} ${n}`)) n++;
+  return `${base} ${n}`;
+}
+
 /** Takes the agent out of the project. Its process is kept in case it is added again. */
-export async function removeAgent(
-  db: Db,
-  tenant: TenantContext,
-  projectId: string,
-  agentType: ProjectAgentType,
-) {
+export async function removeAgent(db: Db, tenant: TenantContext, projectId: string, agentId: string) {
   return withTenant(db, tenant, async (tx) => {
     const [config] = await tx
       .update(agentConfigs)
       .set({ addedAt: null, enabled: false })
-      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.agentType, agentType)))
+      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.id, agentId)))
       .returning();
     if (!config) throw new Error("Agente no encontrado.");
     await syncProjectChannels(tx, tenant.orgId, projectId);
@@ -209,7 +225,7 @@ export async function removeAgent(
       projectId,
       entityType: "agent_config",
       entityId: config.id,
-      data: { agentType },
+      data: { agentType: config.agentType },
     });
   });
 }
@@ -218,7 +234,7 @@ export async function setAgentEnabled(
   db: Db,
   tenant: TenantContext,
   projectId: string,
-  agentType: ProjectAgentType,
+  agentId: string,
   enabled: boolean,
 ) {
   return withTenant(db, tenant, async (tx) => {
@@ -228,7 +244,7 @@ export async function setAgentEnabled(
       .where(
         and(
           eq(agentConfigs.projectId, projectId),
-          eq(agentConfigs.agentType, agentType),
+          eq(agentConfigs.id, agentId),
           isNotNull(agentConfigs.addedAt),
         ),
       )
@@ -239,7 +255,7 @@ export async function setAgentEnabled(
       projectId,
       entityType: "agent_config",
       entityId: config.id,
-      data: { agentType },
+      data: { agentType: config.agentType },
     });
   });
 }
@@ -252,7 +268,7 @@ export async function customizeAgent(
   db: Db,
   tenant: TenantContext,
   projectId: string,
-  agentType: ProjectAgentType,
+  agentId: string,
   input: { name: string; icon?: string | null; color?: string | null },
 ) {
   const clean = input.name.trim().replace(/\s+/g, " ");
@@ -266,7 +282,7 @@ export async function customizeAgent(
       .where(
         and(
           eq(agentConfigs.projectId, projectId),
-          eq(agentConfigs.agentType, agentType),
+          eq(agentConfigs.id, agentId),
           isNotNull(agentConfigs.addedAt),
         ),
       )
@@ -277,7 +293,7 @@ export async function customizeAgent(
       projectId,
       entityType: "agent_config",
       entityId: config.id,
-      data: { agentType, name: config.name, icon, color },
+      data: { agentType: config.agentType, name: config.name, icon, color },
     });
   });
 }
@@ -316,7 +332,7 @@ export async function updateAgentAutonomy(
   db: Db,
   tenant: TenantContext,
   projectId: string,
-  agentType: ProjectAgentType,
+  agentId: string,
   raw: z.input<typeof autonomyInput>,
 ) {
   const input = autonomyInput.parse(raw);
@@ -328,7 +344,7 @@ export async function updateAgentAutonomy(
     const [config] = await tx
       .update(agentConfigs)
       .set(values)
-      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.agentType, agentType)))
+      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.id, agentId)))
       .returning();
     if (!config) throw new Error("Agente no encontrado.");
     await audit(tx, tenant, {
@@ -336,7 +352,7 @@ export async function updateAgentAutonomy(
       projectId,
       entityType: "agent_config",
       entityId: config.id,
-      data: { agentType, ...values },
+      data: { agentType: config.agentType, ...values },
     });
   });
 }
@@ -353,7 +369,7 @@ export async function saveAgentChannels(
   db: Db,
   tenant: TenantContext,
   projectId: string,
-  agentType: ProjectAgentType,
+  agentId: string,
   raw: z.input<typeof channelsInput>,
 ) {
   const channels: AgentChannels = channelsInput.parse(raw);
@@ -371,7 +387,7 @@ export async function saveAgentChannels(
     const [config] = await tx
       .update(agentConfigs)
       .set({ channels })
-      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.agentType, agentType)))
+      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.id, agentId)))
       .returning();
     if (!config) throw new Error("Agente no encontrado.");
     await syncProjectChannels(tx, tenant.orgId, projectId);
@@ -380,7 +396,7 @@ export async function saveAgentChannels(
       projectId,
       entityType: "agent_config",
       entityId: config.id,
-      data: { agentType, ...channels },
+      data: { agentType: config.agentType, ...channels },
     });
   });
 }
@@ -551,12 +567,12 @@ export async function saveAgentInstructions(
   db: Db,
   tenant: TenantContext,
   projectId: string,
-  agentType: ProjectAgentType,
+  agentId: string,
   raw: z.input<typeof instructionsInput>,
 ) {
   const input = instructionsInput.parse(raw);
   return withTenant(db, tenant, async (tx) => {
-    const current = await findConfig(tx, projectId, agentType);
+    const current = await findConfig(tx, projectId, agentId);
     const [config] = await tx
       .update(agentConfigs)
       .set({
@@ -565,7 +581,7 @@ export async function saveAgentInstructions(
         // Only the per-run settings: the automation ones are saved apart.
         settings: { ...current?.settings, ...input.settings },
       })
-      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.agentType, agentType)))
+      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.id, agentId)))
       .returning();
     if (!config) throw new Error("Agente no encontrado.");
     await audit(tx, tenant, {
@@ -573,7 +589,7 @@ export async function saveAgentInstructions(
       projectId,
       entityType: "agent_config",
       entityId: config.id,
-      data: { agentType, schedule: input.schedule, settings: input.settings },
+      data: { agentType: config.agentType, schedule: input.schedule, settings: input.settings },
     });
   });
 }
@@ -606,7 +622,7 @@ export async function saveAgentTools(
   db: Db,
   tenant: TenantContext,
   projectId: string,
-  agentType: ProjectAgentType,
+  agentId: string,
   input: AgentTools,
 ) {
   const servers = await listMcpServers(db, tenant);
@@ -626,7 +642,7 @@ export async function saveAgentTools(
     const [config] = await tx
       .update(agentConfigs)
       .set({ tools })
-      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.agentType, agentType)))
+      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.id, agentId)))
       .returning();
     if (!config) throw new Error("Agente no encontrado.");
     await audit(tx, tenant, {
@@ -634,7 +650,7 @@ export async function saveAgentTools(
       projectId,
       entityType: "agent_config",
       entityId: config.id,
-      data: { agentType, ...tools },
+      data: { agentType: config.agentType, ...tools },
     });
   });
 }
@@ -642,8 +658,8 @@ export async function saveAgentTools(
 /** One tool an agent uses: the web, a data provider or an MCP server (by connection). */
 export type AgentToolKey = "web" | `data:${string}` | `mcp:${string}`;
 
-async function currentTools(db: Db, tenant: TenantContext, projectId: string, agentType: ProjectAgentType) {
-  const agent = await getAgent(db, tenant, projectId, agentType);
+async function currentTools(db: Db, tenant: TenantContext, projectId: string, agentId: string) {
+  const agent = await getAgent(db, tenant, projectId, agentId);
   if (!agent) throw new Error("Agente no encontrado.");
   return agent.config.tools;
 }
@@ -653,16 +669,16 @@ export async function addAgentTool(
   db: Db,
   tenant: TenantContext,
   projectId: string,
-  agentType: ProjectAgentType,
+  agentId: string,
   key: AgentToolKey,
 ) {
-  const tools = await currentTools(db, tenant, projectId, agentType);
-  if (key === "web") return saveAgentTools(db, tenant, projectId, agentType, { ...tools, web: true });
+  const tools = await currentTools(db, tenant, projectId, agentId);
+  if (key === "web") return saveAgentTools(db, tenant, projectId, agentId, { ...tools, web: true });
   const [kind, id] = key.split(":") as ["data" | "mcp", string];
   if (kind === "data") {
     if (!(await listDataSources(db, tenant)).some((s) => s.id === id))
       throw new Error("Conexión no encontrada.");
-    return saveAgentTools(db, tenant, projectId, agentType, {
+    return saveAgentTools(db, tenant, projectId, agentId, {
       ...tools,
       data: [...new Set([...(tools.data ?? []), id])],
     });
@@ -673,7 +689,7 @@ export async function addAgentTool(
     throw new Error(
       "Este servidor no ofrece herramientas. Pulsa «Probar conexión» en Integraciones para actualizarlo.",
     );
-  return saveAgentTools(db, tenant, projectId, agentType, {
+  return saveAgentTools(db, tenant, projectId, agentId, {
     ...tools,
     mcp: [
       ...(tools.mcp ?? []).filter((m) => m.connectionId !== id),
@@ -686,13 +702,13 @@ export async function removeAgentTool(
   db: Db,
   tenant: TenantContext,
   projectId: string,
-  agentType: ProjectAgentType,
+  agentId: string,
   key: AgentToolKey,
 ) {
-  const tools = await currentTools(db, tenant, projectId, agentType);
-  if (key === "web") return saveAgentTools(db, tenant, projectId, agentType, { ...tools, web: false });
+  const tools = await currentTools(db, tenant, projectId, agentId);
+  if (key === "web") return saveAgentTools(db, tenant, projectId, agentId, { ...tools, web: false });
   const [kind, id] = key.split(":");
-  return saveAgentTools(db, tenant, projectId, agentType, {
+  return saveAgentTools(db, tenant, projectId, agentId, {
     ...tools,
     data: kind === "data" ? (tools.data ?? []).filter((d) => d !== id) : tools.data,
     mcp: kind === "mcp" ? (tools.mcp ?? []).filter((m) => m.connectionId !== id) : tools.mcp,
@@ -704,13 +720,13 @@ export async function setAgentMcpTools(
   db: Db,
   tenant: TenantContext,
   projectId: string,
-  agentType: ProjectAgentType,
+  agentId: string,
   connectionId: string,
   names: string[],
 ) {
   if (!names.length) throw new Error("Elige al menos una función. Para que no lo use, quita la herramienta.");
-  const tools = await currentTools(db, tenant, projectId, agentType);
-  return saveAgentTools(db, tenant, projectId, agentType, {
+  const tools = await currentTools(db, tenant, projectId, agentId);
+  return saveAgentTools(db, tenant, projectId, agentId, {
     ...tools,
     mcp: [
       ...(tools.mcp ?? []).filter((m) => m.connectionId !== connectionId),
@@ -758,7 +774,7 @@ export async function listAgentRuns(
   db: Db,
   tenant: Pick<TenantContext, "orgId">,
   projectId: string,
-  agentType: ProjectAgentType,
+  agentId: string,
   limit = 5,
 ) {
   return withTenant(db, tenant, (tx) =>
@@ -774,7 +790,7 @@ export async function listAgentRuns(
         finishedAt: agentRuns.finishedAt,
       })
       .from(agentRuns)
-      .where(and(eq(agentRuns.projectId, projectId), eq(agentRuns.agentType, agentType)))
+      .where(and(eq(agentRuns.projectId, projectId), eq(agentRuns.agentConfigId, agentId)))
       .orderBy(desc(agentRuns.startedAt))
       .limit(limit),
   );
@@ -858,7 +874,7 @@ export async function saveAgentAutomation(
   db: Db,
   tenant: TenantContext,
   projectId: string,
-  agentType: ProjectAgentType,
+  agentId: string,
   raw: z.input<typeof automationInput>,
 ) {
   const input = automationInput.parse(raw);
@@ -874,7 +890,7 @@ export async function saveAgentAutomation(
     throw new Error("Elige el buzón desde el que enviará los avisos por email.");
 
   return withTenant(db, tenant, async (tx) => {
-    const current = await findConfig(tx, projectId, agentType);
+    const current = await findConfig(tx, projectId, agentId);
     if (!current?.addedAt) throw new Error("Agente no encontrado.");
     if (input.notify.slackConnectionId) {
       const [slack] = await tx
@@ -915,7 +931,7 @@ export async function saveAgentAutomation(
       projectId,
       entityType: "agent_config",
       entityId: config.id,
-      data: { agentType, ...settings, mailboxId: input.mailboxId },
+      data: { agentType: config.agentType, ...settings, mailboxId: input.mailboxId },
     });
   });
 }
@@ -929,11 +945,11 @@ export async function saveAgentTriggers(
   db: Db,
   tenant: TenantContext,
   projectId: string,
-  agentType: ProjectAgentType,
+  agentId: string,
   triggers: { newRows: boolean; webhook: boolean; form?: boolean },
 ) {
   return withTenant(db, tenant, async (tx) => {
-    const current = await findConfig(tx, projectId, agentType);
+    const current = await findConfig(tx, projectId, agentId);
     if (!current?.addedAt) throw new Error("Agente no encontrado.");
     const settings: AgentSettings = {
       ...current.settings,
@@ -946,31 +962,26 @@ export async function saveAgentTriggers(
       projectId,
       entityType: "agent_config",
       entityId: current.id,
-      data: { agentType, triggers },
+      data: { agentType: current.agentType, triggers },
     });
   });
 }
 
 /** A new webhook secret: the old URL stops working. */
-export async function rotateAgentHook(
-  db: Db,
-  tenant: TenantContext,
-  projectId: string,
-  agentType: ProjectAgentType,
-) {
+export async function rotateAgentHook(db: Db, tenant: TenantContext, projectId: string, agentId: string) {
   return withTenant(db, tenant, async (tx) => {
     const [config] = await tx
       .update(agentConfigs)
       .set({ hookToken: newHookToken() })
-      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.agentType, agentType)))
-      .returning({ id: agentConfigs.id });
+      .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.id, agentId)))
+      .returning({ id: agentConfigs.id, agentType: agentConfigs.agentType });
     if (!config) throw new Error("Agente no encontrado.");
     await audit(tx, tenant, {
       event: "agent.hook_rotated",
       projectId,
       entityType: "agent_config",
       entityId: config.id,
-      data: { agentType },
+      data: { agentType: config.agentType },
     });
   });
 }
@@ -986,16 +997,15 @@ export async function listSlackConnections(db: Db, tenant: Pick<TenantContext, "
   );
 }
 
-/** First emails the prospecting agent proposed that wait for a person. */
-export async function firstEmailsWaiting(db: Db, tenant: Pick<TenantContext, "orgId">, projectId: string) {
+/** First emails a prospecting agent proposed that wait for a person. */
+export async function firstEmailsWaiting(db: Db, tenant: Pick<TenantContext, "orgId">, agentId: string) {
   const [row] = await withTenant(db, tenant, (tx) =>
     tx
       .select({ n: sql<number>`count(*)` })
       .from(actions)
       .where(
         and(
-          eq(actions.projectId, projectId),
-          eq(actions.agentType, "outbound"),
+          eq(actions.agentConfigId, agentId),
           eq(actions.type, "email.send"),
           eq(actions.status, "pending_approval"),
         ),

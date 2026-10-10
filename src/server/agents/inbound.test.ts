@@ -41,6 +41,7 @@ let close: () => Promise<void>;
 let tenant: TenantContext & { actorType: "user"; actorId: string };
 let projectId: string;
 let mailboxId: string;
+let inboundId: string;
 let tableId: string;
 let sourceId: string;
 
@@ -105,9 +106,9 @@ beforeAll(async () => {
       .values({ orgId: tenant.orgId, projectId: project.id, identityId: mailbox.id, isDefault: true });
     return { projectId: project.id, mailboxId: mailbox.id };
   }));
-  await addAgent(db, tenant, projectId, "inbound", "b2b_consultative");
-  await saveAgentChannels(db, tenant, projectId, "inbound", { mailboxId });
-  await setAgentEnabled(db, tenant, projectId, "inbound", true);
+  inboundId = (await addAgent(db, tenant, projectId, "inbound", "b2b_consultative")).id;
+  await saveAgentChannels(db, tenant, projectId, inboundId, { mailboxId });
+  await setAgentEnabled(db, tenant, projectId, inboundId, true);
   const ingested = await ingestTableFile(db, tenant, {
     projectId,
     name: "Tarifas",
@@ -349,7 +350,7 @@ describe("inbound agent", () => {
         })
         .returning(),
     );
-    const agent = await getAgent(db, tenant, projectId, "inbound");
+    const agent = await getAgent(db, tenant, projectId, inboundId);
     await setAgentBase(db, tenant, projectId, agent!.config.id, base.id);
 
     for (const mensaje of ["Quiero información", "¿Seguís ahí?"]) {
@@ -378,13 +379,13 @@ describe("inbound agent", () => {
 
     // Without a table it writes nowhere.
     await setAgentBase(db, tenant, projectId, agent!.config.id, null);
-    expect((await getAgent(db, tenant, projectId, "inbound"))?.config.prospectBaseId).toBeNull();
+    expect((await getAgent(db, tenant, projectId, inboundId))?.config.prospectBaseId).toBeNull();
   });
 
   it("listens to what its triggers say: the web form, new rows of its table and notices from other tools", async () => {
     const reply = () =>
       scriptedLlm(Array.from({ length: 4 }, () => ({ blocks: [{ type: "text" as const, text: "Hecho." }] })));
-    const agent = (await getAgent(db, tenant, projectId, "inbound"))!;
+    const agent = (await getAgent(db, tenant, projectId, inboundId))!;
     const [base] = await withTenant(db, tenant, (tx) =>
       tx
         .insert(prospectBases)
@@ -400,7 +401,7 @@ describe("inbound agent", () => {
     await setAgentBase(db, tenant, projectId, agent.config.id, base.id);
 
     // The web form can be turned off.
-    await saveAgentTriggers(db, tenant, projectId, "inbound", {
+    await saveAgentTriggers(db, tenant, projectId, inboundId, {
       form: false,
       newRows: false,
       webhook: false,
@@ -420,33 +421,31 @@ describe("inbound agent", () => {
       fields: { correo: "rosa@talleres.es" },
     });
     expect(await rowsAdded(db, tenant, { baseId: base.id, rowIds: [row.id] })).toEqual({
-      prospecting: null,
-      inboundProject: null,
+      prospecting: [],
+      inbound: [],
     });
-    await saveAgentTriggers(db, tenant, projectId, "inbound", { form: true, newRows: true, webhook: true });
-    expect((await rowsAdded(db, tenant, { baseId: base.id, rowIds: [row.id] })).inboundProject).toBe(
-      projectId,
-    );
+    await saveAgentTriggers(db, tenant, projectId, inboundId, { form: true, newRows: true, webhook: true });
+    expect((await rowsAdded(db, tenant, { baseId: base.id, rowIds: [row.id] })).inbound).toEqual([inboundId]);
     // The same row is queued once.
     await rowsAdded(db, tenant, { baseId: base.id, rowIds: [row.id] });
 
     // A notice from another tool needs someone to attend.
-    expect(await queueWebhookLead(db, tenant, projectId, { evento: "nuevo" })).toBe(false);
+    expect(await queueWebhookLead(db, tenant, agent.config, { evento: "nuevo" })).toBe(false);
     expect(
-      await queueWebhookLead(db, tenant, projectId, {
+      await queueWebhookLead(db, tenant, agent.config, {
         name: "Iván",
         email: "ivan@flota.es",
         message: "Precio?",
       }),
     ).toBe(true);
-    const hooked = (await getAgent(db, tenant, projectId, "inbound"))!;
+    const hooked = (await getAgent(db, tenant, projectId, inboundId))!;
     expect(hooked.config.hookToken).toBeTruthy();
 
     // One run of the agent attends what is waiting in its project.
     const { outcomes } = await runInboundSweep(
       { db, llm: reply().llm, gateway: gateway() },
       tenant,
-      projectId,
+      inboundId,
     );
     expect(outcomes.filter((o) => o.status === "processed")).toHaveLength(2);
     const people = await withTenant(db, tenant, (tx) =>
@@ -460,5 +459,44 @@ describe("inbound agent", () => {
     expect(sources.filter((e) => e.source === "webhook")).toEqual([
       { source: "webhook", status: "processed" },
     ]);
+  });
+
+  it("sends each lead to its own agent when the project has several inbound agents", async () => {
+    const reply = () =>
+      scriptedLlm(Array.from({ length: 3 }, () => ({ blocks: [{ type: "text" as const, text: "Hecho." }] })));
+    const second = await addAgent(db, tenant, projectId, "inbound");
+    expect(second.name).toBe("Agente inbound 2");
+    await setAgentEnabled(db, tenant, projectId, second.id, true);
+    await saveAgentTriggers(db, tenant, projectId, second.id, { form: false, newRows: false, webhook: true });
+    await saveAgentTriggers(db, tenant, projectId, inboundId, { form: true, newRows: false, webhook: false });
+
+    // A notice to the second agent's webhook is for it: the first one's run leaves it waiting.
+    expect(await queueWebhookLead(db, tenant, second, { email: "eva@flota.es", mensaje: "Hola" })).toBe(true);
+    const pending = () =>
+      withTenant(db, tenant, (tx) =>
+        tx.select().from(inboundEvents).where(eq(inboundEvents.agentConfigId, second.id)),
+      );
+    await runInboundSweep({ db, llm: reply().llm, gateway: gateway() }, tenant, inboundId);
+    expect((await pending())[0].status).toBe("pending");
+    const own = await runInboundSweep({ db, llm: reply().llm, gateway: gateway() }, tenant, second.id);
+    expect(own.outcomes.map((o) => o.status)).toEqual(["processed"]);
+    const runOf = async (outcome: unknown) => {
+      const runId = (outcome as { runId: string }).runId;
+      const [run] = await withTenant(db, tenant, (tx) =>
+        tx.select().from(agentRuns).where(eq(agentRuns.id, runId)),
+      );
+      return run.agentConfigId;
+    };
+    expect(await runOf(own.outcomes[0])).toBe(second.id);
+
+    // The web form goes to the agent that attends it, even from the other one's run.
+    const form = await formEvent({ email: "luis@cliente.com", mensaje: "Información" });
+    const outcome = await processInboundEvent(
+      { db, llm: reply().llm, gateway: gateway() },
+      tenant.orgId,
+      form,
+      second.id,
+    );
+    expect(await runOf(outcome)).toBe(inboundId);
   });
 });

@@ -93,6 +93,7 @@ export async function closeStaleRuns(db: AgentRunDeps["db"], now: Date): Promise
 
 export type ScheduledRun = {
   projectId: string;
+  agentId: string;
   result: ProspectingResult | Awaited<ReturnType<typeof runInboundSweep>> | { error: string };
 };
 export type SkippedAgent = { projectId: string; reason: "no_ai" | "taken" | "over_limit" };
@@ -207,14 +208,14 @@ export async function runDueAgents(
         // The inbound agent's run reads its mailbox and attends what is waiting.
         const result =
           agent.agentType === "inbound"
-            ? await runInboundSweep({ ...deps, llm }, tenant, projectId)
-            : await runProspecting({ ...deps, llm }, tenant, { projectId, trigger: "schedule" });
+            ? await runInboundSweep({ ...deps, llm }, tenant, agent.id)
+            : await runProspecting({ ...deps, llm }, tenant, { agentId: agent.id, trigger: "schedule" });
         await note(agent.id, agent.orgId, null);
-        return { projectId, result };
+        return { projectId, agentId: agent.id, result };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         await note(agent.id, agent.orgId, `La última ejecución programada falló: ${message}`);
-        return { projectId, result: { error: message } };
+        return { projectId, agentId: agent.id, result: { error: message } };
       }
     }),
   );
