@@ -96,7 +96,12 @@ export function colorLook(color?: string | null) {
   return { key, ...AGENT_COLORS[key] };
 }
 
-const DEFAULT_ICON: Record<string, string> = { inbound: "reply", outbound: "send", account_manager: "care" };
+const DEFAULT_ICON: Record<string, string> = {
+  prospecting: "radar",
+  inbound: "reply",
+  outbound: "send",
+  account_manager: "care",
+};
 
 /** The agent's icon and colour: its own, or its template's. */
 export function agentLook(type: string, icon?: string | null, color?: string | null) {

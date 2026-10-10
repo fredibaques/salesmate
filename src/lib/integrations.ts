@@ -242,6 +242,32 @@ export function getIntegration(id: string): Integration | undefined {
 }
 
 /** Plain-language description of what a stored connection is allowed to do. */
+/**
+ * The Google tools one Google connection gives, by what was granted (they
+ * are permissions of the same account, not separate connections).
+ */
+export function googleToolsOf(read: string[], write: string[]): { id: string; name: string }[] {
+  const out: { id: string; name: string }[] = [];
+  if (read.includes("email") || write.includes("email")) out.push({ id: "gmail", name: "Gmail" });
+  if (read.includes("calendar") || write.includes("calendar"))
+    out.push({ id: "google_calendar", name: "Google Calendar" });
+  if (read.includes("meet")) out.push({ id: "google_meet", name: "Google Meet" });
+  if (read.includes("docs")) out.push({ id: "google_docs", name: "Google Docs" });
+  if (read.includes("sheets") || write.includes("sheets"))
+    out.push({ id: "google_sheets", name: "Google Sheets" });
+  return out;
+}
+
+/** The tools of the «Añadir conexión» grid that are already connected. */
+export function connectedTools(rows: { provider: string; readScopes: string[]; writeScopes: string[] }[]) {
+  const ids = new Set<string>();
+  for (const c of rows) {
+    ids.add(c.provider);
+    if (c.provider === "google") for (const t of googleToolsOf(c.readScopes, c.writeScopes)) ids.add(t.id);
+  }
+  return [...ids];
+}
+
 export function describeScopes(read: string[], write: string[]): string[] {
   const out: string[] = [];
   if (read.includes("calendar")) out.push("Ver disponibilidad");

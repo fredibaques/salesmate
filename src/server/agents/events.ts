@@ -11,6 +11,7 @@ import {
 } from "../db/schema";
 import { withSystem, withTenant } from "../db/tenant";
 import type { LlmClient } from "../llm/client";
+import { runOutreach, type OutreachResult } from "./outreach";
 import { runProspecting, type AgentRunDeps, type ProspectingResult } from "./prospector";
 
 /**
@@ -60,7 +61,11 @@ export async function recordAgentEvent(
   });
 }
 
-/** Who works on rows just added to a table: the prospecting and the inbound agents that got them. */
+/**
+ * Who works on rows just added to a table: the agents that run on them
+ * (prospecting completes them, outbound writes to them) and the inbound
+ * agents that attend them as leads.
+ */
 export type RowsAddedTo = { prospecting: string[]; inbound: string[] };
 
 /**
@@ -173,7 +178,8 @@ export async function agentByHookToken(db: AgentRunDeps["db"], token: string) {
 }
 
 export type EventRunOutcome =
-  { status: "ran"; result: ProspectingResult; events: number } | { status: "idle" | "busy" | "paused" };
+  | { status: "ran"; result: ProspectingResult | OutreachResult; events: number }
+  | { status: "idle" | "busy" | "paused" };
 
 /**
  * Runs the agent on its pending events, if it can work now: it is active,
@@ -229,10 +235,30 @@ export async function processAgentEvents(
   });
   if (!claimed.length) return { status: "idle" };
 
+  const triggerRef = [...new Set(claimed.map((e) => e.kind))].join(",");
+  if (state.agent.agentType === "outbound") {
+    const outreach = await runOutreach(deps, tenant, {
+      agentId: state.agent.id,
+      trigger: "event",
+      triggerRef,
+    });
+    await withTenant(deps.db, tenant, (tx) =>
+      tx
+        .update(agentEvents)
+        .set({ runId: outreach.runId })
+        .where(
+          inArray(
+            agentEvents.id,
+            claimed.map((e) => e.id),
+          ),
+        ),
+    );
+    return { status: "ran", result: outreach, events: claimed.length };
+  }
   const result = await runProspecting(deps, tenant, {
     agentId: state.agent.id,
     trigger: "event",
-    triggerRef: [...new Set(claimed.map((e) => e.kind))].join(","),
+    triggerRef,
     events: claimed.map((e) => ({ kind: e.kind, payload: e.payload })),
   });
   await withTenant(deps.db, tenant, (tx) =>

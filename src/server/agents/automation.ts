@@ -1,5 +1,5 @@
 import { and, eq, gte, inArray, ne, sql } from "drizzle-orm";
-import { agentName } from "@/lib/agents";
+import { AGENT_INFO, agentName, type ProjectAgentKey } from "@/lib/agents";
 import type { Db } from "../db/client";
 import { agentConfigs, agentRuns, member, prospects, user, type AgentSettings } from "../db/schema";
 import { withSystem, withTenant } from "../db/tenant";
@@ -99,6 +99,7 @@ export async function notifyTeam(
   input: {
     agent: {
       id: string;
+      agentType: string;
       name: string | null;
       projectId: string;
       settings: AgentSettings;
@@ -116,12 +117,15 @@ export async function notifyTeam(
   const wanted = input.notice.problem ? notify.onProblem : notify.onFinish;
   if (!wanted) return { sent, errors };
 
-  const name = agentName("outbound", input.agent.name);
+  const kind = (
+    input.agent.agentType in AGENT_INFO ? input.agent.agentType : "prospecting"
+  ) as ProjectAgentKey;
+  const name = agentName(kind, input.agent.name);
   const link = `${env().APP_URL}/app/projects/${input.agent.projectId}/agents/${input.agent.id}`;
   const actor = { orgId: tenant.orgId, actorType: "agent" as const, actorId: input.runId };
   const base = {
     projectId: input.agent.projectId,
-    agentType: "outbound" as const,
+    agentType: kind,
     agentConfigId: input.agent.id,
     runId: input.runId,
     reason: "Aviso al equipo configurado en el agente",

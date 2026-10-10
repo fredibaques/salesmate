@@ -92,7 +92,7 @@ describe("schedule", () => {
 
 describe("runDueAgents", () => {
   it("runs the prospecting agent when its time comes, and only once", async () => {
-    agentId = (await addAgent(db, tenant, projectId, "outbound", "b2b_consultative")).id;
+    agentId = (await addAgent(db, tenant, projectId, "prospecting", "b2b_consultative")).id;
     await saveAgentInstructions(db, tenant, projectId, agentId, {
       instructions: "Concesionarios de Andalucía.",
       schedule: { time: "08:00", days: [1, 2, 3, 4, 5] },
@@ -168,7 +168,7 @@ describe("runDueAgents", () => {
       tx.select().from(agentRuns).where(eq(agentRuns.projectId, projectId)),
     );
     expect(runs.map((r) => [r.agentType, r.trigger, r.status])).toEqual([
-      ["outbound", "schedule", "completed"],
+      ["prospecting", "schedule", "completed"],
     ]);
 
     // Same day again: already ran.
@@ -320,7 +320,7 @@ describe("time limits", () => {
         .values({
           orgId: tenant.orgId,
           projectId,
-          agentType: "outbound",
+          agentType: "prospecting",
           trigger: "manual",
           model: "claude-opus-5-5",
           startedAt: new Date("2026-10-07T06:00:00Z"),

@@ -312,7 +312,15 @@ export const complianceRules = pgTable(
   (t) => [tenantPolicy("compliance_rules")],
 );
 
-export const AGENT_TYPES = ["outbound", "inbound", "account_manager", "intelligence", "copilot"] as const;
+/** prospecting finds rows, outbound writes to them, inbound attends who writes in. */
+export const AGENT_TYPES = [
+  "prospecting",
+  "outbound",
+  "inbound",
+  "account_manager",
+  "intelligence",
+  "copilot",
+] as const;
 export type AgentType = (typeof AGENT_TYPES)[number];
 
 export type AgentChannels = {
@@ -924,6 +932,8 @@ export const prospectBases = pgTable(
       .default(sql`'{}'::text[]`),
     /** Secret that external forms send to add rows (POST /api/tables/:id/rows); null = closed. */
     intakeKey: text("intake_key"),
+    /** Last row number given (prospects.seq): a trigger hands out the next one. */
+    rowSeq: integer("row_seq").notNull().default(0),
     createdBy: text("created_by"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -940,6 +950,8 @@ export const prospects = pgTable(
     baseId: uuid("base_id")
       .notNull()
       .references(() => prospectBases.id, { onDelete: "cascade" }),
+    /** The row's ID in its table: 1, 2, 3… in the order rows arrive (set by a trigger). */
+    seq: integer("seq").notNull().default(0),
     agentConfigId: uuid("agent_config_id").references(() => agentConfigs.id, { onDelete: "set null" }),
     runId: uuid("run_id"),
     /** Normalized domain, or folded name + city when there is no website. */
@@ -973,6 +985,7 @@ export const prospects = pgTable(
   },
   (t) => [
     unique("prospects_base_key_uq").on(t.baseId, t.dedupeKey),
+    index("prospects_base_seq_idx").on(t.baseId, t.seq),
     index("prospects_project_created_idx").on(t.projectId, t.createdAt),
     tenantPolicy("prospects"),
   ],
@@ -1133,6 +1146,8 @@ export const agentRuns = pgTable(
     steps: jsonb("steps").$type<AgentRunStep[]>().notNull().default([]),
     summary: text("summary"),
     error: text("error"),
+    /** The rows of a table it is filling right now (the table shows them as «completándose»). */
+    target: jsonb("target").$type<{ baseId: string; rowIds: string[] }>(),
     startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
   },

@@ -13,7 +13,9 @@ import { bool, list, num, runForm, str } from "@/server/form";
 import { ACTION_DEFINITIONS } from "@/server/gateway/definitions";
 import { DEFAULT_CELLS_PER_RUN, runProspecting } from "@/server/agents/prospector";
 import { closeStaleRuns } from "@/server/agents/scheduler";
+import { DEFAULT_HANDOFF_MIN_FIT, DEFAULT_HANDOFF_PER_RUN } from "@/server/agents/first-contact";
 import { runInboundSweep } from "@/server/agents/inbound-sweep";
+import { runOutreach } from "@/server/agents/outreach";
 import { agentRunDeps, inboundDeps } from "@/server/agents/runtime";
 import { setAgentBase } from "@/server/prospects/bases";
 import {
@@ -29,6 +31,7 @@ import {
   saveAgentAutomation,
   saveAgentChannels,
   saveAgentInstructions,
+  saveAgentOutreach,
   saveAgentTools,
   saveAgentTriggers,
   setAgentEnabled,
@@ -112,9 +115,11 @@ export async function setupAgentAction(
     );
     const name = str(form, "name");
     if (name) await customizeAgent(db, tenant, projectId, agent.id, { name });
-    if (kind === "outbound") {
+    if (kind === "prospecting") {
       await saveAgentInstructions(db, tenant, projectId, agent.id, instructionsFromForm(form, true));
       await saveAgentTools(db, tenant, projectId, agent.id, toolsFromForm(form));
+    } else if (kind === "outbound") {
+      await outreachFromForm(db, tenant, projectId, agent.id, form);
     } else {
       await saveAgentChannels(db, tenant, projectId, agent.id, channelsFromForm(form));
       await updateAgentAutonomy(db, tenant, projectId, agent.id, {
@@ -300,6 +305,87 @@ export async function saveInboundSetup(
   return result;
 }
 
+/** The outbound agent's fields, from its setup form or its wizard. */
+async function outreachFromForm(
+  db: ReturnType<typeof getDb>,
+  tenant: Awaited<ReturnType<typeof admin>>,
+  projectId: string,
+  agentId: string,
+  form: FormData,
+) {
+  await saveAgentInstructions(db, tenant, projectId, agentId, {
+    instructions: str(form, "instructions") ?? "",
+    schedule: scheduleFromForm(form),
+    settings: { model: str(form, "model") ?? "" },
+  });
+  await saveAgentTriggers(db, tenant, projectId, agentId, {
+    newRows: bool(form, "triggerNewRows"),
+    webhook: bool(form, "triggerWebhook"),
+  });
+  await saveAgentOutreach(db, tenant, projectId, agentId, {
+    minFit: num(form, "minFit") ?? DEFAULT_HANDOFF_MIN_FIT,
+    perRun: num(form, "perRun") ?? DEFAULT_HANDOFF_PER_RUN,
+    mailboxId: str(form, "mailboxId") ?? null,
+  });
+  const agent = await getAgent(db, tenant, projectId, agentId);
+  const baseId = str(form, "baseId") ?? null;
+  if (agent && agent.config.prospectBaseId !== baseId) {
+    await setAgentBase(db, tenant, projectId, agentId, baseId);
+  }
+}
+
+/**
+ * The outbound agent's whole setup in one form: the table it works with
+ * and how it writes, whom it writes to, when, its model and its mailbox.
+ */
+export async function saveOutreachSetup(
+  projectId: string,
+  agentId: string,
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const result = await runForm(async () => {
+    await outreachFromForm(getDb(), await admin(), projectId, agentId, form);
+  }, "Configuración guardada.");
+  refresh(projectId);
+  return result;
+}
+
+/**
+ * «Ejecutar ahora» of the outbound agent: prepares the first emails of the
+ * rows that fit, after answering. They wait in «Por aprobar».
+ */
+export async function runOutreachNow(
+  projectId: string,
+  agentId: string,
+  _: FormState,
+  form?: FormData,
+): Promise<FormState> {
+  const result = await runForm(async () => {
+    const tenant = await admin();
+    const db = getDb();
+    const agent = await getAgent(db, tenant, projectId, agentId);
+    if (agent?.config.agentType !== "outbound") throw new Error("Agente no encontrado.");
+    const llm = await requireOrgLlm(db, tenant);
+    after(async () => {
+      try {
+        await runOutreach(agentRunDeps(llm), tenant, {
+          agentId,
+          trigger: "manual",
+          triggerRef: tenant.userId,
+        });
+      } catch (err) {
+        console.error("outreach run failed", err);
+      }
+    });
+    return "En marcha: los primeros emails aparecerán en «Por aprobar» en unos minutos.";
+  });
+  refresh(projectId);
+  const back = result?.ok ? backTo(form) : null;
+  if (back) redirect(back);
+  return result;
+}
+
 export async function rotateHook(projectId: string, agentId: string, _: FormState): Promise<FormState> {
   const result = await runForm(async () => {
     const tenant = await admin();
@@ -367,7 +453,7 @@ async function startRun(
   const tenant = await admin();
   const db = getDb();
   const agent = await getAgent(db, tenant, projectId, agentId);
-  if (agent?.config.agentType !== "outbound") throw new Error("Agente no encontrado.");
+  if (agent?.config.agentType !== "prospecting") throw new Error("Agente no encontrado.");
   const llm = await requireOrgLlm(db, tenant);
   await closeStaleRuns(db, new Date());
   const [last] = await listAgentRuns(db, tenant, projectId, agentId, 1);

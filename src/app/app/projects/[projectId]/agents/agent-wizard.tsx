@@ -70,6 +70,60 @@ function ActivateChoice() {
   );
 }
 
+/** The project's sales process: shown if it has one, otherwise the kind of sale to start from. */
+function saleStep(
+  projectId: string,
+  process: { objective: string; nextSteps: NextStep[] } | null,
+  withProcess: string,
+): WizardStep {
+  return {
+    id: "sale",
+    title: "Proceso de venta",
+    summary: process
+      ? withProcess
+      : "El proyecto todavía no tiene proceso de venta: partimos de uno de ejemplo para tu tipo de venta.",
+    content: process ? (
+      <dl className="divide-y divide-border">
+        <ReviewRow label="Objetivo">{process.objective}</ReviewRow>
+        <ReviewRow label="Cómo termina">
+          {process.nextSteps.map((s) => NEXT_STEP_LABELS[s]).join(", o ")}
+        </ReviewRow>
+        <ReviewRow label="Dónde se cambia">
+          <Link
+            href={`/app/projects/${projectId}/sales/process`}
+            target="_blank"
+            className="inline-flex items-center gap-1 text-accent hover:underline"
+          >
+            Ventas → Proceso de venta
+            <ExternalLink className="size-3.5" />
+          </Link>
+        </ReviewRow>
+      </dl>
+    ) : (
+      <Field
+        label="Tipo de venta"
+        group
+        tip="Es del proyecto: lo seguirán todos los agentes que hablan con personas. Lo ajustas en Ventas → Proceso de venta."
+      >
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(Object.keys(SALES_MOTION_LABELS) as SalesMotion[]).map((m) => (
+            <Choice
+              key={m}
+              card
+              type="radio"
+              name="salesMotion"
+              value={m}
+              defaultChecked={m === "b2b_consultative"}
+              label={SALES_MOTION_LABELS[m]}
+              description={MOTION_HELP[m]}
+            />
+          ))}
+        </div>
+      </Field>
+    ),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Inbound
 // ---------------------------------------------------------------------------
@@ -89,52 +143,7 @@ export function InboundWizard({
   const nothingConnected = options.mailboxes.length + options.calendars.length + options.crms.length === 0;
 
   const steps: WizardStep[] = [
-    {
-      id: "sale",
-      title: "Proceso de venta",
-      summary: process
-        ? "Atenderá a cada contacto con el proceso de venta del proyecto."
-        : "El proyecto todavía no tiene proceso de venta: partimos de uno de ejemplo para tu tipo de venta.",
-      content: process ? (
-        <dl className="divide-y divide-border">
-          <ReviewRow label="Objetivo">{process.objective}</ReviewRow>
-          <ReviewRow label="Cómo termina">
-            {process.nextSteps.map((s) => NEXT_STEP_LABELS[s]).join(", o ")}
-          </ReviewRow>
-          <ReviewRow label="Dónde se cambia">
-            <Link
-              href={`/app/projects/${projectId}/sales/process`}
-              target="_blank"
-              className="inline-flex items-center gap-1 text-accent hover:underline"
-            >
-              Ventas → Proceso de venta
-              <ExternalLink className="size-3.5" />
-            </Link>
-          </ReviewRow>
-        </dl>
-      ) : (
-        <Field
-          label="Tipo de venta"
-          group
-          tip="Es del proyecto: lo seguirán todos los agentes que hablan con personas. Lo ajustas en Ventas → Proceso de venta."
-        >
-          <div className="grid gap-2 sm:grid-cols-2">
-            {(Object.keys(SALES_MOTION_LABELS) as SalesMotion[]).map((m) => (
-              <Choice
-                key={m}
-                card
-                type="radio"
-                name="salesMotion"
-                value={m}
-                defaultChecked={m === "b2b_consultative"}
-                label={SALES_MOTION_LABELS[m]}
-                description={MOTION_HELP[m]}
-              />
-            ))}
-          </div>
-        </Field>
-      ),
-    },
+    saleStep(projectId, process, "Atenderá a cada contacto con el proceso de venta del proyecto."),
     {
       id: "channels",
       title: "Canales",
@@ -268,18 +277,18 @@ export function InboundWizard({
 }
 
 // ---------------------------------------------------------------------------
-// Outbound (prospecting)
+// Prospecting
 // ---------------------------------------------------------------------------
 
 type Servers = Awaited<ReturnType<typeof listMcpServers>>;
 
-export function OutboundWizard({
+export function ProspectingWizard({
   projectId,
   defaults,
   servers,
 }: {
   projectId: string;
-  defaults: (typeof AGENT_DEFAULTS)["outbound"];
+  defaults: (typeof AGENT_DEFAULTS)["prospecting"];
   servers: Servers;
 }) {
   const steps: WizardStep[] = [
@@ -397,6 +406,174 @@ export function OutboundWizard({
                 )}
               </ReviewRow>
               <ReviewRow label="Por ejecución">{`${values.get("prospectsPerRun")} prospectos nuevos`}</ReviewRow>
+            </dl>
+            <NameField placeholder={AGENT_INFO.prospecting.name} />
+            <ActivateChoice />
+          </>
+        );
+      },
+    },
+  ];
+
+  return (
+    <Wizard
+      steps={steps}
+      action={setupAgentAction.bind(null, projectId, "prospecting")}
+      submitLabel="Crear agente"
+      cancelHref={`/app/projects/${projectId}`}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Outbound (first contact with the rows of a table)
+// ---------------------------------------------------------------------------
+
+export function OutreachWizard({
+  projectId,
+  defaults,
+  bases,
+  mailboxes,
+  process,
+}: {
+  projectId: string;
+  defaults: (typeof AGENT_DEFAULTS)["outbound"];
+  bases: { id: string; name: string }[];
+  mailboxes: { id: string; address: string }[];
+  process: { objective: string; nextSteps: NextStep[] } | null;
+}) {
+  const handoff = defaults.settings.handoff;
+  const steps: WizardStep[] = [
+    {
+      id: "table",
+      title: "A quién escribe",
+      summary: "Las filas de una tabla con email que encajan, una sola vez cada una.",
+      content: (
+        <>
+          {bases.length ? (
+            <Field label="Trabaja con la tabla" tip="Suele ser la que rellena un agente de prospección.">
+              <Select name="baseId" required defaultValue={bases[0]?.id}>
+                {bases.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : (
+            <Notice tone="warning">
+              El proyecto todavía no tiene tablas. Créala antes, o añade primero un agente de prospección que
+              la rellene.
+            </Notice>
+          )}
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label="Encaje mínimo" tip="0 para escribir también a las filas sin encaje calculado.">
+              <Input
+                name="minFit"
+                type="number"
+                min={0}
+                max={100}
+                required
+                defaultValue={handoff?.minFit ?? 70}
+              />
+            </Field>
+            <Field label="Emails por ejecución">
+              <Input
+                name="perRun"
+                type="number"
+                min={1}
+                max={25}
+                required
+                defaultValue={handoff?.perRun ?? 5}
+              />
+            </Field>
+          </div>
+        </>
+      ),
+    },
+    saleStep(projectId, process, "Escribirá siguiendo el proceso de venta del proyecto."),
+    {
+      id: "how",
+      title: "Cómo escribe",
+      summary: "Desde qué buzón y con qué estilo. Cada email espera tu aprobación.",
+      content: (
+        <>
+          {mailboxes.length ? (
+            <Field label="Buzón desde el que escribe" tip="Las respuestas llegan a este buzón.">
+              <Select name="mailboxId" required defaultValue={mailboxes[0]?.id}>
+                {mailboxes.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.address}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : (
+            <Notice
+              tone="warning"
+              action={
+                <Link
+                  href="/app/connections?add=google"
+                  target="_blank"
+                  className="inline-flex items-center gap-1 text-sm text-accent hover:underline"
+                >
+                  Conectar
+                  <ExternalLink className="size-3.5" />
+                </Link>
+              }
+            >
+              No hay ningún buzón que pueda enviar. Puedes crearlo igual y elegirlo después.
+            </Notice>
+          )}
+          <Field label="Cómo escribe el primer email" tip="Qué vendes y a quién ya lo sabe por Ventas.">
+            <Textarea name="instructions" defaultValue={defaults.instructions} className="min-h-40" />
+          </Field>
+        </>
+      ),
+    },
+    {
+      id: "when",
+      title: "Cuándo trabaja",
+      summary: "Con horario, cuando se añaden filas a su tabla o cuando se lo pidas.",
+      content: (
+        <>
+          <ScheduleFields schedule={defaults.schedule} />
+          <Choice
+            card
+            name="triggerNewRows"
+            defaultChecked
+            label="También cuando se añade una fila a su tabla"
+            description="Escribe a las filas nuevas que encajan en cuanto llegan."
+          />
+        </>
+      ),
+    },
+    {
+      id: "review",
+      title: "Revisar",
+      summary: "Así empezará a trabajar. Todo se puede cambiar en su ficha.",
+      content: (values) => {
+        const base = bases.find((b) => b.id === values.get("baseId"));
+        const mailbox = mailboxes.find((m) => m.id === values.get("mailboxId"));
+        const minFit = Number(values.get("minFit") ?? 0);
+        return (
+          <>
+            <dl className="divide-y divide-border">
+              <ReviewRow label="Tabla">{base?.name ?? <Badge tone="warning">Sin tabla</Badge>}</ReviewRow>
+              <ReviewRow label="A quién">
+                {`Hasta ${values.get("perRun")} filas por ejecución${minFit > 0 ? `, con encaje ${minFit} o más` : ""}`}
+              </ReviewRow>
+              <ReviewRow label="Desde">
+                {mailbox?.address ?? <Badge tone="warning">Sin buzón</Badge>}
+              </ReviewRow>
+              <ReviewRow label="Cuándo">
+                {[
+                  describeSchedule(scheduleFromForm(values)),
+                  values.get("triggerNewRows") ? "y con cada fila nueva" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              </ReviewRow>
             </dl>
             <NameField placeholder={AGENT_INFO.outbound.name} />
             <ActivateChoice />

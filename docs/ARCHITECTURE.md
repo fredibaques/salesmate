@@ -84,6 +84,15 @@ cifradas; si un proveedor devuelve 401/403 la conexión pasa a `error`. Los
 fallos HTTP se enseñan con frases (`describeConnectorError`): `runForm` lo
 aplica a cualquier `ConnectorError`.
 
+- **Desconectar** (`removeConnection` en `services/connections.ts`): borra la
+  conexión y sus buzones y calendarios, y quita a los agentes lo que la
+  usaba (canales, herramientas de datos y MCP, Slack de los avisos); lo que
+  cada proyecto puede usar se recalcula. Lo hecho se conserva (acciones,
+  conocimiento). El permiso concedido en el proveedor sigue hasta que se
+  retira allí. Una cuenta de Google enseña en su tarjeta las herramientas
+  que incluye (Gmail, Calendar, Meet, Docs, Sheets, por sus permisos:
+  `googleToolsOf`), y la rejilla de «Añadir conexión» marca como conectada
+  cada una (`connectedTools`).
 - **Twenty**: REST (`/rest`, `/rest/metadata`), descubrimiento de objetos
   (incluidos los personalizados) y verificación HMAC de webhooks.
 - **Google**: OAuth con permisos a elegir (disponibilidad, reuniones, envío,
@@ -311,8 +320,25 @@ src/server/
 
 ## Agentes genéricos: instrucciones, herramientas y horario
 
-Cada agente es la misma pieza configurada de forma distinta; inbound y
-prospección son plantillas (`AGENT_DEFAULTS` en `services/agents.ts`):
+Cada agente es la misma pieza configurada de forma distinta. Hay tres tipos,
+en el orden de la venta, cada uno una plantilla (`AGENT_DEFAULTS` en
+`services/agents.ts`) con su propia ejecución:
+
+- **Prospección** (`prospecting`, `agents/prospector.ts`): recoge información
+  de distintas fuentes, sobre todo internet; busca filas nuevas que encajan y
+  completa las celdas vacías de su tabla. No escribe a nadie.
+- **Outbound** (`outbound`, `agents/outreach.ts`): inicia el proceso
+  comercial con las filas de una tabla (normalmente la que rellena uno de
+  prospección): a las que tienen email y el encaje mínimo, y aún no tienen
+  primer email, les escribe uno siguiendo el proceso de venta del proyecto
+  y lo propone (`prepareFirstContacts`). Las respuestas llegan a su
+  conversación.
+- **Inbound** (`inbound`, `agents/inbound.ts`): atiende a quien muestra
+  interés por su cuenta (formulario, email, WhatsApp, filas, avisos).
+
+La migración 0025 convirtió los antiguos «outbound» (que buscaban filas) en
+`prospecting`; el primer contacto, que antes era un paso opcional de ese
+agente, es ahora el trabajo del outbound. Lo común a todos:
 
 - **Instrucciones** (`agent_configs.instructions`): qué tiene que hacer y cómo,
   en palabras del usuario. Se suman al prompt junto a «Oferta y cliente».
@@ -398,9 +424,15 @@ Las crean los propietarios y administradores con nombre, qué es cada fila y
 proyecto opcional. Solo es obligatorio el nombre de cada fila (la empresa, o
 la persona en tablas de personas: es como se distinguen y se detectan
 duplicados); en tablas de personas la empresa es opcional. Los demás campos
-fijos (empresa en tablas de personas, web, encaje, estado, fuentes) se
-muestran u ocultan como columnas (`prospect_bases.hidden_fields`,
-`setFieldHidden`). Una tabla nueva empieza solo con el nombre y sin
+fijos (empresa en tablas de personas, web, encaje, estado, fuentes, fecha
+de registro) se muestran u ocultan como columnas
+(`prospect_bases.hidden_fields`, `setFieldHidden`). Cada fila tiene además
+un **ID** fijo, siempre a la vista junto al nombre: 1, 2, 3… en el orden en
+que llegan a su tabla (`prospects.seq`). Lo pone un trigger de la base de
+datos (`prospects_next_seq`, migración 0025) con el contador de la tabla
+(`prospect_bases.row_seq`), así que vale para cualquier forma de añadir
+filas; una fila que ya estaba no gasta número y los de las filas borradas no
+se repiten. Una tabla nueva empieza con el nombre y la fecha de registro, sin
 columnas; cuando un agente pasa a rellenarla (`setAgentBase`,
 `ensureAgentBase`) se muestran todos, porque los rellena él. Las
 columnas se gestionan en la cabecera de la tabla, como en una hoja de cálculo
@@ -467,6 +499,11 @@ final, que deje de buscar y guarde lo confirmado (`steer` de
 `runAgentLoop`, texto tras los resultados de las herramientas).
 
 ## Un agente trabajando
+
+Mientras completa celdas, la ejecución de prospección guarda qué filas tiene
+entre manos (`agent_runs.target`); la tabla (`fillingRows`) muestra sus
+celdas vacías como «completándose», con un brillo que recorre el texto
+(`text-shimmer`), hasta que llega el valor.
 
 `agents/working.ts` (`workingSql`) dice, como columna de una consulta sobre
 `agent_configs`, si el agente tiene ahora una ejecución en marcha (de las
@@ -536,9 +573,11 @@ modelo, Comunicación y Siguiente paso; `/automation` redirige ahí:
   desde el buzón del agente solo a personas de la organización. Son acciones
   del gateway (`notify.slack`, `notify.email`) con `defaultAutonomy` 3: salen
   solas salvo que el agente diga otra cosa, y quedan auditadas.
-- **Primer contacto** (`handoff`, `agents/first-contact.ts`): tras cada
-  ejecución, para las filas con email y encaje suficiente, escribe un primer
-  email y lo propone (`email.send` desde el buzón del agente). Con la autonomía
+- **Primer contacto** (agente outbound, `settings.handoff` con su encaje
+  mínimo y emails por ejecución, `agents/first-contact.ts`): en cada
+  ejecución, para las filas de su tabla con email y encaje suficiente (con
+  mínimo 0, también las que nadie puntuó), escribe un primer email y lo
+  propone (`email.send` desde su buzón). Con la autonomía
   por defecto espera aprobación en «Por aprobar»; el gateway aplica horario de
   envío, exclusiones y enfriamientos. `prospects.contact_action_id` evita
   repetirlo.

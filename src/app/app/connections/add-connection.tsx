@@ -40,7 +40,12 @@ const GOOGLE_PERMISSIONS = [
   },
 ] as const;
 
-type Setup = { googleReady: boolean; appUrl: string };
+type Setup = {
+  googleReady: boolean;
+  appUrl: string;
+  /** Tools already connected (Google's by what its accounts granted). */
+  connected?: string[];
+};
 
 /** Google tools that are a permission of the Google Workspace connection. */
 const GOOGLE_EXTRAS: Record<string, { sets: string; note: string }> = {
@@ -59,7 +64,7 @@ const GOOGLE_EXTRAS: Record<string, { sets: string; note: string }> = {
 };
 
 /** The tools that can be connected, by category, as tiles. */
-function ToolGrid({ onPick }: { onPick: (id: string) => void }) {
+function ToolGrid({ onPick, connected }: { onPick: (id: string) => void; connected: string[] }) {
   const categories = Object.keys(INTEGRATION_CATEGORIES) as IntegrationCategory[];
   return (
     <div className="space-y-6">
@@ -88,7 +93,11 @@ function ToolGrid({ onPick }: { onPick: (id: string) => void }) {
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2 text-sm font-medium">
                       {i.name}
-                      {available ? null : <Badge>Próximamente</Badge>}
+                      {!available ? (
+                        <Badge>Próximamente</Badge>
+                      ) : connected.includes(i.id) ? (
+                        <Badge tone="success">Conectada</Badge>
+                      ) : null}
                     </span>
                     <span className="mt-0.5 block text-xs text-muted">{i.tagline}</span>
                   </span>
@@ -387,7 +396,7 @@ export function AddConnectionButton({
           <ToolSetup integration={integration} setup={setup} />
         </div>
       ) : (
-        <ToolGrid onPick={setPicked} />
+        <ToolGrid onPick={setPicked} connected={setup.connected ?? []} />
       )}
     </ModalButton>
   );

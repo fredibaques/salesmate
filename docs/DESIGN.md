@@ -102,8 +102,9 @@ screen needs something new, add it here and as a component, not inline.
   with Por día / Por semana / Por mes as `SegmentedLinks`, and its tables, ¼,
   the same height; below, its agents as cards, the on/off switch at each
   card's top right, and always a dashed «Añadir agente» card the size of an
-  agent's (as many agents of each kind as the project needs; the wizard asks
-  for a name to tell them apart); what the project needs is asked in its creation wizard), **Ventas** (sub-tabs «Oferta
+  agent's (as many agents of each kind as the project needs: prospecting,
+  outbound and inbound, each with its own wizard and setup screen; the wizard
+  asks for a name to tell them apart); what the project needs is asked in its creation wizard), **Ventas** (sub-tabs «Oferta
   y cliente» and «Proceso de venta»: the sale is the project's, not each
   agent's), **Conocimiento** (documents and tables; text can be edited in
   place), **Conversaciones**, **Reuniones** and **Ajustes** (General:
@@ -243,7 +244,11 @@ touch). People type in the grid: a click edits a cell in place (Enter or
 leaving saves, Escape cancels; choices open a `Popover` with the options),
 and the last line adds a row as it is typed (Enter saves and leaves a new
 empty line). Only the row's name is required; the other fixed fields hide
-and show like columns.
+and show like columns. The row's ID (1, 2, 3… per table) is a narrow first
+column that always shows; it and the name stay in place when scrolling
+sideways (`sticky` and `sticky="second"`). An empty cell an agent will fill
+reads «por completar»; while an agent is filling it, «completándose» with
+the `text-shimmer` utility.
 Remove actions on a row are a `dangerGhost` icon button with an
 `aria-label`.
 

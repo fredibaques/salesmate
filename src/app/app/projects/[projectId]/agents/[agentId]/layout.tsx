@@ -14,6 +14,7 @@ import {
   customizeAgentAction,
   removeAgentAction,
   runInboundNow,
+  runOutreachNow,
   runProspectingNow,
   toggleAgent,
 } from "../actions";
@@ -75,9 +76,11 @@ export default async function AgentLayout({
             {tenant.role !== "member" ? (
               <ActionForm
                 action={
-                  agentType === "outbound"
+                  agentType === "prospecting"
                     ? runProspectingNow.bind(null, projectId, agentId)
-                    : runInboundNow.bind(null, projectId, agentId)
+                    : agentType === "outbound"
+                      ? runOutreachNow.bind(null, projectId, agentId)
+                      : runInboundNow.bind(null, projectId, agentId)
                 }
                 submitLabel="Ejecutar ahora"
                 submitVariant="secondary"

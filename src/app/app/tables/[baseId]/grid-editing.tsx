@@ -4,6 +4,7 @@ import { Check, Maximize2, Plus } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import type { FormState } from "@/components/action-form";
+import { stickyLeft } from "@/components/data-grid";
 import { Popover } from "@/components/popover";
 import { useToast } from "@/components/toast";
 import { buttonClass, cx } from "@/components/ui";
@@ -218,8 +219,8 @@ export function ExpandRow({ href, label }: { href: string; label: string }) {
 }
 
 export type NewRowField =
-  | { key: string; editor: CellEditor; label: string; sticky?: boolean; required?: boolean }
-  | { key: string; editor: null; sticky?: boolean };
+  | { key: string; editor: CellEditor; label: string; sticky?: boolean | "second"; required?: boolean }
+  | { key: string; editor: null; sticky?: boolean | "second" };
 
 /**
  * The table's last line: «+ Añadir fila» turns into empty cells to type in.
@@ -313,7 +314,8 @@ export function NewRow({
             key={f.key}
             className={cx(
               "h-10 border-r border-b border-ink-100 px-1.5 whitespace-nowrap",
-              f.sticky && "sticky left-0 z-10 bg-brand-50 shadow-[1px_0_0_var(--color-border)]",
+              f.sticky &&
+                cx("sticky z-10 bg-brand-50 shadow-[1px_0_0_var(--color-border)]", stickyLeft(f.sticky)),
             )}
           >
             {!f.editor ? (

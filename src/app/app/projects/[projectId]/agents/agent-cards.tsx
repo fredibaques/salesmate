@@ -10,6 +10,7 @@ import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { withTenant } from "@/server/db/tenant";
 import { projectProcess } from "@/server/playbooks/service";
+import { listBases } from "@/server/prospects/bases";
 import {
   AGENT_DEFAULTS,
   AVAILABLE_AGENT_TYPES,
@@ -51,10 +52,11 @@ export async function AddAgentButton({
   }));
   const tenant = await requireTenant();
   const db = getDb();
-  const [options, servers, process] = await Promise.all([
+  const [options, servers, process, bases] = await Promise.all([
     listChannelOptions(db, tenant),
     listMcpServers(db, tenant),
     withTenant(db, tenant, (tx) => projectProcess(tx, projectId)),
+    listBases(db, tenant, projectId, { standalone: true }),
   ]);
   const initial = types.find((t) => t.available && t.type === open)?.type;
   return (
@@ -91,20 +93,33 @@ export async function AddAgentButton({
         initial={initial}
         options={options}
         servers={servers}
-        defaults={AGENT_DEFAULTS.outbound}
+        defaults={AGENT_DEFAULTS}
+        bases={bases.map((b) => ({ id: b.id, name: b.projectId ? b.name : `${b.name} (sin proyecto)` }))}
         process={process ? { objective: process.spec.objective, nextSteps: process.spec.nextSteps } : null}
       />
     </ModalButton>
   );
 }
 
-function missingSetup(type: ProjectAgentType, channels: { mailboxId?: string | null }) {
-  if (type === "inbound" && !channels.mailboxId) return "Elige con qué buzón responde";
+function missingSetup(
+  type: ProjectAgentType,
+  config: { channels: { mailboxId?: string | null }; prospectBaseId: string | null },
+) {
+  if (type === "inbound" && !config.channels.mailboxId) return "Elige con qué buzón responde";
+  if (type === "outbound" && !config.prospectBaseId) return "Elige con qué tabla trabaja";
+  if (type === "outbound" && !config.channels.mailboxId) return "Elige desde qué buzón escribe";
   return null;
 }
 
+/** Whom the outbound agent writes to in each run, in one line. */
+function outreachSummary(settings: { handoff?: { minFit?: number; perRun?: number } }) {
+  const minFit = settings.handoff?.minFit ?? 70;
+  const fit = minFit > 0 ? ` con encaje ${minFit} o más` : "";
+  return `En cada ejecución escribe el primer email a hasta ${settings.handoff?.perRun ?? 5} filas de su tabla${fit}.`;
+}
+
 /** What the prospecting agent does in each run, in one line. */
-function outboundSummary(settings: { prospectsPerRun?: number; mode?: string; cellsPerRun?: number }) {
+function prospectingSummary(settings: { prospectsPerRun?: number; mode?: string; cellsPerRun?: number }) {
   const find = `busca ${settings.prospectsPerRun ?? 10} prospectos nuevos`;
   const complete = `completa hasta ${settings.cellsPerRun ?? 20} datos que faltan`;
   const mode = settings.mode ?? "find";
@@ -140,7 +155,7 @@ export function AgentCards({
         const type = agent.config.agentType as ProjectAgentType;
         const info = AGENT_INFO[type];
         const href = `/app/projects/${projectId}/agents/${agent.config.id}`;
-        const warning = missingSetup(type, agent.config.channels);
+        const warning = missingSetup(type, agent.config);
         const schedule = agent.config.schedule;
         return (
           <EntityCard
@@ -155,13 +170,15 @@ export function AgentCards({
               />
             }
             title={agentName(type, agent.config.name)}
-            meta={type === "outbound" ? describeSchedule(schedule) : null}
+            meta={type === "prospecting" || type === "outbound" ? describeSchedule(schedule) : null}
             description={
-              type === "outbound"
-                ? outboundSummary(agent.config.settings)
-                : type === "inbound"
-                  ? inboundSummary(agent.config.channels)
-                  : info.description
+              type === "prospecting"
+                ? prospectingSummary(agent.config.settings)
+                : type === "outbound"
+                  ? outreachSummary(agent.config.settings)
+                  : type === "inbound"
+                    ? inboundSummary(agent.config.channels)
+                    : info.description
             }
             badge={
               // Above the card's link, so it switches instead of opening the agent.

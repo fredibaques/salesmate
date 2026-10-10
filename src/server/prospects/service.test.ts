@@ -6,10 +6,11 @@ import { prospectBases, projects } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
 import { addAgent } from "../services/agents";
 import { columnsPrompt, saveRowsSchema } from "./agent-schema";
-import { ensureAgentBase, listBases, setAgentBase } from "./bases";
+import { createBase, ensureAgentBase, listBases, setAgentBase } from "./bases";
 import {
   dedupeKey,
   exportProspectsCsv,
+  addProspectRow,
   getProspect,
   knownProspects,
   listProspects,
@@ -179,15 +180,33 @@ describe("saveProspects", () => {
     expect(count).toBe(2);
     expect(
       csv.startsWith(
-        "﻿Empresa,Web,Ciudad,Tipo de concesionario,Vehículos en stock,¿Gestoría propia?,Email,Notas del equipo,Encaje",
+        "﻿ID,Empresa,Web,Ciudad,Tipo de concesionario,Vehículos en stock,¿Gestoría propia?,Email,Notas del equipo,Encaje",
       ),
     ).toBe(true);
-    expect(csv).toContain(
-      "Autos García,https://autosgarcia.es,Málaga,Multimarca,140,No,ventas@autosgarcia.es,,80",
+    expect(csv).toMatch(
+      /\n\d+,Autos García,https:\/\/autosgarcia\.es,Málaga,Multimarca,140,No,ventas@autosgarcia\.es,,80/,
     );
+    expect(csv.split("\r\n")[0]).toMatch(/,Fecha de registro$/);
     expect(csv).not.toContain("Motor Sur");
     const after = await listProspects(db, tenant, baseId);
     expect(after.byStatus).toEqual({ exported: 2, discarded: 1 });
+  });
+
+  it("numbers the rows of each table 1, 2, 3… in the order they arrive", async () => {
+    const { rows } = await listProspects(db, tenant, baseId, { sort: "id", dir: "asc" });
+    expect(rows.map((r) => r.seq)).toEqual(rows.map((_, i) => i + 1));
+    const table = await createBase(db, tenant, projectId, {
+      name: "Otra numeración",
+      rowKind: "company",
+      columns: [],
+    });
+    const first = await addProspectRow(db, tenant, table.id, { companyName: "Primera", fields: {} });
+    const second = await addProspectRow(db, tenant, table.id, { companyName: "Segunda", fields: {} });
+    const numbered = await listProspects(db, tenant, table.id, { sort: "id", dir: "asc" });
+    expect(numbered.rows.map((r) => [r.id, r.seq])).toEqual([
+      [first.id, 1],
+      [second.id, 2],
+    ]);
   });
 
   it("keeps bases out of other organizations' reach", async () => {
@@ -286,9 +305,9 @@ describe("the agent's view of a base", () => {
     const [project] = await withTenant(db, tenant, (tx) =>
       tx.insert(projects).values({ orgId: tenant.orgId, name: "Nuevo" }).returning(),
     );
-    const config = await addAgent(db, tenant, project.id, "outbound", "b2b_consultative");
+    const config = await addAgent(db, tenant, project.id, "prospecting", "b2b_consultative");
     const bases = await listBases(db, tenant, project.id);
-    expect(bases).toMatchObject([{ name: "Prospectos", rowKind: "company", agents: ["outbound"] }]);
+    expect(bases).toMatchObject([{ name: "Prospectos", rowKind: "company", agents: ["prospecting"] }]);
     expect(bases[0].columns.map((c) => c.id)).toEqual(DEFAULT_COMPANY_COLUMNS.map((c) => c.id));
     expect((await ensureAgentBase(db, tenant, config.id)).id).toBe(bases[0].id);
 

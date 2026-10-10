@@ -125,7 +125,7 @@ describe("completeProspects", () => {
 
 describe("a run that completes the base", () => {
   it("fills the pending cells by reference and doesn't look for new rows", async () => {
-    const agent = await addAgent(db, tenant, projectId, "outbound", "b2b_consultative");
+    const agent = await addAgent(db, tenant, projectId, "prospecting", "b2b_consultative");
     agentId = agent.id;
     await setAgentBase(db, tenant, projectId, agent.id, baseId);
     await saveAgentInstructions(db, tenant, projectId, agentId, {

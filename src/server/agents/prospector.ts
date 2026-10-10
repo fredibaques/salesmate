@@ -28,7 +28,6 @@ import { completeProspects, rowsToComplete } from "../prospects/complete";
 import { fitCriteria, fitPrompt } from "../prospects/fit";
 import { knownProspects, prospectInput, recentProspectNames, saveProspects } from "../prospects/service";
 import { goalProgress, monthSpendUsd, notifyTeam, pauseAgent, type RunNotice } from "./automation";
-import { prepareFirstContacts, type FirstContactResult } from "./first-contact";
 import { dataTools, knowledgeTools, mcpTools, webTools, type AgentToolContext } from "./tools";
 
 export type AgentRunDeps = {
@@ -127,8 +126,6 @@ export type ProspectingResult = {
   completed: number;
   summary: string;
   costUsd: number;
-  /** First emails proposed for rows that fit (the next step), when the agent does it. */
-  firstContacts?: FirstContactResult;
 };
 
 /** Something that made the agent work, with what it brought. */
@@ -168,7 +165,7 @@ export async function runProspecting(
       .where(
         and(
           eq(agentConfigs.id, input.agentId),
-          eq(agentConfigs.agentType, "outbound"),
+          eq(agentConfigs.agentType, "prospecting"),
           isNotNull(agentConfigs.addedAt),
         ),
       );
@@ -180,7 +177,7 @@ export async function runProspecting(
       .values({
         orgId: tenant.orgId,
         projectId: project.id,
-        agentType: "outbound",
+        agentType: "prospecting",
         agentConfigId: agent.id,
         trigger: input.trigger,
         triggerRef: input.triggerRef,
@@ -195,7 +192,7 @@ export async function runProspecting(
         projectId: project.id,
         entityType: "agent_run",
         entityId: run.id,
-        data: { agentType: "outbound", trigger: input.trigger },
+        data: { agentType: "prospecting", trigger: input.trigger },
       },
     );
     return { project, agent, run };
@@ -304,6 +301,14 @@ export async function runProspecting(
     if (work.rows.length === 0) mode = "find";
     const finds = mode !== "complete";
     const completes = work.rows.length > 0;
+    if (completes) {
+      await withTenant(deps.db, tenant, (tx) =>
+        tx
+          .update(agentRuns)
+          .set({ target: { baseId: base.id, rowIds: work.rows.map((r) => r.id) } })
+          .where(eq(agentRuns.id, run.id)),
+      );
+    }
     // Short references for the rows to complete: models copy them better than ids.
     const refs = new Map(work.rows.map((r, i) => [`F${i + 1}`, r.id]));
     const known = finds ? await recentProspectNames(deps.db, tenant, base.id) : [];
@@ -314,7 +319,7 @@ export async function runProspecting(
       db: deps.db,
       orgId: tenant.orgId,
       projectId: project.id,
-      agentType: "outbound",
+      agentType: "prospecting",
       agentConfigId: agent.id,
       runId: run.id,
       gateway: deps.gateway,
@@ -542,36 +547,15 @@ ${[
     ]
       .filter(Boolean)
       .join(" y ");
-    let summary = outOfTime
+    const summary = outOfTime
       ? `Se acabó el tiempo de esta ejecución con ${tally}; la próxima seguirá.`
       : outOfBudget
         ? `Se alcanzó el límite de gasto de esta ejecución con ${tally}.`
         : result.finalText || `Guardado: ${tally}.`;
     const ok = result.status === "completed" || outOfTime || outOfBudget;
 
-    // Next step: first emails for rows that fit, proposed for approval.
-    let firstContacts: FirstContactResult | undefined;
-    let costUsd = result.costUsd;
-    if (ok && settings.handoff?.enabled) {
-      try {
-        firstContacts = await prepareFirstContacts({ db: deps.db, llm, gateway: deps.gateway }, tenant, {
-          projectId: project.id,
-          agentId: agent.id,
-          projectName: project.name,
-          profile: renderSalesProfile(parseSalesProfile(project.salesProfile)),
-          runId: run.id,
-          base,
-          mailboxId: agent.channels.mailboxId,
-          handoff: settings.handoff,
-        });
-        costUsd += firstContacts.costUsd;
-        if (firstContacts.proposed)
-          summary += `\n\nPrimer contacto: ${firstContacts.proposed} emails preparados, esperando aprobación en «Por aprobar».`;
-        if (firstContacts.skipped) summary += `\n\nPrimer contacto: ${firstContacts.skipped}`;
-      } catch (err) {
-        console.error("first contacts failed", err);
-      }
-    }
+    // Writing to the rows that fit is the outbound agent's job (agents/outreach.ts).
+    const costUsd = result.costUsd;
     await finish({
       status: result.status === "refused" ? "refused" : ok ? "completed" : "failed",
       model: result.model,
@@ -594,7 +578,7 @@ ${[
             ? { problem: true, headline: "No ha encontrado nada nuevo", details: summary }
             : { problem: false, headline: `Ha terminado: ${tally}`, details: summary },
     );
-    return { runId: run.id, status: result.status, added, completed, summary, costUsd, firstContacts };
+    return { runId: run.id, status: result.status, added, completed, summary, costUsd };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await finish({ status: "failed", error: message });

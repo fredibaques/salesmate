@@ -500,6 +500,7 @@ export async function recentProspectNames(
 
 /** System columns that can sort the table, besides the base's own columns. */
 const SYSTEM_SORTS: Record<string, AnyColumn> = {
+  id: prospects.seq,
   name: prospects.companyName,
   person: prospects.personName,
   web: prospects.website,
@@ -638,7 +639,7 @@ export async function tableForExport(
           include === "pending" ? inArray(prospects.status, ["new", "accepted"]) : sql`true`,
         ),
       )
-      .orderBy(asc(prospects.createdAt)),
+      .orderBy(asc(prospects.seq), asc(prospects.createdAt)),
   );
   const text = (v: unknown) =>
     v === null || v === undefined
@@ -652,6 +653,7 @@ export async function tableForExport(
     name: base.name,
     projectId: base.projectId,
     header: [
+      "ID",
       ...(base.rowKind === "person" ? ["Nombre"] : []),
       "Empresa",
       "Web",
@@ -660,10 +662,11 @@ export async function tableForExport(
       "Por qué encaja",
       "Fuentes",
       "Estado",
-      "Encontrado",
+      "Fecha de registro",
     ],
     rows: rows.map((r) =>
       [
+        r.seq,
         ...(base.rowKind === "person" ? [r.personName] : []),
         r.companyName,
         r.website,

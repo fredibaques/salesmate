@@ -102,11 +102,13 @@ export async function prepareFirstContacts(
   tenant: { orgId: string },
   input: {
     projectId: string;
-    /** The prospecting agent that proposes them. */
+    /** The outbound agent that proposes them. */
     agentId?: string;
     projectName: string;
     /** Offer and ideal customer, as the agents read them. */
     profile: string;
+    /** The project's sales process, as the agents read it (what the first email leads to). */
+    process?: string;
     runId: string;
     base: { id: string; columns: BaseColumn[] };
     mailboxId: string | null | undefined;
@@ -128,7 +130,10 @@ export async function prepareFirstContacts(
           eq(prospects.baseId, input.base.id),
           inArray(prospects.status, ["new", "accepted"]),
           isNull(prospects.contactActionId),
-          gte(prospects.fitScore, input.handoff.minFit ?? DEFAULT_HANDOFF_MIN_FIT),
+          // With no minimum, rows nobody scored count too (a table filled by hand).
+          (input.handoff.minFit ?? DEFAULT_HANDOFF_MIN_FIT) > 0
+            ? gte(prospects.fitScore, input.handoff.minFit ?? DEFAULT_HANDOFF_MIN_FIT)
+            : undefined,
           sql`(${sql.join(
             emailColumns.map((c) => sql`${prospects.data} ? ${c.id}`),
             sql` or `,
@@ -151,6 +156,7 @@ export async function prepareFirstContacts(
     const prompt = [
       `Escribe el primer email comercial del proyecto «${input.projectName}» a este prospecto. Es un primer contacto: breve (90-140 palabras), concreto, sin promesas que no estén en la oferta, con una sola pregunta o propuesta de siguiente paso al final. En español, de usted salvo que el sector use el tuteo. Sin enlaces inventados ni datos que no estén aquí.`,
       `## Oferta y cliente ideal\n${input.profile}`,
+      input.process ? `## Proceso de venta\n${input.process}` : "",
       input.handoff.instructions ? `## Indicaciones del equipo\n${input.handoff.instructions}` : "",
       `## El prospecto\n${[
         `- Empresa: ${row.companyName}`,
