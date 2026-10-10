@@ -35,7 +35,7 @@ src/
     db/                     Esquema Drizzle, cliente, migraciones, withTenant()
     auth/                   Better Auth y helpers de sesión/tenant
     gateway/                Action Gateway: definiciones, políticas, flujo
-    connectors/             Capacidades, Twenty, Google, Apollo/Lusha/Hunter, Airtable/Trello/monday, MCP, ejecutor, servicio
+    connectors/             Capacidades, Twenty, Google, Apollo/Lusha/Hunter/Serper, Airtable/Trello/monday, MCP, ejecutor, servicio
     calendar/               Cálculo de huecos y disponibilidad global
     knowledge/              Ingesta de tablas y documentos, consulta y búsqueda
     services/               Casos de uso de la UI (proyectos, reglas, listados)
@@ -129,6 +129,12 @@ aplica a cualquier `ConnectorError`.
   encuentra el email por nombre y dominio (`/email-finder`), datos de empresa
   (`/companies/find`) y `data.verify_email` (`/email-verifier`), que los
   agentes reciben como herramienta `hunter_verify_email`.
+- **Serper** (`createSerperClient`, `POST google.serper.dev/search`,
+  `X-API-KEY`): resultados de Google (`data.web_search`, título, URL,
+  extracto y la web oficial del panel de Google). Comprobar la clave gasta
+  una búsqueda (no tiene un endpoint gratuito). Lo usa el motor de
+  completado para encontrar la web de las filas sin ella, y los agentes
+  como `serper_search` (el prompt les pide usarlo antes que `web_search`).
 - **Airtable, Trello y monday.com** (`connectors/workspace.ts`, permiso
   `workspace`): token (Trello: key y token), comprobado al conectar.
   `export.targets` lista bases, listas («Tablero › Lista») o tableros.
@@ -493,14 +499,50 @@ completar vacíos o las dos cosas, con un tope de celdas por ejecución
 (`cellsPerRun`). Para completar recibe en el prompt las filas pendientes (las
 de mejor encaje primero, con referencias cortas F1, F2…) y guarda con
 `update_prospects`. «Completar vacíos» en la base y «Completar esta fila» en el
-panel lanzan una ejecución solo de completar; la de una fila vuelve a buscar
-también lo que no se encontró. El botón de la tabla completa la tabla entera
-(`allPending`): hasta 100 celdas por ejecución; mientras queden celdas y le
-quede tiempo, `onEnd` de `runAgentLoop` le pide seguir en vez de terminar
-(hasta 4 veces), y al acabar, si quedan celdas y ha avanzado, deja un evento
-`continue` para que el planificador lance la siguiente tanda. Los errores de
-las herramientas del servidor (web_fetch que no carga…) quedan en los pasos
-del registro.
+panel lanzan una ejecución solo de completar; la de una fila («Completar esta
+fila») la hace el agente a fondo y vuelve a buscar también lo que no se
+encontró. El resto (el botón de la tabla, las filas nuevas, las ejecuciones
+programadas) pasa primero por el motor de completado.
+
+**Motor de completado** (`prospects/engine/`). Rellena las celdas fila a fila
+sin agente, por un camino fijo:
+1. La web de la empresa: la de la fila o, si no tiene, la que encuentra
+   Serper (si la organización lo ha conectado; `pickWebsite` descarta
+   directorios y redes y exige que el dominio contenga una palabra del
+   nombre). La que encuentra se guarda en la fila si seguía sin web.
+2. Sus páginas (`reader.ts`): la de inicio y hasta 3 de contacto, aviso
+   legal o quiénes somos (`usefulSubpages`). Petición HTTP normal, solo a
+   direcciones públicas (DNS comprobado, sin redes privadas ni otros puertos,
+   cada redirección revisada), 8 s y 1,5 MB por página, respetando
+   `robots.txt` (`SalesMateBot` o `*`). Si una web no muestra texto sin
+   JavaScript y hay `JINA_API_KEY`, la renderiza Jina Reader.
+3. Patrones sin IA (`facts.ts`): emails, teléfonos españoles o
+   internacionales, CIF y perfiles sociales; van al modelo como pistas.
+4. Una sola llamada al modelo pequeño del proveedor (`smallModel`: Haiku,
+   GPT-6 Luna o Kimi K2.6) con ~18.000 caracteres de las páginas y solo las
+   columnas vacías, con salida JSON (`cells` con columna, valor y página;
+   `notFound`). Se guarda con `completeProspects` (misma validación y
+   bloqueos que el agente); una fuente que no es una página leída pasa a ser
+   la de inicio, y lo que no da o no encaja con su columna queda como «no
+   encontrado»: cada fila que lee queda respondida.
+
+Trabaja 6 filas a la vez y no empieza ninguna a menos de 25 s del final ni
+pasado el límite de gasto de la ejecución. Las filas que no puede leer (sin
+web, web caída) pasan al agente en la misma ejecución, hasta 8 si le quedan
+45 s y tiene web o herramientas de datos (lo que no encuentre queda como no
+encontrado, `closeRows`); sin ellas se marcan como no encontradas. En una
+ejecución que también busca filas nuevas, el motor deja 90 s al agente.
+Cada fila acumula su coste en `prospects.cost_usd` (modelo pequeño, cada
+búsqueda de Serper a 0,001 $ y, si la tomó el agente, su parte del coste):
+se ve en la ficha de la fila y, en total y por fila, al pie de la tabla. La
+ejecución guarda los pasos del motor (`buscar_web`, `leer_web`,
+`completar_fila`) en su registro. «Completar vacíos» completa la tabla
+entera (`allPending`): toma hasta 3.000 celdas, la ejecución acaba cuando se
+le acaba el tiempo y, si quedan celdas y ha avanzado, deja un evento
+`continue` para que el planificador lance la siguiente tanda. Cuando la
+ejecución es del agente, mientras queden celdas y tiempo `onEnd` de
+`runAgentLoop` le pide seguir (hasta 4 veces); los errores de las
+herramientas del servidor quedan en los pasos del registro.
 
 **Prospección** (`agents/prospector.ts`). El agente outbound busca lo que
 encaja con el cliente ideal y lo guarda con `save_prospects` en su base. El

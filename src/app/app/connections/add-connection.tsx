@@ -255,7 +255,7 @@ function ToolSetup({ integration, setup }: { integration: Integration; setup: Se
           </ActionForm>
         ) : null}
 
-        {provider === "apollo" || provider === "lusha" || provider === "hunter" ? (
+        {provider === "apollo" || provider === "lusha" || provider === "hunter" || provider === "serper" ? (
           <ActionForm
             action={addDataSource.bind(null, provider)}
             submitLabel={`Conectar ${integration.name}`}
@@ -268,11 +268,13 @@ function ToolSetup({ integration, setup }: { integration: Integration; setup: Se
               label="API key"
               hint="Comprobaremos que funciona antes de guardarla. Se guarda cifrada."
               tip={
-                provider === "hunter"
-                  ? "La encuentras en Hunter → API (hunter.io/api-keys)."
-                  : provider === "apollo"
-                    ? "Créala en Apollo → Settings → Integrations → API → API Keys. Si quieres que busque personas, dale acceso a todas las funciones o créala como master key."
-                    : "La encuentras en Lusha → API (dashboard.lusha.com). El acceso a la API depende de tu plan de Lusha."
+                provider === "serper"
+                  ? "Crea una cuenta en serper.dev (2.500 búsquedas gratis) y copia la API key de su panel. Comprobarla gasta una búsqueda."
+                  : provider === "hunter"
+                    ? "La encuentras en Hunter → API (hunter.io/api-keys)."
+                    : provider === "apollo"
+                      ? "Créala en Apollo → Settings → Integrations → API → API Keys. Si quieres que busque personas, dale acceso a todas las funciones o créala como master key."
+                      : "La encuentras en Lusha → API (dashboard.lusha.com). El acceso a la API depende de tu plan de Lusha."
               }
             >
               <Input name="apiKey" type="password" required autoComplete="off" />

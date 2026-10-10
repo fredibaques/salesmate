@@ -36,7 +36,7 @@ import { PROSPECT_STATUSES } from "@/server/db/schema";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { baseAgents, getBase } from "@/server/prospects/bases";
-import { countPendingCells } from "@/server/prospects/complete";
+import { completionCost, countPendingCells } from "@/server/prospects/complete";
 import { getProspect, listProspects, type ProspectStatus } from "@/server/prospects/service";
 import { listAgentRuns } from "@/server/services/agents";
 import { listProjects } from "@/server/services/projects";
@@ -171,7 +171,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
   // The prospecting agent that fills it (the first active one, if several do).
   const prospecting = agents.filter((a) => a.agentType === "prospecting");
   const filler = prospecting.find((a) => a.enabled) ?? prospecting[0] ?? null;
-  const [data, projects, runs, openRow, pendingCells, filling] = await Promise.all([
+  const [data, projects, runs, openRow, pendingCells, filling, cost] = await Promise.all([
     listProspects(db, tenant, baseId, {
       status,
       q,
@@ -185,6 +185,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
     rowParam && rowParam !== "new" ? getProspect(db, tenant, baseId, rowParam).catch(() => null) : null,
     countPendingCells(db, tenant, baseId),
     fillingRows(db, tenant, baseId),
+    completionCost(db, tenant, baseId),
   ]);
   const filledByAgent = Boolean(filler);
   const running = filledByAgent && runs[0]?.status === "running" && isRecent(runs[0].startedAt);
@@ -774,6 +775,9 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                   : ""}
               {filledByAgent && pendingCells > 0
                 ? ` · ${plural(pendingCells, "celda", "celdas")} por completar en toda la tabla`
+                : ""}
+              {cost.rows > 0
+                ? ` · completar ${plural(cost.rows, "fila", "filas")} ha costado ${cost.usd.toFixed(2)} $ (${(cost.usd / cost.rows).toFixed(4)} $ por fila)`
                 : ""}
             </span>
             {filledByAgent ? (

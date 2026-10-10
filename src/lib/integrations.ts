@@ -175,6 +175,20 @@ export const INTEGRATIONS: Integration[] = [
     ],
   },
   {
+    id: "serper",
+    name: "Serper",
+    tagline: "Búsquedas de Google, muy baratas",
+    category: "data",
+    status: "available",
+    color: "#1A73E8",
+    abilities: [
+      "Encontrar la web de cada empresa de una tabla para completar sus datos",
+      "Que los agentes busquen en Google por una fracción de lo que cuesta la búsqueda de la IA",
+      "Unos 0,30–1 $ por cada 1.000 búsquedas (2.500 gratis al crear la cuenta)",
+      "Solo lee: no escribe nada",
+    ],
+  },
+  {
     id: "lusha",
     name: "Lusha",
     tagline: "Datos de contacto B2B",
@@ -332,6 +346,7 @@ export const CAPABILITY_LABELS: Record<string, string> = {
   "data.enrich_person": "Datos de contacto de una persona",
   "data.enrich_company": "Datos de una empresa",
   "data.verify_email": "Verificar emails",
+  "data.web_search": "Buscar en Google",
   "docs.read": "Leer documentos",
   "sheets.read": "Leer hojas de cálculo",
   "table.export": "Exportar tablas",

@@ -183,6 +183,13 @@
       "when": 1791640934237,
       "tag": "0025_agent_kinds_row_ids",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791645833849,
+      "tag": "0026_completion_engine",
+      "breakpoints": true
     }
   ]
 }

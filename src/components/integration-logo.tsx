@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import {
   siAirtable,
   siGmail,
-  siGoogle,
   siGooglecalendar,
   siGoogledocs,
   siGooglemeet,
@@ -18,10 +17,17 @@ import {
 import { cx } from "./ui";
 
 /**
- * The logo of each tool, on a white tile. Official marks from simple-icons
- * where it has them; Microsoft and Slack drawn from their simple geometry;
- * the rest keep their initial in their colour until we have their mark.
+ * The logo of each tool, on a white tile: the brand's own image (in
+ * public/logos) when we have it, otherwise its mark from simple-icons or
+ * drawn from its simple geometry; the rest keep their initial in their
+ * colour until we have their mark.
  */
+
+function Picture({ src }: { src: string }) {
+  // A 128 px PNG shown at tile size: next/image would add nothing here.
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt="" className="size-full object-contain" />;
+}
 
 function Brand({ icon, color }: { icon: SimpleIcon; color?: string }) {
   return (
@@ -40,19 +46,6 @@ const MicrosoftMark = (
   </svg>
 );
 
-const SlackMark = (
-  <svg viewBox="0 0 24 24" aria-hidden className="size-full">
-    <rect x="9" y="1" width="4" height="10" rx="2" fill="#36C5F0" />
-    <rect x="1" y="9" width="4" height="4" rx="2" fill="#36C5F0" />
-    <rect x="13" y="9" width="10" height="4" rx="2" fill="#2EB67D" />
-    <rect x="19" y="1" width="4" height="4" rx="2" fill="#2EB67D" />
-    <rect x="11" y="13" width="4" height="10" rx="2" fill="#ECB22E" />
-    <rect x="19" y="11" width="4" height="4" rx="2" fill="#ECB22E" />
-    <rect x="1" y="11" width="10" height="4" rx="2" fill="#E01E5A" />
-    <rect x="1" y="19" width="4" height="4" rx="2" fill="#E01E5A" />
-  </svg>
-);
-
 const MondayMark = (
   <svg viewBox="0 0 24 24" aria-hidden className="size-full">
     <rect x="1.5" y="6" width="4.6" height="13" rx="2.3" transform="rotate(30 3.8 12.5)" fill="#FF3D57" />
@@ -62,7 +55,10 @@ const MondayMark = (
 );
 
 const MARKS: Record<string, ReactNode> = {
-  google: <Brand icon={siGoogle} />,
+  google: <Picture src="/logos/google.png" />,
+  apollo: <Picture src="/logos/apollo.png" />,
+  hunter: <Picture src="/logos/hunter.png" />,
+  slack: <Picture src="/logos/slack.png" />,
   gmail: <Brand icon={siGmail} />,
   google_calendar: <Brand icon={siGooglecalendar} />,
   hubspot: <Brand icon={siHubspot} />,
@@ -76,7 +72,6 @@ const MARKS: Record<string, ReactNode> = {
   trello: <Brand icon={siTrello} />,
   monday: MondayMark,
   microsoft: MicrosoftMark,
-  slack: SlackMark,
   phone: <Phone className="size-full text-ink-600" strokeWidth={1.75} />,
   database: <Database className="size-full text-ink-600" strokeWidth={1.75} />,
 };

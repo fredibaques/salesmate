@@ -161,6 +161,11 @@ export function RowPanel({
             <span>
               {row.runId ? "Encontrada por el agente" : "Añadida"} el {formatDateTime(row.createdAt)}
             </span>
+            {row.costUsd > 0 ? (
+              <span title="Lo que ha costado completarla: el modelo de IA y las búsquedas">
+                Completarla: {row.costUsd.toFixed(4)} $
+              </span>
+            ) : null}
             {conversationKey ? (
               <Link
                 href={`/app/conversations?box=all&c=${encodeURIComponent(conversationKey)}`}

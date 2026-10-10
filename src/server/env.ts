@@ -10,6 +10,8 @@ const schema = z.object({
   ENCRYPTION_KEY: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
+  /** Jina Reader key (optional): renders pages that need JavaScript when completing tables. */
+  JINA_API_KEY: z.string().optional(),
   /** Shared secret for scheduler calls (Authorization: Bearer …). */
   CRON_SECRET: z.string().optional(),
 });
