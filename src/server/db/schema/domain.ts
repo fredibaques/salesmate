@@ -478,7 +478,8 @@ export const userPreferences = pgTable(
   (t) => [primaryKey({ columns: [t.orgId, t.userId] }), tenantPolicy("user_preferences")],
 );
 
-export const AGENT_EVENT_KINDS = ["new_rows", "webhook"] as const;
+/** continue = «Completar vacíos» left cells for another batch: the agent goes on by itself. */
+export const AGENT_EVENT_KINDS = ["new_rows", "webhook", "continue"] as const;
 export type AgentEventKind = (typeof AGENT_EVENT_KINDS)[number];
 
 /**

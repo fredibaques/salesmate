@@ -28,9 +28,11 @@ const EVENTS_PER_RUN = 20;
 /** A run still "running" after this long is not blocking anything. */
 const BUSY_MS = 10 * 60_000;
 
-const TRIGGER_FOR: Record<AgentEventKind, "newRows" | "webhook"> = {
+const TRIGGER_FOR: Record<AgentEventKind, "newRows" | "webhook" | null> = {
   new_rows: "newRows",
   webhook: "webhook",
+  // Asked by a person («Completar vacíos»): no trigger to turn on.
+  continue: null,
 };
 
 /**
@@ -44,7 +46,8 @@ export async function recordAgentEvent(
 ): Promise<boolean> {
   return withTenant(db, tenant, async (tx) => {
     const [agent] = await tx.select().from(agentConfigs).where(eq(agentConfigs.id, input.agentConfigId));
-    if (!agent?.addedAt || !agent.settings.triggers?.[TRIGGER_FOR[input.kind]]) return false;
+    const trigger = TRIGGER_FOR[input.kind];
+    if (!agent?.addedAt || (trigger && !agent.settings.triggers?.[trigger])) return false;
     const [pending] = await tx
       .select({ n: sql<number>`count(*)` })
       .from(agentEvents)

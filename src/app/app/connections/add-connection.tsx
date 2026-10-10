@@ -16,30 +16,6 @@ import {
 } from "@/lib/integrations";
 import { addDataSource, addMcp, addSlack, addTwenty, addWhatsapp, addWorkspace } from "./actions";
 
-const GOOGLE_PERMISSIONS = [
-  {
-    value: "",
-    title: "Solo disponibilidad",
-    description: "Ver cuándo estás ocupado. No crea reuniones ni toca el correo.",
-  },
-  {
-    value: "calendar_write",
-    title: "Agenda reuniones",
-    description: "Lo anterior y crear reuniones con invitación.",
-  },
-  {
-    value: "calendar_write,gmail_write",
-    title: "Agenda y escribe emails",
-    description: "Lo anterior y preparar borradores y enviar emails desde este buzón.",
-  },
-  {
-    value: "calendar_write,gmail_write,gmail_read",
-    title: "Completo (recomendado para el agente inbound)",
-    description: "Lo anterior y leer los emails que llegan para responder leads.",
-    recommended: true,
-  },
-] as const;
-
 type Setup = {
   googleReady: boolean;
   appUrl: string;
@@ -47,21 +23,106 @@ type Setup = {
   connected?: string[];
 };
 
-/** Google tools that are a permission of the Google Workspace connection. */
-const GOOGLE_EXTRAS: Record<string, { sets: string; note: string }> = {
+type GoogleSetup = {
+  /** Permission levels to pick from (comma-separated scope sets); none → only `sets`. */
+  levels?: { value: string; title: string; description: string; recommended?: boolean }[];
+  sets?: string;
+  note?: string;
+};
+
+/** Each Google tool is connected by itself, asking Google only for what it needs. */
+const GOOGLE_SETUP: Record<string, GoogleSetup> = {
+  gmail: {
+    levels: [
+      {
+        value: "gmail_write",
+        title: "Escribir emails",
+        description: "Preparar borradores y enviar emails desde este buzón.",
+      },
+      {
+        value: "gmail_write,gmail_read",
+        title: "Escribir y leer (recomendado para el agente inbound)",
+        description: "Lo anterior y leer los emails que llegan para responder leads.",
+        recommended: true,
+      },
+    ],
+  },
+  google_calendar: {
+    levels: [
+      {
+        value: "calendar_read",
+        title: "Solo disponibilidad",
+        description: "Ver cuándo estás ocupado. No crea reuniones.",
+      },
+      {
+        value: "calendar_read,calendar_write",
+        title: "Agenda reuniones",
+        description: "Lo anterior y crear reuniones con invitación.",
+        recommended: true,
+      },
+    ],
+  },
   google_meet: {
-    sets: "calendar_read,calendar_write,meet_read",
-    note: "Google Meet va con tu cuenta de Google: te pediremos permiso para crear reuniones en tu calendario y leer las transcripciones de tus llamadas. Las que agende el agente sin un lugar llevarán su enlace de Meet.",
+    sets: "meet_read",
+    note: "Te pediremos permiso para leer las transcripciones de tus llamadas. Para que las reuniones que agende el agente lleven enlace de Meet, conecta también Google Calendar con «Agenda reuniones».",
   },
   google_docs: {
-    sets: "calendar_read,docs_read",
+    sets: "docs_read",
     note: "Te pediremos permiso para leer tus documentos de Google Docs. Solo se leen los que importes al conocimiento de un proyecto.",
   },
   google_sheets: {
-    sets: "calendar_read,sheets",
+    sets: "sheets",
     note: "Te pediremos permiso para leer y crear hojas de cálculo: para importar una hoja al conocimiento y para exportar tablas a una hoja nueva.",
   },
 };
+
+/** The Google part of «Añadir conexión»: what to grant, then off to Google. */
+function GoogleToolForm({ tool, setup }: { tool: string; setup: Setup }) {
+  const google = GOOGLE_SETUP[tool];
+  if (!setup.googleReady)
+    return (
+      <Notice tone="warning">
+        Para conectar cuentas de Google hay que añadir <code>GOOGLE_CLIENT_ID</code> y{" "}
+        <code>GOOGLE_CLIENT_SECRET</code> en el servidor, con esta dirección de vuelta autorizada:{" "}
+        <code className="break-all">{`${setup.appUrl}/api/connections/google/callback`}</code>
+      </Notice>
+    );
+  return (
+    <form action="/api/connections/google/start" method="get" className="space-y-4">
+      <input type="hidden" name="tool" value={tool} />
+      {google.levels ? (
+        <Field
+          label="Permisos"
+          group
+          tip="Te llevaremos a Google para que elijas la cuenta y aceptes. Conecta una vez cada cuenta que uses."
+        >
+          <div className="space-y-2">
+            {google.levels.map((p) => (
+              <Choice
+                key={p.value}
+                card
+                type="radio"
+                name="sets"
+                value={p.value}
+                defaultChecked={Boolean(p.recommended)}
+                label={p.title}
+                description={p.description}
+              />
+            ))}
+          </div>
+        </Field>
+      ) : (
+        <>
+          <input type="hidden" name="sets" value={google.sets} />
+          <Notice>{google.note}</Notice>
+        </>
+      )}
+      <div className="flex justify-end">
+        <Button>Continuar con Google</Button>
+      </div>
+    </form>
+  );
+}
 
 /** The tools that can be connected, by category, as tiles. */
 function ToolGrid({ onPick, connected }: { onPick: (id: string) => void; connected: string[] }) {
@@ -74,7 +135,7 @@ function ToolGrid({ onPick, connected }: { onPick: (id: string) => void; connect
             {INTEGRATION_CATEGORIES[category]}
           </h3>
           <div className="grid gap-2 sm:grid-cols-2">
-            {INTEGRATIONS.filter((i) => i.category === category).map((i) => {
+            {INTEGRATIONS.filter((i) => i.category === category && !i.hidden).map((i) => {
               const available = i.status === "available";
               return (
                 <button
@@ -135,21 +196,7 @@ function ToolSetup({ integration, setup }: { integration: Integration; setup: Se
       ) : null}
 
       <div className="border-t border-border pt-5">
-        {GOOGLE_EXTRAS[provider] ? (
-          setup.googleReady ? (
-            <form action="/api/connections/google/start" method="get" className="space-y-4">
-              <input type="hidden" name="sets" value={GOOGLE_EXTRAS[provider].sets} />
-              <Notice>{GOOGLE_EXTRAS[provider].note}</Notice>
-              <div className="flex justify-end">
-                <Button>Continuar con Google</Button>
-              </div>
-            </form>
-          ) : (
-            <Notice tone="warning">
-              Primero hay que configurar Google en el servidor (GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET).
-            </Notice>
-          )
-        ) : null}
+        {GOOGLE_SETUP[provider] ? <GoogleToolForm tool={provider} setup={setup} /> : null}
 
         {provider === "airtable" || provider === "trello" || provider === "monday" ? (
           <ActionForm
@@ -188,43 +235,6 @@ function ToolSetup({ integration, setup }: { integration: Integration; setup: Se
               <Input name="token" type="password" required autoComplete="off" />
             </Field>
           </ActionForm>
-        ) : null}
-
-        {provider === "google" ? (
-          setup.googleReady ? (
-            <form action="/api/connections/google/start" method="get" className="space-y-3">
-              <input type="hidden" name="sets" value="calendar_read" />
-              <Field
-                label="Permisos"
-                group
-                tip="Te llevaremos a Google para que elijas la cuenta y aceptes. Conecta una vez cada cuenta que uses."
-              >
-                <div className="space-y-2">
-                  {GOOGLE_PERMISSIONS.map((p) => (
-                    <Choice
-                      key={p.value}
-                      card
-                      type="radio"
-                      name="sets"
-                      value={p.value}
-                      defaultChecked={"recommended" in p}
-                      label={p.title}
-                      description={p.description}
-                    />
-                  ))}
-                </div>
-              </Field>
-              <div className="flex justify-end pt-2">
-                <Button>Continuar con Google</Button>
-              </div>
-            </form>
-          ) : (
-            <Notice tone="warning">
-              Para conectar cuentas de Google hay que añadir <code>GOOGLE_CLIENT_ID</code> y{" "}
-              <code>GOOGLE_CLIENT_SECRET</code> en el servidor, con esta dirección de vuelta autorizada:{" "}
-              <code className="break-all">{`${setup.appUrl}/api/connections/google/callback`}</code>
-            </Notice>
-          )
         ) : null}
 
         {provider === "mcp" ? (
@@ -371,7 +381,9 @@ export function AddConnectionButton({
   ...setup
 }: Setup & { label?: string; initial?: string | null }) {
   const router = useRouter();
-  const start = initial && getIntegration(initial)?.status === "available" ? initial : null;
+  // ?add=google (older links) opens Gmail.
+  const asked = initial === "google" ? "gmail" : initial;
+  const start = asked && getIntegration(asked)?.status === "available" ? asked : null;
   const [picked, setPicked] = useState<string | null>(start);
   const integration = picked ? getIntegration(picked) : undefined;
   return (

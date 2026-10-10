@@ -80,6 +80,7 @@ function CellInput({ column, value }: { column: BaseColumn; value: unknown }) {
         </Select>
       );
     case "select":
+    case "stage":
       return (
         <Select name={name} defaultValue={text}>
           <option value="">—</option>

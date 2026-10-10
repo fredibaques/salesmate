@@ -292,7 +292,8 @@ describe("time limits", () => {
         return { blocks: [{ type: "text", text: "He guardado 1 taller." }] };
       },
     ]);
-    const result = await runProspecting({ db, llm, gateway: gateway() }, tenant, {
+    // Under a minute left at the end: it isn't asked to go on with the cells left.
+    const result = await runProspecting({ db, llm, gateway: gateway(), timeBudgetMs: 55_000 }, tenant, {
       agentId,
       trigger: "manual",
     });

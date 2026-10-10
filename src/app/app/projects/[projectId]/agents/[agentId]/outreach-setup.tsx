@@ -162,7 +162,7 @@ export async function OutreachSetup({ projectId, agentId }: { projectId: string;
                 mailboxes.length === 0 ? (
                   <>
                     No hay buzones que puedan enviar.{" "}
-                    <Link href="/app/connections?add=google" className="text-accent hover:underline">
+                    <Link href="/app/connections?add=gmail" className="text-accent hover:underline">
                       Conecta uno
                     </Link>
                     .

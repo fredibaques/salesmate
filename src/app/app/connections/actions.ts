@@ -21,7 +21,8 @@ import { getDb } from "@/server/db/client";
 import { connections } from "@/server/db/schema";
 import { withTenant } from "@/server/db/tenant";
 import { bool, runForm, str } from "@/server/form";
-import { removeConnection } from "@/server/services/connections";
+import { removeConnection, removeGoogleTool } from "@/server/services/connections";
+import { isGoogleTool } from "@/lib/integrations";
 
 export async function addTwenty(_: FormState, form: FormData): Promise<FormState> {
   const label = str(form, "label") ?? "Twenty";
@@ -240,5 +241,13 @@ export async function testConnection(connectionId: string, _: FormState): Promis
 export async function removeConnectionAction(connectionId: string) {
   const tenant = await requireRole(["owner", "admin"]);
   await removeConnection(getDb(), tenant, connectionId);
+  revalidatePath("/app", "layout");
+}
+
+/** «Desconectar» on one Google tool (Gmail, Calendar…): the account's other tools stay. */
+export async function removeGoogleToolAction(connectionId: string, tool: string) {
+  if (!isGoogleTool(tool)) return;
+  const tenant = await requireRole(["owner", "admin"]);
+  await removeGoogleTool(getDb(), tenant, connectionId, tool);
   revalidatePath("/app", "layout");
 }

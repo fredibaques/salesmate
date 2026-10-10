@@ -89,16 +89,24 @@ aplica a cualquier `ConnectorError`.
   usaba (canales, herramientas de datos y MCP, Slack de los avisos); lo que
   cada proyecto puede usar se recalcula. Lo hecho se conserva (acciones,
   conocimiento). El permiso concedido en el proveedor sigue hasta que se
-  retira allí. Una cuenta de Google enseña en su tarjeta las herramientas
-  que incluye (Gmail, Calendar, Meet, Docs, Sheets, por sus permisos:
-  `googleToolsOf`), y la rejilla de «Añadir conexión» marca como conectada
-  cada una (`connectedTools`).
+  retira allí.
+- **Herramientas de Google por separado**: Gmail, Google Calendar, Meet,
+  Docs y Sheets se conectan y desconectan cada una por su lado, aunque por
+  debajo son una sola conexión por cuenta (`provider = google`, un token).
+  El formulario manda `tool` (`/api/connections/google/start`), Google
+  devuelve todos los permisos concedidos hasta entonces
+  (`include_granted_scopes`) y `saveGoogleConnection` solo enciende los de
+  las herramientas ya activas más la nueva (`GOOGLE_TOOLS`: cada una, un
+  permiso de `read_scopes`/`write_scopes`). Integraciones muestra una tarjeta
+  por herramienta (`googleToolsOf`); «Desconectar» en una
+  (`removeGoogleTool`) le quita su permiso y su buzón (Gmail) o calendario
+  (Calendar) a la conexión y a los agentes, y la última borra la conexión.
+  La rejilla de «Añadir conexión» marca cada una (`connectedTools`).
 - **Twenty**: REST (`/rest`, `/rest/metadata`), descubrimiento de objetos
   (incluidos los personalizados) y verificación HMAC de webhooks.
-- **Google**: OAuth con permisos a elegir (disponibilidad, reuniones, envío,
-  lectura, Docs, Sheets), refresco de tokens persistido, Gmail (MIME UTF-8) y
-  Calendar. En la rejilla, Google Meet, Docs y Sheets son la misma conexión
-  pidiendo más permisos (`include_granted_scopes`). Meet: `calendar.book` sin
+- **Google**: OAuth con permisos a elegir por herramienta (Gmail: escribir o
+  escribir y leer; Calendar: disponibilidad o también reuniones; Meet, Docs,
+  Sheets), refresco de tokens persistido, Gmail (MIME UTF-8) y Calendar. Meet: `calendar.book` sin
   lugar crea la videollamada (`conferenceData`, devuelve `meetLink`). Docs
   (`documents.readonly` → `docs.read`) y Sheets (`spreadsheets` →
   `sheets.read` y `table.export`, que crea una hoja nueva). Son permisos
@@ -453,6 +461,14 @@ agente), las celdas que cambian quedan marcadas como escritas a mano y no se
 permite que una fila pase a duplicar otra. Al borrar una base, el agente que
 la rellenaba pasa a la primera que quede en el proyecto.
 
+**Tablero** (`[baseId]/kanban-board.tsx`). Una columna de tipo «Fase del
+pipeline» (`stage`: como una selección única cuyas opciones son las fases, en
+orden; una por tabla como mucho, `stageColumn`) permite ver la tabla como un
+tablero (`?view=board`, hasta 500 filas con los mismos filtros): una lista por
+fase más «Sin fase» si hay filas sin ella. Arrastrar una tarjeta guarda la
+celda (`setProspectCell`, con la misma validación) y abrirla abre el panel de
+la fila.
+
 **Formularios** (`prospects/intake.ts`, `POST /api/tables/<id>/rows`). Cada
 tabla puede abrirse a formularios externos con su propia clave
 (`prospect_bases.intake_key`, cabecera `x-salesmate-key`, campo `_key` o
@@ -478,7 +494,13 @@ completar vacíos o las dos cosas, con un tope de celdas por ejecución
 de mejor encaje primero, con referencias cortas F1, F2…) y guarda con
 `update_prospects`. «Completar vacíos» en la base y «Completar esta fila» en el
 panel lanzan una ejecución solo de completar; la de una fila vuelve a buscar
-también lo que no se encontró.
+también lo que no se encontró. El botón de la tabla completa la tabla entera
+(`allPending`): hasta 100 celdas por ejecución; mientras queden celdas y le
+quede tiempo, `onEnd` de `runAgentLoop` le pide seguir en vez de terminar
+(hasta 4 veces), y al acabar, si quedan celdas y ha avanzado, deja un evento
+`continue` para que el planificador lance la siguiente tanda. Los errores de
+las herramientas del servidor (web_fetch que no carga…) quedan en los pasos
+del registro.
 
 **Prospección** (`agents/prospector.ts`). El agente outbound busca lo que
 encaja con el cliente ideal y lo guarda con `save_prospects` en su base. El

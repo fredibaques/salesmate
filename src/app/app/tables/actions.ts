@@ -8,6 +8,7 @@ import {
   COLUMN_TYPES,
   DEFAULT_COLUMNS,
   FILLED_BY,
+  hasOptions,
   newTableHiddenFields,
   SYSTEM_FIELDS,
   type ColumnDraft,
@@ -167,7 +168,7 @@ function columnFromForm(form: FormData): ColumnDraft {
   return {
     name: str(form, "name") ?? "",
     type,
-    options: type === "select" || type === "multi" ? list(form, "options").map((o) => o.trim()) : undefined,
+    options: hasOptions(type) ? list(form, "options").map((o) => o.trim()) : undefined,
     instructions: str(form, "instructions"),
     filledBy: FILLED_BY.find((f) => f === str(form, "filledBy")) ?? "agent",
   };

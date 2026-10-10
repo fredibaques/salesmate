@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, seedOrg } from "../../../tests/helpers/db";
 import { scriptedLlm } from "../../../tests/helpers/fake-llm";
-import { columnId, newTableHiddenFields } from "@/lib/prospect-columns";
+import { columnId, newTableHiddenFields, stageColumn } from "@/lib/prospect-columns";
 import type { Db } from "../db/client";
 import { projects } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
@@ -176,6 +176,34 @@ describe("columns", () => {
       [{}, {}],
       [{}, {}],
     ]);
+  });
+});
+
+describe("pipeline column", () => {
+  it("holds one of its phases, and a table has only one", async () => {
+    const base = await createBase(db, tenant, projectId, {
+      name: "Pipeline",
+      rowKind: "company",
+      columns: [{ name: "Fase", type: "stage", options: ["Nuevo", "Reunión", "Ganado"], filledBy: "person" }],
+    });
+    expect(stageColumn(base.columns)).toMatchObject({ id: "fase", options: ["Nuevo", "Reunión", "Ganado"] });
+    await expect(
+      saveColumn(db, tenant, base.id, { name: "Otra fase", type: "stage", options: ["A"] }),
+    ).rejects.toThrow(/solo puede tener una/);
+    await expect(
+      saveColumn(db, tenant, base.id, { name: "Etapa", type: "stage", options: [] }),
+    ).rejects.toThrow(/al menos una opción/);
+
+    const { added } = await saveProspects(db, tenant, {
+      baseId: base.id,
+      items: [{ companyName: "Autos Ruiz" }],
+    });
+    // Moving a card on the board saves the cell.
+    await setProspectCell(db, tenant, base.id, added[0].id, "fase", "reunión");
+    expect((await getProspect(db, tenant, base.id, added[0].id))!.data).toEqual({ fase: "Reunión" });
+    await expect(setProspectCell(db, tenant, base.id, added[0].id, "fase", "Perdido")).rejects.toThrow(
+      /debe ser una de/,
+    );
   });
 });
 

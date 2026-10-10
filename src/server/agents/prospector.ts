@@ -6,6 +6,7 @@ import type { McpDeps } from "../connectors/mcp";
 import type { Db } from "../db/client";
 import {
   agentConfigs,
+  agentEvents,
   agentRuns,
   projects,
   type AgentEventKind,
@@ -24,7 +25,7 @@ import {
   saveRowsSchema,
 } from "../prospects/agent-schema";
 import { ensureAgentBase } from "../prospects/bases";
-import { completeProspects, rowsToComplete } from "../prospects/complete";
+import { completeProspects, countPendingCells, rowsToComplete } from "../prospects/complete";
 import { fitCriteria, fitPrompt } from "../prospects/fit";
 import { knownProspects, prospectInput, recentProspectNames, saveProspects } from "../prospects/service";
 import { goalProgress, monthSpendUsd, notifyTeam, pauseAgent, type RunNotice } from "./automation";
@@ -57,6 +58,8 @@ const SEARCHES_PER_TURN = 5;
 const NUDGE_AFTER_WEB_CALLS = 8;
 /** Time left when the agent is asked to stop searching and save what it has. */
 const WRAP_UP_MS = 45_000;
+/** Times a run that ends with empty cells is asked to go on. */
+const MAX_PUSHES = 4;
 /** Share of the run's spending cap at which the agent is asked to save and finish. */
 const BUDGET_WRAP_UP = 0.75;
 
@@ -155,6 +158,11 @@ export async function runProspecting(
     mode?: ProspectingMode;
     /** Complete only these rows (implies the complete mode). */
     rowIds?: string[];
+    /**
+     * «Completar vacíos» of the whole table: every pending cell (by batches:
+     * if some are left when a run ends, the next batch is queued).
+     */
+    allPending?: boolean;
   },
 ): Promise<ProspectingResult> {
   const startedAt = Date.now();
@@ -262,13 +270,15 @@ export async function runProspecting(
       ),
     ];
     const notices = (input.events ?? []).filter((e) => e.kind === "webhook");
+    const allPending = Boolean(input.allPending || input.events?.some((e) => e.kind === "continue"));
     const rowIds = input.rowIds?.length
       ? input.rowIds
       : eventRows.length && !notices.length
         ? eventRows
         : undefined;
 
-    let mode: ProspectingMode = rowIds?.length ? "complete" : (input.mode ?? settings.mode ?? "find");
+    let mode: ProspectingMode =
+      rowIds?.length || allPending ? "complete" : (input.mode ?? settings.mode ?? "find");
 
     // The goal: once the base has enough rows that fit, no more new ones.
     const goal = settings.goal?.rows ? await goalProgress(deps.db, tenant, base.id, settings.goal) : null;
@@ -285,7 +295,8 @@ export async function runProspecting(
       mode === "find" || goalStops
         ? { rows: [], cells: 0 }
         : await rowsToComplete(deps.db, tenant, base.id, {
-            limit: rowIds?.length ? ROWS_CELL_CAP : (settings.cellsPerRun ?? DEFAULT_CELLS_PER_RUN),
+            limit:
+              rowIds?.length || allPending ? ROWS_CELL_CAP : (settings.cellsPerRun ?? DEFAULT_CELLS_PER_RUN),
             rowIds,
           });
     if (goal?.met && work.rows.length === 0) {
@@ -466,7 +477,7 @@ ${[
     : "",
   !agent.tools.web
     ? "- No tienes búsqueda web: usa solo las herramientas conectadas."
-    : `- Busca en la web y lee las páginas que encuentres (web_search, y web_fetch si lo tienes). Usa fuentes públicas: webs de empresas, directorios, asociaciones del sector, registros y noticias. No uses LinkedIn como fuente.\n- Cada turno admite como mucho ${SEARCHES_PER_TURN} búsquedas y ${SEARCHES_PER_TURN * 2} lecturas: haz pocas a la vez. Si una devuelve «max_uses_exceeded» no es un límite de la ejecución: guarda lo que tengas y sigue buscando en el turno siguiente.`,
+    : `- Busca en la web y lee las páginas que encuentres (web_search, y web_fetch si lo tienes). Usa fuentes públicas: webs de empresas, directorios, asociaciones del sector, registros y noticias. No uses LinkedIn como fuente.\n- Cada turno admite como mucho ${SEARCHES_PER_TURN} búsquedas y ${SEARCHES_PER_TURN * 2} lecturas: haz pocas a la vez. Si una devuelve «max_uses_exceeded» no es un límite de la ejecución: guarda lo que tengas y sigue buscando en el turno siguiente.\n- Si una web no se deja leer (web_fetch da error), no insistas con ella: busca el dato con web_search, en directorios o registros, o con las herramientas de datos. Un fallo no es motivo para terminar: sigue con las demás filas.`,
   sources.allow?.length ? `- Busca y lee solo en estos sitios: ${sources.allow.join(", ")}.` : "",
   sources.block?.length ? `- No uses nunca como fuente: ${sources.block.join(", ")}.` : "",
   sources.prefer === "data" && dataProviders
@@ -521,6 +532,7 @@ ${[
       : `Busca ${target} prospectos nuevos para el proyecto y guárdalos.`;
     const askWithNotices = notices.length ? `${ask} Ten en cuenta los avisos recibidos.` : ask;
     const deadline = startedAt + (deps.timeBudgetMs ?? RUN_TIME_BUDGET_MS);
+    let pushes = 0;
     const budget = {
       usd: settings.budget?.maxCostPerRunUsd,
       webSearches: settings.budget?.maxSearchesPerRun,
@@ -537,6 +549,22 @@ ${[
       deadline,
       budget,
       steer: prospectingSteer({ deadline, budget }),
+      // Ending with cells of this run still empty: go on while there is time.
+      onEnd: completes
+        ? async () => {
+            const now = (deps.now?.() ?? new Date()).getTime();
+            if (pushes >= MAX_PUSHES || deadline - now <= WRAP_UP_MS + 15_000) return null;
+            const left = await countPendingCells(
+              deps.db,
+              tenant,
+              base.id,
+              work.rows.map((r) => r.id),
+            );
+            if (!left) return null;
+            pushes++;
+            return `Aún quedan ${left} celdas vacías en las filas de esta ejecución y queda tiempo: sigue con ellas. Si una búsqueda o una lectura ha fallado, prueba otra fuente (otra página de la empresa, directorios, registros mercantiles, Apollo, Lusha o Hunter si los tienes) o repítela: el límite de búsquedas es por turno. Lo que de verdad no se publique, márcalo como no encontrado con update_prospects para no volver a buscarlo.`;
+          }
+        : undefined,
     });
     // Out of time or budget is a normal end: what was found is already saved.
     const outOfTime = result.status === "deadline";
@@ -547,7 +575,7 @@ ${[
     ]
       .filter(Boolean)
       .join(" y ");
-    const summary = outOfTime
+    let summary = outOfTime
       ? `Se acabó el tiempo de esta ejecución con ${tally}; la próxima seguirá.`
       : outOfBudget
         ? `Se alcanzó el límite de gasto de esta ejecución con ${tally}.`
@@ -556,6 +584,22 @@ ${[
 
     // Writing to the rows that fit is the outbound agent's job (agents/outreach.ts).
     const costUsd = result.costUsd;
+    // «Completar vacíos» of the whole table: while it makes progress, the next batch goes by itself.
+    if (allPending && ok && !outOfBudget && completed > 0) {
+      const left = await countPendingCells(deps.db, tenant, base.id);
+      if (left > 0) {
+        await withTenant(deps.db, tenant, (tx) =>
+          tx.insert(agentEvents).values({
+            orgId: tenant.orgId,
+            projectId: project.id,
+            agentConfigId: agent.id,
+            kind: "continue",
+            payload: { left },
+          }),
+        );
+        summary += `\n\nQuedan ${left} celdas por completar en la tabla: sigue con la siguiente tanda en unos minutos.`;
+      }
+    }
     await finish({
       status: result.status === "refused" ? "refused" : ok ? "completed" : "failed",
       model: result.model,
