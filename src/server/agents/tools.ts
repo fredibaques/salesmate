@@ -26,6 +26,8 @@ export type AgentToolContext = {
   orgId: string;
   projectId: string;
   agentType: AgentType;
+  /** The agent running (null for the copilot). */
+  agentConfigId?: string | null;
   runId: string;
   gateway: GatewayDeps;
   connectors?: Omit<ConnectorDeps, "db">;
@@ -237,6 +239,7 @@ export function actionTools(ctx: AgentToolContext, allowed: (keyof typeof ACTION
             reason,
             citations,
             agentType: ctx.agentType,
+            agentConfigId: ctx.agentConfigId ?? undefined,
             runId: ctx.runId,
             context: ctx.actionContext?.() ?? {},
           },
@@ -317,6 +320,7 @@ export async function mcpTools(
                 payload: { connectionId: server.id, server: server.label, tool: tool.name, arguments: input },
                 reason: `Herramienta «${tool.name}» de ${server.label}`,
                 agentType: ctx.agentType,
+                agentConfigId: ctx.agentConfigId ?? undefined,
                 runId: ctx.runId,
                 context: ctx.actionContext?.() ?? {},
               },

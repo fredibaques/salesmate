@@ -11,8 +11,7 @@ const WORKING_WINDOW = "2 hours";
  */
 export const workingSql = sql<boolean>`exists (
   select 1 from agent_runs r
-  where r.project_id = "agent_configs"."project_id"
-    and r.agent_type = "agent_configs"."agent_type"
+  where r.agent_config_id = "agent_configs"."id"
     and r.status = 'running'
     and r.started_at > now() - interval '${sql.raw(WORKING_WINDOW)}'
 )`;

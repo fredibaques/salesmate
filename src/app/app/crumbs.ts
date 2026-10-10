@@ -7,8 +7,8 @@ export type NameLookup = {
   conversation: (id: string) => Promise<string | null>;
   base: (id: string) => Promise<string | null>;
   meeting: (id: string) => Promise<string | null>;
-  /** The name the user gave an agent, if any. */
-  agent: (projectId: string, type: string) => Promise<string | null>;
+  /** How an agent of the project is called (its name or its template's). */
+  agent: (projectId: string, agentId: string) => Promise<string | null>;
 };
 
 const SETTINGS = { label: "Configuración", href: "/app/ai" };
@@ -99,9 +99,8 @@ export async function crumbsFor(segments: string[], names: NameLookup): Promise<
         const info = subsub ? AGENT_INFO[subsub as keyof typeof AGENT_INFO] : undefined;
         return [project, { label: info ? `Añadir el ${info.name.toLowerCase()}` : "Añadir agente" }];
       }
-      const info = AGENT_INFO[sub as keyof typeof AGENT_INFO];
       const agent = {
-        label: (await names.agent(id, sub)) ?? info?.name ?? sub,
+        label: (await names.agent(id, sub)) ?? "Agente",
         href: `${base}/agents/${sub}`,
       };
       const page = subsub ? agentPageLabel(subsub) : null;

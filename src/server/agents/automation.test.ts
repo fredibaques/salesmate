@@ -36,7 +36,7 @@ const slack = mockFetch({ "POST https://hooks.slack.com/": () => "ok" });
 const gateway = (): GatewayDeps => ({ db, executor: new ConnectorExecutor({ db, fetch: slack.fetch }) });
 const agentActor = (): TenantContext => ({ ...tenant, actorType: "agent", actorId: "run" });
 const automation = (raw: z.input<typeof automationInput>) =>
-  saveAgentAutomation(db, tenant, projectId, "outbound", raw);
+  saveAgentAutomation(db, tenant, projectId, agentId, raw);
 const config = async () =>
   (
     await withTenant(db, tenant, (tx) => tx.select().from(agentConfigs).where(eq(agentConfigs.id, agentId)))
@@ -68,12 +68,12 @@ beforeAll(async () => {
   });
   baseId = base.id;
   await setAgentBase(db, tenant, projectId, agentId, baseId);
-  await saveAgentInstructions(db, tenant, projectId, "outbound", {
+  await saveAgentInstructions(db, tenant, projectId, agentId, {
     instructions: "Concesionarios de Andalucía.",
     schedule: { kind: "daily", time: "08:00" },
     settings: { mode: "find", prospectsPerRun: 5 },
   });
-  await setAgentEnabled(db, tenant, projectId, "outbound", true);
+  await setAgentEnabled(db, tenant, projectId, agentId, true);
   await saveGoogleConnection({ db }, tenant, {
     email: "ventas@swipoo.com",
     name: "Ventas",
@@ -114,7 +114,7 @@ describe("caps, goal, sources and model", () => {
       done,
     ]);
     const result = await runProspecting({ db, llm, gateway: gateway() }, tenant, {
-      projectId,
+      agentId,
       trigger: "manual",
     });
     expect(requests).toHaveLength(2);
@@ -129,7 +129,7 @@ describe("caps, goal, sources and model", () => {
   it("doesn't work once the month's cap is spent", async () => {
     await automation({ budget: { maxCostPerMonthUsd: 0.01 } });
     const result = await runProspecting({ db, llm: scriptedLlm([]).llm, gateway: gateway() }, tenant, {
-      projectId,
+      agentId,
       trigger: "schedule",
     });
     expect(result.status).toBe("skipped");
@@ -139,7 +139,7 @@ describe("caps, goal, sources and model", () => {
   it("stops looking for new rows when the goal is met, and pauses itself", async () => {
     await automation({ goal: { rows: 1, minFit: 70 } });
     const result = await runProspecting({ db, llm: scriptedLlm([]).llm, gateway: gateway() }, tenant, {
-      projectId,
+      agentId,
       trigger: "schedule",
     });
     expect(result.summary).toContain("Objetivo cumplido: 1 de 1 filas con encaje 70 o más");
@@ -155,7 +155,7 @@ describe("caps, goal, sources and model", () => {
         prefer: "web",
       },
     });
-    await saveAgentInstructions(db, tenant, projectId, "outbound", {
+    await saveAgentInstructions(db, tenant, projectId, agentId, {
       instructions: "Concesionarios de Andalucía.",
       schedule: { kind: "daily", time: "08:00" },
       settings: { mode: "find", prospectsPerRun: 5, model: "claude-sonnet-5-5" },
@@ -169,7 +169,7 @@ describe("caps, goal, sources and model", () => {
     // Saving the instructions keeps the automation settings.
     expect((await config()).settings.goal).toEqual({ rows: 3 });
     const { llm, requests } = scriptedLlm([done]);
-    await runProspecting({ db, llm, gateway: gateway() }, tenant, { projectId, trigger: "manual" });
+    await runProspecting({ db, llm, gateway: gateway() }, tenant, { agentId, trigger: "manual" });
     expect(requests[0].model).toBe("claude-sonnet-5-5");
     const search = requests[0].tools?.find((t) => "name" in t && t.name === "web_search");
     expect(search).toMatchObject({ allowed_domains: ["anfac.com", "concesionarios.es"] });
@@ -177,7 +177,7 @@ describe("caps, goal, sources and model", () => {
     expect(system).toContain("No uses nunca como fuente: linkedin.com");
     // One row of three already there: two more.
     expect(system).toContain("Objetivo de esta ejecución: 2 prospectos nuevos");
-    await saveAgentInstructions(db, tenant, projectId, "outbound", {
+    await saveAgentInstructions(db, tenant, projectId, agentId, {
       instructions: "Concesionarios de Andalucía.",
       schedule: { kind: "daily", time: "08:00" },
       settings: { mode: "find", prospectsPerRun: 5 },
@@ -196,11 +196,11 @@ describe("event triggers", () => {
     const row = await addProspectRow(db, tenant, baseId, { companyName: "Motor Sur", fields: {} });
     // Not listening.
     expect(await rowsAdded(db, tenant, { baseId, rowIds: [row.id] })).toEqual({
-      prospecting: null,
-      inboundProject: null,
+      prospecting: [],
+      inbound: [],
     });
     await automation({ triggers: { newRows: true } });
-    expect((await rowsAdded(db, tenant, { baseId, rowIds: [row.id] })).prospecting).toBe(agentId);
+    expect((await rowsAdded(db, tenant, { baseId, rowIds: [row.id] })).prospecting).toEqual([agentId]);
 
     const { llm, requests } = scriptedLlm([
       {
@@ -261,13 +261,13 @@ describe("event triggers", () => {
       kind: "webhook",
       payload: { body: "hola" },
     });
-    await setAgentEnabled(db, tenant, projectId, "outbound", false);
+    await setAgentEnabled(db, tenant, projectId, agentId, false);
     expect(
       await processAgentEvents({ db, llm: scriptedLlm([]).llm, gateway: gateway() }, tenant, agentId),
     ).toEqual({
       status: "paused",
     });
-    await setAgentEnabled(db, tenant, projectId, "outbound", true);
+    await setAgentEnabled(db, tenant, projectId, agentId, true);
     await processAgentEvents({ db, llm: scriptedLlm([done]).llm, gateway: gateway() }, tenant, agentId);
   });
 });
@@ -285,7 +285,7 @@ describe("notices and the next step", () => {
     const before = slack.requests.length;
     // Nothing new found: a problem worth telling.
     await runProspecting({ db, llm: scriptedLlm([done]).llm, gateway: gateway() }, tenant, {
-      projectId,
+      agentId,
       trigger: "schedule",
     });
     expect(slack.requests.length).toBe(before + 1);
@@ -327,7 +327,7 @@ describe("notices and the next step", () => {
       },
     ]);
     const result = await runProspecting({ db, llm, gateway: gateway() }, tenant, {
-      projectId,
+      agentId,
       trigger: "manual",
     });
     expect(result.firstContacts).toMatchObject({ proposed: 1, blocked: [] });
@@ -353,7 +353,7 @@ describe("notices and the next step", () => {
     expect(contacted.map((r) => r.id)).toEqual([added.find((a) => a.companyName === "Autos Cádiz")!.id]);
     // Next run: that row already has its first email.
     const again = await runProspecting({ db, llm: scriptedLlm([done]).llm, gateway: gateway() }, tenant, {
-      projectId,
+      agentId,
       trigger: "manual",
     });
     expect(again.firstContacts).toMatchObject({ proposed: 0 });

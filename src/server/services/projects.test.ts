@@ -6,7 +6,7 @@ import { saveProspects } from "../prospects/service";
 import type { Db } from "../db/client";
 import { agentConfigs, auditLog, prospects } from "../db/schema";
 import { withSystem } from "../db/tenant";
-import { addAgent } from "./agents";
+import { addAgent, listProjectAgents } from "./agents";
 import type { TenantContext } from "../db/tenant";
 import {
   addSuppression,
@@ -36,11 +36,11 @@ beforeAll(async () => {
 afterAll(async () => close());
 
 describe("projects service", () => {
-  it("creates a project with every agent disabled in draft mode", async () => {
+  it("creates a project without agents: the user adds the ones it needs", async () => {
     const project = await createProject(db, tenant, { name: "Consultoría" });
+    expect(await listProjectAgents(db, tenant, project.id)).toEqual([]);
     const rules = await getProjectRules(db, tenant, project.id);
-    expect(rules.agents).toHaveLength(5);
-    expect(rules.agents.every((a) => !a.enabled && a.autonomy.default === 1)).toBe(true);
+    expect(rules.compliance).toEqual([]);
   });
 
   it("validates time zones and merges settings", async () => {

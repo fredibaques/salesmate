@@ -16,7 +16,7 @@ import { GatewayError, proposeAction, type GatewayDeps } from "../gateway/gatewa
 export async function monthSpendUsd(
   db: Db,
   tenant: { orgId: string },
-  input: { projectId: string; timezone: string },
+  input: { agentId: string; timezone: string },
 ): Promise<number> {
   const [row] = await withTenant(db, tenant, (tx) =>
     tx
@@ -24,8 +24,7 @@ export async function monthSpendUsd(
       .from(agentRuns)
       .where(
         and(
-          eq(agentRuns.projectId, input.projectId),
-          eq(agentRuns.agentType, "outbound"),
+          eq(agentRuns.agentConfigId, input.agentId),
           sql`date_trunc('month', ${agentRuns.startedAt} at time zone ${input.timezone}) = date_trunc('month', now() at time zone ${input.timezone})`,
         ),
       ),
@@ -118,11 +117,12 @@ export async function notifyTeam(
   if (!wanted) return { sent, errors };
 
   const name = agentName("outbound", input.agent.name);
-  const link = `${env().APP_URL}/app/projects/${input.agent.projectId}/agents/outbound`;
+  const link = `${env().APP_URL}/app/projects/${input.agent.projectId}/agents/${input.agent.id}`;
   const actor = { orgId: tenant.orgId, actorType: "agent" as const, actorId: input.runId };
   const base = {
     projectId: input.agent.projectId,
     agentType: "outbound" as const,
+    agentConfigId: input.agent.id,
     runId: input.runId,
     reason: "Aviso al equipo configurado en el agente",
   };

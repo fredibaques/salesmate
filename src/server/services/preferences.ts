@@ -31,7 +31,7 @@ export const NAV_GROUPS: Record<NavSection, NavGroup> = {
 const navInput = z.object({
   sections: z.array(z.enum(NAV_SECTIONS)).max(NAV_SECTIONS.length).default([]),
   projects: z.array(z.string().uuid()).max(500).default([]),
-  agents: z.record(z.string().uuid(), z.array(z.string().max(40)).max(10)).default({}),
+  agents: z.record(z.string().uuid(), z.array(z.string().max(40)).max(100)).default({}),
 });
 
 /** How this person arranged the sidebar in this organization ({} = default order). */

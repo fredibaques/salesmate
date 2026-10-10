@@ -6,7 +6,6 @@ import type { Db } from "../db/client";
 import {
   kbFiles,
   actions,
-  AGENT_TYPES,
   agentConfigs,
   auditLog,
   complianceRules,
@@ -19,7 +18,6 @@ import {
   projectIdentities,
   projects,
   suppressions,
-  type AgentType,
   type WeeklyHours,
 } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
@@ -104,16 +102,6 @@ export async function createProject(db: Db, tenant: TenantContext, raw: z.input<
       .insert(projects)
       .values({ ...input, orgId: tenant.orgId, createdBy: tenant.actorId })
       .returning();
-    // Every agent starts disabled and in draft mode (level 1).
-    await tx.insert(agentConfigs).values(
-      AGENT_TYPES.map((agentType) => ({
-        orgId: tenant.orgId,
-        projectId: row.id,
-        agentType,
-        enabled: false,
-        autonomy: { default: 1 },
-      })),
-    );
     await audit(tx, tenant, {
       event: "project.created",
       projectId: row.id,
@@ -355,7 +343,6 @@ export async function deleteMeetingType(db: Db, tenant: TenantContext, meetingTy
 
 export async function getProjectRules(db: Db, tenant: Pick<TenantContext, "orgId">, projectId: string) {
   return withTenant(db, tenant, async (tx) => ({
-    agents: await tx.select().from(agentConfigs).where(eq(agentConfigs.projectId, projectId)),
     compliance: await tx
       .select()
       .from(complianceRules)
@@ -367,43 +354,6 @@ export async function getProjectRules(db: Db, tenant: Pick<TenantContext, "orgId
       .where(eq(suppressions.projectId, projectId))
       .orderBy(desc(suppressions.createdAt)),
   }));
-}
-
-export const agentConfigInput = z.object({
-  enabled: z.boolean(),
-  defaultLevel: z.number().int().min(0).max(3),
-  actionLevels: z.record(z.string(), z.number().int().min(0).max(3)).default({}),
-  dailyLimits: z.record(z.string(), z.number().int().min(0).max(100_000)).default({}),
-});
-
-export async function updateAgentConfig(
-  db: Db,
-  tenant: TenantContext,
-  projectId: string,
-  agentType: AgentType,
-  raw: z.input<typeof agentConfigInput>,
-) {
-  const input = agentConfigInput.parse(raw);
-  return withTenant(db, tenant, async (tx) => {
-    const values = {
-      enabled: input.enabled,
-      autonomy: { default: input.defaultLevel, actions: input.actionLevels },
-      limits: { daily: input.dailyLimits },
-    };
-    const [row] = await tx
-      .insert(agentConfigs)
-      .values({ orgId: tenant.orgId, projectId, agentType, ...values })
-      .onConflictDoUpdate({ target: [agentConfigs.projectId, agentConfigs.agentType], set: values })
-      .returning();
-    await audit(tx, tenant, {
-      event: "agent.config_updated",
-      projectId,
-      entityType: "agent_config",
-      entityId: row.id,
-      data: { agentType, ...values },
-    });
-    return row;
-  });
 }
 
 export const complianceRuleInput = z.discriminatedUnion("kind", [
@@ -588,9 +538,10 @@ export async function listActions(
 ) {
   return withTenant(db, tenant, (tx) =>
     tx
-      .select({ action: actions, projectName: projects.name })
+      .select({ action: actions, projectName: projects.name, agentName: agentConfigs.name })
       .from(actions)
       .innerJoin(projects, eq(projects.id, actions.projectId))
+      .leftJoin(agentConfigs, eq(agentConfigs.id, actions.agentConfigId))
       .where(
         and(
           inArray(actions.status, filter.statuses),

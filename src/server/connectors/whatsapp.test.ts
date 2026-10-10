@@ -117,9 +117,9 @@ describe("WhatsApp Business", () => {
     const messages = parseWhatsappWebhook(delivery("wamid.2", "¿Cuánto cuesta una transferencia?"));
     expect(await queueWhatsappMessages(db, conn, messages)).toEqual({ eventIds: [], reason: "no_project" });
 
-    await addAgent(db, tenant, projectId, "inbound", "b2b_transactional");
-    await saveAgentChannels(db, tenant, projectId, "inbound", { whatsappId: identity.id });
-    await setAgentEnabled(db, tenant, projectId, "inbound", true);
+    const agent = await addAgent(db, tenant, projectId, "inbound", "b2b_transactional");
+    await saveAgentChannels(db, tenant, projectId, agent.id, { whatsappId: identity.id });
+    await setAgentEnabled(db, tenant, projectId, agent.id, true);
     const { eventIds } = await queueWhatsappMessages(db, conn, messages);
     expect(eventIds).toHaveLength(1);
     // Meta retries: the same message isn't queued twice.

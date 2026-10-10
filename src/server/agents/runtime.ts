@@ -22,14 +22,14 @@ export function agentRunDeps(llm: LlmClient): AgentRunDeps {
  * Whatever can't run now (no AI, a busy agent) the scheduler picks up later.
  */
 export function workOnAddedRows(tenant: { orgId: string }, added: RowsAddedTo) {
-  if (!added.prospecting && !added.inboundProject) return false;
+  if (!added.prospecting.length && !added.inbound.length) return false;
   after(async () => {
     try {
       const llm = await orgLlm(getDb(), tenant);
       if (!llm) return;
-      if (added.prospecting) await processAgentEvents(agentRunDeps(llm), tenant, added.prospecting);
-      if (added.inboundProject) {
-        await processPendingInbound(inboundDeps(llm), tenant.orgId, 5, added.inboundProject);
+      await Promise.all(added.prospecting.map((id) => processAgentEvents(agentRunDeps(llm), tenant, id)));
+      for (const agentId of added.inbound) {
+        await processPendingInbound(inboundDeps(llm), tenant.orgId, 5, { agentId });
       }
     } catch (err) {
       console.error("new-row run failed", err);

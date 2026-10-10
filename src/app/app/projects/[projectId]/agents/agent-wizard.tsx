@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { Badge, Choice, Field, Input, Notice, Select, Textarea } from "@/components/ui";
 import { ScheduleFields } from "@/components/schedule-fields";
 import { Wizard, type WizardStep } from "@/components/wizard";
+import { AGENT_INFO } from "@/lib/agents";
 import { describeSchedule, scheduleFromForm } from "@/lib/schedule";
 import type { SalesMotion } from "@/server/db/schema";
 import { NEXT_STEP_LABELS, SALES_MOTION_LABELS, type NextStep } from "@/server/playbooks/spec";
@@ -42,6 +43,19 @@ function ReviewRow({ label, children }: { label: string; children: ReactNode }) 
       <dt className="text-sm text-muted">{label}</dt>
       <dd className="text-sm">{children || <span className="text-muted">—</span>}</dd>
     </div>
+  );
+}
+
+/** Its name, to tell it apart from other agents of the project (empty = the template's). */
+function NameField({ placeholder }: { placeholder: string }) {
+  return (
+    <Field
+      label="Nombre"
+      optional
+      tip="Para distinguirlo de los demás agentes del proyecto. Se cambia en su ficha."
+    >
+      <Input name="name" maxLength={60} placeholder={placeholder} />
+    </Field>
   );
 }
 
@@ -235,6 +249,7 @@ export function InboundWizard({
               </ReviewRow>
               <ReviewRow label="Autonomía">{autonomy?.label}</ReviewRow>
             </dl>
+            <NameField placeholder={AGENT_INFO.inbound.name} />
             <ActivateChoice />
           </>
         );
@@ -383,6 +398,7 @@ export function OutboundWizard({
               </ReviewRow>
               <ReviewRow label="Por ejecución">{`${values.get("prospectsPerRun")} prospectos nuevos`}</ReviewRow>
             </dl>
+            <NameField placeholder={AGENT_INFO.outbound.name} />
             <ActivateChoice />
           </>
         );

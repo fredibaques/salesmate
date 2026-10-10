@@ -148,7 +148,8 @@ export async function runProspecting(
   deps: AgentRunDeps,
   tenant: { orgId: string },
   input: {
-    projectId: string;
+    /** The prospecting agent that runs (a project may have several). */
+    agentId: string;
     trigger: "schedule" | "manual" | "event";
     triggerRef?: string;
     /** Rows added to its base, notices on its webhook: what this run is about. */
@@ -161,25 +162,26 @@ export async function runProspecting(
 ): Promise<ProspectingResult> {
   const startedAt = Date.now();
   const { project, agent, run } = await withTenant(deps.db, tenant, async (tx) => {
-    const [project] = await tx.select().from(projects).where(eq(projects.id, input.projectId));
-    if (!project) throw new Error("Proyecto no encontrado.");
     const [agent] = await tx
       .select()
       .from(agentConfigs)
       .where(
         and(
-          eq(agentConfigs.projectId, project.id),
+          eq(agentConfigs.id, input.agentId),
           eq(agentConfigs.agentType, "outbound"),
           isNotNull(agentConfigs.addedAt),
         ),
       );
-    if (!agent) throw new Error("Este proyecto no tiene agente de prospección.");
+    if (!agent) throw new Error("Agente de prospección no encontrado.");
+    const [project] = await tx.select().from(projects).where(eq(projects.id, agent.projectId));
+    if (!project) throw new Error("Proyecto no encontrado.");
     const [run] = await tx
       .insert(agentRuns)
       .values({
         orgId: tenant.orgId,
         projectId: project.id,
         agentType: "outbound",
+        agentConfigId: agent.id,
         trigger: input.trigger,
         triggerRef: input.triggerRef,
         model: withModel(deps.llm, agent.settings.model).model,
@@ -241,7 +243,7 @@ export async function runProspecting(
     const monthCap = settings.budget?.maxCostPerMonthUsd;
     if (monthCap !== undefined) {
       const spent = await monthSpendUsd(deps.db, tenant, {
-        projectId: project.id,
+        agentId: agent.id,
         timezone: project.timezone,
       });
       if (spent >= monthCap) {
@@ -313,6 +315,7 @@ export async function runProspecting(
       orgId: tenant.orgId,
       projectId: project.id,
       agentType: "outbound",
+      agentConfigId: agent.id,
       runId: run.id,
       gateway: deps.gateway,
       connectors: deps.connectors,
@@ -553,6 +556,7 @@ ${[
       try {
         firstContacts = await prepareFirstContacts({ db: deps.db, llm, gateway: deps.gateway }, tenant, {
           projectId: project.id,
+          agentId: agent.id,
           projectName: project.name,
           profile: renderSalesProfile(parseSalesProfile(project.salesProfile)),
           runId: run.id,

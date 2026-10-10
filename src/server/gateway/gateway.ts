@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { audit } from "../audit";
 import type { Db } from "../db/client";
 import {
@@ -43,6 +43,8 @@ export type ProposeInput = {
   citations?: Citation[];
   reason?: string;
   agentType?: AgentType;
+  /** The agent proposing it: its autonomy and limits apply (a project may have several of a kind). */
+  agentConfigId?: string;
   runId?: string;
   /** Defaults to a hash of project, type, payload and run. */
   idempotencyKey?: string;
@@ -73,15 +75,18 @@ export class GatewayError extends Error {
  */
 export async function resolveAutonomy(
   tx: Tx,
-  input: { projectId: string; actorType: TenantContext["actorType"]; agentType?: AgentType },
+  input: {
+    projectId: string;
+    actorType: TenantContext["actorType"];
+    agentType?: AgentType;
+    agentConfigId?: string | null;
+  },
   definition: ActionDefinition<Record<string, unknown>>,
 ): Promise<{ level: number; limits: { daily?: Record<string, number> } }> {
   if (input.actorType === "user") return { level: 3, limits: {} };
-  if (!input.agentType) return { level: Math.min(1, definition.maxAutonomy), limits: {} };
-  const [config] = await tx
-    .select()
-    .from(agentConfigs)
-    .where(and(eq(agentConfigs.projectId, input.projectId), eq(agentConfigs.agentType, input.agentType)));
+  if (!input.agentType && !input.agentConfigId)
+    return { level: Math.min(1, definition.maxAutonomy), limits: {} };
+  const config = await agentConfigOf(tx, input.projectId, input.agentConfigId, input.agentType);
   const configured =
     config?.autonomy.actions?.[definition.type] ??
     definition.defaultAutonomy ??
@@ -220,12 +225,30 @@ async function deferralUntil(ctx: PolicyContext): Promise<{ until?: string; resu
   return { until: untils.sort().at(-1), results };
 }
 
-async function limitsFor(tx: Tx, projectId: string, agentType: AgentType | null) {
-  if (!agentType) return {};
+/** The agent by its id or, for actions recorded before agents had one, the first of its kind. */
+async function agentConfigOf(
+  tx: Tx,
+  projectId: string,
+  agentConfigId: string | null | undefined,
+  agentType: AgentType | null | undefined,
+) {
+  if (!agentConfigId && !agentType) return null;
   const [config] = await tx
-    .select({ limits: agentConfigs.limits })
+    .select()
     .from(agentConfigs)
-    .where(and(eq(agentConfigs.projectId, projectId), eq(agentConfigs.agentType, agentType)));
+    .where(
+      and(
+        eq(agentConfigs.projectId, projectId),
+        agentConfigId ? eq(agentConfigs.id, agentConfigId) : eq(agentConfigs.agentType, agentType!),
+      ),
+    )
+    .orderBy(asc(agentConfigs.addedAt))
+    .limit(1);
+  return config ?? null;
+}
+
+async function limitsFor(tx: Tx, action: Pick<ActionRow, "projectId" | "agentConfigId" | "agentType">) {
+  const config = await agentConfigOf(tx, action.projectId, action.agentConfigId, action.agentType);
   return config?.limits ?? {};
 }
 
@@ -255,7 +278,12 @@ export async function proposeAction(
 
     const { level, limits } = await resolveAutonomy(
       tx,
-      { projectId: input.projectId, actorType: tenant.actorType, agentType: input.agentType },
+      {
+        projectId: input.projectId,
+        actorType: tenant.actorType,
+        agentType: input.agentType,
+        agentConfigId: input.agentConfigId,
+      },
       definition,
     );
     const connectionId = await resolveConnectionId(tx, input.projectId, definition, payload);
@@ -284,6 +312,7 @@ export async function proposeAction(
         projectId: input.projectId,
         runId: input.runId,
         agentType: input.agentType,
+        agentConfigId: input.agentConfigId,
         actorType: tenant.actorType,
         actorId: tenant.actorId,
         type: definition.type,
@@ -381,7 +410,7 @@ export async function decideAction(
         context: action.context,
         citations: action.citations,
         connectionId,
-        limits: await limitsFor(tx, action.projectId, action.agentType),
+        limits: await limitsFor(tx, action),
         // The approver is a person, but the kill switch still protects agent actions.
         actorType: action.actorType,
       },
@@ -568,7 +597,7 @@ export async function releaseDueActions(deps: GatewayDeps, tenant: TenantContext
           context: action.context,
           citations: action.citations,
           connectionId: action.connectionId,
-          limits: await limitsFor(tx, action.projectId, action.agentType),
+          limits: await limitsFor(tx, action),
           actorType: action.actorType,
         },
         now,

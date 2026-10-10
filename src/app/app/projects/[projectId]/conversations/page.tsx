@@ -6,7 +6,7 @@ import { formatDateTime } from "@/lib/format";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { AiNotice, currentAi } from "../../../ai-notice";
-import { getAgent } from "@/server/services/agents";
+import { listProjectAgents } from "@/server/services/agents";
 import { listConversations, listRecentEvents } from "@/server/services/sales";
 import { InboxView, type InboxQuery } from "../../../conversations/inbox-view";
 import { processNow, simulateLead } from "./actions";
@@ -122,10 +122,13 @@ export default async function ConversationsPage({
   ) as InboxQuery;
   const tenant = await requireTenant();
   const db = getDb();
-  const [inbound, rows] = await Promise.all([
-    getAgent(db, tenant, projectId, "inbound"),
+  const [agents, rows] = await Promise.all([
+    listProjectAgents(db, tenant, projectId),
     listConversations(db, tenant, projectId),
   ]);
+  // Its inbound agents: the notice is about them all being paused.
+  const inboundAgents = agents.filter((a) => a.config.agentType === "inbound");
+  const inbound = inboundAgents.find((a) => a.config.enabled) ?? inboundAgents[0] ?? null;
   const agentsUrl = `/app/projects/${projectId}/agents`;
 
   return (
@@ -139,7 +142,7 @@ export default async function ConversationsPage({
           <Notice
             tone="warning"
             action={
-              <LinkButton href={`${agentsUrl}/inbound`} variant="secondary">
+              <LinkButton href={`${agentsUrl}/${inbound.config.id}`} variant="secondary">
                 Ir al agente
               </LinkButton>
             }

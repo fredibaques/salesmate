@@ -15,6 +15,7 @@ let close: () => Promise<void>;
 let tenant: TenantContext;
 let projectId: string;
 let baseId: string;
+let agentId: string;
 const ids: Record<string, string> = {};
 const agentActor = (): TenantContext => ({ ...tenant, actorType: "agent", actorId: "run" });
 
@@ -125,8 +126,9 @@ describe("completeProspects", () => {
 describe("a run that completes the base", () => {
   it("fills the pending cells by reference and doesn't look for new rows", async () => {
     const agent = await addAgent(db, tenant, projectId, "outbound", "b2b_consultative");
+    agentId = agent.id;
     await setAgentBase(db, tenant, projectId, agent.id, baseId);
-    await saveAgentInstructions(db, tenant, projectId, "outbound", {
+    await saveAgentInstructions(db, tenant, projectId, agentId, {
       instructions: "",
       schedule: { time: "08:00", days: [1] },
       settings: { mode: "complete", cellsPerRun: 10 },
@@ -157,7 +159,7 @@ describe("a run that completes the base", () => {
       },
     ]);
     const gateway = { db, executor: { execute: async () => ({}) } };
-    const result = await runProspecting({ db, llm, gateway }, tenant, { projectId, trigger: "manual" });
+    const result = await runProspecting({ db, llm, gateway }, tenant, { agentId, trigger: "manual" });
     expect(result).toMatchObject({ status: "completed", added: 0, completed: 1 });
     const tools = requests[0].tools?.map((t) => ("name" in t ? t.name : t.type));
     expect(tools).toContain("update_prospects");
@@ -174,7 +176,7 @@ describe("a run that completes the base", () => {
       items: rest.rows.map((r) => ({ id: r.id, notFound: r.columns })),
     });
     const idle = await runProspecting({ db, llm: scriptedLlm([]).llm, gateway }, tenant, {
-      projectId,
+      agentId,
       trigger: "manual",
     });
     expect(idle).toMatchObject({ status: "completed", completed: 0 });

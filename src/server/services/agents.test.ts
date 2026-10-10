@@ -59,11 +59,13 @@ beforeAll(async () => {
 
 afterAll(async () => close());
 
+let inboundId: string;
+
 describe("agents", () => {
   it("give the project a sales process from the template when one that talks to people is added", async () => {
     expect(await listProjectAgents(db, tenant, projectId)).toEqual([]);
     expect(await withTenant(db, tenant, (tx) => projectProcess(tx, projectId))).toBeNull();
-    await addAgent(db, tenant, projectId, "inbound", "b2b_consultative");
+    inboundId = (await addAgent(db, tenant, projectId, "inbound", "b2b_consultative")).id;
 
     const [agent] = await listProjectAgents(db, tenant, projectId);
     expect(agent.config.agentType).toBe("inbound");
@@ -90,17 +92,35 @@ describe("agents", () => {
     expect(process?.spec.objective).toBe("Recoger los datos");
   });
 
-  it("gives the prospecting agent its template defaults even when its row already exists", async () => {
-    // createProject inserts every agent row up front, disabled and not added.
-    const project = await createProject(db, tenant, { name: "Con filas previas" });
-    await addAgent(db, tenant, project.id, "outbound", "b2b_consultative");
-    const agent = await getAgent(db, tenant, project.id, "outbound");
+  it("gives the prospecting agent its template defaults", async () => {
+    const project = await createProject(db, tenant, { name: "Con plantilla" });
+    const added = await addAgent(db, tenant, project.id, "outbound", "b2b_consultative");
+    const agent = await getAgent(db, tenant, project.id, added.id);
     expect(agent?.config).toMatchObject({
       tools: { web: true },
       schedule: { time: "08:00", days: [1, 2, 3, 4, 5] },
       settings: { prospectsPerRun: 10 },
     });
     expect(agent?.config.instructions).toContain("fuentes públicas");
+  });
+
+  it("lets a project have several agents of a kind, numbered until they are named", async () => {
+    const project = await createProject(db, tenant, { name: "Varios" });
+    const first = await addAgent(db, tenant, project.id, "outbound");
+    const second = await addAgent(db, tenant, project.id, "outbound");
+    const third = await addAgent(db, tenant, project.id, "outbound");
+    expect(first.name).toBeNull();
+    expect(second.name).toBe("Agente outbound 2");
+    expect(third.name).toBe("Agente outbound 3");
+    const agents = await listProjectAgents(db, tenant, project.id);
+    expect(agents.map((a) => a.config.id)).toEqual([first.id, second.id, third.id]);
+    // Each one is its own: pausing one leaves the others as they are.
+    await setAgentEnabled(db, tenant, project.id, second.id, true);
+    expect((await getAgent(db, tenant, project.id, first.id))?.config.enabled).toBe(false);
+    expect((await getAgent(db, tenant, project.id, second.id))?.config.enabled).toBe(true);
+    // Agents are found by their id, and only in their project.
+    expect(await getAgent(db, tenant, projectId, second.id)).toBeNull();
+    expect(await getAgent(db, tenant, project.id, "outbound")).toBeNull();
   });
 
   it("refuses agents that are not available yet", async () => {
@@ -139,7 +159,7 @@ describe("agents", () => {
   });
 
   it("turns the agent's channels into what the project may use", async () => {
-    await saveAgentChannels(db, tenant, projectId, "inbound", {
+    await saveAgentChannels(db, tenant, projectId, inboundId, {
       mailboxId,
       readMailbox: false,
       calendarId,
@@ -157,15 +177,15 @@ describe("agents", () => {
     expect(conn.capabilities).not.toContain("email.list_messages");
 
     // Reading the mailbox adds the read capabilities.
-    await saveAgentChannels(db, tenant, projectId, "inbound", { mailboxId, readMailbox: true });
+    await saveAgentChannels(db, tenant, projectId, inboundId, { mailboxId, readMailbox: true });
     [conn] = await withTenant(db, tenant, (tx) =>
       tx.select().from(projectConnections).where(eq(projectConnections.projectId, projectId)),
     );
     expect(conn.capabilities).toContain("email.list_messages");
 
     // Removing the agent removes what only it used.
-    await setAgentEnabled(db, tenant, projectId, "inbound", true);
-    await removeAgent(db, tenant, projectId, "inbound");
+    await setAgentEnabled(db, tenant, projectId, inboundId, true);
+    await removeAgent(db, tenant, projectId, inboundId);
     links = await withTenant(db, tenant, (tx) =>
       tx.select().from(projectIdentities).where(eq(projectIdentities.projectId, projectId)),
     );
@@ -176,8 +196,8 @@ describe("agents", () => {
   });
 
   it("keeps the project's process when an agent is added again", async () => {
-    await addAgent(db, tenant, projectId, "inbound", "b2c_assisted");
-    const agent = await getAgent(db, tenant, projectId, "inbound");
+    const added = await addAgent(db, tenant, projectId, "inbound", "b2c_assisted");
+    const agent = await getAgent(db, tenant, projectId, added.id);
     expect(agent?.config.enabled).toBe(false);
     const process = await getProjectProcess(db, tenant, projectId);
     expect(process?.currentVersion).toBe(2);
@@ -187,7 +207,7 @@ describe("agents", () => {
 
 describe("agent tools", () => {
   it("adds and removes tools one by one, with the functions of an MCP server", async () => {
-    await addAgent(db, tenant, projectId, "outbound", "b2b_consultative");
+    const { id: agentId } = await addAgent(db, tenant, projectId, "outbound", "b2b_consultative");
     const [mcp, hunter] = await withTenant(db, tenant, (tx) =>
       tx
         .insert(connections)
@@ -218,28 +238,28 @@ describe("agent tools", () => {
         ])
         .returning(),
     );
-    const tools = async () => (await getAgent(db, tenant, projectId, "outbound"))!.config.tools;
+    const tools = async () => (await getAgent(db, tenant, projectId, agentId))!.config.tools;
 
-    await addAgentTool(db, tenant, projectId, "outbound", "web");
-    await addAgentTool(db, tenant, projectId, "outbound", `data:${hunter.id}`);
-    await addAgentTool(db, tenant, projectId, "outbound", `mcp:${mcp.id}`);
+    await addAgentTool(db, tenant, projectId, agentId, "web");
+    await addAgentTool(db, tenant, projectId, agentId, `data:${hunter.id}`);
+    await addAgentTool(db, tenant, projectId, agentId, `mcp:${mcp.id}`);
     expect(await tools()).toMatchObject({
       web: true,
       data: [hunter.id],
       mcp: [{ connectionId: mcp.id, tools: ["buscar", "crear"] }],
     });
 
-    await setAgentMcpTools(db, tenant, projectId, "outbound", mcp.id, ["buscar", "inventada"]);
+    await setAgentMcpTools(db, tenant, projectId, agentId, mcp.id, ["buscar", "inventada"]);
     expect((await tools()).mcp).toEqual([{ connectionId: mcp.id, tools: ["buscar"] }]);
-    await expect(setAgentMcpTools(db, tenant, projectId, "outbound", mcp.id, [])).rejects.toThrow(
+    await expect(setAgentMcpTools(db, tenant, projectId, agentId, mcp.id, [])).rejects.toThrow(
       "al menos una",
     );
 
-    await removeAgentTool(db, tenant, projectId, "outbound", `mcp:${mcp.id}`);
-    await removeAgentTool(db, tenant, projectId, "outbound", "web");
+    await removeAgentTool(db, tenant, projectId, agentId, `mcp:${mcp.id}`);
+    await removeAgentTool(db, tenant, projectId, agentId, "web");
     expect(await tools()).toEqual({ web: false, mcp: [], data: [hunter.id] });
     await expect(
-      addAgentTool(db, tenant, projectId, "outbound", "data:00000000-0000-0000-0000-000000000000"),
+      addAgentTool(db, tenant, projectId, agentId, "data:00000000-0000-0000-0000-000000000000"),
     ).rejects.toThrow("no encontrada");
   });
 });

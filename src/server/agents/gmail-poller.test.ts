@@ -59,8 +59,8 @@ beforeAll(async () => {
     (await tx.select().from(identities)).find((i) => i.kind === "email")!,
   );
   // The inbound agent is told to read this mailbox.
-  await addAgent(db, tenant, project.id, "inbound", "b2b_consultative");
-  await saveAgentChannels(db, tenant, project.id, "inbound", { mailboxId: mailbox.id, readMailbox: true });
+  const agent = await addAgent(db, tenant, project.id, "inbound", "b2b_consultative");
+  await saveAgentChannels(db, tenant, project.id, agent.id, { mailboxId: mailbox.id, readMailbox: true });
 });
 
 afterAll(async () => close());

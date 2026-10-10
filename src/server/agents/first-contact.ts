@@ -102,6 +102,8 @@ export async function prepareFirstContacts(
   tenant: { orgId: string },
   input: {
     projectId: string;
+    /** The prospecting agent that proposes them. */
+    agentId?: string;
     projectName: string;
     /** Offer and ideal customer, as the agents read them. */
     profile: string;
@@ -200,6 +202,7 @@ export async function prepareFirstContacts(
         projectId: input.projectId,
         type: "email.send",
         agentType: "outbound",
+        agentConfigId: input.agentId,
         runId: input.runId,
         payload: { identityId: input.mailboxId, to: [to], subject: draft.subject, body: draft.body },
         context: { customerType: "b2b", subjectRef: conversationRef(conversation.id) },

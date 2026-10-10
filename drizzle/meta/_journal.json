@@ -169,6 +169,13 @@
       "when": 1791559836829,
       "tag": "0023_project_process_fit_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791565330491,
+      "tag": "0024_many_agents_per_project",
+      "breakpoints": true
     }
   ]
 }

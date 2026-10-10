@@ -19,7 +19,14 @@ export function monthStart(timeZone: string, offset = 0, now = Date.now()) {
   return new TZDate(today.getFullYear(), today.getMonth() + offset, 1, timeZone);
 }
 
-export type RunFilter = { projectId?: string; agentType?: AgentType; since?: Date; until?: Date };
+export type RunFilter = {
+  projectId?: string;
+  agentType?: AgentType;
+  /** One agent (a project may have several of a kind). */
+  agentId?: string;
+  since?: Date;
+  until?: Date;
+};
 
 const AGENT_LABELS: Record<string, string> = { copilot: "Copilot" };
 
@@ -32,6 +39,7 @@ const where = (f: RunFilter, before?: Date) =>
   and(
     f.projectId ? eq(agentRuns.projectId, f.projectId) : undefined,
     f.agentType ? eq(agentRuns.agentType, f.agentType) : undefined,
+    f.agentId ? eq(agentRuns.agentConfigId, f.agentId) : undefined,
     f.since ? gte(agentRuns.startedAt, f.since) : undefined,
     before ? lt(agentRuns.startedAt, before) : undefined,
     f.until ? lt(agentRuns.startedAt, f.until) : undefined,
@@ -50,6 +58,7 @@ export async function listRuns(
         projectId: agentRuns.projectId,
         projectName: projects.name,
         agentType: agentRuns.agentType,
+        agentId: agentRuns.agentConfigId,
         agentName: agentConfigs.name,
         icon: agentConfigs.icon,
         color: agentConfigs.color,
@@ -70,10 +79,7 @@ export async function listRuns(
       })
       .from(agentRuns)
       .innerJoin(projects, eq(projects.id, agentRuns.projectId))
-      .leftJoin(
-        agentConfigs,
-        and(eq(agentConfigs.projectId, agentRuns.projectId), eq(agentConfigs.agentType, agentRuns.agentType)),
-      )
+      .leftJoin(agentConfigs, eq(agentConfigs.id, agentRuns.agentConfigId))
       .where(where(filter, filter.before))
       .orderBy(desc(agentRuns.startedAt))
       .limit(limit + 1),
@@ -110,6 +116,7 @@ export async function runTotals(db: Db, tenant: Pick<TenantContext, "orgId">, fi
         projectId: agentRuns.projectId,
         projectName: projects.name,
         agentType: agentRuns.agentType,
+        agentId: agentRuns.agentConfigId,
         agentName: agentConfigs.name,
         icon: agentConfigs.icon,
         color: agentConfigs.color,
@@ -119,15 +126,13 @@ export async function runTotals(db: Db, tenant: Pick<TenantContext, "orgId">, fi
       })
       .from(agentRuns)
       .innerJoin(projects, eq(projects.id, agentRuns.projectId))
-      .leftJoin(
-        agentConfigs,
-        and(eq(agentConfigs.projectId, agentRuns.projectId), eq(agentConfigs.agentType, agentRuns.agentType)),
-      )
+      .leftJoin(agentConfigs, eq(agentConfigs.id, agentRuns.agentConfigId))
       .where(where(filter))
       .groupBy(
         agentRuns.projectId,
         projects.name,
         agentRuns.agentType,
+        agentRuns.agentConfigId,
         agentConfigs.name,
         agentConfigs.icon,
         agentConfigs.color,

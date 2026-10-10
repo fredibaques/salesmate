@@ -7,7 +7,7 @@ const names: NameLookup = {
   conversation: async () => "Ana García",
   base: async () => "Concesionarios",
   meeting: async () => "Demo con Ana",
-  agent: async (_, type) => (type === "inbound" ? "Recepción web" : null),
+  agent: async (_, id) => (id === "a1" ? "Agente outbound" : id === "a2" ? "Recepción web" : null),
 };
 const labels = async (path: string) => (await crumbsFor(path.split("/"), names)).map((c) => c.label);
 
@@ -32,9 +32,9 @@ describe("crumbsFor", () => {
     expect(await labels("projects/p1/rules")).toEqual([]);
     expect(await labels("projects/p1/sales")).toEqual([]);
     expect(await labels("projects/p1/sales/process")).toEqual([]);
-    expect(await labels("projects/p1/agents/outbound")).toEqual(["Swipoo", "Agente outbound"]);
+    expect(await labels("projects/p1/agents/a1")).toEqual(["Swipoo", "Agente outbound"]);
     // An agent the user renamed shows its own name.
-    expect(await labels("projects/p1/agents/inbound/channels")).toEqual([
+    expect(await labels("projects/p1/agents/a2/channels")).toEqual([
       "Swipoo",
       "Recepción web",
       "Herramientas",
