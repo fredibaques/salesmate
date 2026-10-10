@@ -1,6 +1,6 @@
 "use client";
 
-import { unstable_rethrow } from "next/navigation";
+import { unstable_isUnrecognizedActionError, unstable_rethrow } from "next/navigation";
 import { startTransition, useActionState, useRef, type ReactNode } from "react";
 import { useModal } from "./modal";
 import { useToast } from "./toast";
@@ -11,8 +11,9 @@ export type FormAction = (state: FormState, formData: FormData) => Promise<FormS
 
 /**
  * Calls a server action and turns a failure to reach it (no connection, a
- * request the host refuses, like a file over its size limit) into an error
- * next to the button instead of breaking the page. Redirects and other
+ * request the host refuses, like a file over its size limit, a page from
+ * before the last deployment) into an error next to the button instead of
+ * breaking the page. Redirects and other
  * Next.js signals still go through.
  */
 export async function callAction(
@@ -24,6 +25,13 @@ export async function callAction(
     return await action(state, formData);
   } catch (err) {
     unstable_rethrow(err);
+    // The page was loaded before the last update of the app: its actions no longer exist.
+    if (unstable_isUnrecognizedActionError(err)) {
+      return {
+        ok: false,
+        message: "Hay una versión nueva de SalesMate. Recarga la página y vuelve a probarlo.",
+      };
+    }
     return {
       ok: false,
       message:
