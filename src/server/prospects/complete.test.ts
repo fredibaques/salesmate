@@ -132,7 +132,7 @@ describe("a run that completes the base", () => {
     await saveAgentInstructions(db, tenant, projectId, agentId, {
       instructions: "",
       schedule: { time: "08:00", days: [1] },
-      settings: { mode: "complete", cellsPerRun: 10 },
+      settings: { mode: "complete" },
     });
     const { llm, requests } = scriptedLlm([
       {

@@ -96,7 +96,7 @@ describe("runDueAgents", () => {
     await saveAgentInstructions(db, tenant, projectId, agentId, {
       instructions: "Concesionarios de Andalucía.",
       schedule: { time: "08:00", days: [1, 2, 3, 4, 5] },
-      settings: { prospectsPerRun: 2 },
+      settings: {},
     });
     const now = () => new Date("2026-10-07T06:30:00Z");
 

@@ -73,7 +73,7 @@ beforeAll(async () => {
   await saveAgentInstructions(db, tenant, projectId, agentId, {
     instructions: "Concesionarios de Andalucía.",
     schedule: { kind: "daily", time: "08:00" },
-    settings: { mode: "find", prospectsPerRun: 5 },
+    settings: { mode: "find" },
   });
   await setAgentEnabled(db, tenant, projectId, agentId, true);
   await saveGoogleConnection({ db }, tenant, {
@@ -95,8 +95,8 @@ beforeEach(async () => {
 });
 
 describe("caps, goal, sources and model", () => {
-  it("stops a run at its spending cap, keeping what it saved", async () => {
-    await automation({ budget: { maxCostPerRunUsd: 0.01 } });
+  it("stops a run at what's left of the month's cap, keeping what it saved", async () => {
+    await automation({ budget: { maxCostPerMonthUsd: 0.01 } });
     const { llm, requests } = scriptedLlm([
       {
         blocks: [
@@ -154,13 +154,12 @@ describe("caps, goal, sources and model", () => {
       sources: {
         allow: ["https://www.anfac.com/socios", "concesionarios.es"],
         block: ["linkedin.com"],
-        prefer: "web",
       },
     });
     await saveAgentInstructions(db, tenant, projectId, agentId, {
       instructions: "Concesionarios de Andalucía.",
       schedule: { kind: "daily", time: "08:00" },
-      settings: { mode: "find", prospectsPerRun: 5, model: "claude-sonnet-5-5" },
+      settings: { mode: "find", model: "claude-sonnet-5-5" },
     });
     await withTenant(db, tenant, (tx) =>
       tx
@@ -182,7 +181,7 @@ describe("caps, goal, sources and model", () => {
     await saveAgentInstructions(db, tenant, projectId, agentId, {
       instructions: "Concesionarios de Andalucía.",
       schedule: { kind: "daily", time: "08:00" },
-      settings: { mode: "find", prospectsPerRun: 5 },
+      settings: { mode: "find" },
     });
   });
 

@@ -28,7 +28,9 @@ export function Popover({
   align?: "start" | "end";
 }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(
+    null,
+  );
   const button = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
@@ -41,7 +43,18 @@ export function Popover({
     const room = document.documentElement.clientWidth;
     const width = Math.min(px, room - 16);
     const left = align === "end" ? r.right - width : r.left;
-    setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(left, room - width - 8)), width });
+    // Below the trigger, as tall as the window lets it be; with little room below (a «+» low on
+    // the screen), it moves up so its whole content, buttons included, can be scrolled into view.
+    const vh = window.innerHeight;
+    const tallest = Math.min(576, vh - 24);
+    let top = r.bottom + 6;
+    if (vh - top - 12 < Math.min(tallest, 360)) top = Math.max(12, vh - tallest - 12);
+    setPos({
+      top,
+      left: Math.max(8, Math.min(left, room - width - 8)),
+      width,
+      maxHeight: vh - top - 12,
+    });
   }, [open, align, px]);
 
   useEffect(() => {
@@ -94,9 +107,14 @@ export function Popover({
             <div
               ref={panel}
               role="dialog"
-              style={{ top: pos.top, left: pos.left, width: pos.width }}
+              style={{
+                top: pos.top,
+                left: pos.left,
+                width: pos.width,
+                maxHeight: Math.min(576, pos.maxHeight),
+              }}
               className={cx(
-                "fixed z-50 max-h-[min(36rem,calc(100vh-6rem))] overflow-y-auto rounded-xl border border-border bg-surface p-4 text-left text-sm font-normal whitespace-normal text-foreground shadow-lg",
+                "fixed z-50 overflow-y-auto overscroll-contain rounded-xl border border-border bg-surface p-4 text-left text-sm font-normal whitespace-normal text-foreground shadow-lg",
               )}
             >
               <ModalScope close={close}>

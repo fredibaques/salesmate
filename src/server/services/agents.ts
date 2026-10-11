@@ -60,7 +60,7 @@ export const AGENT_DEFAULTS: Record<
     ].join("\n"),
     tools: { web: true },
     schedule: { kind: "weekly", time: "08:00", days: [1, 2, 3, 4, 5] },
-    settings: { prospectsPerRun: 10, mode: "both", cellsPerRun: 20 },
+    settings: { mode: "both" },
   },
   outbound: {
     instructions: [
@@ -564,9 +564,7 @@ export const instructionsInput = z.object({
     .default(null),
   settings: z
     .object({
-      prospectsPerRun: z.number().int().min(1).max(50).optional(),
       mode: z.enum(PROSPECTING_MODES).optional(),
-      cellsPerRun: z.number().int().min(1).max(200).optional(),
       /** "" = the organization's model. */
       model: z.string().optional(),
     })
@@ -834,13 +832,7 @@ export const automationInput = z.object({
     newRows: false,
     webhook: false,
   }),
-  budget: z
-    .object({
-      maxCostPerRunUsd: money.optional(),
-      maxCostPerMonthUsd: money.optional(),
-      maxSearchesPerRun: z.number().int().min(1).max(500).optional(),
-    })
-    .default({}),
+  budget: z.object({ maxCostPerMonthUsd: money.optional() }).default({}),
   goal: z
     .object({
       rows: z.number().int().min(1).max(100_000),
@@ -852,9 +844,8 @@ export const automationInput = z.object({
     .object({
       allow: z.array(z.string()).default([]),
       block: z.array(z.string()).default([]),
-      prefer: z.enum(["data", "web"]).nullable().default(null),
     })
-    .default({ allow: [], block: [], prefer: null }),
+    .default({ allow: [], block: [] }),
   notify: z
     .object({
       slackConnectionId: z.string().uuid().nullable().default(null),
@@ -921,7 +912,7 @@ export async function saveAgentAutomation(
       triggers: input.triggers,
       budget: input.budget,
       goal: input.goal ?? undefined,
-      sources: { ...sources, ...(input.sources.prefer ? { prefer: input.sources.prefer } : {}) },
+      sources,
       notify: input.notify,
       handoff: input.handoff,
     };
@@ -973,6 +964,33 @@ export async function saveAgentTriggers(
       entityType: "agent_config",
       entityId: current.id,
       data: { agentType: current.agentType, triggers },
+    });
+  });
+}
+
+/** The agent's only spending limit: what it may spend in a month (null: no limit). */
+export async function saveAgentMonthlyBudget(
+  db: Db,
+  tenant: TenantContext,
+  projectId: string,
+  agentId: string,
+  maxCostPerMonthUsd: number | null,
+) {
+  const cap = maxCostPerMonthUsd === null ? undefined : money.parse(maxCostPerMonthUsd);
+  return withTenant(db, tenant, async (tx) => {
+    const current = await findConfig(tx, projectId, agentId);
+    if (!current?.addedAt) throw new Error("Agente no encontrado.");
+    const settings: AgentSettings = {
+      ...current.settings,
+      budget: cap === undefined ? {} : { maxCostPerMonthUsd: cap },
+    };
+    await tx.update(agentConfigs).set({ settings }).where(eq(agentConfigs.id, current.id));
+    await audit(tx, tenant, {
+      event: "agent.budget_updated",
+      projectId,
+      entityType: "agent_config",
+      entityId: current.id,
+      data: { maxCostPerMonthUsd: cap ?? null },
     });
   });
 }

@@ -365,12 +365,8 @@ export const PROSPECTING_MODES = ["find", "complete", "both"] as const;
 export type ProspectingMode = (typeof PROSPECTING_MODES)[number];
 
 export type AgentSettings = {
-  /** Prospecting: new prospects to look for in each run. */
-  prospectsPerRun?: number;
   /** Prospecting: look for new rows, fill the empty cells of existing ones, or both. */
   mode?: ProspectingMode;
-  /** Prospecting: empty cells to fill in each run (complete mode). */
-  cellsPerRun?: number;
   /** Model of the organization's provider for this agent; none = the organization's. */
   model?: string;
   /** What else makes it work, besides its schedule and «Ejecutar ahora». */
@@ -382,16 +378,16 @@ export type AgentSettings = {
     /** Inbound: a submission of the project's web form (on unless turned off). */
     form?: boolean;
   };
-  /** Spending caps; a run stops (keeping what it saved) when it reaches one. */
-  budget?: {
-    maxCostPerRunUsd?: number;
-    maxCostPerMonthUsd?: number;
-    maxSearchesPerRun?: number;
-  };
+  /**
+   * The month's spending cap, the agent's only limit: a run stops (keeping
+   * what it saved) when it reaches it, and none starts until next month.
+   * (Older per-run caps may still be stored; they are ignored.)
+   */
+  budget?: { maxCostPerMonthUsd?: number };
   /** Stop looking for new rows once the base has this many that fit (fit ≥ minFit). */
   goal?: { rows: number; minFit?: number };
-  /** Where it may look: only these domains, never these, and which tools first. */
-  sources?: { allow?: string[]; block?: string[]; prefer?: "data" | "web" };
+  /** Where it may look: only these domains, or never these. */
+  sources?: { allow?: string[]; block?: string[] };
   /** Messages to the team (through the gateway) when a run ends or has a problem. */
   notify?: {
     slackConnectionId?: string | null;

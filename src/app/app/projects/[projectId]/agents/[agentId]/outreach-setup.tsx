@@ -11,9 +11,12 @@ import { env } from "@/server/env";
 import { getOrgAi } from "@/server/llm/org-ai";
 import { projectProcess } from "@/server/playbooks/service";
 import { listBases } from "@/server/prospects/bases";
+import { monthSpendUsd } from "@/server/agents/automation";
 import { getAgent, listChannelOptions } from "@/server/services/agents";
+import { getProject } from "@/server/services/projects";
 import { saveOutreachSetup } from "../actions";
 import { ProcessField } from "./process-field";
+import { MonthlyBudgetField } from "./budget-field";
 import { TriggerFields } from "./trigger-fields";
 
 /**
@@ -24,14 +27,16 @@ import { TriggerFields } from "./trigger-fields";
 export async function OutreachSetup({ projectId, agentId }: { projectId: string; agentId: string }) {
   const tenant = await requireTenant();
   const db = getDb();
-  const [agent, options, bases, ai, process] = await Promise.all([
+  const [agent, options, bases, ai, process, project] = await Promise.all([
     getAgent(db, tenant, projectId, agentId),
     listChannelOptions(db, tenant),
     listBases(db, tenant, projectId, { standalone: true }),
     getOrgAi(db, tenant),
     withTenant(db, tenant, (tx) => projectProcess(tx, projectId)),
+    getProject(db, tenant, projectId),
   ]);
-  if (!agent) notFound();
+  if (!agent || !project) notFound();
+  const spent = await monthSpendUsd(db, tenant, { agentId, timezone: project.timezone });
   const config = agent.config;
   const s = config.settings;
   const models = ai ? AI_PROVIDER_INFO[ai.provider].models : [];
@@ -60,8 +65,8 @@ export async function OutreachSetup({ projectId, agentId }: { projectId: string;
           <FormSection title="Objetivo" tip="Con qué tabla trabaja y cómo escribe.">
             <ProcessField projectId={projectId} process={process} />
             <Field
-              label="Trabaja con la tabla"
-              tip="Escribe a sus filas. Suele ser la que rellena un agente de prospección."
+              label="Tabla en la que trabaja"
+              tip="Las tablas son las listas de empresas o personas que ves en «Tablas». Escribe a las empresas o personas de esta, que suele rellenar un agente de prospección."
               hint={
                 <Link href={`/app/projects/${projectId}#tablas`} className="text-accent hover:underline">
                   Ver las tablas del proyecto
@@ -122,15 +127,16 @@ export async function OutreachSetup({ projectId, agentId }: { projectId: string;
             events={[
               {
                 name: "triggerNewRows",
-                label: "Se añade una fila a su tabla",
+                label: "Entra una fila nueva en su tabla",
                 description:
                   "Cuando un agente de prospección o una persona añade filas, escribe a las que encajan.",
                 checked: Boolean(s.triggers?.newRows),
               },
               {
                 name: "triggerWebhook",
-                label: "Llega un aviso de otra herramienta",
-                description: "Tu CRM, Zapier o Make le avisan con un POST para que haga una ejecución.",
+                label: "Otra herramienta se lo pide",
+                description:
+                  "Para equipos que usan Zapier, Make o su CRM: llaman a una dirección secreta del agente para que se ponga a trabajar. Si no lo necesitas, déjalo sin marcar.",
                 checked: Boolean(s.triggers?.webhook),
               },
             ]}
@@ -155,9 +161,14 @@ export async function OutreachSetup({ projectId, agentId }: { projectId: string;
             </FormSection>
           ) : null}
 
-          <FormSection title="Comunicación" tip="Desde dónde escribe. Las respuestas llegan a ese buzón.">
+          <MonthlyBudgetField value={s.budget?.maxCostPerMonthUsd} spent={spent} />
+
+          <FormSection
+            title="Desde dónde escribe"
+            tip="Los primeros emails salen de este buzón y las respuestas llegan a él."
+          >
             <Field
-              label="Buzón desde el que escribe"
+              label="Buzón de Gmail"
               hint={
                 mailboxes.length === 0 ? (
                   <>

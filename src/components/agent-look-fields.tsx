@@ -66,7 +66,8 @@ export function AgentTile({
   return (
     <span className="relative inline-flex shrink-0">
       {tile}
-      <span className="absolute -right-0.5 -bottom-0.5 rounded-full bg-surface p-[2px]">
+      {/* Top right, over the tile's corner: no backing, so it doesn't cover the icon. */}
+      <span className="absolute -top-1 -right-1 flex">
         <AgentStatusDot state={state} />
       </span>
     </span>

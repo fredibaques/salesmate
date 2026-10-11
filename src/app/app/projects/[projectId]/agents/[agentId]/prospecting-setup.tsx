@@ -12,9 +12,9 @@ import {
   Select,
   Textarea,
 } from "@/components/ui";
+import { MonthlyBudgetField } from "./budget-field";
 import { AI_PROVIDER_INFO } from "@/lib/ai-providers";
 import { goalProgress, monthSpendUsd } from "@/server/agents/automation";
-import { DEFAULT_CELLS_PER_RUN } from "@/server/agents/prospector";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { env } from "@/server/env";
@@ -32,16 +32,10 @@ const MODES = [
   { value: "both", label: "Las dos cosas" },
 ];
 
-const PREFER = [
-  { value: "", label: "Sin preferencia" },
-  { value: "data", label: "Datos conectados primero" },
-  { value: "web", label: "Web primero" },
-];
-
 /**
  * The prospecting agent's setup on one screen, grouped by what each field
- * is about: its goal, how it runs, its model (and where it may look and how
- * much it may spend), whom it tells and the next step after it finds rows.
+ * is about: its goal and table, when it works, its model and where it may
+ * look, what it may spend in a month and how it lets the team know.
  * Saved with one button.
  */
 export async function ProspectingSetup({ projectId, agentId }: { projectId: string; agentId: string }) {
@@ -92,15 +86,22 @@ export async function ProspectingSetup({ projectId, agentId }: { projectId: stri
           <FormSection title="Objetivo" tip="Qué busca, dónde lo guarda y cuántas filas quieres conseguir.">
             {bases.length ? (
               <Field
-                label="Trabaja sobre"
-                tip="La tabla donde guarda lo que encuentra: una del proyecto o una sin proyecto. Recoge los datos de sus columnas."
+                label="Tabla en la que trabaja"
+                tip="Las tablas son las listas de empresas o personas que ves en «Tablas». El agente guarda en esta lo que encuentra y rellena sus columnas."
                 hint={
-                  <Link
-                    href={`/app/projects/${projectId}/prospects/new`}
-                    className="text-accent hover:underline"
-                  >
-                    Crear otra tabla
-                  </Link>
+                  <span className="flex flex-wrap gap-3">
+                    {base ? (
+                      <Link href={`/app/tables/${base.id}`} className="text-accent hover:underline">
+                        Ver la tabla
+                      </Link>
+                    ) : null}
+                    <Link
+                      href={`/app/projects/${projectId}/prospects/new`}
+                      className="text-accent hover:underline"
+                    >
+                      Crear otra tabla
+                    </Link>
+                  </span>
                 }
               >
                 <Select
@@ -165,57 +166,26 @@ export async function ProspectingSetup({ projectId, agentId }: { projectId: stri
             events={[
               {
                 name: "triggerNewRows",
-                label: "Se añade una fila a su tabla",
-                description: base ? `Completa esa fila (en «${base.name}»).` : "Completa esa fila.",
+                label: base ? `Entra una fila nueva en «${base.name}»` : "Entra una fila nueva en su tabla",
+                description:
+                  "Porque alguien la escribe, llega de un formulario o la añade otro agente: el agente completa sus datos al momento.",
                 checked: Boolean(s.triggers?.newRows),
               },
               {
                 name: "triggerWebhook",
-                label: "Llega un aviso de otra herramienta",
+                label: "Otra herramienta se lo pide",
                 description:
-                  "Tu CRM, Zapier o Make envían un POST a su dirección y trabaja con lo que le cuentan.",
+                  "Para equipos que usan Zapier, Make o su CRM: llaman a una dirección secreta del agente y este trabaja con lo que le cuentan. Si no lo necesitas, déjalo sin marcar.",
                 checked: Boolean(s.triggers?.webhook),
               },
             ]}
-          >
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field
-                label="Filas nuevas por ejecución"
-                tip="Cuántas empresas o personas nuevas busca cada vez."
-              >
-                <Input
-                  name="prospectsPerRun"
-                  type="number"
-                  min={1}
-                  max={50}
-                  defaultValue={s.prospectsPerRun ?? 10}
-                  className="w-32"
-                />
-              </Field>
-              <Field
-                label="Celdas a completar por ejecución"
-                tip="Tope de datos que busca para filas que ya existen. Junto con las filas nuevas, controla lo que cuesta cada ejecución."
-              >
-                <Input
-                  name="cellsPerRun"
-                  type="number"
-                  min={1}
-                  max={200}
-                  defaultValue={s.cellsPerRun ?? DEFAULT_CELLS_PER_RUN}
-                  className="w-32"
-                />
-              </Field>
-            </div>
-          </TriggerFields>
+          />
 
-          <FormSection
-            title="Configuración del modelo"
-            tip="Qué IA usa, dónde puede buscar y cuánto puede gastar."
-          >
+          <FormSection title="Modelo y fuentes" tip="Qué IA usa y en qué sitios puede buscar.">
             {models.length ? (
               <Field
                 label="Modelo de IA"
-                tip="Uno más económico para tareas repetitivas (completar datos), el más capaz para investigar. Del mismo proveedor que la organización."
+                tip="El que piensa y busca. Completar datos de filas lo hace siempre el modelo económico de tu proveedor, que es mucho más barato."
               >
                 <Select
                   name="model"
@@ -231,13 +201,6 @@ export async function ProspectingSetup({ projectId, agentId }: { projectId: stri
                 </Select>
               </Field>
             ) : null}
-            <Field
-              label="Por dónde empieza"
-              group
-              tip="Entre la web y los datos conectados (Apollo, Lusha, Hunter)."
-            >
-              <Segmented name="sourcesPrefer" options={PREFER} defaultValue={s.sources?.prefer ?? ""} />
-            </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
                 label="Solo en estos sitios"
@@ -260,93 +223,40 @@ export async function ProspectingSetup({ projectId, agentId }: { projectId: stri
                 />
               </Field>
             </div>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field
-                label="Gasto por ejecución ($)"
-                optional
-                tip="Al llegar, guarda lo que tiene y termina. Vacío: sin límite."
-              >
-                <Input
-                  name="maxCostPerRunUsd"
-                  inputMode="decimal"
-                  defaultValue={s.budget?.maxCostPerRunUsd}
-                  placeholder="p. ej. 1"
-                />
-              </Field>
-              <Field
-                label="Gasto al mes ($)"
-                optional
-                hint={`Este mes: ${spent.toFixed(2)} $`}
-                tip="Con el límite alcanzado no vuelve a trabajar hasta el mes siguiente."
-              >
-                <Input
-                  name="maxCostPerMonthUsd"
-                  inputMode="decimal"
-                  defaultValue={s.budget?.maxCostPerMonthUsd}
-                  placeholder="p. ej. 30"
-                />
-              </Field>
-              <Field label="Búsquedas web por ejecución" optional>
-                <Input
-                  name="maxSearchesPerRun"
-                  type="number"
-                  min={1}
-                  defaultValue={s.budget?.maxSearchesPerRun}
-                />
-              </Field>
-            </div>
           </FormSection>
 
-          <FormSection title="Comunicación" tip="Desde dónde escribe y a quién avisa.">
-            <Field
-              label="Buzón"
-              tip="Desde el que envía los avisos por email. Escribir a las filas que encuentra es cosa de un agente outbound."
-            >
-              {mailboxes.length ? (
-                <Select name="mailboxId" defaultValue={config.channels.mailboxId ?? ""} className="max-w-sm">
-                  <option value="">Ninguno</option>
-                  {mailboxes.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.address}
-                    </option>
-                  ))}
-                </Select>
-              ) : (
-                <p className="text-sm text-muted">
-                  No hay buzones que puedan enviar.{" "}
-                  <Link href="/app/connections?add=gmail" className="text-accent hover:underline">
-                    Conecta uno
-                  </Link>
-                  .
-                </p>
-              )}
-            </Field>
-            <Field
-              label="Avisos al equipo"
-              group
-              tip="Un resumen al terminar y una alerta si falla, no encuentra nada o llega a un límite."
-            >
-              <div className="flex flex-wrap gap-4">
+          <MonthlyBudgetField value={s.budget?.maxCostPerMonthUsd} spent={spent} />
+
+          <FormSection
+            title="Avisos al equipo"
+            tip="El agente puede avisaros de lo que hace. Elige cuándo y por dónde; si no marcas nada, no avisa."
+          >
+            <Field label="Cuándo avisa" group>
+              <div className="grid gap-2 sm:grid-cols-2">
                 <Choice
+                  card
                   name="notifyOnFinish"
                   defaultChecked={Boolean(s.notify?.onFinish)}
-                  label="Al terminar"
+                  label="Al terminar cada ejecución"
+                  description="Un resumen de lo que ha encontrado y completado."
                 />
                 <Choice
+                  card
                   name="notifyOnProblem"
                   defaultChecked={Boolean(s.notify?.onProblem)}
-                  label="Si hay un problema"
+                  label="Si algo va mal"
+                  description="Si falla, no encuentra nada o llega al gasto máximo del mes."
                 />
               </div>
             </Field>
-            <Field label="Por Slack">
+            <Field label="Por Slack" tip="Publica el aviso en ese canal.">
               {slacks.length ? (
                 <Select
                   name="slackConnectionId"
                   defaultValue={s.notify?.slackConnectionId ?? ""}
                   className="max-w-sm"
                 >
-                  <option value="">Sin Slack</option>
+                  <option value="">No avisar por Slack</option>
                   {slacks.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.label}
@@ -362,18 +272,47 @@ export async function ProspectingSetup({ projectId, agentId }: { projectId: stri
                 </p>
               )}
             </Field>
-            <Field label="Por email" group hint="Solo personas de la organización, desde el buzón de arriba.">
-              <div className="space-y-2">
-                {team.members.map((m) => (
-                  <Choice
-                    key={m.id}
-                    name="notifyEmails"
-                    value={m.email}
-                    defaultChecked={notifyEmails.has(m.email.toLowerCase())}
-                    label={`${m.name} · ${m.email}`}
-                  />
-                ))}
-              </div>
+            <Field label="Por email" group tip="A las personas del equipo que marques.">
+              {mailboxes.length ? (
+                <div className="space-y-4 rounded-lg border border-border p-4">
+                  <div className="space-y-2">
+                    {team.members.map((m) => (
+                      <Choice
+                        key={m.id}
+                        name="notifyEmails"
+                        value={m.email}
+                        defaultChecked={notifyEmails.has(m.email.toLowerCase())}
+                        label={`${m.name} · ${m.email}`}
+                      />
+                    ))}
+                  </div>
+                  <Field
+                    label="Se envían desde"
+                    tip="El buzón de Gmail conectado desde el que salen estos emails de aviso. Solo se usa para eso."
+                  >
+                    <Select
+                      name="mailboxId"
+                      defaultValue={config.channels.mailboxId ?? ""}
+                      className="max-w-sm"
+                    >
+                      <option value="">— Elige un buzón —</option>
+                      {mailboxes.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.address}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </div>
+              ) : (
+                <p className="text-sm text-muted">
+                  Para avisar por email hace falta un buzón desde el que enviarlos.{" "}
+                  <Link href="/app/connections?add=gmail" className="text-accent hover:underline">
+                    Conecta Gmail
+                  </Link>
+                  .
+                </p>
+              )}
             </Field>
           </FormSection>
         </ActionForm>
