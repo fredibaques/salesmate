@@ -281,7 +281,7 @@ describe("runCompletionEngine", () => {
 });
 
 describe("«Completar vacíos» with the engine", () => {
-  it("uses the small model, stops at the run's budget and queues the next batch", async () => {
+  it("uses the small model, stops at the month's cap and queues the next batch", async () => {
     const base = await createBase(db, tenant, projectId, {
       name: "Muchas",
       rowKind: "company",
@@ -296,11 +296,11 @@ describe("«Completar vacíos» with the engine", () => {
     });
     const agent = await addAgent(db, tenant, projectId, "prospecting", "b2b_consultative");
     await setAgentBase(db, tenant, projectId, agent.id, base.id);
-    // A run cap below what one row costs (the form doesn't allow it; it makes the stop visible).
+    // A month's cap below what one row costs (the form doesn't allow it; it makes the stop visible).
     await withTenant(db, tenant, (tx) =>
       tx
         .update(agentConfigs)
-        .set({ settings: { mode: "complete", budget: { maxCostPerRunUsd: 0.0001 } } })
+        .set({ settings: { mode: "complete", budget: { maxCostPerMonthUsd: 0.0001 } } })
         .where(eq(agentConfigs.id, agent.id)),
     );
     const { llm, requests } = scriptedLlm(Array.from({ length: 6 }, () => answer));

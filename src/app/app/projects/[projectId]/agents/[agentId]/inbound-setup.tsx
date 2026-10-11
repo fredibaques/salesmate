@@ -73,9 +73,9 @@ export async function InboundSetup({ projectId, agentId }: { projectId: string; 
           <FormSection title="Objetivo" tip="Qué hace con cada contacto y dónde lo apunta.">
             <ProcessField projectId={projectId} process={process} />
             <Field
-              label="Apunta cada contacto en"
+              label="Tabla en la que trabaja"
               optional
-              tip="Cada persona que escribe queda como una fila de esta tabla (o se une a la suya si ya estaba, por email o teléfono), y desde la fila se abre su conversación."
+              tip="Las tablas son las listas de empresas o personas que ves en «Tablas». Cada persona que escribe queda como una fila de esta (o se une a la suya si ya estaba, por email o teléfono), y desde la fila se abre su conversación."
               hint={
                 <Link href={`/app/projects/${projectId}#tablas`} className="text-accent hover:underline">
                   Ver las tablas del proyecto
@@ -143,16 +143,16 @@ export async function InboundSetup({ projectId, agentId }: { projectId: string; 
               },
               {
                 name: "triggerNewRows",
-                label: "Se añade una fila a su tabla",
+                label: "Entra una fila nueva en su tabla",
                 description:
-                  "Cada persona nueva de «Apunta cada contacto en» (con email o teléfono) es un contacto que atender.",
+                  "Cada persona nueva de su tabla (con email o teléfono) es un contacto que atender.",
                 checked: Boolean(config.settings.triggers?.newRows),
               },
               {
                 name: "triggerWebhook",
-                label: "Llega un aviso de otra herramienta",
+                label: "Otra herramienta se lo pide",
                 description:
-                  "Tu CRM, Zapier o Make envían un POST con los datos de la persona (nombre, email, teléfono, mensaje).",
+                  "Para equipos que usan Zapier, Make o su CRM: llaman a una dirección secreta del agente con los datos de la persona (nombre, email, teléfono, mensaje). Si no lo necesitas, déjalo sin marcar.",
                 checked: Boolean(config.settings.triggers?.webhook),
               },
             ]}
@@ -182,9 +182,13 @@ export async function InboundSetup({ projectId, agentId }: { projectId: string; 
             </FormSection>
           ) : null}
 
-          <FormSection title="Comunicación" tip="Desde dónde responde, dónde agenda y qué CRM consulta.">
+          <FormSection
+            title="Canales"
+            tip="Desde dónde contesta, dónde agenda las reuniones y qué CRM consulta."
+          >
             <Field
-              label="Buzón desde el que escribe"
+              label="Buzón de Gmail desde el que contesta"
+              tip="Las respuestas por email salen de este buzón. Si marcas «Llega un email al buzón», también atiende los emails que entran en él."
               hint={
                 options.mailboxes.length === 0 ? (
                   <>

@@ -17,9 +17,9 @@ export type TriggerEvent = {
 };
 
 /**
- * «Cuándo trabaja», the same for every agent: by hand (always, with
- * «Ejecutar ahora»), on a schedule, and when something happens (the events
- * that make sense for this agent). What one run does is the agent's own.
+ * «Cuándo trabaja», the same for every agent: when asked (always, with
+ * «Ejecutar ahora»), on a schedule, and by itself when one of the events
+ * that make sense for this agent happens. What one run does is its own.
  */
 export function TriggerFields({
   projectId,
@@ -40,16 +40,19 @@ export function TriggerFields({
   children?: ReactNode;
 }) {
   return (
-    <FormSection title="Cuándo trabaja" tip={`A mano, con horario y cuando pasa algo. ${run}`}>
-      <Field label="A mano" tip="Aunque tenga horario o eventos, puedes lanzarlo cuando quieras.">
+    <FormSection
+      title="Cuándo trabaja"
+      tip={`Hay tres formas de ponerlo a trabajar, y se pueden combinar. ${run}`}
+    >
+      <Field label="1. Cuando tú se lo pides" tip="Aunque tenga horario, puedes lanzarlo cuando quieras.">
         <p className="text-sm text-muted">Siempre, con «Ejecutar ahora» (arriba a la derecha).</p>
       </Field>
-      <ScheduleFields schedule={config.schedule} label="Con horario" manualLabel="Sin horario" />
+      <ScheduleFields schedule={config.schedule} label="2. Con horario" manualLabel="Sin horario" />
       <ScheduleStatus projectId={projectId} config={config} />
       <Field
-        label="Cuando pasa algo"
+        label="3. Solo, cuando ocurre algo de esto"
         group
-        tip="Lo que llega mientras está trabajando espera a que termine. Solo mientras el agente esté activo."
+        tip="Marca lo que quieras que lo ponga a trabajar sin esperar a su horario. Solo funciona con el agente activo; si ya está trabajando, lo hace al terminar."
       >
         <div className="space-y-2">
           {events.map((e) => (

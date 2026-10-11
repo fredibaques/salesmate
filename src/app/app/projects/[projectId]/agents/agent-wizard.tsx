@@ -356,26 +356,7 @@ export function ProspectingWizard({
       id: "when",
       title: "Cuándo trabaja",
       summary: "Solo cuando se lo pidas, una vez o de forma recurrente. Siempre en la hora del proyecto.",
-      content: (
-        <>
-          <ScheduleFields schedule={defaults.schedule} />
-          <div className="grid gap-5 sm:grid-cols-2">
-            <Field
-              label="Prospectos por ejecución"
-              tip="Mejor pocos y buenos: cada ejecución busca hasta este número de empresas nuevas."
-            >
-              <Input
-                name="prospectsPerRun"
-                type="number"
-                min={1}
-                max={50}
-                required
-                defaultValue={defaults.settings.prospectsPerRun ?? 10}
-              />
-            </Field>
-          </div>
-        </>
-      ),
+      content: <ScheduleFields schedule={defaults.schedule} />,
     },
     {
       id: "review",
@@ -405,7 +386,6 @@ export function ProspectingWizard({
                   describeSchedule(schedule)
                 )}
               </ReviewRow>
-              <ReviewRow label="Por ejecución">{`${values.get("prospectsPerRun")} prospectos nuevos`}</ReviewRow>
             </dl>
             <NameField placeholder={AGENT_INFO.prospecting.name} />
             <ActivateChoice />

@@ -147,13 +147,14 @@ export type ProspectingResult = {
 /** Something that made the agent work, with what it brought. */
 export type RunEvent = { kind: AgentEventKind; payload: Record<string, unknown> };
 
-/** Default cap of empty cells to fill per run. */
-export const DEFAULT_CELLS_PER_RUN = 20;
+/** New rows a run looks for (before the time of the run or the month's spending stop it). */
+const PROSPECTS_PER_RUN = 10;
 /** Cap when a person asks to complete specific rows (the agent searches them in depth). */
 const ROWS_CELL_CAP = 100;
 /**
- * Cells a run of «Completar vacíos» takes for the engine: the time is the
- * real limit (what's left goes in the next batch), this only bounds the query.
+ * Cells a run takes for the engine: the time of the run and the month's
+ * spending are the real limits (what's left goes in the next batch); this
+ * only bounds the query.
  */
 const ENGINE_CELL_CAP = 3000;
 /** Rows the engine couldn't read that the agent takes on in one run. */
@@ -290,7 +291,8 @@ export async function runProspecting(
 
   const llm = withModel(deps.llm, agent.settings.model);
   const settings = agent.settings;
-  let target = settings.prospectsPerRun ?? 10;
+  /** New rows a run looks for: the time of the run and the month's spending are the real limits. */
+  let target = PROSPECTS_PER_RUN;
   const actor = { orgId: tenant.orgId, actorType: "agent" as const, actorId: run.id };
   const automatic = input.trigger !== "manual";
   let added = 0;
@@ -329,13 +331,16 @@ export async function runProspecting(
     // Where the findings go: the base the agent works on, with its columns.
     const base = await ensureAgentBase(deps.db, actor, agent.id);
 
-    // The month's cap: once reached, no more runs until next month.
+    // The month's cap, the agent's only spending limit: once reached, no more runs until
+    // next month, and what is left of it is what this run may spend.
     const monthCap = settings.budget?.maxCostPerMonthUsd;
+    let runBudgetUsd: number | undefined;
     if (monthCap !== undefined) {
       const spent = await monthSpendUsd(deps.db, tenant, {
         agentId: agent.id,
         timezone: project.timezone,
       });
+      runBudgetUsd = monthCap - spent;
       if (spent >= monthCap) {
         const summary = `No ha trabajado: este mes ya ha gastado ${spent.toFixed(2)} $ de los ${monthCap.toFixed(2)} $ del límite.`;
         return await skip(summary, {
@@ -380,11 +385,7 @@ export async function runProspecting(
       mode === "find" || goalStops
         ? { rows: [], cells: 0 }
         : await rowsToComplete(deps.db, tenant, base.id, {
-            limit: input.rowIds?.length
-              ? ROWS_CELL_CAP
-              : allPending
-                ? ENGINE_CELL_CAP
-                : (settings.cellsPerRun ?? DEFAULT_CELLS_PER_RUN),
+            limit: input.rowIds?.length ? ROWS_CELL_CAP : ENGINE_CELL_CAP,
             rowIds,
           });
     if (goal?.met && work.rows.length === 0) {
@@ -431,7 +432,7 @@ export async function runProspecting(
           rows: work.rows,
           runId: run.id,
           deadline: finds ? deadline - FIND_RESERVE_MS : deadline,
-          budgetUsd: settings.budget?.maxCostPerRunUsd,
+          budgetUsd: runBudgetUsd,
           context: project.description?.slice(0, 300) ?? undefined,
           country:
             project.timezone === "Europe/Madrid" || project.timezone === "Atlantic/Canary" ? "es" : undefined,
@@ -650,11 +651,6 @@ ${[
     : `- Busca en la web y lee las páginas que encuentres (web_search, y web_fetch si lo tienes). Usa fuentes públicas: webs de empresas, directorios, asociaciones del sector, registros y noticias. No uses LinkedIn como fuente.\n- Cada turno admite como mucho ${SEARCHES_PER_TURN} búsquedas y ${SEARCHES_PER_TURN * 2} lecturas: haz pocas a la vez. Si una devuelve «max_uses_exceeded» no es un límite de la ejecución: guarda lo que tengas y sigue buscando en el turno siguiente.\n- Si una web no se deja leer (web_fetch da error), no insistas con ella: busca el dato con web_search, en directorios o registros, o con las herramientas de datos. Un fallo no es motivo para terminar: sigue con las demás filas.`,
   sources.allow?.length ? `- Busca y lee solo en estos sitios: ${sources.allow.join(", ")}.` : "",
   sources.block?.length ? `- No uses nunca como fuente: ${sources.block.join(", ")}.` : "",
-  sources.prefer === "data" && dataProviders
-    ? `- Empieza siempre por ${dataProviders}; usa la web solo para lo que no tengan.`
-    : sources.prefer === "web" && dataProviders
-      ? `- Empieza por la web; usa ${dataProviders} solo para lo que no encuentres publicado.`
-      : "",
   tools.some((t) => t.name === "serper_search")
     ? "- Para buscar en Google usa primero serper_search: cuesta mucho menos que web_search. Usa web_search solo si no basta."
     : "",
@@ -706,8 +702,7 @@ ${[
     const askWithNotices = notices.length ? `${ask} Ten en cuenta los avisos recibidos.` : ask;
     let pushes = 0;
     const budget = {
-      usd: settings.budget?.maxCostPerRunUsd,
-      webSearches: settings.budget?.maxSearchesPerRun,
+      usd: runBudgetUsd === undefined ? undefined : runBudgetUsd - (engine?.costUsd ?? 0),
     };
     const result = await runAgentLoop({
       llm,
@@ -750,7 +745,7 @@ ${[
     let summary = outOfTime
       ? `Se acabó el tiempo de esta ejecución con ${tally}; la próxima seguirá.`
       : outOfBudget
-        ? `Se alcanzó el límite de gasto de esta ejecución con ${tally}.`
+        ? `Se alcanzó el límite de gasto del mes con ${tally}: no vuelve a trabajar hasta el mes que viene.`
         : result.finalText || `Guardado: ${tally}.`;
     const ok = result.status === "completed" || outOfTime || outOfBudget;
 
@@ -794,7 +789,7 @@ ${[
       !ok
         ? { problem: true, headline: "La ejecución no ha terminado bien", details: summary }
         : outOfBudget
-          ? { problem: true, headline: "Límite de gasto de la ejecución alcanzado", details: summary }
+          ? { problem: true, headline: "Límite de gasto del mes alcanzado", details: summary }
           : nothing
             ? { problem: true, headline: "No ha encontrado nada nuevo", details: summary }
             : { problem: false, headline: `Ha terminado: ${tally}`, details: summary },

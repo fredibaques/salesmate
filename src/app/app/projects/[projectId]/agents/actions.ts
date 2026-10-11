@@ -11,7 +11,7 @@ import { getDb } from "@/server/db/client";
 import { PROSPECTING_MODES, SALES_MOTIONS, type ProspectingMode } from "@/server/db/schema";
 import { bool, list, num, runForm, str } from "@/server/form";
 import { ACTION_DEFINITIONS } from "@/server/gateway/definitions";
-import { DEFAULT_CELLS_PER_RUN, runProspecting } from "@/server/agents/prospector";
+import { runProspecting } from "@/server/agents/prospector";
 import { closeStaleRuns } from "@/server/agents/scheduler";
 import { DEFAULT_HANDOFF_MIN_FIT, DEFAULT_HANDOFF_PER_RUN } from "@/server/agents/first-contact";
 import { runInboundSweep } from "@/server/agents/inbound-sweep";
@@ -31,6 +31,7 @@ import {
   saveAgentAutomation,
   saveAgentChannels,
   saveAgentInstructions,
+  saveAgentMonthlyBudget,
   saveAgentOutreach,
   saveAgentTools,
   saveAgentTriggers,
@@ -55,9 +56,7 @@ function instructionsFromForm(form: FormData, scheduled: boolean) {
     schedule: scheduled ? scheduleFromForm(form) : null,
     settings: scheduled
       ? {
-          prospectsPerRun: num(form, "prospectsPerRun") ?? 10,
           mode: PROSPECTING_MODES.find((m) => m === str(form, "mode")) ?? "both",
-          cellsPerRun: num(form, "cellsPerRun") ?? DEFAULT_CELLS_PER_RUN,
           model: str(form, "model") ?? "",
         }
       : {},
@@ -209,19 +208,14 @@ const amount = (form: FormData, key: string) => {
 /** The automation fields of an agent's form (triggers, goal, caps, sources, notices, first contact). */
 function automationFromForm(form: FormData): Parameters<typeof saveAgentAutomation>[4] {
   const goalRows = num(form, "goalRows");
-  const prefer = str(form, "sourcesPrefer");
   return {
     triggers: { newRows: bool(form, "triggerNewRows"), webhook: bool(form, "triggerWebhook") },
-    budget: {
-      maxCostPerRunUsd: amount(form, "maxCostPerRunUsd"),
-      maxCostPerMonthUsd: amount(form, "maxCostPerMonthUsd"),
-      maxSearchesPerRun: num(form, "maxSearchesPerRun"),
-    },
+    // The month's spending is the only limit of an agent.
+    budget: { maxCostPerMonthUsd: amount(form, "maxCostPerMonthUsd") },
     goal: goalRows ? { rows: goalRows, minFit: num(form, "goalMinFit") } : null,
     sources: {
       allow: domainList(form, "sourcesAllow"),
       block: domainList(form, "sourcesBlock"),
-      prefer: prefer === "data" || prefer === "web" ? (prefer as "data" | "web") : null,
     },
     notify: {
       slackConnectionId: str(form, "slackConnectionId") ?? null,
@@ -327,6 +321,10 @@ async function outreachFromForm(
     perRun: num(form, "perRun") ?? DEFAULT_HANDOFF_PER_RUN,
     mailboxId: str(form, "mailboxId") ?? null,
   });
+  // Only the setup screen has the field (not the wizard).
+  if (form.has("maxCostPerMonthUsd")) {
+    await saveAgentMonthlyBudget(db, tenant, projectId, agentId, amount(form, "maxCostPerMonthUsd") ?? null);
+  }
   const agent = await getAgent(db, tenant, projectId, agentId);
   const baseId = str(form, "baseId") ?? null;
   if (agent && agent.config.prospectBaseId !== baseId) {

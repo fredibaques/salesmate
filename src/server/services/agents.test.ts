@@ -99,7 +99,7 @@ describe("agents", () => {
     expect(agent?.config).toMatchObject({
       tools: { web: true },
       schedule: { time: "08:00", days: [1, 2, 3, 4, 5] },
-      settings: { prospectsPerRun: 10 },
+      settings: { mode: "both" },
     });
     expect(agent?.config.instructions).toContain("fuentes públicas");
   });

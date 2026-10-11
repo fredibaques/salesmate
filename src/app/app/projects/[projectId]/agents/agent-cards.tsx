@@ -119,9 +119,9 @@ function outreachSummary(settings: { handoff?: { minFit?: number; perRun?: numbe
 }
 
 /** What the prospecting agent does in each run, in one line. */
-function prospectingSummary(settings: { prospectsPerRun?: number; mode?: string; cellsPerRun?: number }) {
-  const find = `busca ${settings.prospectsPerRun ?? 10} prospectos nuevos`;
-  const complete = `completa hasta ${settings.cellsPerRun ?? 20} datos que faltan`;
+function prospectingSummary(settings: { mode?: string }) {
+  const find = "busca prospectos nuevos";
+  const complete = "completa los datos que faltan";
   const mode = settings.mode ?? "find";
   const text = mode === "complete" ? complete : mode === "both" ? `${complete} y ${find}` : find;
   return `En cada ejecución ${text}.`;

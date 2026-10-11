@@ -495,8 +495,8 @@ publicada (`notFound`, para no volver a buscarla). Lo que escribe una persona
 queda bloqueado: el agente nunca cambia un valor existente ni una celda
 escrita a mano; vaciarla la devuelve a «por completar». El agente de
 prospección trabaja en un modo (`settings.mode`): buscar filas nuevas,
-completar vacíos o las dos cosas, con un tope de celdas por ejecución
-(`cellsPerRun`). Para completar recibe en el prompt las filas pendientes (las
+completar vacíos o las dos cosas; cuánto hace en cada ejecución lo limitan su
+tiempo y el gasto del mes, no un número fijo de filas o celdas. Para completar recibe en el prompt las filas pendientes (las
 de mejor encaje primero, con referencias cortas F1, F2…) y guarda con
 `update_prospects`. «Completar vacíos» en la base y «Completar esta fila» en el
 panel lanzan una ejecución solo de completar; la de una fila («Completar esta
@@ -527,7 +527,7 @@ sin agente, por un camino fijo:
    encontrado»: cada fila que lee queda respondida.
 
 Trabaja 6 filas a la vez y no empieza ninguna a menos de 25 s del final ni
-pasado el límite de gasto de la ejecución. Las filas que no puede leer (sin
+pasado lo que le queda del gasto máximo del mes. Las filas que no puede leer (sin
 web, web caída) pasan al agente en la misma ejecución, hasta 8 si le quedan
 45 s y tiene web o herramientas de datos (lo que no encuentre queda como no
 encontrado, `closeRows`); sin ellas se marcan como no encontradas. En una
@@ -619,15 +619,19 @@ modelo, Comunicación y Siguiente paso; `/automation` redirige ahí:
   procesan enseguida (`after()`) o en la siguiente pasada del programador si
   el agente está ocupado (`agents/events.ts`); cada evento se reclama antes de
   ejecutar, así que nunca se procesa dos veces.
-- **Límites de gasto** (`budget`): por ejecución (coste y búsquedas web) el
-  bucle (`runAgentLoop({ budget })`) avisa al 75 % para que guarde y para
-  antes del siguiente turno (estado `budget`, cuenta como terminada); al mes
-  (`monthSpendUsd`, en la zona del proyecto) no arranca más ejecuciones.
+- **Límite de gasto** (`budget.maxCostPerMonthUsd`): el único límite de un
+  agente (prospección y outbound; se elige en su ficha). Con él gastado
+  (`monthSpendUsd`, en la zona del proyecto) no arranca más ejecuciones; lo que
+  queda de él es el tope de cada ejecución: el motor no empieza filas pasado
+  ese tope y el bucle (`runAgentLoop({ budget })`) avisa al 75 % para que
+  guarde y para antes del siguiente turno (estado `budget`, cuenta como
+  terminada). Los topes por ejecución de antes (coste, búsquedas, filas y
+  celdas por ejecución) ya no existen; si siguen guardados, se ignoran.
 - **Objetivo** (`goal`): N filas con encaje mínimo. Al cumplirlo deja de buscar
   filas nuevas; si solo buscaba, se pone en pausa (en ejecuciones automáticas).
 - **Fuentes** (`sources`): `allowed_domains` / `blocked_domains` en las
   herramientas web (la API admite una de las dos; con OpenAI y Kimi solo se
-  traslada la de permitidos) y, siempre, en el prompt; y qué usar primero.
+  traslada la de permitidos) y, siempre, en el prompt.
 - **Modelo** (`settings.model`): otro modelo del mismo proveedor de la
   organización (`withModel` en `llm/client.ts`); si la organización cambia de
   proveedor se ignora.
