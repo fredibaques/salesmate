@@ -1,4 +1,3 @@
-import { FIT_RESULTS, type FitCriterion } from "./fit";
 import { COLUMN_TYPE_LABELS, formatCell, type BaseColumn, type RowKind } from "@/lib/prospect-columns";
 
 /**
@@ -47,28 +46,8 @@ function sourcesSchema(columns: BaseColumn[]): Record<string, unknown> {
   };
 }
 
-export function saveRowsSchema(
-  rowKind: RowKind,
-  columns: BaseColumn[],
-  criteria: FitCriterion[] = [],
-): Record<string, unknown> {
+export function saveRowsSchema(rowKind: RowKind, columns: BaseColumn[]): Record<string, unknown> {
   const fields = agentColumns(columns);
-  // With criteria the agent checks each one and the score is computed; without, it estimates it.
-  const fit = criteria.length
-    ? {
-        fit: {
-          type: "object",
-          description: "Si la fila cumple cada criterio de encaje: yes, no o unknown (no comprobado).",
-          properties: Object.fromEntries(
-            criteria.map((c) => [c.id, { type: "string", enum: [...FIT_RESULTS], description: c.criterion }]),
-          ),
-          required: criteria.map((c) => c.id),
-          additionalProperties: false,
-        },
-      }
-    : {
-        fitScore: { type: "integer", minimum: 0, maximum: 100, description: "Encaje con el cliente ideal" },
-      };
   const row: Record<string, unknown> = {
     type: "object",
     properties: {
@@ -80,8 +59,6 @@ export function saveRowsSchema(
         description: rowKind === "person" ? "Empresa donde trabaja" : "Nombre de la empresa",
       },
       website: { type: "string", description: "Web de la empresa" },
-      ...fit,
-      fitReason: { type: "string", description: "Por qué encaja, en una frase" },
       sources: {
         type: "array",
         items: { type: "string" },
@@ -96,10 +73,7 @@ export function saveRowsSchema(
       },
       fieldSources: sourcesSchema(fields),
     },
-    required: [
-      ...(rowKind === "person" ? ["personName", "companyName"] : ["companyName"]),
-      ...(criteria.length ? ["fit"] : []),
-    ],
+    required: rowKind === "person" ? ["personName", "companyName"] : ["companyName"],
   };
   return {
     type: "object",

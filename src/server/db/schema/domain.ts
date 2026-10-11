@@ -73,6 +73,7 @@ export const projects = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     orgId: orgId(),
     name: text("name").notNull(),
+    /** What the project is for: its goal (e.g. «20 reuniones con concesionarios de Andalucía»). */
     description: text("description"),
     website: text("website"),
     /** Colour of its icon (a key of AGENT_COLORS); null is the default. */
@@ -90,7 +91,10 @@ export const projects = pgTable(
     settings: jsonb("settings").$type<ProjectSettings>().notNull().default({}),
     /** Secret used by the project's web forms to post leads (POST /api/inbound/form/:projectId). */
     inboundFormKey: text("inbound_form_key"),
-    /** What the project sells and to whom, shared by every agent (see playbooks/spec.ts). */
+    /**
+     * Who the project is for (`projectAudienceSchema`); what it sells is the
+     * business's (`org_profiles`). Older projects keep their whole profile here.
+     */
     salesProfile: jsonb("sales_profile").$type<Record<string, unknown>>().notNull().default({}),
     createdBy: text("created_by"),
     createdAt: createdAt(),
@@ -175,6 +179,22 @@ export const orgAi = pgTable(
     updatedAt: updatedAt(),
   },
   () => [tenantPolicy("org_ai")],
+);
+
+/**
+ * What the business sells, to whom and how it talks («Tu negocio»): one per
+ * organization, shared by every project (see `businessProfileSchema`).
+ */
+export const orgProfiles = pgTable(
+  "org_profiles",
+  {
+    orgId: orgId().primaryKey(),
+    profile: jsonb("profile").$type<Record<string, unknown>>().notNull().default({}),
+    updatedBy: text("updated_by"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  () => [tenantPolicy("org_profiles")],
 );
 
 /**
@@ -386,6 +406,8 @@ export type AgentSettings = {
   budget?: { maxCostPerMonthUsd?: number };
   /** Stop looking for new rows once the base has this many that fit (fit ≥ minFit). */
   goal?: { rows: number; minFit?: number };
+  /** Prospecting: the Google searches its discovery has run, not to repeat them. */
+  discovery?: { usedQueries?: string[] };
   /** Where it may look: only these domains, or never these. */
   sources?: { allow?: string[]; block?: string[] };
   /** Messages to the team (through the gateway) when a run ends or has a problem. */

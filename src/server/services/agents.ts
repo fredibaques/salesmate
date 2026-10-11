@@ -17,7 +17,6 @@ import {
   identities,
   projectConnections,
   projectIdentities,
-  projects,
   PROSPECTING_MODES,
   type AgentChannels,
   type AgentSchedule,
@@ -27,7 +26,7 @@ import {
 } from "../db/schema";
 import { withTenant, type TenantContext, type Tx } from "../db/tenant";
 import { ensureProjectProcessIn, savePlaybookVersion } from "../playbooks/service";
-import { PROCESS_FIELDS, parseSalesProfile, salesProfileSchema, type PlaybookSpec } from "../playbooks/spec";
+import { PROCESS_FIELDS, type PlaybookSpec } from "../playbooks/spec";
 
 /**
  * Agents are the unit the user works with: they add an agent to a project
@@ -69,7 +68,7 @@ export const AGENT_DEFAULTS: Record<
     ].join("\n"),
     tools: {},
     schedule: { kind: "weekly", time: "09:30", days: [1, 2, 3, 4, 5] },
-    settings: { handoff: { enabled: true, minFit: 70, perRun: 5 } },
+    settings: { handoff: { enabled: true, perRun: 5 } },
   },
   inbound: { instructions: "", tools: {}, schedule: null, settings: {} },
   account_manager: { instructions: "", tools: {}, schedule: null, settings: {} },
@@ -310,7 +309,7 @@ export async function customizeAgent(
 
 /**
  * Saves a new version of the project's sales process (creating it if the
- * project has none); the fields of «Oferta y cliente» are left untouched.
+ * project has none); the business profile and the project's audience are left untouched.
  */
 export async function saveProjectProcess(
   db: Db,
@@ -743,40 +742,6 @@ export async function setAgentMcpTools(
   });
 }
 
-// ---------------------------------------------------------------------------
-// Sales profile: what the project sells and to whom (shared by its agents)
-// ---------------------------------------------------------------------------
-
-export async function getSalesProfile(db: Db, tenant: Pick<TenantContext, "orgId">, projectId: string) {
-  return withTenant(db, tenant, async (tx) => {
-    const [row] = await tx
-      .select({ salesProfile: projects.salesProfile })
-      .from(projects)
-      .where(eq(projects.id, projectId));
-    if (!row) throw new Error("Proyecto no encontrado.");
-    return parseSalesProfile(row.salesProfile);
-  });
-}
-
-export async function saveSalesProfile(db: Db, tenant: TenantContext, projectId: string, raw: unknown) {
-  const profile = salesProfileSchema.parse(raw);
-  return withTenant(db, tenant, async (tx) => {
-    const [row] = await tx
-      .update(projects)
-      .set({ salesProfile: profile })
-      .where(eq(projects.id, projectId))
-      .returning({ id: projects.id });
-    if (!row) throw new Error("Proyecto no encontrado.");
-    await audit(tx, tenant, {
-      event: "project.sales_profile_updated",
-      projectId,
-      entityType: "project",
-      entityId: projectId,
-    });
-    return profile;
-  });
-}
-
 /** Latest runs of an agent, newest first (what it did and what it cost). */
 export async function listAgentRuns(
   db: Db,
@@ -997,16 +962,15 @@ export async function saveAgentMonthlyBudget(
 
 /**
  * Whom the outbound agent writes to and from where: rows of its table with
- * at least `minFit`, up to `perRun` a run, from the mailbox `mailboxId`.
+ * an email, up to `perRun` a run, from the mailbox `mailboxId`.
  */
 export async function saveAgentOutreach(
   db: Db,
   tenant: TenantContext,
   projectId: string,
   agentId: string,
-  input: { minFit: number; perRun: number; mailboxId: string | null },
+  input: { perRun: number; mailboxId: string | null },
 ) {
-  const minFit = Math.max(0, Math.min(100, Math.round(input.minFit)));
   const perRun = Math.max(1, Math.min(25, Math.round(input.perRun)));
   return withTenant(db, tenant, async (tx) => {
     const current = await findConfig(tx, projectId, agentId);
@@ -1020,7 +984,7 @@ export async function saveAgentOutreach(
     }
     const settings: AgentSettings = {
       ...current.settings,
-      handoff: { ...current.settings.handoff, enabled: true, minFit, perRun },
+      handoff: { ...current.settings.handoff, enabled: true, perRun },
     };
     await tx
       .update(agentConfigs)
@@ -1032,7 +996,7 @@ export async function saveAgentOutreach(
       projectId,
       entityType: "agent_config",
       entityId: current.id,
-      data: { agentType: current.agentType, minFit, perRun, mailboxId: input.mailboxId },
+      data: { agentType: current.agentType, perRun, mailboxId: input.mailboxId },
     });
   });
 }

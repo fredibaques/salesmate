@@ -440,6 +440,11 @@ export async function saveGoogleConnection(
       : googleToolsOf(granted.read, granted.write).map((t) => t.id),
   );
   const scopesOn = new Set([...on].map((t) => GOOGLE_TOOLS[t as GoogleTool].scope as string));
+  // Listing Drive comes with Docs or Sheets: it's how a file to import is picked.
+  if (sets.includes("drive_list") && (scopesOn.has("docs") || scopesOn.has("sheets"))) {
+    granted.read.push("drive");
+    scopesOn.add("drive");
+  }
   const read = granted.read.filter((x) => scopesOn.has(x));
   const write = granted.write.filter((x) => scopesOn.has(x));
 

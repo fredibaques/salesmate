@@ -161,6 +161,12 @@ export type Capabilities = {
   >;
   /** A document as text (Google Docs). */
   "docs.read": (input: { documentId: string }) => Promise<{ title: string; text: string }>;
+  /** The Google Docs and Sheets in the account's Drive, to pick one (names, not content). */
+  "drive.list": (input: {
+    query?: string;
+  }) => Promise<
+    { id: string; name: string; kind: "doc" | "sheet"; modifiedAt: string | null; url: string }[]
+  >;
   /** The values of one sheet (Google Sheets). */
   "sheets.read": (input: {
     spreadsheetId: string;

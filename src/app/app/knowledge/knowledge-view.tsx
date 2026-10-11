@@ -4,7 +4,13 @@ import { FileInput } from "@/components/file-input";
 import { ModalButton } from "@/components/modal";
 import { CardGrid, EntityCard, Field, Input, Meta, Textarea } from "@/components/ui";
 import { formatDate } from "@/lib/format";
-import { importGoogleKnowledge, uploadKnowledge } from "./actions";
+import {
+  importGoogleFileAction,
+  importGoogleKnowledge,
+  listGoogleFilesAction,
+  uploadKnowledge,
+} from "./actions";
+import { GoogleDrivePicker } from "./google-picker";
 import { describeSource } from "./sources";
 
 /**
@@ -70,27 +76,32 @@ export function PasteButton({ projectId }: { projectId: string | null }) {
 export function GoogleImportButton({ projectId }: { projectId: string | null }) {
   return (
     <ModalButton
-      label="Desde Google"
+      label="Desde Google Drive"
       icon={<FileImportIcon className="size-4" />}
-      title="Importar desde Google Docs o Sheets"
+      title="Importar desde Google Drive"
       variant="secondary"
+      width="lg"
     >
-      <ActionForm
-        action={importGoogleKnowledge.bind(null, projectId)}
-        submitLabel="Importar"
-        className="space-y-4"
+      <GoogleDrivePicker
+        list={listGoogleFilesAction}
+        importFile={importGoogleFileAction.bind(null, projectId)}
       >
-        <Field
-          label="Enlace"
-          hint="Un documento se añade como documento; una hoja, como tabla (su primera pestaña)."
-          tip="Se importa una copia con la cuenta de Google conectada que tenga acceso. Si cambia en Google, vuelve a importarlo."
+        <ActionForm
+          action={importGoogleKnowledge.bind(null, projectId)}
+          submitLabel="Importar"
+          cancel={false}
+          stayOpen
+          className="space-y-4"
         >
-          <Input name="url" type="url" required placeholder="https://docs.google.com/…" />
-        </Field>
-        <Field label="Nombre" optional hint="Si lo dejas vacío, se usa el título del fichero.">
-          <Input name="name" />
-        </Field>
-      </ActionForm>
+          <Field
+            label="Enlace"
+            hint="Un documento se añade como documento; una hoja, como tabla (su primera pestaña)."
+            tip="Se importa una copia con la cuenta de Google conectada que tenga acceso. Si cambia en Google, vuelve a importarlo."
+          >
+            <Input name="url" type="url" required placeholder="https://docs.google.com/…" />
+          </Field>
+        </ActionForm>
+      </GoogleDrivePicker>
     </ModalButton>
   );
 }

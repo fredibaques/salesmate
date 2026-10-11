@@ -9,7 +9,8 @@ import type { GatewayDeps } from "../gateway/gateway";
 import { defineTool, runAgentLoop, type AgentLoopResult } from "../llm/agent-loop";
 import type { LlmClient } from "../llm/client";
 import { projectProcess } from "../playbooks/service";
-import { parseSalesProfile, renderPlaybook } from "../playbooks/spec";
+import { renderPlaybook } from "../playbooks/spec";
+import { projectSales } from "../services/business";
 import {
   actionTools,
   calendarTools,
@@ -118,9 +119,10 @@ export async function askCopilot(
   });
 
   const identitiesHint = await projectIdentityHints(ctx);
+  const sales = await projectSales(deps.db, tenant, project);
   const system = [
     `Eres el copiloto comercial del proyecto «${project.name}». Ayudas a la persona responsable a entender su información comercial, preparar llamadas y mensajes, y revisar cómo van los contactos.`,
-    `## El proyecto\n${project.description ?? "(sin descripción)"}\nWeb: ${project.website ?? "—"} · Zona horaria: ${project.timezone}`,
+    `## El proyecto\nObjetivo: ${project.description ?? "(sin definir)"}\nWeb del negocio: ${sales.website ?? "—"} · Zona horaria: ${project.timezone}`,
     `## Cómo respondes
 - Responde a partir del conocimiento del proyecto (search_knowledge, list_tables, query_table), su CRM y sus conversaciones. Indica de qué fuente sale cada dato; si algo no está en las fuentes, dilo.
 - Respuestas breves y directas, en español, con listas cuando ayuden.
@@ -133,7 +135,7 @@ export async function askCopilot(
           name: playbook.name,
           motion: playbook.salesMotion,
           spec: playbook.spec,
-          profile: parseSalesProfile(project.salesProfile),
+          profile: sales.profile,
         })
       : "",
   ]

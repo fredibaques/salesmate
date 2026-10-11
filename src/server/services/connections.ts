@@ -113,7 +113,9 @@ export async function removeGoogleTool(
   );
   if (!connection || connection.provider !== "google") throw new Error("Integración no encontrada.");
   const scope = GOOGLE_TOOLS[tool].scope as string;
-  const read = connection.readScopes.filter((x) => x !== scope);
+  let read = connection.readScopes.filter((x) => x !== scope);
+  // Listing Drive only serves Docs and Sheets.
+  if (!read.includes("docs") && !read.includes("sheets")) read = read.filter((x) => x !== "drive");
   const write = connection.writeScopes.filter((x) => x !== scope);
   if (googleToolsOf(read, write).length === 0) return removeConnection(db, tenant, connectionId);
   return withTenant(db, tenant, async (tx) => {

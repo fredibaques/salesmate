@@ -12,8 +12,8 @@ const TOOL_SETS: Record<GoogleTool, GoogleScopeSet[]> = {
   gmail: ["gmail_write"],
   google_calendar: ["calendar_read"],
   google_meet: ["meet_read"],
-  google_docs: ["docs_read"],
-  google_sheets: ["sheets"],
+  google_docs: ["docs_read", "drive_list"],
+  google_sheets: ["sheets", "drive_list"],
 };
 
 export async function GET(request: NextRequest) {

@@ -645,7 +645,6 @@ function PersonDetails({ person }: { person: Person }) {
         )}
         {row("Cargo", c?.jobTitle)}
         {row("Estado", c?.status ? <Badge>{CONTACT_STATUS_LABELS[c.status]}</Badge> : null)}
-        {row("Encaje", c?.fitScore != null ? `${c.fitScore}/100` : null)}
         {row(
           person.projects.length > 1 ? "Proyectos" : "Proyecto",
           person.projects.length ? (

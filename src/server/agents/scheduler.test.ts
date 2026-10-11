@@ -163,7 +163,7 @@ describe("runDueAgents", () => {
 
     const [base] = await listBases(db, tenant, projectId);
     const { rows } = await listProspects(db, tenant, base.id);
-    expect(rows.map((r) => [r.companyName, r.fitScore])).toEqual([["Autos García", 100]]);
+    expect(rows.map((r) => r.companyName)).toEqual(["Autos García"]);
     const runs = await withTenant(db, tenant, (tx) =>
       tx.select().from(agentRuns).where(eq(agentRuns.projectId, projectId)),
     );

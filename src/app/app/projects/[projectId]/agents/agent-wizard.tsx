@@ -299,7 +299,7 @@ export function ProspectingWizard({
       content: (
         <Field
           label="Instrucciones"
-          tip="Sector, tamaño, zona, señales de que encajan, qué fuentes usar o evitar y qué datos recoger. Lo común a todos los agentes (qué vendes, a quién) lo toma de Ventas → Oferta y cliente."
+          tip="Sector, tamaño, zona, qué fuentes usar o evitar y qué datos recoger. Qué vendes lo toma de Tu negocio, y el objetivo y a quién va dirigido, de Ventas → Objetivo y público."
         >
           <Textarea name="instructions" required defaultValue={defaults.instructions} className="min-h-56" />
         </Field>
@@ -447,16 +447,6 @@ export function OutreachWizard({
             </Notice>
           )}
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Encaje mínimo" tip="0 para escribir también a las filas sin encaje calculado.">
-              <Input
-                name="minFit"
-                type="number"
-                min={0}
-                max={100}
-                required
-                defaultValue={handoff?.minFit ?? 70}
-              />
-            </Field>
             <Field label="Emails por ejecución">
               <Input
                 name="perRun"
@@ -535,13 +525,12 @@ export function OutreachWizard({
       content: (values) => {
         const base = bases.find((b) => b.id === values.get("baseId"));
         const mailbox = mailboxes.find((m) => m.id === values.get("mailboxId"));
-        const minFit = Number(values.get("minFit") ?? 0);
         return (
           <>
             <dl className="divide-y divide-border">
               <ReviewRow label="Tabla">{base?.name ?? <Badge tone="warning">Sin tabla</Badge>}</ReviewRow>
               <ReviewRow label="A quién">
-                {`Hasta ${values.get("perRun")} filas por ejecución${minFit > 0 ? `, con encaje ${minFit} o más` : ""}`}
+                {`Hasta ${values.get("perRun")} filas con email por ejecución`}
               </ReviewRow>
               <ReviewRow label="Desde">
                 {mailbox?.address ?? <Badge tone="warning">Sin buzón</Badge>}

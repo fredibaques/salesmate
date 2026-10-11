@@ -215,7 +215,6 @@ describe("inbound agent", () => {
       lastName: "Martín",
       companyName: "Motor Centro",
       status: "qualified",
-      fitScore: 80,
       legalBasis: "consent",
     });
     expect(state.conversation).toMatchObject({ classification: "pide presupuesto", channel: "form" });

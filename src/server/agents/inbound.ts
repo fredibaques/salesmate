@@ -19,7 +19,8 @@ import type { GatewayDeps } from "../gateway/gateway";
 import { runAgentLoop, defineTool, type AgentTool } from "../llm/agent-loop";
 import { withModel, type LlmClient } from "../llm/client";
 import { projectProcess, type PlaybookWithSpec } from "../playbooks/service";
-import { parseSalesProfile, renderPlaybook } from "../playbooks/spec";
+import { renderPlaybook, type SalesProfile } from "../playbooks/spec";
+import { projectSales } from "../services/business";
 import { conversationRef, findOrCreateConversation, upsertContact, type Lead } from "./conversations";
 import { recordLeadRow } from "./inbound-table";
 import {
@@ -80,18 +81,19 @@ function leadFromEvent(
 
 function systemPrompt(input: {
   project: typeof projects.$inferSelect;
+  sales: { profile: SalesProfile; website: string | null };
   playbook: PlaybookWithSpec | null;
   identities: { id: string; kind: string; address: string; isDefault: boolean }[];
   instructions?: string | null;
 }): string {
-  const { project, playbook } = input;
+  const { project, playbook, sales } = input;
   const mailboxes = input.identities.filter((i) => i.kind === "email");
   const calendars = input.identities.filter((i) => i.kind === "calendar");
   const defaultMailbox = mailboxes.find((m) => m.isDefault) ?? mailboxes[0];
 
   return [
     `Eres el agente inbound de «${project.name}». Atiendes a quien acaba de contactar con el proyecto y preparas el siguiente paso comercial siguiendo el playbook. Trabajas para una persona del equipo que revisará lo que propongas.`,
-    `## El proyecto\n${project.description ?? "(sin descripción)"}\nWeb: ${project.website ?? "—"} · Idiomas: ${project.languages.join(", ")} · Zona horaria: ${project.timezone}`,
+    `## El proyecto\nObjetivo: ${project.description ?? "(sin definir)"}\nWeb del negocio: ${sales.website ?? "—"} · Idiomas: ${project.languages.join(", ")} · Zona horaria: ${project.timezone}`,
     `## Cómo trabajas
 - Antes de afirmar cualquier hecho sobre la oferta (precios, plazos, condiciones, coberturas, disponibilidad), búscalo con search_knowledge, list_tables y query_table. Si no lo encuentras en una fuente, no lo inventes: dilo con naturalidad y deriva a una persona.
 - Cualifica al contacto según el playbook y registra tu valoración con update_lead.
@@ -113,7 +115,7 @@ function systemPrompt(input: {
           name: playbook.name,
           motion: playbook.salesMotion,
           spec: playbook.spec,
-          profile: parseSalesProfile(project.salesProfile),
+          profile: sales.profile,
         })
       : "## Proceso de venta\nEste proyecto aún no tiene proceso de venta. Limítate a un acuse de recibo cordial que confirme que alguien del equipo responderá pronto, y crea una tarea para que una persona lo atienda.",
     input.instructions ? `## Instrucciones de la persona responsable\n${input.instructions}` : "",
@@ -177,10 +179,9 @@ function leadStateTool(ctx: { db: Db; orgId: string; contactId: string; conversa
   return defineTool({
     name: "update_lead",
     description:
-      "Guarda tu valoración del contacto y de la conversación: estado, encaje (0-100), clasificación, resumen y siguiente paso. También corrige sus datos si el mensaje los aclara.",
+      "Guarda tu valoración del contacto y de la conversación: estado, clasificación, resumen y siguiente paso. También corrige sus datos si el mensaje los aclara.",
     input: z.object({
       status: z.enum(CONTACT_STATUSES).optional(),
-      fitScore: z.number().int().min(0).max(100).optional(),
       classification: z
         .string()
         .optional()
@@ -206,7 +207,6 @@ function leadStateTool(ctx: { db: Db; orgId: string; contactId: string; conversa
         const contactPatch = Object.fromEntries(
           Object.entries({
             status: input.status,
-            fitScore: input.fitScore,
             customerType: input.customerType,
             firstName: input.firstName,
             lastName: input.lastName,
@@ -512,6 +512,7 @@ export async function processInboundEvent(
       system: [
         systemPrompt({
           project,
+          sales: await projectSales(deps.db, tenant, project),
           playbook,
           identities: await projectIdentityHints(toolCtx),
           instructions: agentConfig?.instructions,

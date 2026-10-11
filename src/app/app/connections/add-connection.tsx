@@ -67,12 +67,12 @@ const GOOGLE_SETUP: Record<string, GoogleSetup> = {
     note: "Te pediremos permiso para leer las transcripciones de tus llamadas. Para que las reuniones que agende el agente lleven enlace de Meet, conecta también Google Calendar con «Agenda reuniones».",
   },
   google_docs: {
-    sets: "docs_read",
-    note: "Te pediremos permiso para leer tus documentos de Google Docs. Solo se leen los que importes al conocimiento de un proyecto.",
+    sets: "docs_read,drive_list",
+    note: "Te pediremos permiso para ver la lista de tus documentos (para elegir cuál importar) y leer los que importes al conocimiento.",
   },
   google_sheets: {
-    sets: "sheets",
-    note: "Te pediremos permiso para leer y crear hojas de cálculo: para importar una hoja al conocimiento y para exportar tablas a una hoja nueva.",
+    sets: "sheets,drive_list",
+    note: "Te pediremos permiso para ver la lista de tus hojas (para elegir cuál importar), leerlas y crear hojas nuevas al exportar tablas.",
   },
 };
 

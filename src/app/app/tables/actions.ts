@@ -6,7 +6,6 @@ import { redirect } from "next/navigation";
 import type { FormState } from "@/components/action-form";
 import {
   COLUMN_TYPES,
-  DEFAULT_COLUMNS,
   FILLED_BY,
   hasOptions,
   newTableHiddenFields,
@@ -24,8 +23,7 @@ import { describeConnectorError } from "@/server/connectors/types";
 import { proposeAction } from "@/server/gateway/gateway";
 import { gatewayDeps } from "@/server/gateway/runtime";
 import { getDb } from "@/server/db/client";
-import { list, num, runForm, str } from "@/server/form";
-import { orgLlm } from "@/server/llm/org-ai";
+import { list, runForm, str } from "@/server/form";
 import {
   baseAgents,
   createBase,
@@ -41,7 +39,6 @@ import {
   setFieldHidden,
 } from "@/server/prospects/bases";
 import { setIntakeKey } from "@/server/prospects/intake";
-import { proposeColumns, type ProposedColumn } from "@/server/prospects/propose-columns";
 import {
   addProspectRow,
   rowEditFromValues,
@@ -66,45 +63,6 @@ export async function changeProspectStatus(baseId: string, ids: string[], status
 }
 
 // ---- Bases ------------------------------------------------------------------
-
-/**
- * Columns for a table: proposed by the AI (from its project's offer and
- * ideal customer, when it has a project), or the default ones when the AI
- * isn't connected.
- */
-export async function proposeColumnsAction(
-  projectId: string | null,
-  input: { rowKind: RowKind; name: string; brief: string },
-): Promise<{ ok: boolean; message?: string; columns: ProposedColumn[] }> {
-  const tenant = await admin();
-  const db = getDb();
-  const defaults = DEFAULT_COLUMNS[input.rowKind].map((c) => ({ ...c, recommended: true }));
-  const llm = await orgLlm(db, tenant).catch(() => null);
-  if (!llm) {
-    return {
-      ok: false,
-      message: "Conecta la IA para que proponga columnas a tu medida. Mientras, tienes las de siempre.",
-      columns: defaults,
-    };
-  }
-  try {
-    const columns = await proposeColumns({ db, llm }, tenant, {
-      projectId,
-      rowKind: input.rowKind,
-      name: input.name || "Prospectos",
-      brief: input.brief,
-    });
-    return columns.length
-      ? { ok: true, columns }
-      : { ok: false, message: "La IA no ha propuesto columnas.", columns: defaults };
-  } catch (err) {
-    return {
-      ok: false,
-      message: `No se han podido proponer columnas (${err instanceof Error ? err.message : String(err)}). Tienes las de siempre.`,
-      columns: defaults,
-    };
-  }
-}
 
 /**
  * Creates a table with only the row's name, and opens it: columns (and the
@@ -214,7 +172,7 @@ export async function placeColumnAction(
   refresh();
 }
 
-/** Shows or hides a fixed field (web, fit, status, sources; the company in tables of people). */
+/** Shows or hides a fixed field (web, status, sources, date; the company in tables of people). */
 export async function toggleFieldAction(baseId: string, field: SystemField, hidden: boolean) {
   if (!SYSTEM_FIELDS.includes(field)) return;
   await setFieldHidden(getDb(), await admin(), baseId, field, hidden);
@@ -279,13 +237,10 @@ export async function saveRowAction(
     const db = getDb();
     const base = await getBase(db, tenant, baseId);
     if (!base) throw new Error("Tabla de prospectos no encontrada.");
-    const fit = str(form, "fitScore");
     const edit: RowEdit = {
       companyName: str(form, "companyName") ?? "",
       personName: str(form, "personName"),
       website: str(form, "website"),
-      fitScore: fit === undefined ? null : num(form, "fitScore"),
-      fitReason: str(form, "fitReason"),
       fields: Object.fromEntries(
         base.columns.map((c) => [
           c.id,

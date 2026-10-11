@@ -68,7 +68,7 @@ export async function ProspectingSetup({ projectId, agentId }: { projectId: stri
     <div className="max-w-3xl space-y-6">
       <Card
         title="Configuración"
-        tip="Lo que comparten todos los agentes (qué vendes, a quién, tono) ya lo saben por Ajustes → Oferta y cliente. Todo lo que hace por fuera pasa por el gateway: los avisos al equipo salen solos. Para escribir a las filas que encuentra, añade un agente outbound que trabaje con su tabla."
+        tip="Lo que comparten todos los agentes ya lo saben: qué vendes y cómo hablar (Ajustes → Tu negocio) y el objetivo del proyecto (Ventas → Objetivo y público). Todo lo que hace por fuera pasa por el gateway: los avisos al equipo salen solos. Para escribir a las filas que encuentra, añade un agente outbound que trabaje con su tabla."
       >
         <ActionForm
           key={JSON.stringify([
@@ -127,29 +127,17 @@ export async function ProspectingSetup({ projectId, agentId }: { projectId: stri
             <Field
               label="En cada ejecución"
               group
-              tip="Completar rellena las celdas vacías de filas que ya están en la tabla, empezando por las de mejor encaje. No toca lo que ha escrito una persona."
+              tip="Completar rellena las celdas vacías de filas que ya están en la tabla. No toca lo que ha escrito una persona."
             >
               <Segmented name="mode" options={MODES} defaultValue={s.mode ?? "find"} />
             </Field>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field
-                label="Filas que quieres conseguir"
-                optional
-                tip="Al llegar, deja de buscar filas nuevas. Si solo busca filas nuevas, se pone en pausa; si también completa, sigue completando."
-              >
-                <Input name="goalRows" type="number" min={1} defaultValue={s.goal?.rows} className="w-40" />
-              </Field>
-              <Field label="Con encaje mínimo" optional hint="De 0 a 100. Vacío: cualquier encaje.">
-                <Input
-                  name="goalMinFit"
-                  type="number"
-                  min={0}
-                  max={100}
-                  defaultValue={s.goal?.minFit}
-                  className="w-40"
-                />
-              </Field>
-            </div>
+            <Field
+              label="Filas que quieres conseguir"
+              optional
+              tip="Al llegar, deja de buscar filas nuevas. Si solo busca filas nuevas, se pone en pausa; si también completa, sigue completando."
+            >
+              <Input name="goalRows" type="number" min={1} defaultValue={s.goal?.rows} className="w-40" />
+            </Field>
             {goal ? (
               <p className="text-sm text-muted">
                 Ahora: {goal.rows} de {goal.target}

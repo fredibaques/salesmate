@@ -1,6 +1,5 @@
 import { and, asc, count, desc, eq, ilike, inArray, or, sql, type AnyColumn } from "drizzle-orm";
 import { z } from "zod";
-import { fitChecksFrom, scoreFit, type FitCriterion } from "./fit";
 import { checkCell, formatCell, type BaseColumn, type RowKind } from "@/lib/prospect-columns";
 import { audit } from "../audit";
 import type { Db } from "../db/client";
@@ -42,8 +41,6 @@ export const prospectInput = z.object({
     .transform((v) => v || undefined),
   fitScore: z.number().int().min(0).max(100).optional(),
   fitReason: z.string().trim().max(1000).optional(),
-  /** The agent's answer to each fit criterion, by its id (c1, c2…): yes / no / unknown. */
-  fit: z.record(z.string(), z.unknown()).optional(),
   sources: z.array(z.string().url()).max(10).default([]),
   /** Values by column id (or column name). */
   fields: z.record(z.string(), z.unknown()).default({}),
@@ -164,8 +161,6 @@ export async function saveProspects(
     agentConfigId?: string;
     runId?: string;
     items: ProspectInput[];
-    /** The project's fit criteria: the score is computed from the agent's checks. */
-    fitCriteria?: FitCriterion[];
   },
 ): Promise<{ added: ProspectRow[]; duplicates: string[]; invalid: string[]; fieldErrors: string[] }> {
   const base = await baseInfo(db, tenant, input.baseId);
@@ -189,9 +184,7 @@ export async function saveProspects(
       invalid.push(label);
       return [];
     }
-    const { fields, fieldSources, fit, ...system } = result.data;
-    const fitChecks = input.fitCriteria?.length ? fitChecksFrom(input.fitCriteria, fit) : null;
-    if (fitChecks) system.fitScore = scoreFit(fitChecks) ?? undefined;
+    const { fields, fieldSources, ...system } = result.data;
     const { data, errors } = cellsFromFields(base.columns, fields);
     const sources = sourceUrlsFor(base.columns, fieldSources);
     fieldErrors.push(...errors.map((e) => `${label} · ${e}`));
@@ -204,7 +197,6 @@ export async function saveProspects(
         key,
         row: {
           ...system,
-          fitChecks,
           data,
           cellMeta: Object.fromEntries(
             Object.keys(data).map((id) => [id, sources[id] ? { ...meta, source: sources[id] } : meta]),
@@ -658,8 +650,6 @@ export async function tableForExport(
       "Empresa",
       "Web",
       ...base.columns.map((c) => c.name),
-      "Encaje (0-100)",
-      "Por qué encaja",
       "Fuentes",
       "Estado",
       "Fecha de registro",
@@ -671,8 +661,6 @@ export async function tableForExport(
         r.companyName,
         r.website,
         ...base.columns.map((c) => formatCell(c, r.data[c.id])),
-        r.fitScore,
-        r.fitReason,
         r.sources,
         STATUS_LABELS[r.status],
         r.createdAt,

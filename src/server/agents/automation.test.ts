@@ -144,7 +144,7 @@ describe("caps, goal, sources and model", () => {
       agentId,
       trigger: "schedule",
     });
-    expect(result.summary).toContain("Objetivo cumplido: 1 de 1 filas con encaje 70 o más");
+    expect(result.summary).toContain("Objetivo cumplido: 1 de 1 filas.");
     expect(await config()).toMatchObject({ enabled: false });
   });
 
@@ -313,13 +313,12 @@ describe("notices and the next step", () => {
       instructions: "Menciona la ITV.",
       schedule: null,
     });
-    await saveAgentOutreach(db, tenant, projectId, outbound.id, { minFit: 80, perRun: 5, mailboxId });
+    await saveAgentOutreach(db, tenant, projectId, outbound.id, { perRun: 5, mailboxId });
     const { added } = await saveProspects(db, agentActor(), {
       baseId,
       items: [
-        { companyName: "Autos Cádiz", fitScore: 92, fields: { email: "info@autoscadiz.es" } },
-        { companyName: "Poco encaje", fitScore: 40, fields: { email: "info@poco.es" } },
-        { companyName: "Sin email", fitScore: 95 },
+        { companyName: "Autos Cádiz", fields: { email: "info@autoscadiz.es" } },
+        { companyName: "Sin email" },
       ],
     });
     const { llm, requests } = scriptedLlm([

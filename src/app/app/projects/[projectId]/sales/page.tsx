@@ -1,76 +1,57 @@
-import { Sparkles } from "lucide-react";
+import Link from "next/link";
 import { ActionForm } from "@/components/action-form";
-import { ModalButton } from "@/components/modal";
-import { Card, Field, FormSection, Notice, Textarea } from "@/components/ui";
+import { buttonClass, Card, Notice } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
-import { getSalesProfile } from "@/server/services/agents";
-import { currentAi } from "../../../ai-notice";
-import { CustomerFields, OfferFields, VoiceFields } from "../../profile-fields";
-import { draftOffer, saveOffer } from "../offer/actions";
+import { getBusinessProfile, getProjectAudience } from "@/server/services/business";
+import { GoalFields } from "../../profile-fields";
+import { saveGoal } from "../offer/actions";
 import { SalesNav } from "../section-navs";
 
-export const metadata = { title: "Oferta y cliente" };
+export const metadata = { title: "Objetivo y público" };
 
-/** What the project sells, to whom and how to talk to them: every agent of the project knows it. */
-export default async function ProjectOfferPage({ params }: PageProps<"/app/projects/[projectId]/sales">) {
+/** What the project is for and who it's for; what the business sells is in «Tu negocio». */
+export default async function ProjectGoalPage({ params }: PageProps<"/app/projects/[projectId]/sales">) {
   const { projectId } = await params;
   const tenant = await requireTenant();
   const db = getDb();
-  const [profile, ai] = await Promise.all([getSalesProfile(db, tenant, projectId), currentAi()]);
+  const [{ goal, audience }, business] = await Promise.all([
+    getProjectAudience(db, tenant, projectId),
+    getBusinessProfile(db, tenant),
+  ]);
 
   return (
     <>
       <SalesNav projectId={projectId} />
-      <div className="max-w-3xl">
+      <div className="max-w-3xl space-y-6">
+        {business?.offer ? null : (
+          <Notice
+            tone="warning"
+            action={
+              <Link href="/app/business" className={buttonClass({ variant: "secondary", size: "sm" })}>
+                Describir mi negocio
+              </Link>
+            }
+          >
+            Los agentes aún no saben qué vendes ni cómo hablar: descríbelo en Tu negocio.
+          </Notice>
+        )}
         <Card
-          title="Oferta y cliente"
-          tip="Lo que todos los agentes de este proyecto necesitan saber de tu venta: qué ofreces, a quién y cómo hablarle. Cómo vende cada conversación está en «Proceso de venta»; lo propio de cada agente, en su ficha."
+          title="Objetivo y público"
+          tip="Lo propio de este proyecto. Qué vendes, tu cliente y cómo hablar son de tu negocio y valen para todos los proyectos."
           actions={
-            ai ? (
-              <ModalButton
-                label="Proponer con IA"
-                icon={<Sparkles />}
-                title="Proponer oferta y cliente con IA"
-                variant="secondary"
-                size="sm"
-              >
-                <ActionForm
-                  action={draftOffer.bind(null, projectId)}
-                  submitLabel="Generar"
-                  className="space-y-4"
-                >
-                  <Notice tone="warning">
-                    Lee la descripción y el conocimiento del proyecto y sustituye cliente ideal, problemas,
-                    objeciones y tono. La oferta y la firma no se tocan.
-                  </Notice>
-                  <Field label="Indicaciones" optional>
-                    <Textarea
-                      name="instructions"
-                      placeholder="p. ej. Vendemos sobre todo a concesionarios multimarca"
-                    />
-                  </Field>
-                </ActionForm>
-              </ModalButton>
-            ) : null
+            <Link href="/app/business" className={buttonClass({ variant: "ghost", size: "sm" })}>
+              Tu negocio
+            </Link>
           }
         >
-          {/* Remount when the stored profile changes (e.g. after the AI proposal) so fields show it. */}
           <ActionForm
-            key={JSON.stringify(profile)}
-            action={saveOffer.bind(null, projectId)}
+            key={JSON.stringify({ goal, audience })}
+            action={saveGoal.bind(null, projectId)}
             submitLabel="Guardar"
             className="space-y-5"
           >
-            <FormSection title="Oferta">
-              <OfferFields profile={profile} />
-            </FormSection>
-            <FormSection title="Tu cliente">
-              <CustomerFields profile={profile} />
-            </FormSection>
-            <FormSection title="Cómo hablar">
-              <VoiceFields profile={profile} />
-            </FormSection>
+            <GoalFields goal={goal} audience={audience} business={business} />
           </ActionForm>
         </Card>
       </div>

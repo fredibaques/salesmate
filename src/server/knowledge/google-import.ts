@@ -85,3 +85,53 @@ export async function importFromGoogle(
       : "Las cuentas de Google conectadas no tienen acceso a ese fichero. Compártelo con una de ellas.",
   );
 }
+
+export type DriveFile = {
+  id: string;
+  name: string;
+  kind: "doc" | "sheet";
+  modifiedAt: string | null;
+  url: string;
+  /** The Google account it was found with. */
+  account: string;
+};
+
+/**
+ * The Docs and Sheets the organization's Google accounts can list, to pick
+ * one to import: most recently changed first, by name with `query`.
+ * `reconnect` says that an account with Docs or Sheets was connected before
+ * listing existed (it has to be connected again to show its files).
+ */
+export async function listGoogleFiles(
+  deps: { db: Db; connectors?: Omit<ConnectorDeps, "db"> },
+  tenant: TenantContext,
+  input: { query?: string },
+): Promise<{ files: DriveFile[]; connected: boolean; reconnect: boolean }> {
+  const rows = (
+    await withTenant(deps.db, tenant, (tx) =>
+      tx.select().from(connections).where(eq(connections.provider, "google")),
+    )
+  ).filter((c) => c.status === "active");
+  const readers = rows
+    .map((c) => ({ connection: c, caps: connectionCapabilities(c) }))
+    .filter(({ caps }) => caps.includes("docs.read") || caps.includes("sheets.read"));
+  const files = new Map<string, DriveFile>();
+  for (const { connection, caps } of readers) {
+    if (!caps.includes("drive.list")) continue;
+    try {
+      const { client } = await openConnection({ db: deps.db, ...deps.connectors }, tenant, connection.id);
+      for (const f of await client["drive.list"]!({ query: input.query })) {
+        // Only what this account may import.
+        if (!caps.includes(f.kind === "doc" ? "docs.read" : "sheets.read")) continue;
+        if (!files.has(f.id)) files.set(f.id, { ...f, account: connection.accountRef });
+      }
+    } catch (err) {
+      console.error("drive list failed", connection.id, err);
+    }
+  }
+  return {
+    files: [...files.values()].sort((a, b) => (b.modifiedAt ?? "").localeCompare(a.modifiedAt ?? "")),
+    connected: readers.length > 0,
+    reconnect: readers.some(({ caps }) => !caps.includes("drive.list")),
+  };
+}

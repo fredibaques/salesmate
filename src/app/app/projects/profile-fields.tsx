@@ -5,17 +5,16 @@ import { ColorField } from "@/components/agent-look-fields";
 import { ListInput, PairListInput } from "@/components/list-input";
 import { Chip, ChipSelect, Choice, Field, Input, Select, Textarea } from "@/components/ui";
 import { DECISION_MAKERS, GEOGRAPHIES, LANGUAGES, TIMEZONES, TONES } from "@/lib/profile-options";
-import type { SalesProfile } from "@/server/playbooks/spec";
+import type { BusinessProfile, ProjectAudience } from "@/server/playbooks/spec";
 
 /**
- * The fields of a project and of its sales profile, in groups. The creation
- * wizard shows one group per step; Ajustes shows them all.
+ * The fields of a project (its data, goal and audience) and of the business
+ * profile («Tu negocio»: offer, customer, voice), in groups. The creation
+ * wizard shows one group per step; the settings pages show them together.
  */
 
 export type ProjectBasics = {
   name: string;
-  description: string | null;
-  website: string | null;
   timezone: string;
   languages: string[];
   color?: string | null;
@@ -32,16 +31,7 @@ export function ProjectBasicsFields({ project }: { project?: ProjectBasics }) {
       <Field label="Nombre">
         <Input name="name" required minLength={2} defaultValue={project?.name} placeholder="p. ej. Swipoo" />
       </Field>
-      <Field
-        label="Descripción"
-        tip="Qué vendes y a quién, en dos líneas. Los agentes la leen para entender el negocio."
-      >
-        <Textarea name="description" defaultValue={project?.description ?? ""} />
-      </Field>
       <ColorField label="Color del proyecto" color={project?.color} />
-      <Field label="Web" optional>
-        <Input name="website" type="url" defaultValue={project?.website ?? ""} placeholder="https://" />
-      </Field>
       <Field label="Zona horaria" tip="Los horarios de los agentes y de contacto se cuentan en esta hora.">
         <Select name="timezone" defaultValue={timezone}>
           {zones.map((z) => (
@@ -68,9 +58,64 @@ export function ProjectBasicsFields({ project }: { project?: ProjectBasics }) {
   );
 }
 
-export function OfferFields({ profile }: { profile?: SalesProfile }) {
+/** What the project is for and who it's for: the only things that change from one project to another. */
+export function GoalFields({
+  goal,
+  audience,
+  business,
+}: {
+  goal?: string | null;
+  audience?: ProjectAudience;
+  /** The business's ideal customer, used when the project doesn't narrow it. */
+  business?: BusinessProfile | null;
+}) {
+  const inherited = business?.segment.include.length ? business.segment.include.join(", ") : null;
   return (
     <>
+      <Field
+        label="Qué quieres conseguir"
+        tip="El objetivo del proyecto, con el siguiente paso que buscas: reuniones, llamadas, presupuestos… Los agentes trabajan para conseguirlo."
+      >
+        <Textarea
+          name="description"
+          required
+          defaultValue={goal ?? ""}
+          placeholder="p. ej. Conseguir 20 reuniones con concesionarios de Andalucía para presentarles el servicio de transferencias"
+        />
+      </Field>
+      <Field
+        label="A quién va dirigido"
+        optional
+        group
+        hint={inherited ? `Si lo dejas vacío: ${inherited} (de Tu negocio).` : undefined}
+        tip="Acota el cliente ideal de tu negocio para este proyecto."
+      >
+        <ListInput
+          name="audienceInclude"
+          defaultValue={audience?.segment.include}
+          placeholder="p. ej. Concesionarios multimarca"
+        />
+      </Field>
+      <Field label="A quién no" optional group>
+        <ListInput
+          name="audienceExclude"
+          defaultValue={audience?.segment.exclude}
+          placeholder="p. ej. Concesionarios oficiales de una marca"
+        />
+      </Field>
+      <Field label="Zonas" optional group>
+        <ChipSelect name="geography" options={GEOGRAPHIES} defaultValue={audience?.segment.geography} />
+      </Field>
+    </>
+  );
+}
+
+export function OfferFields({ profile }: { profile?: BusinessProfile | null }) {
+  return (
+    <>
+      <Field label="Web" optional>
+        <Input name="website" type="url" defaultValue={profile?.website ?? ""} placeholder="https://" />
+      </Field>
       <Field label="Qué vendes" tip="Qué vendes y para qué sirve, en una o dos frases.">
         <Textarea
           name="offer"
@@ -85,7 +130,7 @@ export function OfferFields({ profile }: { profile?: SalesProfile }) {
   );
 }
 
-export function CustomerFields({ profile }: { profile?: SalesProfile }) {
+export function CustomerFields({ profile }: { profile?: BusinessProfile | null }) {
   return (
     <>
       <Field label="A quién te diriges" group>
@@ -102,9 +147,6 @@ export function CustomerFields({ profile }: { profile?: SalesProfile }) {
           placeholder="p. ej. Particulares"
         />
       </Field>
-      <Field label="Zonas" group>
-        <ChipSelect name="geography" options={GEOGRAPHIES} defaultValue={profile?.segment.geography} />
-      </Field>
       <Field label="Quién decide la compra" group>
         <ChipSelect name="decisionMakers" options={DECISION_MAKERS} defaultValue={profile?.decisionMakers} />
       </Field>
@@ -113,18 +155,6 @@ export function CustomerFields({ profile }: { profile?: SalesProfile }) {
           name="pains"
           defaultValue={profile?.pains}
           placeholder="p. ej. Pierden días con el papeleo"
-        />
-      </Field>
-      <Field
-        label="Señales de que encaja"
-        optional
-        group
-        tip="Lo que hace que una empresa sea un buen cliente, comprobable desde fuera. Junto con a quién te diriges, las zonas y a quién no, son los criterios del encaje de cada fila de tus tablas: el agente marca cuáles cumple y el encaje sale de ahí."
-      >
-        <ListInput
-          name="fitSignals"
-          defaultValue={profile?.fitSignals}
-          placeholder="p. ej. Vende coches de ocasión"
         />
       </Field>
     </>
@@ -174,7 +204,7 @@ function ToneField({ tone }: { tone?: string }) {
   );
 }
 
-export function VoiceFields({ profile }: { profile?: SalesProfile }) {
+export function VoiceFields({ profile }: { profile?: BusinessProfile | null }) {
   return (
     <>
       <ToneField tone={profile?.tone} />

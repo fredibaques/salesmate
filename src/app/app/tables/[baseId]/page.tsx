@@ -47,7 +47,6 @@ import {
   changeProspectStatus,
   moveColumnAction,
   placeColumnAction,
-  proposeColumnsAction,
   removeColumnAction,
   saveCellAction,
   saveColumnAction,
@@ -55,7 +54,7 @@ import {
   toggleFieldAction,
 } from "../actions";
 import { fillingRows } from "@/server/agents/runs";
-import { CellState, cellTitle, COLUMN_ICONS, NotFound, Pending, ScoreBar, WebLink } from "../cells";
+import { CellState, cellTitle, COLUMN_ICONS, NotFound, Pending, WebLink } from "../cells";
 import { AddColumnHeader, ColumnHeader, FieldHeader, HiddenColumns } from "./column-header";
 import { EditableCell, ExpandRow, NewRow, type CellEditor, type NewRowField } from "./grid-editing";
 import { env } from "@/server/env";
@@ -96,7 +95,6 @@ const SORT_KEYS: Partial<Record<SystemField, string>> = {
   person: "person",
   company: "name",
   web: "web",
-  fit: "fit",
   status: "status",
 };
 
@@ -105,7 +103,6 @@ const SYSTEM_EDITORS: Partial<Record<SystemField, CellEditor>> = {
   person: { type: "text" },
   company: { type: "text" },
   web: { type: "url" },
-  fit: { type: "score" },
 };
 
 /**
@@ -132,20 +129,6 @@ function watchRuns<R extends { startedAt: Date; finishedAt: Date | null }>(
 /** A run cut off by the platform stays "running"; after 10 minutes it isn't really searching. */
 function isRecent(startedAt: Date) {
   return Date.now() - new Date(startedAt).getTime() < 10 * 60_000;
-}
-
-const FIT_MARKS = { yes: "✓", no: "✗", unknown: "?" } as const;
-
-/** The fit cell's tooltip: why, and each criterion checked. */
-function fitTitle(r: {
-  fitReason: string | null;
-  fitChecks: { criterion: string; result: "yes" | "no" | "unknown" }[] | null;
-}) {
-  const lines = [
-    r.fitReason,
-    ...(r.fitChecks ?? []).map((c) => `${FIT_MARKS[c.result]} ${c.criterion}`),
-  ].filter(Boolean);
-  return lines.length ? lines.join("\n") : null;
 }
 
 export default async function TablePage({ params, searchParams }: PageProps<"/app/tables/[baseId]">) {
@@ -197,12 +180,12 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
     (f) => f !== primary && base.hiddenFields.includes(f),
   );
   const shown = (f: SystemField) => systemFields(base.rowKind).includes(f) && !hiddenFields.includes(f);
-  // The row's name first, then the people's columns between the web and the fit.
+  // The row's name first, then the people's columns, then the fixed fields.
   const fields: GridField[] = [
     { kind: "system", key: primary },
     ...(["company", "web"] as const).filter((f) => f !== primary && shown(f)).map(system),
     ...columns.map((column) => ({ kind: "column" as const, column })),
-    ...(["fit", "status", "sources", "created"] as const).filter(shown).map(system),
+    ...(["status", "sources", "created"] as const).filter(shown).map(system),
   ];
   const hidden = [
     ...hiddenFields.map((f) => ({ id: `field:${f}`, name: SYSTEM_FIELD_LABELS[f] })),
@@ -449,7 +432,6 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                 seq: r.seq,
                 name: (person ? r.personName : r.companyName) || "Sin nombre",
                 stage: typeof r.data[stage.id] === "string" ? (r.data[stage.id] as string) : null,
-                fitScore: shown("fit") ? r.fitScore : null,
                 details: [
                   ...(person && r.companyName ? [r.companyName] : []),
                   ...columns
@@ -472,11 +454,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                       const key = SORT_KEYS[f.key];
                       const label = SYSTEM_FIELD_LABELS[f.key];
                       return (
-                        <GridHead
-                          key={f.key}
-                          sticky={i === 0 ? "second" : false}
-                          align={f.key === "fit" ? "end" : "start"}
-                        >
+                        <GridHead key={f.key} sticky={i === 0 ? "second" : false} align="start">
                           {canEdit ? (
                             <FieldHeader
                               label={label}
@@ -542,10 +520,8 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                     {canEdit ? (
                       <AddColumnHeader
                         save={saveColumnAction.bind(null, baseId, null)}
-                        suggest={proposeColumnsAction.bind(null, base.projectId)}
                         existing={base.columns.map((c) => c.name)}
                         rowKind={base.rowKind}
-                        name={base.name}
                       />
                     ) : (
                       <span className="sr-only">Acciones</span>
@@ -631,21 +607,6 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                                 label={label}
                               >
                                 {r.website ? <WebLink href={r.website} /> : null}
-                              </EditableCell>
-                            </GridCell>
-                          );
-                        case "fit":
-                          return (
-                            <GridCell key={f.key} title={fitTitle(r) ?? undefined}>
-                              <EditableCell
-                                rowId={r.id}
-                                field="fit"
-                                editor={{ type: "score" }}
-                                value={r.fitScore}
-                                save={saveCell}
-                                label={label}
-                              >
-                                {r.fitScore != null ? <ScoreBar value={r.fitScore} /> : null}
                               </EditableCell>
                             </GridCell>
                           );

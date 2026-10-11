@@ -133,8 +133,9 @@ aplica a cualquier `ConnectorError`.
   `X-API-KEY`): resultados de Google (`data.web_search`, título, URL,
   extracto y la web oficial del panel de Google). Comprobar la clave gasta
   una búsqueda (no tiene un endpoint gratuito). Lo usa el motor de
-  completado para encontrar la web de las filas sin ella, y los agentes
-  como `serper_search` (el prompt les pide usarlo antes que `web_search`).
+  completado para encontrar la web de las filas sin ella, el descubrimiento
+  para encontrar empresas nuevas, y los agentes como `serper_search` (el
+  prompt les pide usarlo antes que `web_search`).
 - **Airtable, Trello y monday.com** (`connectors/workspace.ts`, permiso
   `workspace`): token (Trello: key y token), comprobado al conectar.
   `export.targets` lista bases, listas («Tablero › Lista») o tableros.
@@ -172,10 +173,17 @@ aplica a cualquier `ConnectorError`.
   prompt, los documentos se buscan, y devuelve las fuentes usadas.
 - El gateway solo acepta cifras en mensajes salientes si citan una fuente del
   conocimiento del proyecto o de la cuenta.
-- «Desde Google» (`knowledge/google-import.ts`) copia un Google Doc como
-  documento o la primera pestaña de un Google Sheet como tabla (vía CSV),
-  probando cada cuenta de Google conectada con permiso de lectura; 403/404
-  pasan a la siguiente. Es una copia: si cambia en Google, se vuelve a importar.
+- «Desde Google Drive» (`knowledge/google-import.ts`, `google-picker.tsx`)
+  lista los Docs y Sheets de las cuentas de Google conectadas
+  (`listGoogleFiles`, capacidad `drive.list`: Drive v3 con
+  `drive.metadata.readonly`, que se pide junto a Docs o Sheets; búsqueda por
+  nombre, más recientes primero) y al pulsar «Importar» copia un Google Doc
+  como documento o la primera pestaña de un Google Sheet como tabla (vía
+  CSV), en el conocimiento del proyecto o de la cuenta. También se puede
+  pegar el enlace. Prueba cada cuenta de Google conectada con permiso de
+  lectura; 403/404 pasan a la siguiente. Es una copia: si cambia en Google,
+  se vuelve a importar. Las cuentas conectadas antes de este permiso ven un
+  aviso para volver a conectar.
 
 ## Reuniones y transcripciones de Meet
 
@@ -267,7 +275,8 @@ src/server/
   prospects/bases.ts   Bases de prospectos del proyecto y la base que rellena cada agente
   prospects/service.ts Filas: guardar sin duplicados, listar, filtrar, ordenar y exportar
   prospects/agent-schema.ts  Esquema de save_prospects y prompt a partir de las columnas de la base
-  prospects/propose-columns.ts  Columnas propuestas por la IA para una base nueva
+  lib/column-catalog.ts  Columnas sugeridas (catálogo fijo, sin IA) al añadir una columna
+  prospects/engine/    Motor de completado, descubrimiento de empresas y caché de páginas
   prospects/complete.ts  Celdas por completar y cómo las rellena el agente sin pisar lo escrito a mano
   agents/scheduler.ts  Agentes con horario: cuáles tocan y ejecución única por franja
   connectors/mcp.ts    Servidores MCP: alta, herramientas y llamadas
@@ -288,9 +297,23 @@ src/server/
   acciones (`actions.agent_config_id`: su autonomía y sus límites) y el estado
   «trabajando» son de cada agente; la migración 0024 asignó lo anterior al
   único agente de su tipo que había.
-- **La venta es del proyecto** (pestaña «Ventas»). «Oferta y cliente»
-  (`projects.sales_profile`: oferta, cliente ideal, señales de encaje,
-  objeciones, tono, firma) lo conocen todos los agentes. El **proceso de
+- **Tu negocio y el proyecto.** Lo que no cambia de un proyecto a otro es
+  del negocio: **Tu negocio** (Ajustes › Tu negocio, `org_profiles`,
+  migración 0028, `services/business.ts`, `businessProfileSchema`): web, qué
+  vendes, por qué te eligen, cliente ideal (a quién sí y a quién no), quién
+  decide, problemas que resuelves, objeciones, tono y firma. Un proyecto es
+  un objetivo comercial: en su pestaña «Ventas › Objetivo y público» guarda
+  **qué quiere conseguir** (`projects.description`, con el siguiente paso
+  que busca) y, si quiere, **a quién va dirigido** (`projects.sales_profile`,
+  `projectAudienceSchema`: a quién sí, a quién no y zonas). Los agentes leen
+  las dos cosas juntas (`mergeSalesProfile`, `salesProfileFor`,
+  `projectSales`): el cliente del proyecto, si lo acota, si no el del negocio;
+  las zonas, las del proyecto. Mientras una organización no describe su
+  negocio, cada proyecto sigue con el perfil completo que tenía; la migración
+  0028 copió el de su proyecto más completo (con su web) como Tu negocio. Al
+  crear el primer proyecto el asistente pide también Tu negocio (qué vendes,
+  tu cliente, cómo hablar); los siguientes, solo nombre, objetivo y público.
+  El **proceso de
   venta** (cómo termina una conversación, cualificación, reglas, cuándo pasar
   a una persona) es un playbook del proyecto, versionado, sin
   `agent_config_id` (`projectProcess`, `getProjectProcess`,
@@ -298,7 +321,7 @@ src/server/
   (inbound, primeros contactos, cuentas); añadir uno lo crea desde la
   plantilla del tipo de venta si el proyecto no tiene (`ensureProjectProcessIn`).
   Los que solo buscan o completan datos (prospección) no lo usan: les basta
-  «Oferta y cliente». La migración 0023 convirtió el proceso del inbound de
+  el negocio y el objetivo y público del proyecto. La migración 0023 convirtió el proceso del inbound de
   cada proyecto (o el más reciente) en el del proyecto.
 - **Canales derivados.** `project_identities` y `project_connections` (lo que
   el gateway y las herramientas comprueban) se recalculan a partir de los
@@ -343,7 +366,7 @@ en el orden de la venta, cada uno una plantilla (`AGENT_DEFAULTS` en
   completa las celdas vacías de su tabla. No escribe a nadie.
 - **Outbound** (`outbound`, `agents/outreach.ts`): inicia el proceso
   comercial con las filas de una tabla (normalmente la que rellena uno de
-  prospección): a las que tienen email y el encaje mínimo, y aún no tienen
+  prospección): a las que tienen email y aún no tienen
   primer email, les escribe uno siguiendo el proceso de venta del proyecto
   y lo propone (`prepareFirstContacts`). Las respuestas llegan a su
   conversación.
@@ -355,7 +378,7 @@ La migración 0025 convirtió los antiguos «outbound» (que buscaban filas) en
 agente, es ahora el trabajo del outbound. Lo común a todos:
 
 - **Instrucciones** (`agent_configs.instructions`): qué tiene que hacer y cómo,
-  en palabras del usuario. Se suman al prompt junto a «Oferta y cliente».
+  en palabras del usuario. Se suman al prompt junto a Tu negocio y el objetivo del proyecto.
 - **Herramientas** (`agent_configs.tools`): el conocimiento siempre; la
   búsqueda y lectura web de la API (`web_search` / `web_fetch`, herramientas
   del servidor, con tope de usos y coste por búsqueda en `agent_runs`); y las
@@ -402,16 +425,12 @@ agente directamente; el resto se proponen al gateway como `mcp.call_tool`
 auditoría se aplican igual que a un email. La plataforma hace de cliente MCP a
 propósito: con el conector MCP de la API las llamadas no pasarían por el gateway.
 
-**Encaje** (`prospects/fit.ts`). No es un número que el modelo se invente:
-los criterios salen de «Oferta y cliente» (a quién te diriges, zonas y a
-quién no, imprescindibles; y las señales de encaje) y el agente marca cada uno
-como `yes`, `no` o `unknown` en `save_prospects` (`fit`, por id c1, c2…).
-`scoreFit` lo convierte en 0-100: cumple cuenta entero, sin comprobar la
-mitad, los imprescindibles pesan el doble y fallar uno deja el encaje en 20
-como mucho. Se guarda con sus comprobaciones (`prospects.fit_checks`), que se
-ven al pasar sobre la celda y en el panel de la fila; si una persona cambia el
-número a mano, las comprobaciones se borran. Sin criterios, el agente da un
-número orientativo.
+**Sin puntuación de encaje.** Las filas ya no llevan un «encaje» calculado por
+la IA (costaba tokens en cada fila y no aportaba): las columnas
+`prospects.fit_score`, `fit_reason` y `fit_checks` siguen en la base de datos
+pero no se usan, `save_prospects` no lo pide y el outbound, el objetivo y la
+exportación no lo tienen en cuenta. Qué filas valen lo decide la búsqueda
+(lo que se pide en «Lo que se busca») y, si hace falta, columnas propias.
 
 **Tablas** (`prospects/`, `lib/prospect-columns.ts`). Una tabla
 (`prospect_bases`) puede ir con un proyecto o sola (`project_id` nulo,
@@ -423,7 +442,7 @@ persona (`row_kind`). Un agente trabaja sobre las tablas de su proyecto y las
 que no tienen proyecto (`listBases(…, { standalone: true })`); el agente de prospección rellena la de
 `agent_configs.prospect_base_id` (si no tiene, la primera del proyecto, o una
 «Prospectos» nueva con columnas por defecto). Cada fila (`prospects`) guarda
-los campos fijos (empresa, persona, web, encaje, fuentes, estado) y los valores
+los campos fijos (empresa, persona, web, fuentes, estado) y los valores
 de las columnas en `data` por id de columna, con quién y cuándo escribió cada
 celda en `cell_meta`. No hay duplicados por base (`base_id, dedupe_key`:
 dominio de la web, o nombre y ciudad; en bases de personas, persona y empresa).
@@ -438,7 +457,7 @@ Las crean los propietarios y administradores con nombre, qué es cada fila y
 proyecto opcional. Solo es obligatorio el nombre de cada fila (la empresa, o
 la persona en tablas de personas: es como se distinguen y se detectan
 duplicados); en tablas de personas la empresa es opcional. Los demás campos
-fijos (empresa en tablas de personas, web, encaje, estado, fuentes, fecha
+fijos (empresa en tablas de personas, web, estado, fuentes, fecha
 de registro) se muestran u ocultan como columnas
 (`prospect_bases.hidden_fields`, `setFieldHidden`). Cada fila tiene además
 un **ID** fijo, siempre a la vista junto al nombre: 1, 2, 3… en el orden en
@@ -450,8 +469,10 @@ se repiten. Una tabla nueva empieza con el nombre y la fecha de registro, sin
 columnas; cuando un agente pasa a rellenarla (`setAgentBase`,
 `ensureAgentBase`) se muestran todos, porque los rellena él. Las
 columnas se gestionan en la cabecera de la tabla, como en una hoja de cálculo
-(`Popover`): el «+» añade una a mano o de las sugerencias de la IA
-(`prospects/propose-columns.ts`, con la oferta del proyecto si lo tiene), y
+(`Popover`): el «+» tiene dos pestañas, «Nueva columna» (nombre, tipo y
+cómo se rellena) y «Sugerencias»: un catálogo fijo de campos útiles en
+cualquier sector (`lib/column-catalog.ts`: contacto, empresa y seguimiento
+comercial, con su tipo y opciones; sin IA), y
 cada cabecera abre su menú (editar, ordenar, mover, ocultar, borrar); se
 reordenan arrastrando la cabecera (con el ratón, o manteniéndola pulsada en
 el móvil: `column-drag.ts`, `placeColumn`). También cambian las columnas (`saveColumn`,
@@ -497,7 +518,7 @@ escrita a mano; vaciarla la devuelve a «por completar». El agente de
 prospección trabaja en un modo (`settings.mode`): buscar filas nuevas,
 completar vacíos o las dos cosas; cuánto hace en cada ejecución lo limitan su
 tiempo y el gasto del mes, no un número fijo de filas o celdas. Para completar recibe en el prompt las filas pendientes (las
-de mejor encaje primero, con referencias cortas F1, F2…) y guarda con
+más antiguas primero, con referencias cortas F1, F2…) y guarda con
 `update_prospects`. «Completar vacíos» en la base y «Completar esta fila» en el
 panel lanzan una ejecución solo de completar; la de una fila («Completar esta
 fila») la hace el agente a fondo y vuelve a buscar también lo que no se
@@ -515,7 +536,10 @@ sin agente, por un camino fijo:
    direcciones públicas (DNS comprobado, sin redes privadas ni otros puertos,
    cada redirección revisada), 8 s y 1,5 MB por página, respetando
    `robots.txt` (`SalesMateBot` o `*`). Si una web no muestra texto sin
-   JavaScript y hay `JINA_API_KEY`, la renderiza Jina Reader.
+   JavaScript y hay `JINA_API_KEY`, la renderiza Jina Reader. Cada página
+   leída se guarda 30 días en `web_pages` (migración 0027, `engine/cache.ts`, tabla de
+   sistema sin `org_id`, solo páginas públicas): leer otra vez la misma web,
+   desde cualquier organización, no hace ninguna petición.
 3. Patrones sin IA (`facts.ts`): emails, teléfonos españoles o
    internacionales, CIF y perfiles sociales; van al modelo como pistas.
 4. Una sola llamada al modelo pequeño del proveedor (`smallModel`: Haiku,
@@ -543,6 +567,23 @@ le acaba el tiempo y, si quedan celdas y ha avanzado, deja un evento
 ejecución es del agente, mientras queden celdas y tiempo `onEnd` de
 `runAgentLoop` le pide seguir (hasta 4 veces); los errores de las
 herramientas del servidor quedan en los pasos del registro.
+
+**Descubrimiento** (`prospects/engine/discover.ts`). Con Serper conectado y
+una tabla de empresas, las filas nuevas tampoco las busca el agente:
+1. El modelo pequeño prepara 6 búsquedas de Google a partir de «Lo que se
+   busca» (proyecto, oferta y cliente, instrucciones del agente), distintas de
+   las ya hechas (`settings.discovery.usedQueries`, las últimas 60).
+2. Serper las ejecuta; de los resultados se quedan las webs que no son
+   directorios, redes ni medios (`NOT_A_COMPANY_SITE`), ni la del proyecto, ni
+   las que ya están en la tabla.
+3. Cada web se lee como en el motor (con la caché) y el modelo pequeño dice en
+   una sola llamada si es una empresa de las que se buscan y rellena las
+   columnas con lo que dicen sus páginas (con su fuente; lo demás, no
+   encontrado).
+4. Las que encajan se guardan como filas, con su coste.
+Cinco webs a la vez, hasta el número de filas de la ejecución, el tiempo o el
+gasto que queda. Cuesta unas décimas de céntimo por fila. Sin Serper, o en
+tablas de personas, sigue buscando el agente con sus herramientas.
 
 **Prospección** (`agents/prospector.ts`). El agente outbound busca lo que
 encaja con el cliente ideal y lo guarda con `save_prospects` en su base. El
@@ -627,7 +668,7 @@ modelo, Comunicación y Siguiente paso; `/automation` redirige ahí:
   guarde y para antes del siguiente turno (estado `budget`, cuenta como
   terminada). Los topes por ejecución de antes (coste, búsquedas, filas y
   celdas por ejecución) ya no existen; si siguen guardados, se ignoran.
-- **Objetivo** (`goal`): N filas con encaje mínimo. Al cumplirlo deja de buscar
+- **Objetivo** (`goal`): N filas en la tabla. Al cumplirlo deja de buscar
   filas nuevas; si solo buscaba, se pone en pausa (en ejecuciones automáticas).
 - **Fuentes** (`sources`): `allowed_domains` / `blocked_domains` en las
   herramientas web (la API admite una de las dos; con OpenAI y Kimi solo se
@@ -641,10 +682,10 @@ modelo, Comunicación y Siguiente paso; `/automation` redirige ahí:
   desde el buzón del agente solo a personas de la organización. Son acciones
   del gateway (`notify.slack`, `notify.email`) con `defaultAutonomy` 3: salen
   solas salvo que el agente diga otra cosa, y quedan auditadas.
-- **Primer contacto** (agente outbound, `settings.handoff` con su encaje
-  mínimo y emails por ejecución, `agents/first-contact.ts`): en cada
-  ejecución, para las filas de su tabla con email y encaje suficiente (con
-  mínimo 0, también las que nadie puntuó), escribe un primer email y lo
+- **Primer contacto** (agente outbound, `settings.handoff` con los emails
+  por ejecución, 5 por defecto, `agents/first-contact.ts`): en cada
+  ejecución, para las filas de su tabla con email (las más antiguas
+  primero), escribe un primer email y lo
   propone (`email.send` desde su buzón). Con la autonomía
   por defecto espera aprobación en «Por aprobar»; el gateway aplica horario de
   envío, exclusiones y enfriamientos. `prospects.contact_action_id` evita

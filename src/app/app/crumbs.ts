@@ -11,9 +11,10 @@ export type NameLookup = {
   agent: (projectId: string, agentId: string) => Promise<string | null>;
 };
 
-const SETTINGS = { label: "Configuración", href: "/app/ai" };
+const SETTINGS = { label: "Configuración", href: "/app/business" };
 
 const SECTION_PAGES: Record<string, { parent: Crumb; label: string }> = {
+  business: { parent: SETTINGS, label: "Tu negocio" },
   ai: { parent: SETTINGS, label: "IA" },
   runs: { parent: SETTINGS, label: "Ejecuciones" },
   users: { parent: SETTINGS, label: "Usuarios" },

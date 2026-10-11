@@ -21,6 +21,8 @@ export const GOOGLE_SCOPE_SETS = {
   gmail_write: ["https://www.googleapis.com/auth/gmail.compose"],
   gmail_read: ["https://www.googleapis.com/auth/gmail.readonly"],
   docs_read: ["https://www.googleapis.com/auth/documents.readonly"],
+  /** The names of the Docs and Sheets in Drive (not their content), to pick one to import. */
+  drive_list: ["https://www.googleapis.com/auth/drive.metadata.readonly"],
   sheets: ["https://www.googleapis.com/auth/spreadsheets"],
   meet_read: ["https://www.googleapis.com/auth/meetings.space.readonly"],
 } as const;
@@ -395,6 +397,44 @@ export function createGoogleClient(
       return { title: doc.title ?? "Documento", text: docText(doc.body?.content ?? []).trim() };
     },
 
+    /** The account's Google Docs and Sheets in Drive, most recently changed first. */
+    async "drive.list"({ query }: { query?: string }) {
+      const kinds = [
+        "mimeType='application/vnd.google-apps.document'",
+        "mimeType='application/vnd.google-apps.spreadsheet'",
+      ];
+      const q = [
+        `(${kinds.join(" or ")})`,
+        "trashed=false",
+        query?.trim() ? `name contains '${query.trim().replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'` : "",
+      ]
+        .filter(Boolean)
+        .join(" and ");
+      const params = new URLSearchParams({
+        q,
+        orderBy: "modifiedTime desc",
+        pageSize: "50",
+        fields: "files(id,name,mimeType,modifiedTime,webViewLink)",
+        includeItemsFromAllDrives: "true",
+        supportsAllDrives: "true",
+      });
+      const data = (await call(`https://www.googleapis.com/drive/v3/files?${params}`)) as {
+        files?: { id: string; name: string; mimeType: string; modifiedTime?: string; webViewLink?: string }[];
+      };
+      return (data.files ?? []).map((f) => {
+        const kind = f.mimeType.endsWith(".spreadsheet") ? ("sheet" as const) : ("doc" as const);
+        return {
+          id: f.id,
+          name: f.name,
+          kind,
+          modifiedAt: f.modifiedTime ?? null,
+          url:
+            f.webViewLink ??
+            `https://docs.google.com/${kind === "doc" ? "document" : "spreadsheets"}/d/${f.id}/edit`,
+        };
+      });
+    },
+
     /** The values of one sheet of a spreadsheet (the first, or the one named). */
     async "sheets.read"({ spreadsheetId, sheet }: { spreadsheetId: string; sheet?: string }) {
       const meta = (await call(
@@ -526,6 +566,7 @@ export function googleProvider(
       if (write.includes("email")) caps.push("email.create_draft", "email.send");
       if (read.includes("docs")) caps.push("docs.read");
       if (read.includes("sheets")) caps.push("sheets.read");
+      if (read.includes("drive")) caps.push("drive.list");
       if (write.includes("sheets")) caps.push("table.export");
       if (read.includes("meet")) caps.push("meet.transcript");
       return caps;

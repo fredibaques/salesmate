@@ -11,14 +11,11 @@ import {
   dedupeKey,
   exportProspectsCsv,
   addProspectRow,
-  getProspect,
   knownProspects,
   listProspects,
   normalizeDomain,
-  rowEditFromValues,
   saveProspects,
   setProspectStatus,
-  updateProspectRow,
 } from "./service";
 
 let db: Db;
@@ -180,11 +177,11 @@ describe("saveProspects", () => {
     expect(count).toBe(2);
     expect(
       csv.startsWith(
-        "﻿ID,Empresa,Web,Ciudad,Tipo de concesionario,Vehículos en stock,¿Gestoría propia?,Email,Notas del equipo,Encaje",
+        "﻿ID,Empresa,Web,Ciudad,Tipo de concesionario,Vehículos en stock,¿Gestoría propia?,Email,Notas del equipo,Fuentes",
       ),
     ).toBe(true);
     expect(csv).toMatch(
-      /\n\d+,Autos García,https:\/\/autosgarcia\.es,Málaga,Multimarca,140,No,ventas@autosgarcia\.es,,80/,
+      /\n\d+,Autos García,https:\/\/autosgarcia\.es,Málaga,Multimarca,140,No,ventas@autosgarcia\.es,,/,
     );
     expect(csv.split("\r\n")[0]).toMatch(/,Fecha de registro$/);
     expect(csv).not.toContain("Motor Sur");
@@ -216,49 +213,15 @@ describe("saveProspects", () => {
 });
 
 describe("fit", () => {
-  it("computes the score from the agent's checks of each criterion, and drops them when a person sets it", async () => {
-    const criteria = [
-      { id: "c1", criterion: "Es Concesionario", required: true },
-      { id: "c2", criterion: "Vende coches de ocasión", required: false },
-    ];
-    const { added } = await saveProspects(db, tenant, {
-      baseId,
-      fitCriteria: criteria,
-      items: [
-        // The score it sends is ignored: it comes from the checks.
-        {
-          companyName: "Encaja Motor",
-          fitScore: 99,
-          fit: { c1: "yes", c2: "unknown" },
-          fitReason: "Concesionario",
-        },
-        { companyName: "No encaja", fit: { c1: "no", c2: "yes" } },
-      ],
-    });
-    const [fits, fails] = added;
-    expect(fits.fitScore).toBe(83);
-    expect(fits.fitChecks).toEqual([
-      { criterion: "Es Concesionario", required: true, result: "yes" },
-      { criterion: "Vende coches de ocasión", required: false, result: "unknown" },
-    ]);
-    expect(fails.fitScore).toBeLessThanOrEqual(20);
-
-    await updateProspectRow(db, tenant, baseId, fits.id, rowEditFromValues({ fit: "60" }, fits));
-    const edited = await getProspect(db, tenant, baseId, fits.id);
-    expect(edited?.fitScore).toBe(60);
-    expect(edited?.fitChecks).toBeNull();
-  });
-
-  it("asks the agent for each criterion instead of a number when there are criteria", () => {
-    const schema = saveRowsSchema("company", COLUMNS, [
-      { id: "c1", criterion: "Es Concesionario", required: true },
-    ]) as {
+  it("doesn't ask the agent for a fit score", () => {
+    const schema = saveRowsSchema("company", COLUMNS) as {
       properties: { prospects: { items: { properties: Record<string, unknown>; required: string[] } } };
     };
     const row = schema.properties.prospects.items;
     expect(row.properties.fitScore).toBeUndefined();
-    expect(row.properties.fit).toMatchObject({ properties: { c1: { enum: ["yes", "no", "unknown"] } } });
-    expect(row.required).toContain("fit");
+    expect(row.properties.fit).toBeUndefined();
+    expect(row.properties.fitReason).toBeUndefined();
+    expect(row.required).toEqual(["companyName"]);
   });
 });
 

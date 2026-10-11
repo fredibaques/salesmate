@@ -75,8 +75,8 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
     settings: (
       <SidebarItem
         key="settings"
-        href="/app/ai"
-        also={["/app/runs", "/app/users", "/app/exclusions", "/app/audit"]}
+        href="/app/business"
+        also={["/app/ai", "/app/runs", "/app/users", "/app/exclusions", "/app/audit"]}
         icon={<Settings />}
       >
         Ajustes
