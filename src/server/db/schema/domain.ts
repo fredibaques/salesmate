@@ -386,6 +386,8 @@ export type AgentSettings = {
   budget?: { maxCostPerMonthUsd?: number };
   /** Stop looking for new rows once the base has this many that fit (fit ≥ minFit). */
   goal?: { rows: number; minFit?: number };
+  /** Prospecting: the Google searches its discovery has run, not to repeat them. */
+  discovery?: { usedQueries?: string[] };
   /** Where it may look: only these domains, or never these. */
   sources?: { allow?: string[]; block?: string[] };
   /** Messages to the team (through the gateway) when a run ends or has a problem. */

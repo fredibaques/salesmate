@@ -66,7 +66,7 @@ const ROW_MARGIN_MS = 25_000;
 const CONCURRENCY = 6;
 
 /** Sites that are about companies, not theirs: never taken as a row's website. */
-const NOT_A_COMPANY_SITE =
+export const NOT_A_COMPANY_SITE =
   /(^|\.)(linkedin|facebook|instagram|twitter|x|youtube|tiktok|wikipedia|google|bing|yelp|tripadvisor|paginasamarillas|qdq|cylex|einforma|axesor|infoempresa|empresite|infocif|libreborme|iberinform|guiaempresas|eleconomista|expansion|dateas|infobel|hotfrog|europages|kompass|cronoshare|habitissimo|milanuncios|amazon|glassdoor|indeed|infojobs|trustpilot|doctoralia|pinterest)\.[a-z.]+$/i;
 
 /** «Autos García, S.L.» → [«autos», «garcia»]: the words that should appear in its domain. */
@@ -131,7 +131,7 @@ function outputSchema(columns: BaseColumn[]) {
   } as const;
 }
 
-function columnLine(c: BaseColumn): string {
+export function columnLine(c: BaseColumn): string {
   const how = [
     COLUMN_TYPE_LABELS[c.type],
     c.options?.length ? `una de: ${c.options.join(" | ")}` : "",
@@ -145,7 +145,7 @@ function columnLine(c: BaseColumn): string {
   return `- ${c.id} · «${c.name}» (${how})${c.instructions ? `: ${c.instructions}` : ""}`;
 }
 
-function factsBlock(f: SiteFacts): string {
+export function factsBlock(f: SiteFacts): string {
   return [
     f.emails.length ? `Emails: ${f.emails.join(", ")}` : "",
     f.phones.length ? `Teléfonos: ${f.phones.join(", ")}` : "",
@@ -157,14 +157,21 @@ function factsBlock(f: SiteFacts): string {
 }
 
 /** The pages' text within the budget: the home is cut first, the contact and legal pages are kept. */
-function pagesBlock(pages: Page[]): string {
+export function pagesBlock(pages: Page[]): string {
   const per = Math.floor(TEXT_BUDGET / pages.length);
   return pages
     .map((p) => `### ${p.url}${p.title ? ` — ${p.title}` : ""}\n${p.text.slice(0, per)}`)
     .join("\n\n");
 }
 
-async function pool<T>(items: T[], size: number, canStart: () => boolean, work: (item: T) => Promise<void>) {
+/** A company's home and the pages that usually hold its data (contact, legal notice, about). */
+export async function readSite(read: (url: string) => Promise<Page>, site: string): Promise<Page[]> {
+  const home = await read(site);
+  const more = await Promise.all(usefulSubpages(home).map((u) => read(u).catch(() => null)));
+  return [home, ...more.filter((p): p is Page => Boolean(p))];
+}
+
+export async function pool<T>(items: T[], size: number, canStart: () => boolean, work: (item: T) => Promise<void>) {
   const queue = [...items];
   const skipped: T[] = [];
   await Promise.all(
@@ -258,9 +265,7 @@ export async function runCompletionEngine(
     // 2. Its pages: the home, then contact, legal notice and about.
     let pages: Page[];
     try {
-      const home = await read(site.toString());
-      const more = await Promise.all(usefulSubpages(home).map((u) => read(u).catch(() => null)));
-      pages = [home, ...more.filter((p): p is Page => Boolean(p))];
+      pages = await readSite(read, site.toString());
     } catch (err) {
       out.status = "unreadable";
       out.note = err instanceof ReadError ? err.message : "no se puede leer la web";

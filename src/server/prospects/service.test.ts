@@ -180,11 +180,11 @@ describe("saveProspects", () => {
     expect(count).toBe(2);
     expect(
       csv.startsWith(
-        "﻿ID,Empresa,Web,Ciudad,Tipo de concesionario,Vehículos en stock,¿Gestoría propia?,Email,Notas del equipo,Encaje",
+        "﻿ID,Empresa,Web,Ciudad,Tipo de concesionario,Vehículos en stock,¿Gestoría propia?,Email,Notas del equipo,Fuentes",
       ),
     ).toBe(true);
     expect(csv).toMatch(
-      /\n\d+,Autos García,https:\/\/autosgarcia\.es,Málaga,Multimarca,140,No,ventas@autosgarcia\.es,,80/,
+      /\n\d+,Autos García,https:\/\/autosgarcia\.es,Málaga,Multimarca,140,No,ventas@autosgarcia\.es,,/,
     );
     expect(csv.split("\r\n")[0]).toMatch(/,Fecha de registro$/);
     expect(csv).not.toContain("Motor Sur");
@@ -249,16 +249,15 @@ describe("fit", () => {
     expect(edited?.fitChecks).toBeNull();
   });
 
-  it("asks the agent for each criterion instead of a number when there are criteria", () => {
-    const schema = saveRowsSchema("company", COLUMNS, [
-      { id: "c1", criterion: "Es Concesionario", required: true },
-    ]) as {
+  it("doesn't ask the agent for a fit score", () => {
+    const schema = saveRowsSchema("company", COLUMNS) as {
       properties: { prospects: { items: { properties: Record<string, unknown>; required: string[] } } };
     };
     const row = schema.properties.prospects.items;
     expect(row.properties.fitScore).toBeUndefined();
-    expect(row.properties.fit).toMatchObject({ properties: { c1: { enum: ["yes", "no", "unknown"] } } });
-    expect(row.required).toContain("fit");
+    expect(row.properties.fit).toBeUndefined();
+    expect(row.properties.fitReason).toBeUndefined();
+    expect(row.required).toEqual(["companyName"]);
   });
 });
 

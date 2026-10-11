@@ -112,10 +112,8 @@ function missingSetup(
 }
 
 /** Whom the outbound agent writes to in each run, in one line. */
-function outreachSummary(settings: { handoff?: { minFit?: number; perRun?: number } }) {
-  const minFit = settings.handoff?.minFit ?? 70;
-  const fit = minFit > 0 ? ` con encaje ${minFit} o más` : "";
-  return `En cada ejecución escribe el primer email a hasta ${settings.handoff?.perRun ?? 5} filas de su tabla${fit}.`;
+function outreachSummary(settings: { handoff?: { perRun?: number } }) {
+  return `En cada ejecución escribe el primer email a hasta ${settings.handoff?.perRun ?? 5} filas de su tabla.`;
 }
 
 /** What the prospecting agent does in each run, in one line. */

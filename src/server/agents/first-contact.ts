@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { BaseColumn } from "@/lib/prospect-columns";
 import type { Db } from "../db/client";
@@ -58,7 +58,6 @@ async function openConversation(
   });
 }
 
-export const DEFAULT_HANDOFF_MIN_FIT = 70;
 export const DEFAULT_HANDOFF_PER_RUN = 5;
 
 const EMAIL = z.string().email();
@@ -130,17 +129,13 @@ export async function prepareFirstContacts(
           eq(prospects.baseId, input.base.id),
           inArray(prospects.status, ["new", "accepted"]),
           isNull(prospects.contactActionId),
-          // With no minimum, rows nobody scored count too (a table filled by hand).
-          (input.handoff.minFit ?? DEFAULT_HANDOFF_MIN_FIT) > 0
-            ? gte(prospects.fitScore, input.handoff.minFit ?? DEFAULT_HANDOFF_MIN_FIT)
-            : undefined,
           sql`(${sql.join(
             emailColumns.map((c) => sql`${prospects.data} ? ${c.id}`),
             sql` or `,
           )})`,
         ),
       )
-      .orderBy(desc(prospects.fitScore), asc(prospects.createdAt))
+      .orderBy(asc(prospects.createdAt))
       .limit(perRun * 2),
   );
 
@@ -162,7 +157,6 @@ export async function prepareFirstContacts(
         `- Empresa: ${row.companyName}`,
         row.personName ? `- Persona: ${row.personName}` : null,
         row.website ? `- Web: ${row.website}` : null,
-        row.fitReason ? `- Por qué encaja: ${row.fitReason}` : null,
       ]
         .filter(Boolean)
         .join("\n")}\n${known}`,
@@ -212,7 +206,7 @@ export async function prepareFirstContacts(
         runId: input.runId,
         payload: { identityId: input.mailboxId, to: [to], subject: draft.subject, body: draft.body },
         context: { customerType: "b2b", subjectRef: conversationRef(conversation.id) },
-        reason: `Primer contacto con ${row.personName ?? row.companyName}${row.fitScore != null ? ` (encaje ${row.fitScore})` : ""}${row.fitReason ? `: ${row.fitReason}` : ""}`,
+        reason: `Primer contacto con ${row.personName ?? row.companyName}`,
         idempotencyKey: `first-contact:${row.id}`,
       });
       await withTenant(deps.db, tenant, (tx) =>

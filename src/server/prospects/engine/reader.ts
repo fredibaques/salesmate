@@ -1,5 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import type { PageCache } from "./cache";
 
 /**
  * Reads public web pages for the completion engine: a plain HTTP request,
@@ -14,6 +15,8 @@ export type ReaderDeps = {
   resolve?: (host: string) => Promise<string[]>;
   /** Jina Reader key: renders pages that need JavaScript when our read comes back empty. */
   jinaApiKey?: string;
+  /** Pages read before (web_pages): a page in it isn't read again. */
+  cache?: PageCache;
 };
 
 export type Page = {
@@ -24,6 +27,8 @@ export type Page = {
   links: { url: string; text: string }[];
   /** Read through Jina (a paid read) rather than directly. */
   viaJina?: boolean;
+  /** Came from the cache: nothing was read this time. */
+  cached?: boolean;
 };
 
 export class ReadError extends Error {
@@ -218,6 +223,14 @@ export function siteReader(deps: ReaderDeps = {}) {
   return async function read(raw: string): Promise<Page> {
     const url = webUrl(raw);
     if (!url) throw new ReadError(`«${raw}» no es una dirección web válida.`, "invalid_url");
+    const hit = await deps.cache?.get(url.toString()).catch(() => null);
+    if (hit) return hit;
+    const page = await fetchPage(url);
+    await deps.cache?.set(url.toString(), page).catch((err) => console.error("page cache", err));
+    return page;
+  };
+
+  async function fetchPage(url: URL): Promise<Page> {
     if (!robotsAllow(await rulesFor(url), url.pathname + url.search)) {
       throw new ReadError(`${url.hostname} no permite leer esa página (robots.txt).`, "robots");
     }
@@ -242,7 +255,7 @@ export function siteReader(deps: ReaderDeps = {}) {
       if (rendered && rendered.length > page.text.length) return { ...page, text: rendered, viaJina: true };
     }
     return page;
-  };
+  }
 }
 
 /** A page that needs JavaScript, rendered by Jina Reader (paid per token). */

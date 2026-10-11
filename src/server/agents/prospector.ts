@@ -35,9 +35,10 @@ import {
   rowsToComplete,
   type RowToComplete,
 } from "../prospects/complete";
+import { dbPageCache } from "../prospects/engine/cache";
+import { runDiscovery, type DiscoveryResult } from "../prospects/engine/discover";
 import { runCompletionEngine, type EngineDeps, type EngineResult } from "../prospects/engine/engine";
 import type { ReaderDeps } from "../prospects/engine/reader";
-import { fitCriteria, fitPrompt } from "../prospects/fit";
 import { knownProspects, prospectInput, recentProspectNames, saveProspects } from "../prospects/service";
 import { goalProgress, monthSpendUsd, notifyTeam, pauseAgent, type RunNotice } from "./automation";
 import { dataTools, knowledgeTools, mcpTools, webTools, type AgentToolContext } from "./tools";
@@ -190,6 +191,25 @@ async function closeRows(db: Db, actor: TenantContext, baseId: string, runId: st
     baseId,
     runId,
     items: rows.map((r) => ({ id: r.id, notFound: r.columns })),
+  });
+}
+
+/** What discovery did, for the run's summary. */
+function discoverySummary(d: DiscoveryResult): string {
+  return d.added
+    ? `Ha encontrado ${d.added} ${d.added === 1 ? "empresa nueva" : "empresas nuevas"} revisando ${d.examined} webs (${d.searches} búsquedas en Google). Coste: ${d.costUsd.toFixed(3)} $ (${(d.costUsd / d.added).toFixed(4)} $ por fila nueva).`
+    : `No ha encontrado empresas nuevas que encajen entre ${d.examined} webs (${d.searches} búsquedas en Google); la próxima vez probará otras búsquedas.`;
+}
+
+/** The searches discovery has run for this agent (the last 60), so it doesn't repeat them. */
+async function saveDiscoveryQueries(db: Db, tenant: { orgId: string }, agentId: string, queries: string[]) {
+  await withTenant(db, tenant, async (tx) => {
+    const [current] = await tx.select().from(agentConfigs).where(eq(agentConfigs.id, agentId));
+    if (!current) return;
+    await tx
+      .update(agentConfigs)
+      .set({ settings: { ...current.settings, discovery: { usedQueries: [...new Set(queries)].slice(-60) } } })
+      .where(eq(agentConfigs.id, agentId));
   });
 }
 
@@ -372,9 +392,7 @@ export async function runProspecting(
 
     // The goal: once the base has enough rows that fit, no more new ones.
     const goal = settings.goal?.rows ? await goalProgress(deps.db, tenant, base.id, settings.goal) : null;
-    const goalText = goal
-      ? `${goal.rows} de ${goal.target} filas${settings.goal?.minFit ? ` con encaje ${settings.goal.minFit} o más` : ""}`
-      : "";
+    const goalText = goal ? `${goal.rows} de ${goal.target} filas` : "";
     // Met: no more new rows. An agent that only looks for new ones has nothing left to do;
     // one that also completes keeps filling its rows.
     const goalStops = Boolean(goal?.met && mode === "find");
@@ -412,20 +430,29 @@ export async function runProspecting(
     const deadline = startedAt + (deps.timeBudgetMs ?? RUN_TIME_BUDGET_MS);
     const clock = () => (deps.now?.() ?? new Date()).getTime();
 
-    // The rows to complete go through the engine first (cheap, row by row); a person asking for
-    // specific rows gets the agent's in-depth search instead.
+    // Rows to complete go through the engine first (cheap, row by row) and new companies are found
+    // by discovery (searches + the small model) when Serper is connected; a person asking for
+    // specific rows gets the agent's in-depth search instead, and so do tables of people.
+    const engineLlm = withModel(deps.llm, smallModel(deps.llm.provider));
+    const readerDeps = deps.reader ?? {
+      fetch: deps.connectors?.fetch,
+      jinaApiKey: env().JINA_API_KEY,
+      cache: dbPageCache(deps.db),
+    };
+    const country =
+      project.timezone === "Europe/Madrid" || project.timezone === "Atlantic/Canary" ? "es" : undefined;
+    const manual = Boolean(input.rowIds?.length);
+    const search =
+      (work.rows.length && !manual) || (finds && base.rowKind === "company")
+        ? await orgSearch(deps, tenant)
+        : undefined;
+    const discovers = finds && Boolean(search) && base.rowKind === "company";
     let engine: EngineResult | null = null;
+    let discovery: DiscoveryResult | null = null;
     let handedOver: RowToComplete[] = [];
-    const search = work.rows.length && !input.rowIds?.length ? await orgSearch(deps, tenant) : undefined;
-    if (work.rows.length && !input.rowIds?.length) {
+    if (work.rows.length && !manual) {
       engine = await runCompletionEngine(
-        {
-          db: deps.db,
-          llm: withModel(deps.llm, smallModel(deps.llm.provider)),
-          search,
-          reader: deps.reader ?? { fetch: deps.connectors?.fetch, jinaApiKey: env().JINA_API_KEY },
-          now: clock,
-        },
+        { db: deps.db, llm: engineLlm, search, reader: readerDeps, now: clock },
         actor,
         {
           base,
@@ -434,8 +461,7 @@ export async function runProspecting(
           deadline: finds ? deadline - FIND_RESERVE_MS : deadline,
           budgetUsd: runBudgetUsd,
           context: project.description?.slice(0, 300) ?? undefined,
-          country:
-            project.timezone === "Europe/Madrid" || project.timezone === "Atlantic/Canary" ? "es" : undefined,
+          country,
         },
       );
       completed += engine.filled;
@@ -446,56 +472,92 @@ export async function runProspecting(
       );
       const canSearch = agent.tools.web || (agent.tools.data?.length ?? 0) > 0;
       const stuck = work.rows.filter((r) => hard.has(r.id));
-      handedOver = canSearch && deadline - clock() > HANDOVER_MIN_MS ? stuck.slice(0, HANDOVER_ROWS) : [];
+      handedOver =
+        canSearch && !discovers && deadline - clock() > HANDOVER_MIN_MS ? stuck.slice(0, HANDOVER_ROWS) : [];
       if (!canSearch) await closeRows(deps.db, actor, base.id, run.id, stuck);
       work = { rows: handedOver, cells: handedOver.reduce((n, r) => n + r.columns.length, 0) };
     }
+    if (discovers && search) {
+      const usedQueries = settings.discovery?.usedQueries ?? [];
+      discovery = await runDiscovery(
+        { db: deps.db, llm: engineLlm, search, reader: readerDeps, now: clock },
+        actor,
+        {
+          base,
+          agentConfigId: agent.id,
+          runId: run.id,
+          target,
+          deadline,
+          budgetUsd: runBudgetUsd === undefined ? undefined : runBudgetUsd - (engine?.costUsd ?? 0),
+          brief: [
+            project.description ? `Proyecto: ${project.description}` : "",
+            renderSalesProfile(parseSalesProfile(project.salesProfile)),
+            agent.instructions ? `Instrucciones: ${agent.instructions}` : "",
+          ]
+            .filter(Boolean)
+            .join("\n\n"),
+          usedQueries,
+          country,
+          ownSite: project.website,
+        },
+      );
+      added += discovery.added;
+      // The searches it ran, so the next run tries others.
+      await saveDiscoveryQueries(deps.db, tenant, agent.id, [...usedQueries, ...discovery.queries]);
+    }
     const completes = work.rows.length > 0;
+    const loopFinds = finds && !discovers;
 
-    // The engine did it all: no agent this time.
-    if (engine && !completes && !finds) {
-      let summary = engineSummary(engine, Boolean(search));
-      const progress = engine.filled + engine.notFound > 0;
+    // The engine and discovery did it all: no agent this time.
+    if ((engine || discovery) && !completes && !loopFinds) {
+      const parts = [
+        engine ? engineSummary(engine, Boolean(search)) : "",
+        discovery ? discoverySummary(discovery) : "",
+      ].filter(Boolean);
+      let summary = parts.join("\n\n");
+      const progress = (engine?.filled ?? 0) + (engine?.notFound ?? 0) > 0;
       const left = allPending && progress ? await countPendingCells(deps.db, tenant, base.id) : 0;
       if (left > 0) {
         await queueNextBatch(left);
         summary += `\n\nQuedan ${left} celdas por completar en la tabla: sigue con la siguiente tanda en unos minutos.`;
       }
-      const failed = engine.rows.length > 0 && engine.rows.every((r) => r.status === "failed");
+      const failed = Boolean(
+        engine && !discovery && engine.rows.length > 0 && engine.rows.every((r) => r.status === "failed"),
+      );
+      const costUsd = (engine?.costUsd ?? 0) + (discovery?.costUsd ?? 0);
+      const sum = (k: "input" | "output" | "cacheRead" | "cacheWrite") =>
+        (engine?.usage[k] ?? 0) + (discovery?.usage[k] ?? 0);
       await finish({
         status: failed ? "failed" : "completed",
-        error: failed ? engine.rows[0].note : undefined,
-        model: withModel(deps.llm, smallModel(deps.llm.provider)).model,
-        inputTokens: engine.usage.input,
-        outputTokens: engine.usage.output,
-        cacheReadTokens: engine.usage.cacheRead,
-        cacheWriteTokens: engine.usage.cacheWrite,
+        error: failed ? engine?.rows[0].note : undefined,
+        model: engineLlm.model,
+        inputTokens: sum("input"),
+        outputTokens: sum("output"),
+        cacheReadTokens: sum("cacheRead"),
+        cacheWriteTokens: sum("cacheWrite"),
         webSearches: 0,
-        costUsd: engine.costUsd,
-        steps: engine.steps,
+        costUsd,
+        steps: [...(engine?.steps ?? []), ...(discovery?.steps ?? [])],
         summary,
       });
+      const tally = [
+        discovery ? `${added} prospectos nuevos` : null,
+        engine ? `${completed} celdas completadas` : null,
+      ]
+        .filter(Boolean)
+        .join(" y ");
       await tell(
         failed
           ? { problem: true, headline: "La ejecución no ha terminado bien", details: summary }
-          : engine.filled
-            ? { problem: false, headline: `Ha completado ${engine.filled} celdas`, details: summary }
-            : { problem: true, headline: "No ha completado ninguna celda", details: summary },
+          : added + completed > 0
+            ? { problem: false, headline: `Ha terminado: ${tally}`, details: summary }
+            : { problem: true, headline: "No ha encontrado nada nuevo", details: summary },
       );
-      return {
-        runId: run.id,
-        status: failed ? "failed" : "completed",
-        added,
-        completed,
-        summary,
-        costUsd: engine.costUsd,
-      };
+      return { runId: run.id, status: failed ? "failed" : "completed", added, completed, summary, costUsd };
     }
     // Short references for the rows to complete: models copy them better than ids.
     const refs = new Map(work.rows.map((r, i) => [`F${i + 1}`, r.id]));
-    const known = finds ? await recentProspectNames(deps.db, tenant, base.id) : [];
-    // The criteria of the fit: the agent checks them, the score is computed from its answers.
-    const criteria = fitCriteria(parseSalesProfile(project.salesProfile));
+    const known = loopFinds ? await recentProspectNames(deps.db, tenant, base.id) : [];
 
     const ctx: AgentToolContext = {
       db: deps.db,
@@ -538,7 +600,6 @@ export async function runProspecting(
               agentConfigId: agent.id,
               runId: run.id,
               items: prospects,
-              fitCriteria: criteria,
             });
             added += result.added.length;
             return {
@@ -553,7 +614,7 @@ export async function runProspecting(
           },
         }),
         // The model sees the base's own columns, with their types and instructions.
-        jsonSchema: saveRowsSchema(base.rowKind, base.columns, criteria),
+        jsonSchema: saveRowsSchema(base.rowKind, base.columns),
       },
     ];
     const completeTools = [
@@ -605,7 +666,7 @@ export async function runProspecting(
     ];
     const tools = [
       ...knowledgeTools(ctx),
-      ...(finds ? findTools : []),
+      ...(loopFinds ? findTools : []),
       ...(completes ? completeTools : []),
       ...(await mcpTools(ctx, agent.tools.mcp ?? [])),
       ...(await dataTools(ctx, agent.tools.data ?? [])),
@@ -624,9 +685,9 @@ export async function runProspecting(
     const what = base.rowKind === "person" ? "personas" : "empresas";
     const task = [
       completes
-        ? `completas los datos que faltan en las filas de su base de prospectos${finds ? " y buscas" : ""}`
+        ? `completas los datos que faltan en las filas de su base de prospectos${loopFinds ? " y buscas" : ""}`
         : "buscas",
-      finds
+      loopFinds
         ? ` ${base.rowKind === "person" ? "personas de empresas que podrían ser clientes (quienes deciden o influyen en la compra)" : "empresas que podrían ser clientes"} para guardarlas en ella`
         : "",
     ].join("");
@@ -635,17 +696,14 @@ export async function runProspecting(
       `## El proyecto\n${project.description ?? "(sin descripción)"}\nWeb: ${project.website ?? "—"}`,
       `## Oferta y cliente ideal\n${renderSalesProfile(parseSalesProfile(project.salesProfile))}`,
       agent.instructions ? `## Instrucciones de la persona responsable\n${agent.instructions}` : "",
-      finds ? fitPrompt(criteria) : "",
       `## Cómo trabajas
 ${[
-  completes && finds
+  completes && loopFinds
     ? `- Primero completa las filas pendientes (abajo, ${work.cells} celdas). Después busca ${target} ${what} nuevas que encajen de verdad.`
     : completes
       ? `- Objetivo de esta ejecución: completar las filas pendientes de abajo (${work.cells} celdas).`
       : `- Objetivo de esta ejecución: ${target} prospectos nuevos que encajen de verdad. Mejor menos y buenos que muchos dudosos.`,
-  goal && !goal.met
-    ? `- Objetivo del agente: ${goal.target} filas${settings.goal?.minFit ? ` con encaje ${settings.goal.minFit} o más` : ""}; ya hay ${goal.rows}.`
-    : "",
+  goal && !goal.met ? `- Objetivo del agente: ${goal.target} filas; ya hay ${goal.rows}.` : "",
   !agent.tools.web
     ? "- No tienes búsqueda web: usa solo las herramientas conectadas."
     : `- Busca en la web y lee las páginas que encuentres (web_search, y web_fetch si lo tienes). Usa fuentes públicas: webs de empresas, directorios, asociaciones del sector, registros y noticias. No uses LinkedIn como fuente.\n- Cada turno admite como mucho ${SEARCHES_PER_TURN} búsquedas y ${SEARCHES_PER_TURN * 2} lecturas: haz pocas a la vez. Si una devuelve «max_uses_exceeded» no es un límite de la ejecución: guarda lo que tengas y sigue buscando en el turno siguiente.\n- Si una web no se deja leer (web_fetch da error), no insistas con ella: busca el dato con web_search, en directorios o registros, o con las herramientas de datos. Un fallo no es motivo para terminar: sigue con las demás filas.`,
@@ -654,7 +712,7 @@ ${[
   tools.some((t) => t.name === "serper_search")
     ? "- Para buscar en Google usa primero serper_search: cuesta mucho menos que web_search. Usa web_search solo si no basta."
     : "",
-  finds
+  loopFinds
     ? "- Antes de investigar a fondo una empresa nueva, comprueba con check_prospects que no la tenemos ya."
     : "",
   "- Trabaja por tandas de 2 o 3 filas: confirma sus datos y guárdalos antes de seguir con las siguientes. Lo que no hayas guardado se pierde si se acaba el tiempo de la ejecución.",
@@ -677,7 +735,7 @@ ${[
             work.cells,
           )
         : "",
-      finds
+      loopFinds
         ? known.length
           ? `## Ya están en la base (no los repitas)\n${known.join("\n")}`
           : "## Ya están en la base\n(Todavía ninguno.)"
@@ -695,7 +753,7 @@ ${[
       deps.now?.() ?? new Date(),
     );
     const ask = completes
-      ? finds
+      ? loopFinds
         ? `Completa las filas pendientes y busca ${target} prospectos nuevos para el proyecto.`
         : "Completa los datos que faltan en las filas pendientes."
       : `Busca ${target} prospectos nuevos para el proyecto y guárdalos.`;
@@ -737,7 +795,7 @@ ${[
     const outOfTime = result.status === "deadline";
     const outOfBudget = result.status === "budget";
     const tally = [
-      finds ? `${added} prospectos nuevos` : null,
+      loopFinds ? `${added} prospectos nuevos` : null,
       completes ? `${completed} celdas completadas` : null,
     ]
       .filter(Boolean)
@@ -751,7 +809,7 @@ ${[
 
     // The rows handed over are answered: what the agent didn't find is not found.
     await closeRows(deps.db, actor, base.id, run.id, handedOver);
-    if (handedOver.length && !finds) {
+    if (handedOver.length && !loopFinds) {
       for (const r of handedOver) {
         await recordRowWork(deps.db, actor, {
           baseId: base.id,

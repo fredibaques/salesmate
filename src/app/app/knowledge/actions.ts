@@ -6,7 +6,7 @@ import type { FormState } from "@/components/action-form";
 import { requireRole } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { runForm, str } from "@/server/form";
-import { importFromGoogle } from "@/server/knowledge/google-import";
+import { importFromGoogle, listGoogleFiles, type DriveFile } from "@/server/knowledge/google-import";
 import {
   deleteSource,
   ingestDocumentFile,
@@ -45,6 +45,42 @@ export async function importGoogleKnowledge(
       projectId,
       url: str(form, "url") ?? "",
       name: str(form, "name"),
+    });
+    refresh();
+    return imported.kind === "doc"
+      ? `«${imported.name}» añadido.`
+      : `«${imported.name}» añadido: ${imported.tables === 1 ? "1 tabla" : `${imported.tables} tablas`}.`;
+  });
+}
+
+/** The Docs and Sheets of the connected Google accounts, to pick one to import. */
+export async function listGoogleFilesAction(
+  query: string,
+): Promise<{ files: DriveFile[]; connected: boolean; reconnect: boolean; error?: string }> {
+  const tenant = await admin();
+  try {
+    return await listGoogleFiles({ db: getDb() }, tenant, { query: query.slice(0, 100) });
+  } catch (err) {
+    return {
+      files: [],
+      connected: true,
+      reconnect: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/** Imports one file picked from the Drive list (a copy). */
+export async function importGoogleFileAction(
+  projectId: string | null,
+  file: { url: string; name: string },
+): Promise<FormState> {
+  return runForm(async () => {
+    const tenant = await admin();
+    const imported = await importFromGoogle({ db: getDb() }, tenant, {
+      projectId,
+      url: file.url,
+      name: file.name,
     });
     refresh();
     return imported.kind === "doc"

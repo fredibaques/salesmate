@@ -9,7 +9,6 @@ import {
   Eye,
   Pencil,
   Plus,
-  Sparkles,
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
@@ -19,7 +18,7 @@ import { Popover } from "@/components/popover";
 import { useToast } from "@/components/toast";
 import { Badge, buttonClass, cx } from "@/components/ui";
 import { COLUMN_TYPE_LABELS, type BaseColumn, type RowKind } from "@/lib/prospect-columns";
-import type { ProposedColumn } from "@/server/prospects/propose-columns";
+import { columnCatalog, type CatalogColumn } from "@/lib/column-catalog";
 import { COLUMN_ICONS } from "../column-icons";
 import { ColumnForm } from "../column-form";
 import { useColumnDrag, type DropTarget } from "./column-drag";
@@ -231,40 +230,24 @@ export function FieldHeader({
 
 /**
  * The «+» at the end of the header: a new column, written by hand or picked
- * from the AI's suggestions for this table.
+ * from a catalogue of common ones (no AI: the same handful suits any table).
  */
 export function AddColumnHeader({
   save,
-  suggest,
   existing,
   rowKind,
-  name,
 }: {
   save: FormAction;
-  suggest: (input: {
-    rowKind: RowKind;
-    name: string;
-    brief: string;
-  }) => Promise<{ ok: boolean; message?: string; columns: ProposedColumn[] }>;
   existing: string[];
   rowKind: RowKind;
-  name: string;
 }) {
   const toast = useToast();
   const [view, setView] = useState<"form" | "suggest">("form");
-  const [suggestions, setSuggestions] = useState<ProposedColumn[] | null>(null);
-  const [note, setNote] = useState<string | null>(null);
   const [added, setAdded] = useState<string[]>([]);
   const [pending, start] = useTransition();
   const taken = new Set([...existing, ...added].map((n) => n.toLowerCase()));
 
-  const load = () =>
-    start(async () => {
-      const result = await suggest({ rowKind, name, brief: "" });
-      setNote(result.ok ? null : (result.message ?? null));
-      setSuggestions(result.columns);
-    });
-  const add = (c: ProposedColumn) =>
+  const add = (c: CatalogColumn) =>
     start(async () => {
       const form = new FormData();
       form.set("name", c.name);
@@ -296,10 +279,7 @@ export function AddColumnHeader({
             <button
               key={key}
               type="button"
-              onClick={() => {
-                setView(key);
-                if (key === "suggest" && !suggestions && !pending) load();
-              }}
+              onClick={() => setView(key)}
               className={cx(
                 "flex-1 rounded-md px-3 py-1.5 transition-colors",
                 view === key ? "bg-surface font-medium shadow-xs" : "text-ink-700 hover:bg-ink-100",
@@ -312,46 +292,45 @@ export function AddColumnHeader({
         {view === "form" ? (
           <ColumnForm action={save} />
         ) : (
-          <div className="space-y-3">
-            {note ? <p className="text-xs text-muted">{note}</p> : null}
-            {!suggestions ? (
-              <p className="flex items-center gap-2 text-muted">
-                <Sparkles className="size-4" /> Pensando columnas para «{name}»…
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {suggestions.map((c) => {
-                  const Icon = COLUMN_ICONS[c.type];
-                  const isTaken = taken.has(c.name.toLowerCase());
-                  return (
-                    <li key={c.name} className="flex items-start gap-3 rounded-lg border border-border p-2.5">
-                      <Icon className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden />
-                      <div className="min-w-0 flex-1">
-                        <p className="flex flex-wrap items-center gap-2 font-medium">
-                          {c.name}
-                          <span className="text-xs font-normal text-muted">{COLUMN_TYPE_LABELS[c.type]}</span>
-                        </p>
-                        {c.instructions ? (
-                          <p className="mt-0.5 text-xs text-muted">{c.instructions}</p>
-                        ) : null}
-                      </div>
-                      {isTaken ? (
-                        <Badge tone="success">Añadida</Badge>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={pending}
-                          onClick={() => add(c)}
-                          className={buttonClass({ variant: "secondary", size: "sm" })}
-                        >
-                          Añadir
-                        </button>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+          <div className="space-y-4">
+            {columnCatalog(rowKind).map((group) => (
+              <section key={group.title} className="space-y-2">
+                <h4 className="text-xs font-medium tracking-wide text-muted uppercase">{group.title}</h4>
+                <ul className="space-y-1.5">
+                  {group.columns.map((c) => {
+                    const Icon = COLUMN_ICONS[c.type];
+                    const isTaken = taken.has(c.name.toLowerCase());
+                    return (
+                      <li
+                        key={c.name}
+                        title={c.instructions}
+                        className="flex items-center gap-3 rounded-lg border border-border px-2.5 py-2"
+                      >
+                        <Icon className="size-4 shrink-0 text-muted" aria-hidden />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium">{c.name}</span>
+                          <span className="block text-xs text-muted">
+                            {COLUMN_TYPE_LABELS[c.type]} · {FILLED_BY_LABELS[c.filledBy ?? "agent"]}
+                          </span>
+                        </span>
+                        {isTaken ? (
+                          <Badge tone="success">Añadida</Badge>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={pending}
+                            onClick={() => add(c)}
+                            className={buttonClass({ variant: "secondary", size: "sm" })}
+                          >
+                            Añadir
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
           </div>
         )}
       </div>

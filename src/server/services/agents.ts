@@ -69,7 +69,7 @@ export const AGENT_DEFAULTS: Record<
     ].join("\n"),
     tools: {},
     schedule: { kind: "weekly", time: "09:30", days: [1, 2, 3, 4, 5] },
-    settings: { handoff: { enabled: true, minFit: 70, perRun: 5 } },
+    settings: { handoff: { enabled: true, perRun: 5 } },
   },
   inbound: { instructions: "", tools: {}, schedule: null, settings: {} },
   account_manager: { instructions: "", tools: {}, schedule: null, settings: {} },
@@ -997,16 +997,15 @@ export async function saveAgentMonthlyBudget(
 
 /**
  * Whom the outbound agent writes to and from where: rows of its table with
- * at least `minFit`, up to `perRun` a run, from the mailbox `mailboxId`.
+ * an email, up to `perRun` a run, from the mailbox `mailboxId`.
  */
 export async function saveAgentOutreach(
   db: Db,
   tenant: TenantContext,
   projectId: string,
   agentId: string,
-  input: { minFit: number; perRun: number; mailboxId: string | null },
+  input: { perRun: number; mailboxId: string | null },
 ) {
-  const minFit = Math.max(0, Math.min(100, Math.round(input.minFit)));
   const perRun = Math.max(1, Math.min(25, Math.round(input.perRun)));
   return withTenant(db, tenant, async (tx) => {
     const current = await findConfig(tx, projectId, agentId);
@@ -1020,7 +1019,7 @@ export async function saveAgentOutreach(
     }
     const settings: AgentSettings = {
       ...current.settings,
-      handoff: { ...current.settings.handoff, enabled: true, minFit, perRun },
+      handoff: { ...current.settings.handoff, enabled: true, perRun },
     };
     await tx
       .update(agentConfigs)
@@ -1032,7 +1031,7 @@ export async function saveAgentOutreach(
       projectId,
       entityType: "agent_config",
       entityId: current.id,
-      data: { agentType: current.agentType, minFit, perRun, mailboxId: input.mailboxId },
+      data: { agentType: current.agentType, perRun, mailboxId: input.mailboxId },
     });
   });
 }

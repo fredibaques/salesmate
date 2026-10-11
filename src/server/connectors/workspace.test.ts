@@ -187,6 +187,48 @@ describe("Google Docs, Sheets and Meet", () => {
     expect(doc).toEqual({ title: "Tarifas 2026", text: "Precios\nBásico | 49 €" });
   });
 
+  it("lists the Docs and Sheets in Drive, by name, newest first", async () => {
+    const { fetch, requests } = mockFetch({
+      "GET https://www.googleapis.com/drive/v3/files": () => ({
+        files: [
+          {
+            id: "DOC1",
+            name: "Tarifas 2026",
+            mimeType: "application/vnd.google-apps.document",
+            modifiedTime: "2026-10-01T10:00:00Z",
+            webViewLink: "https://docs.google.com/document/d/DOC1/edit",
+          },
+          { id: "SHEET1", name: "Clientes", mimeType: "application/vnd.google-apps.spreadsheet" },
+        ],
+      }),
+    });
+    const files = await createGoogleClient(creds, { fetch, oauth })["drive.list"]({ query: "Tarifa's" });
+    const q = new URL(requests[0].url).searchParams.get("q") ?? "";
+    expect(q).toContain("mimeType='application/vnd.google-apps.document'");
+    expect(q).toContain("trashed=false");
+    expect(q).toContain("name contains 'Tarifa\\'s'");
+    expect(files).toEqual([
+      {
+        id: "DOC1",
+        name: "Tarifas 2026",
+        kind: "doc",
+        modifiedAt: "2026-10-01T10:00:00Z",
+        url: "https://docs.google.com/document/d/DOC1/edit",
+      },
+      {
+        id: "SHEET1",
+        name: "Clientes",
+        kind: "sheet",
+        modifiedAt: null,
+        url: "https://docs.google.com/spreadsheets/d/SHEET1/edit",
+      },
+    ]);
+    // Listing comes with Docs or Sheets.
+    expect(googleProvider(oauth).capabilitiesFor({ read: ["docs", "drive"], write: [] })).toContain(
+      "drive.list",
+    );
+  });
+
   it("reads the first sheet and writes a table to a new spreadsheet", async () => {
     const { fetch, requests } = mockFetch({
       "GET https://sheets.googleapis.com/v4/spreadsheets/SHEET1?": () => ({

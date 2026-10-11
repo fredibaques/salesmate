@@ -13,7 +13,7 @@ import { bool, list, num, runForm, str } from "@/server/form";
 import { ACTION_DEFINITIONS } from "@/server/gateway/definitions";
 import { runProspecting } from "@/server/agents/prospector";
 import { closeStaleRuns } from "@/server/agents/scheduler";
-import { DEFAULT_HANDOFF_MIN_FIT, DEFAULT_HANDOFF_PER_RUN } from "@/server/agents/first-contact";
+import { DEFAULT_HANDOFF_PER_RUN } from "@/server/agents/first-contact";
 import { runInboundSweep } from "@/server/agents/inbound-sweep";
 import { runOutreach } from "@/server/agents/outreach";
 import { agentRunDeps, inboundDeps } from "@/server/agents/runtime";
@@ -212,7 +212,7 @@ function automationFromForm(form: FormData): Parameters<typeof saveAgentAutomati
     triggers: { newRows: bool(form, "triggerNewRows"), webhook: bool(form, "triggerWebhook") },
     // The month's spending is the only limit of an agent.
     budget: { maxCostPerMonthUsd: amount(form, "maxCostPerMonthUsd") },
-    goal: goalRows ? { rows: goalRows, minFit: num(form, "goalMinFit") } : null,
+    goal: goalRows ? { rows: goalRows } : null,
     sources: {
       allow: domainList(form, "sourcesAllow"),
       block: domainList(form, "sourcesBlock"),
@@ -226,7 +226,6 @@ function automationFromForm(form: FormData): Parameters<typeof saveAgentAutomati
     mailboxId: str(form, "mailboxId") ?? null,
     handoff: {
       enabled: bool(form, "handoffEnabled"),
-      minFit: num(form, "handoffMinFit"),
       perRun: num(form, "handoffPerRun"),
       instructions: str(form, "handoffInstructions"),
     },
@@ -317,7 +316,6 @@ async function outreachFromForm(
     webhook: bool(form, "triggerWebhook"),
   });
   await saveAgentOutreach(db, tenant, projectId, agentId, {
-    minFit: num(form, "minFit") ?? DEFAULT_HANDOFF_MIN_FIT,
     perRun: num(form, "perRun") ?? DEFAULT_HANDOFF_PER_RUN,
     mailboxId: str(form, "mailboxId") ?? null,
   });

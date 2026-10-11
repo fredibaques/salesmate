@@ -177,10 +177,9 @@ function leadStateTool(ctx: { db: Db; orgId: string; contactId: string; conversa
   return defineTool({
     name: "update_lead",
     description:
-      "Guarda tu valoración del contacto y de la conversación: estado, encaje (0-100), clasificación, resumen y siguiente paso. También corrige sus datos si el mensaje los aclara.",
+      "Guarda tu valoración del contacto y de la conversación: estado, clasificación, resumen y siguiente paso. También corrige sus datos si el mensaje los aclara.",
     input: z.object({
       status: z.enum(CONTACT_STATUSES).optional(),
-      fitScore: z.number().int().min(0).max(100).optional(),
       classification: z
         .string()
         .optional()
@@ -206,7 +205,6 @@ function leadStateTool(ctx: { db: Db; orgId: string; contactId: string; conversa
         const contactPatch = Object.fromEntries(
           Object.entries({
             status: input.status,
-            fitScore: input.fitScore,
             customerType: input.customerType,
             firstName: input.firstName,
             lastName: input.lastName,

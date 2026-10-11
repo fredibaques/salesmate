@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { Card, Field, FormSection, Input, Select, Textarea } from "@/components/ui";
 import { AI_PROVIDER_INFO } from "@/lib/ai-providers";
-import { DEFAULT_HANDOFF_MIN_FIT, DEFAULT_HANDOFF_PER_RUN } from "@/server/agents/first-contact";
+import { DEFAULT_HANDOFF_PER_RUN } from "@/server/agents/first-contact";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { withTenant } from "@/server/db/tenant";
@@ -93,20 +93,13 @@ export async function OutreachSetup({ projectId, agentId }: { projectId: string;
 
           <FormSection
             title="A quién escribe"
-            tip="Filas con email, con al menos este encaje y sin primer email todavía: a cada una, una sola vez."
+            tip="Las filas de su tabla con email que aún no tienen primer email: a cada una, una sola vez."
           >
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Encaje mínimo" tip="0 para escribir también a las filas sin encaje calculado.">
-                <Input
-                  name="minFit"
-                  type="number"
-                  min={0}
-                  max={100}
-                  defaultValue={s.handoff?.minFit ?? DEFAULT_HANDOFF_MIN_FIT}
-                  className="w-32"
-                />
-              </Field>
-              <Field label="Emails por ejecución">
+              <Field
+                label="Emails por ejecución"
+                tip="No es un límite de gasto: enviar muchos emails en frío de golpe hace que Gmail marque tu buzón como spam."
+              >
                 <Input
                   name="perRun"
                   type="number"

@@ -12,7 +12,6 @@ export type BoardCard = {
   name: string;
   /** The row's phase; null (or one no longer among the phases) goes to «Sin fase». */
   stage: string | null;
-  fitScore: number | null;
   /** A couple of the row's values, already as text. */
   details: string[];
   discarded: boolean;
@@ -128,17 +127,6 @@ export function KanbanBoard({
                           {d}
                         </span>
                       ))}
-                      {card.fitScore != null ? (
-                        <span className="flex items-center gap-2 text-xs text-muted tabular-nums">
-                          <span className="h-1.5 w-10 overflow-hidden rounded-full bg-ink-100">
-                            <span
-                              className="block h-full bg-brand-500"
-                              style={{ width: `${Math.max(0, Math.min(100, card.fitScore))}%` }}
-                            />
-                          </span>
-                          Encaje {card.fitScore}
-                        </span>
-                      ) : null}
                     </Link>
                   </li>
                 ))}

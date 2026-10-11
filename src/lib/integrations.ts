@@ -324,6 +324,7 @@ export function describeScopes(read: string[], write: string[]): string[] {
   if (read.includes("sheets")) out.push("Leer hojas de cálculo");
   if (write.includes("sheets")) out.push("Crear hojas de cálculo");
   if (read.includes("meet")) out.push("Leer transcripciones de Meet");
+  if (read.includes("drive")) out.push("Ver la lista de documentos y hojas de Drive");
   if (write.includes("workspace")) out.push("Exportar tablas y crear tareas");
   return out;
 }
@@ -349,6 +350,7 @@ export const CAPABILITY_LABELS: Record<string, string> = {
   "data.web_search": "Buscar en Google",
   "docs.read": "Leer documentos",
   "sheets.read": "Leer hojas de cálculo",
+  "drive.list": "Ver la lista de documentos y hojas",
   "table.export": "Exportar tablas",
   "export.targets": "Ver bases, listas y tableros",
   "task.create": "Crear tareas para el equipo",

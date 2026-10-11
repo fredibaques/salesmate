@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { AGENT_INFO, agentName, type ProjectAgentKey } from "@/lib/agents";
 import type { Db } from "../db/client";
 import { agentConfigs, agentRuns, member, prospects, user, type AgentSettings } from "../db/schema";
@@ -32,7 +32,7 @@ export async function monthSpendUsd(
   return Number(row?.total ?? 0);
 }
 
-/** Rows of the base that count for the goal (fit at least minFit, not discarded). */
+/** Rows of the base that count for the goal (not discarded). */
 export async function goalProgress(
   db: Db,
   tenant: { orgId: string },
@@ -43,13 +43,7 @@ export async function goalProgress(
     tx
       .select({ n: sql<number>`count(*)` })
       .from(prospects)
-      .where(
-        and(
-          eq(prospects.baseId, baseId),
-          ne(prospects.status, "discarded"),
-          goal.minFit ? gte(prospects.fitScore, goal.minFit) : undefined,
-        ),
-      ),
+      .where(and(eq(prospects.baseId, baseId), ne(prospects.status, "discarded"))),
   );
   const rows = Number(row?.n ?? 0);
   return { rows, target: goal.rows, met: rows >= goal.rows, remaining: Math.max(0, goal.rows - rows) };

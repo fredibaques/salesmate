@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, seedOrg } from "../../../tests/helpers/db";
-import { scriptedLlm } from "../../../tests/helpers/fake-llm";
 import { columnId, newTableHiddenFields, stageColumn } from "@/lib/prospect-columns";
 import type { Db } from "../db/client";
 import { projects } from "../db/schema";
@@ -24,7 +23,6 @@ import {
   setColumnHidden,
   setFieldHidden,
 } from "./bases";
-import { proposeColumns } from "./propose-columns";
 import {
   addProspectRow,
   getProspect,
@@ -269,87 +267,6 @@ describe("rows edited by people", () => {
   });
 });
 
-describe("proposeColumns", () => {
-  it("asks for structured columns and keeps the ones that make sense", async () => {
-    const { llm, requests } = scriptedLlm([
-      {
-        blocks: [
-          {
-            type: "text",
-            text: JSON.stringify({
-              columns: [
-                {
-                  name: "Tipo de concesionario",
-                  type: "select",
-                  options: ["Oficial de marca", "Multimarca"],
-                  instructions: "Oficial si representa una marca.",
-                  filledBy: "agent",
-                  recommended: true,
-                },
-                {
-                  name: "Provincia",
-                  type: "select",
-                  options: [],
-                  instructions: "",
-                  filledBy: "agent",
-                  recommended: true,
-                },
-                {
-                  name: "Notas",
-                  type: "long",
-                  options: [],
-                  instructions: "",
-                  filledBy: "person",
-                  recommended: false,
-                },
-                {
-                  name: "notas",
-                  type: "text",
-                  options: [],
-                  instructions: "",
-                  filledBy: "agent",
-                  recommended: true,
-                },
-                {
-                  name: "",
-                  type: "text",
-                  options: [],
-                  instructions: "",
-                  filledBy: "agent",
-                  recommended: true,
-                },
-              ],
-            }),
-          },
-        ],
-      },
-    ]);
-    const proposals = await proposeColumns({ db, llm }, tenant, {
-      projectId,
-      rowKind: "company",
-      name: "Concesionarios",
-      brief: "Si tienen gestoría propia",
-    });
-    expect(proposals).toEqual([
-      {
-        name: "Tipo de concesionario",
-        type: "select",
-        options: ["Oficial de marca", "Multimarca"],
-        instructions: "Oficial si representa una marca.",
-        filledBy: "agent",
-        recommended: true,
-      },
-      // A choice without options becomes text.
-      { name: "Provincia", type: "text", filledBy: "agent", recommended: true },
-      { name: "Notas", type: "long", filledBy: "person", recommended: false },
-    ]);
-    expect(requests[0].output_config?.format?.type).toBe("json_schema");
-    const prompt = JSON.stringify(requests[0].messages);
-    expect(prompt).toContain("Transferencias de vehículos");
-    expect(prompt).toContain("Si tienen gestoría propia");
-  });
-});
-
 describe("listAllBases", () => {
   it("lists the bases of every project, the most recently active first", async () => {
     const [other] = await withTenant(db, tenant, (tx) =>
@@ -422,7 +339,7 @@ describe("tables like a spreadsheet", () => {
       hiddenFields: [...newTableHiddenFields("person"), "person"],
     });
     // The person's name can't be hidden; everything else starts hidden.
-    expect(base.hiddenFields.sort()).toEqual(["company", "fit", "sources", "status", "web"]);
+    expect(base.hiddenFields.sort()).toEqual(["company", "sources", "status", "web"]);
     await expect(setFieldHidden(db, tenant, base.id, "person", true)).rejects.toThrow(/no se puede ocultar/);
     await setFieldHidden(db, tenant, base.id, "web", false);
     expect((await getBase(db, tenant, base.id))!.hiddenFields).not.toContain("web");

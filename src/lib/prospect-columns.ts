@@ -95,14 +95,13 @@ export const MAX_COLUMNS = 50;
  * company, or the person in tables of people) is the only one a table can't
  * hide: it is how rows are told apart. The rest show or hide like columns.
  */
-export const SYSTEM_FIELDS = ["person", "company", "web", "fit", "status", "sources", "created"] as const;
+export const SYSTEM_FIELDS = ["person", "company", "web", "status", "sources", "created"] as const;
 export type SystemField = (typeof SYSTEM_FIELDS)[number];
 
 export const SYSTEM_FIELD_LABELS: Record<SystemField, string> = {
   person: "Nombre",
   company: "Empresa",
   web: "Web",
-  fit: "Encaje",
   status: "Estado",
   sources: "Fuentes",
   created: "Fecha de registro",
