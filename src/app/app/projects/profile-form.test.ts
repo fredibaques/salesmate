@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TONES } from "@/lib/profile-options";
-import { profileFromForm, projectFromForm } from "./profile-form";
+import { audienceFromForm, businessFromForm, projectFromForm } from "./profile-form";
 
 function form(entries: [string, string][]) {
   const f = new FormData();
@@ -8,16 +8,14 @@ function form(entries: [string, string][]) {
   return f;
 }
 
-describe("profileFromForm", () => {
+describe("businessFromForm", () => {
   it("reads lists, chips with «Otros», objection pairs and a preset tone", () => {
-    const profile = profileFromForm(
+    const profile = businessFromForm(
       form([
         ["offer", "Transferencias en 24 h"],
         ["segmentInclude", "Concesionarios"],
         ["segmentInclude", "  "],
         ["segmentInclude", "Compraventas"],
-        ["geography", "Península"],
-        ["geographyOther", "Andorra, Península"],
         ["decisionMakers", "Compras"],
         ["decisionMakersOther", ""],
         ["objection", "Es caro"],
@@ -29,7 +27,6 @@ describe("profileFromForm", () => {
     );
     expect(profile.offer).toBe("Transferencias en 24 h");
     expect(profile.segment.include).toEqual(["Concesionarios", "Compraventas"]);
-    expect(profile.segment.geography).toEqual(["Península", "Andorra"]);
     expect(profile.decisionMakers).toEqual(["Compras"]);
     // A row without an answer is not an objection the agents can use.
     expect(profile.objections).toEqual([
@@ -39,13 +36,28 @@ describe("profileFromForm", () => {
   });
 
   it("keeps a custom tone as written", () => {
-    const profile = profileFromForm(
+    const profile = businessFromForm(
       form([
         ["tonePreset", "custom"],
         ["toneCustom", "Con humor"],
       ]),
     );
     expect(profile.tone).toBe("Con humor");
+  });
+});
+
+describe("audienceFromForm", () => {
+  it("reads who the project is for, with zones and «Otros»", () => {
+    expect(
+      audienceFromForm(
+        form([
+          ["audienceInclude", "Concesionarios"],
+          ["audienceInclude", " "],
+          ["geography", "Península"],
+          ["geographyOther", "Andorra, Península"],
+        ]),
+      ),
+    ).toEqual({ segment: { include: ["Concesionarios"], exclude: [], geography: ["Península", "Andorra"] } });
   });
 });
 

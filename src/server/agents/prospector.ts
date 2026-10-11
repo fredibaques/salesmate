@@ -20,7 +20,8 @@ import { env } from "../env";
 import type { GatewayDeps } from "../gateway/gateway";
 import { defineTool, runAgentLoop, type AgentLoopResult } from "../llm/agent-loop";
 import { withModel, type LlmClient } from "../llm/client";
-import { parseSalesProfile, renderSalesProfile } from "../playbooks/spec";
+import { renderSalesProfile } from "../playbooks/spec";
+import { projectSales } from "../services/business";
 import {
   columnsPrompt,
   completeRowsSchema,
@@ -434,6 +435,7 @@ export async function runProspecting(
     // by discovery (searches + the small model) when Serper is connected; a person asking for
     // specific rows gets the agent's in-depth search instead, and so do tables of people.
     const engineLlm = withModel(deps.llm, smallModel(deps.llm.provider));
+    const sales = await projectSales(deps.db, tenant, project);
     const readerDeps = deps.reader ?? {
       fetch: deps.connectors?.fetch,
       jinaApiKey: env().JINA_API_KEY,
@@ -460,7 +462,7 @@ export async function runProspecting(
           runId: run.id,
           deadline: finds ? deadline - FIND_RESERVE_MS : deadline,
           budgetUsd: runBudgetUsd,
-          context: project.description?.slice(0, 300) ?? undefined,
+          context: (sales.profile.offer || project.description)?.slice(0, 300) || undefined,
           country,
         },
       );
@@ -490,15 +492,15 @@ export async function runProspecting(
           deadline,
           budgetUsd: runBudgetUsd === undefined ? undefined : runBudgetUsd - (engine?.costUsd ?? 0),
           brief: [
-            project.description ? `Proyecto: ${project.description}` : "",
-            renderSalesProfile(parseSalesProfile(project.salesProfile)),
+            project.description ? `Objetivo del proyecto: ${project.description}` : "",
+            renderSalesProfile(sales.profile),
             agent.instructions ? `Instrucciones: ${agent.instructions}` : "",
           ]
             .filter(Boolean)
             .join("\n\n"),
           usedQueries,
           country,
-          ownSite: project.website,
+          ownSite: sales.website,
         },
       );
       added += discovery.added;
@@ -693,8 +695,8 @@ export async function runProspecting(
     ].join("");
     const system = [
       `Eres el agente de prospección del proyecto «${project.name}»: ${task}. No contactas con nadie.`,
-      `## El proyecto\n${project.description ?? "(sin descripción)"}\nWeb: ${project.website ?? "—"}`,
-      `## Oferta y cliente ideal\n${renderSalesProfile(parseSalesProfile(project.salesProfile))}`,
+      `## El proyecto\nObjetivo: ${project.description ?? "(sin definir)"}\nWeb del negocio: ${sales.website ?? "—"}`,
+      `## Oferta y cliente ideal\n${renderSalesProfile(sales.profile)}`,
       agent.instructions ? `## Instrucciones de la persona responsable\n${agent.instructions}` : "",
       `## Cómo trabajas
 ${[

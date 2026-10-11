@@ -197,6 +197,13 @@
       "when": 1791741586918,
       "tag": "0027_web_page_cache",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1791743783217,
+      "tag": "0028_business_profile",
+      "breakpoints": true
     }
   ]
 }

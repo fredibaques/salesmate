@@ -1,12 +1,17 @@
-"use client";
-
 import { Plus } from "lucide-react";
+import { cache } from "react";
 import { ModalButton } from "@/components/modal";
 import type { ButtonSize, ButtonVariant } from "@/components/ui";
+import { requireTenant } from "@/server/auth/session";
+import { getDb } from "@/server/db/client";
+import { getBusinessProfile } from "@/server/services/business";
 import { ProjectWizard } from "./new/project-wizard";
 
+/** Whether the business is described decides the wizard's steps; asked once per request. */
+export const currentBusiness = cache(async () => getBusinessProfile(getDb(), await requireTenant()));
+
 /** «Nuevo proyecto»: the step-by-step creation, in a modal. */
-export function NewProjectButton({
+export async function NewProjectButton({
   variant = "primary",
   size,
   iconOnly,
@@ -30,7 +35,7 @@ export function NewProjectButton({
       width="xl"
       className={className}
     >
-      <ProjectWizard />
+      <ProjectWizard business={await currentBusiness()} />
     </ModalButton>
   );
 }

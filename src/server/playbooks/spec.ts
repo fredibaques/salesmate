@@ -92,11 +92,54 @@ export const playbookSpecSchema = z.object({
 export type PlaybookSpec = z.infer<typeof playbookSpecSchema>;
 
 /**
- * What the project sells and to whom. Shared by every agent of the project;
- * each agent's process (its playbook) adds its own goal, next steps and rules.
+ * What the business sells, to whom and how it talks (organization level,
+ * `org_profiles`): it doesn't change from one project to another.
+ */
+export const businessProfileSchema = z.object({
+  website: z.string().trim().default(""),
+  /** What we sell, in one or two sentences. */
+  offer: z.string().trim().default(""),
+  valueProposition: z.string().trim().default(""),
+  /** The ideal customer in general; a project can narrow it. */
+  segment: z.object({ include: lines, exclude: lines }).default({ include: [], exclude: [] }),
+  decisionMakers: lines,
+  pains: lines,
+  objections: z
+    .array(z.object({ objection: z.string().trim().min(1), response: z.string().trim().min(1) }))
+    .default([]),
+  tone: z.string().trim().default(""),
+  signature: z.string().trim().default(""),
+});
+export type BusinessProfile = z.infer<typeof businessProfileSchema>;
+
+/** Parses a stored business profile, tolerating old or partial data. */
+export function parseBusinessProfile(raw: unknown): BusinessProfile {
+  const parsed = businessProfileSchema.safeParse(raw ?? {});
+  return parsed.success ? parsed.data : businessProfileSchema.parse({});
+}
+
+/**
+ * Who a project is for (`projects.sales_profile`): its goal is the project's
+ * description; this narrows the business's ideal customer for it. Empty
+ * lists mean «the business's».
+ */
+export const projectAudienceSchema = z.object({
+  segment: z
+    .object({ include: lines, exclude: lines, geography: lines })
+    .default({ include: [], exclude: [], geography: [] }),
+});
+export type ProjectAudience = z.infer<typeof projectAudienceSchema>;
+
+export function parseProjectAudience(raw: unknown): ProjectAudience {
+  const parsed = projectAudienceSchema.safeParse(raw ?? {});
+  return parsed.success ? parsed.data : projectAudienceSchema.parse({});
+}
+
+/**
+ * What the agents of a project know of the sale: the business's profile
+ * with the project's audience on top.
  */
 export const salesProfileSchema = z.object({
-  /** What we sell, in one or two sentences. */
   offer: z.string().trim().default(""),
   valueProposition: z.string().trim().default(""),
   segment: z
@@ -104,8 +147,6 @@ export const salesProfileSchema = z.object({
     .default({ include: [], exclude: [], geography: [] }),
   decisionMakers: lines,
   pains: lines,
-  /** What shows a company fits (beyond segment and zone): the criteria of the fit score. */
-  fitSignals: lines,
   objections: z
     .array(z.object({ objection: z.string().trim().min(1), response: z.string().trim().min(1) }))
     .default([]),
@@ -120,7 +161,30 @@ export function parseSalesProfile(raw: unknown): SalesProfile {
   return parsed.success ? parsed.data : salesProfileSchema.parse({});
 }
 
-/** Fields of the sales process (the rest of a spec comes from «Oferta y cliente»). */
+/**
+ * The profile a project's agents work with. Without a business profile
+ * (before it existed) the project's own stored profile is used as it was.
+ */
+export function mergeSalesProfile(business: BusinessProfile | null, projectRaw: unknown): SalesProfile {
+  if (!business) return parseSalesProfile(projectRaw);
+  const { segment } = parseProjectAudience(projectRaw);
+  return {
+    offer: business.offer,
+    valueProposition: business.valueProposition,
+    segment: {
+      include: segment.include.length ? segment.include : business.segment.include,
+      exclude: segment.exclude.length ? segment.exclude : business.segment.exclude,
+      geography: segment.geography,
+    },
+    decisionMakers: business.decisionMakers,
+    pains: business.pains,
+    objections: business.objections,
+    tone: business.tone,
+    signature: business.signature,
+  };
+}
+
+/** Fields of the sales process (the rest of a spec comes from the business and the project's audience). */
 export const PROCESS_FIELDS = [
   "objective",
   "customerType",
@@ -293,8 +357,7 @@ export function renderSalesProfile(profile: SalesProfile): string {
   if (profile.segment.geography.length) parts.push(`Zona: ${profile.segment.geography.join(", ")}`);
   if (profile.decisionMakers.length) parts.push(`Quién decide la compra:\n${bullet(profile.decisionMakers)}`);
   if (profile.pains.length) parts.push(`Problemas que resolvemos:\n${bullet(profile.pains)}`);
-  if (profile.fitSignals.length) parts.push(`Señales de que encaja:\n${bullet(profile.fitSignals)}`);
   return parts.length
     ? parts.join("\n\n")
-    : "(El proyecto todavía no ha descrito su oferta ni su cliente ideal.)";
+    : "(Todavía no se ha descrito el negocio ni su cliente ideal.)";
 }

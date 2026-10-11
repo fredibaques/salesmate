@@ -4,7 +4,8 @@ import { agentRuns, agentConfigs, projects, prospectBases } from "../db/schema";
 import { withTenant } from "../db/tenant";
 import { withModel } from "../llm/client";
 import { projectProcess } from "../playbooks/service";
-import { parseSalesProfile, renderPlaybook, renderSalesProfile } from "../playbooks/spec";
+import { renderPlaybook, renderSalesProfile } from "../playbooks/spec";
+import { salesProfileFor } from "../services/business";
 import { monthSpendUsd, notifyTeam, type RunNotice } from "./automation";
 import { prepareFirstContacts } from "./first-contact";
 import type { AgentRunDeps } from "./prospector";
@@ -111,7 +112,7 @@ export async function runOutreach(
           `No ha trabajado: este mes ya ha gastado ${spent.toFixed(2)} $ de los ${monthCap.toFixed(2)} $ del límite.`,
         );
     }
-    const profile = parseSalesProfile(project.salesProfile);
+    const profile = await salesProfileFor(deps.db, tenant, project.salesProfile);
     const result = await prepareFirstContacts(
       { db: deps.db, llm: withModel(deps.llm, agent.settings.model), gateway: deps.gateway },
       tenant,

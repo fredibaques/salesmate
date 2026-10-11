@@ -17,7 +17,6 @@ import {
   identities,
   projectConnections,
   projectIdentities,
-  projects,
   PROSPECTING_MODES,
   type AgentChannels,
   type AgentSchedule,
@@ -27,7 +26,7 @@ import {
 } from "../db/schema";
 import { withTenant, type TenantContext, type Tx } from "../db/tenant";
 import { ensureProjectProcessIn, savePlaybookVersion } from "../playbooks/service";
-import { PROCESS_FIELDS, parseSalesProfile, salesProfileSchema, type PlaybookSpec } from "../playbooks/spec";
+import { PROCESS_FIELDS, type PlaybookSpec } from "../playbooks/spec";
 
 /**
  * Agents are the unit the user works with: they add an agent to a project
@@ -310,7 +309,7 @@ export async function customizeAgent(
 
 /**
  * Saves a new version of the project's sales process (creating it if the
- * project has none); the fields of «Oferta y cliente» are left untouched.
+ * project has none); the business profile and the project's audience are left untouched.
  */
 export async function saveProjectProcess(
   db: Db,
@@ -740,40 +739,6 @@ export async function setAgentMcpTools(
       ...(tools.mcp ?? []).filter((m) => m.connectionId !== connectionId),
       { connectionId, tools: names },
     ],
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Sales profile: what the project sells and to whom (shared by its agents)
-// ---------------------------------------------------------------------------
-
-export async function getSalesProfile(db: Db, tenant: Pick<TenantContext, "orgId">, projectId: string) {
-  return withTenant(db, tenant, async (tx) => {
-    const [row] = await tx
-      .select({ salesProfile: projects.salesProfile })
-      .from(projects)
-      .where(eq(projects.id, projectId));
-    if (!row) throw new Error("Proyecto no encontrado.");
-    return parseSalesProfile(row.salesProfile);
-  });
-}
-
-export async function saveSalesProfile(db: Db, tenant: TenantContext, projectId: string, raw: unknown) {
-  const profile = salesProfileSchema.parse(raw);
-  return withTenant(db, tenant, async (tx) => {
-    const [row] = await tx
-      .update(projects)
-      .set({ salesProfile: profile })
-      .where(eq(projects.id, projectId))
-      .returning({ id: projects.id });
-    if (!row) throw new Error("Proyecto no encontrado.");
-    await audit(tx, tenant, {
-      event: "project.sales_profile_updated",
-      projectId,
-      entityType: "project",
-      entityId: projectId,
-    });
-    return profile;
   });
 }
 

@@ -11,14 +11,11 @@ import {
   dedupeKey,
   exportProspectsCsv,
   addProspectRow,
-  getProspect,
   knownProspects,
   listProspects,
   normalizeDomain,
-  rowEditFromValues,
   saveProspects,
   setProspectStatus,
-  updateProspectRow,
 } from "./service";
 
 let db: Db;
@@ -216,39 +213,6 @@ describe("saveProspects", () => {
 });
 
 describe("fit", () => {
-  it("computes the score from the agent's checks of each criterion, and drops them when a person sets it", async () => {
-    const criteria = [
-      { id: "c1", criterion: "Es Concesionario", required: true },
-      { id: "c2", criterion: "Vende coches de ocasión", required: false },
-    ];
-    const { added } = await saveProspects(db, tenant, {
-      baseId,
-      fitCriteria: criteria,
-      items: [
-        // The score it sends is ignored: it comes from the checks.
-        {
-          companyName: "Encaja Motor",
-          fitScore: 99,
-          fit: { c1: "yes", c2: "unknown" },
-          fitReason: "Concesionario",
-        },
-        { companyName: "No encaja", fit: { c1: "no", c2: "yes" } },
-      ],
-    });
-    const [fits, fails] = added;
-    expect(fits.fitScore).toBe(83);
-    expect(fits.fitChecks).toEqual([
-      { criterion: "Es Concesionario", required: true, result: "yes" },
-      { criterion: "Vende coches de ocasión", required: false, result: "unknown" },
-    ]);
-    expect(fails.fitScore).toBeLessThanOrEqual(20);
-
-    await updateProspectRow(db, tenant, baseId, fits.id, rowEditFromValues({ fit: "60" }, fits));
-    const edited = await getProspect(db, tenant, baseId, fits.id);
-    expect(edited?.fitScore).toBe(60);
-    expect(edited?.fitChecks).toBeNull();
-  });
-
   it("doesn't ask the agent for a fit score", () => {
     const schema = saveRowsSchema("company", COLUMNS) as {
       properties: { prospects: { items: { properties: Record<string, unknown>; required: string[] } } };

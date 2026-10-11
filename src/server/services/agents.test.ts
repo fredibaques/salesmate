@@ -1,4 +1,5 @@
 import { createProject } from "./projects";
+import { getSalesProfile, saveBusinessProfile } from "./business";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDb, seedOrg } from "../../../tests/helpers/db";
@@ -12,13 +13,11 @@ import {
   addAgent,
   addAgentTool,
   getAgent,
-  getSalesProfile,
   listProjectAgents,
   removeAgent,
   removeAgentTool,
   saveAgentChannels,
   saveProjectProcess,
-  saveSalesProfile,
   setAgentEnabled,
   setAgentMcpTools,
 } from "./agents";
@@ -129,8 +128,8 @@ describe("agents", () => {
     );
   });
 
-  it("saves the process without touching the project's sales profile", async () => {
-    await saveSalesProfile(db, tenant, projectId, {
+  it("saves the process without touching the business profile", async () => {
+    await saveBusinessProfile(db, tenant, {
       offer: "Gestión de transferencias de vehículos",
       tone: "Cercano",
     });

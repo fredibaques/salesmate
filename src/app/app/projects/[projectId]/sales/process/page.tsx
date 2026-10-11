@@ -55,7 +55,7 @@ export default async function ProjectProcessPage({
         <div className="space-y-6">
           <Card
             title="Proceso de venta"
-            tip="Cómo llevan cada conversación los agentes que hablan con personas (inbound, primeros contactos, cuentas). Los que solo buscan o completan datos no lo siguen; usan «Oferta y cliente» para saber qué encaja."
+            tip="Cómo llevan cada conversación los agentes que hablan con personas (inbound, primeros contactos, cuentas). Los que solo buscan o completan datos no lo siguen; usan Tu negocio y el objetivo y público del proyecto para saber qué buscar."
           >
             <ActionForm
               key={process?.currentVersion ?? 0}

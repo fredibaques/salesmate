@@ -5,10 +5,10 @@ import { redirect } from "next/navigation";
 import type { FormState } from "@/components/action-form";
 import { requireRole } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
-import { runForm } from "@/server/form";
-import { saveSalesProfile } from "@/server/services/agents";
+import { runForm, str } from "@/server/form";
+import { getBusinessProfile, saveBusinessProfile, saveProjectAudience } from "@/server/services/business";
 import { createProject } from "@/server/services/projects";
-import { profileFromForm, projectFromForm } from "./profile-form";
+import { audienceFromForm, businessFromForm, projectFromForm } from "./profile-form";
 
 /** Creates a project with what the creation wizard collected and opens it. */
 export async function createProjectAction(_: FormState, form: FormData): Promise<FormState> {
@@ -16,8 +16,11 @@ export async function createProjectAction(_: FormState, form: FormData): Promise
   const result = await runForm(async () => {
     const tenant = await requireRole(["owner", "admin"]);
     const db = getDb();
+    // The first project also describes the business (unless someone did meanwhile).
+    if (str(form, "withBusiness") && !(await getBusinessProfile(db, tenant))?.offer)
+      await saveBusinessProfile(db, tenant, businessFromForm(form));
     const project = await createProject(db, tenant, projectFromForm(form));
-    await saveSalesProfile(db, tenant, project.id, profileFromForm(form));
+    await saveProjectAudience(db, tenant, project.id, { audience: audienceFromForm(form) });
     id = project.id;
   });
   if (id) {

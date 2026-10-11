@@ -297,9 +297,23 @@ src/server/
   acciones (`actions.agent_config_id`: su autonomía y sus límites) y el estado
   «trabajando» son de cada agente; la migración 0024 asignó lo anterior al
   único agente de su tipo que había.
-- **La venta es del proyecto** (pestaña «Ventas»). «Oferta y cliente»
-  (`projects.sales_profile`: oferta, cliente ideal, señales de encaje,
-  objeciones, tono, firma) lo conocen todos los agentes. El **proceso de
+- **Tu negocio y el proyecto.** Lo que no cambia de un proyecto a otro es
+  del negocio: **Tu negocio** (Ajustes › Tu negocio, `org_profiles`,
+  migración 0028, `services/business.ts`, `businessProfileSchema`): web, qué
+  vendes, por qué te eligen, cliente ideal (a quién sí y a quién no), quién
+  decide, problemas que resuelves, objeciones, tono y firma. Un proyecto es
+  un objetivo comercial: en su pestaña «Ventas › Objetivo y público» guarda
+  **qué quiere conseguir** (`projects.description`, con el siguiente paso
+  que busca) y, si quiere, **a quién va dirigido** (`projects.sales_profile`,
+  `projectAudienceSchema`: a quién sí, a quién no y zonas). Los agentes leen
+  las dos cosas juntas (`mergeSalesProfile`, `salesProfileFor`,
+  `projectSales`): el cliente del proyecto, si lo acota, si no el del negocio;
+  las zonas, las del proyecto. Mientras una organización no describe su
+  negocio, cada proyecto sigue con el perfil completo que tenía; la migración
+  0028 copió el de su proyecto más completo (con su web) como Tu negocio. Al
+  crear el primer proyecto el asistente pide también Tu negocio (qué vendes,
+  tu cliente, cómo hablar); los siguientes, solo nombre, objetivo y público.
+  El **proceso de
   venta** (cómo termina una conversación, cualificación, reglas, cuándo pasar
   a una persona) es un playbook del proyecto, versionado, sin
   `agent_config_id` (`projectProcess`, `getProjectProcess`,
@@ -307,7 +321,7 @@ src/server/
   (inbound, primeros contactos, cuentas); añadir uno lo crea desde la
   plantilla del tipo de venta si el proyecto no tiene (`ensureProjectProcessIn`).
   Los que solo buscan o completan datos (prospección) no lo usan: les basta
-  «Oferta y cliente». La migración 0023 convirtió el proceso del inbound de
+  el negocio y el objetivo y público del proyecto. La migración 0023 convirtió el proceso del inbound de
   cada proyecto (o el más reciente) en el del proyecto.
 - **Canales derivados.** `project_identities` y `project_connections` (lo que
   el gateway y las herramientas comprueban) se recalculan a partir de los
@@ -364,7 +378,7 @@ La migración 0025 convirtió los antiguos «outbound» (que buscaban filas) en
 agente, es ahora el trabajo del outbound. Lo común a todos:
 
 - **Instrucciones** (`agent_configs.instructions`): qué tiene que hacer y cómo,
-  en palabras del usuario. Se suman al prompt junto a «Oferta y cliente».
+  en palabras del usuario. Se suman al prompt junto a Tu negocio y el objetivo del proyecto.
 - **Herramientas** (`agent_configs.tools`): el conocimiento siempre; la
   búsqueda y lectura web de la API (`web_search` / `web_fetch`, herramientas
   del servidor, con tope de usos y coste por búsqueda en `agent_runs`); y las

@@ -11,12 +11,12 @@ export function SettingsNav({ projectId }: { projectId: string }) {
   );
 }
 
-/** Ventas: what the project sells and to whom, and how its agents sell it. */
+/** Ventas: what the project is for and who it's for, and how its agents sell. */
 export function SalesNav({ projectId }: { projectId: string }) {
   const base = `/app/projects/${projectId}/sales`;
   return (
     <SubTabs>
-      <SubTabLink href={base}>Oferta y cliente</SubTabLink>
+      <SubTabLink href={base}>Objetivo y público</SubTabLink>
       <SubTabLink href={`${base}/process`}>Proceso de venta</SubTabLink>
     </SubTabs>
   );

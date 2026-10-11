@@ -10,8 +10,10 @@ import {
   PLAYBOOK_TEMPLATES,
   SALES_MOTION_LABELS,
   playbookSpecSchema,
+  renderSalesProfile,
   type PlaybookSpec,
 } from "./spec";
+import { projectSales } from "../services/business";
 
 /**
  * Drafts a playbook from what the project already knows (description,
@@ -116,6 +118,7 @@ export async function draftPlaybook(
     return { project, tables };
   });
   if (!context.project) throw new Error("Proyecto no encontrado.");
+  const sales = await projectSales(deps.db, tenant, context.project);
 
   const queries = [
     "propuesta de valor servicios clientes",
@@ -139,7 +142,8 @@ export async function draftPlaybook(
   const base = input.current ?? PLAYBOOK_TEMPLATES[input.salesMotion];
   const prompt = [
     `Prepara el playbook de ventas del proyecto «${context.project.name}» para un modelo de venta ${SALES_MOTION_LABELS[input.salesMotion]}.`,
-    `Descripción del proyecto: ${context.project.description ?? "(sin descripción)"}. Web: ${context.project.website ?? "—"}.`,
+    `Objetivo del proyecto: ${context.project.description ?? "(sin definir)"}. Web del negocio: ${sales.website ?? "—"}.`,
+    `## El negocio\n${renderSalesProfile(sales.profile)}`,
     excerpts.length
       ? `Extractos de su conocimiento:\n${excerpts.join("\n---\n")}`
       : "El proyecto todavía no tiene documentos.",

@@ -68,7 +68,7 @@ export async function ProspectingSetup({ projectId, agentId }: { projectId: stri
     <div className="max-w-3xl space-y-6">
       <Card
         title="Configuración"
-        tip="Lo que comparten todos los agentes (qué vendes, a quién, tono) ya lo saben por Ajustes → Oferta y cliente. Todo lo que hace por fuera pasa por el gateway: los avisos al equipo salen solos. Para escribir a las filas que encuentra, añade un agente outbound que trabaje con su tabla."
+        tip="Lo que comparten todos los agentes ya lo saben: qué vendes y cómo hablar (Ajustes → Tu negocio) y el objetivo del proyecto (Ventas → Objetivo y público). Todo lo que hace por fuera pasa por el gateway: los avisos al equipo salen solos. Para escribir a las filas que encuentra, añade un agente outbound que trabaje con su tabla."
       >
         <ActionForm
           key={JSON.stringify([

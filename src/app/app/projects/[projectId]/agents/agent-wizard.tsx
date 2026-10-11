@@ -299,7 +299,7 @@ export function ProspectingWizard({
       content: (
         <Field
           label="Instrucciones"
-          tip="Sector, tamaño, zona, señales de que encajan, qué fuentes usar o evitar y qué datos recoger. Lo común a todos los agentes (qué vendes, a quién) lo toma de Ventas → Oferta y cliente."
+          tip="Sector, tamaño, zona, qué fuentes usar o evitar y qué datos recoger. Qué vendes lo toma de Tu negocio, y el objetivo y a quién va dirigido, de Ventas → Objetivo y público."
         >
           <Textarea name="instructions" required defaultValue={defaults.instructions} className="min-h-56" />
         </Field>
