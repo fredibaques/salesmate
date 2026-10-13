@@ -426,6 +426,8 @@ export type ProspectingMode = (typeof PROSPECTING_MODES)[number];
 export type AgentSettings = {
   /** Prospecting: look for new rows, fill the empty cells of existing ones, or both. */
   mode?: ProspectingMode;
+  /** Prospecting: new rows each run looks for (10 if unset); «Buscar ahora» asks, with this as default. */
+  findPerRun?: number;
   /** Model of the organization's provider for this agent; none = the organization's. */
   model?: string;
   /** What else makes it work, besides its schedule and «Ejecutar ahora». */

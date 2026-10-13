@@ -158,6 +158,7 @@ export async function baseAgents(db: Db, tenant: Pick<TenantContext, "orgId">, b
         icon: agentConfigs.icon,
         color: agentConfigs.color,
         enabled: agentConfigs.enabled,
+        settings: agentConfigs.settings,
         working: workingSql,
       })
       .from(agentConfigs)

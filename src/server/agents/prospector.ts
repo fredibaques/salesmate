@@ -149,8 +149,10 @@ export type ProspectingResult = {
 /** Something that made the agent work, with what it brought. */
 export type RunEvent = { kind: AgentEventKind; payload: Record<string, unknown> };
 
-/** New rows a run looks for (before the time of the run or the month's spending stop it). */
-const PROSPECTS_PER_RUN = 10;
+/** New rows a run looks for unless the agent or the person says otherwise. */
+export const DEFAULT_FIND_PER_RUN = 10;
+/** Most new rows one request asks for (done over several runs if needed). */
+export const MAX_FIND_PER_RUN = 200;
 /** Cap when a person asks to complete specific rows (the agent searches them in depth). */
 const ROWS_CELL_CAP = 100;
 /**
@@ -259,6 +261,11 @@ export async function runProspecting(
      * if some are left when a run ends, the next batch is queued).
      */
     allPending?: boolean;
+    /**
+     * New rows wanted (asked by the person on «Buscar ahora»); if a run ends
+     * short of them while still finding, the rest is queued for the next one.
+     */
+    wanted?: number;
   },
 ): Promise<ProspectingResult> {
   const startedAt = Date.now();
@@ -312,8 +319,10 @@ export async function runProspecting(
 
   const llm = withModel(deps.llm, agent.settings.model);
   const settings = agent.settings;
-  /** New rows a run looks for: the time of the run and the month's spending are the real limits. */
-  let target = PROSPECTS_PER_RUN;
+  // New rows wanted: the person's number, the rest of an earlier request, or the agent's setting.
+  const continued = (input.events ?? []).find((e) => e.kind === "continue" && typeof e.payload.find === "number");
+  const wanted = input.wanted ?? (continued?.payload.find as number | undefined) ?? settings.findPerRun;
+  let target = Math.min(MAX_FIND_PER_RUN, Math.max(1, Math.round(wanted ?? DEFAULT_FIND_PER_RUN)));
   const actor = { orgId: tenant.orgId, actorType: "agent" as const, actorId: run.id };
   const automatic = input.trigger !== "manual";
   let added = 0;
@@ -340,6 +349,17 @@ export async function runProspecting(
         agentConfigId: agent.id,
         kind: "continue",
         payload: { left },
+      }),
+    );
+  /** A request for more new rows than one run found: the rest, run by the scheduler in a few minutes. */
+  const queueMoreFinding = (find: number) =>
+    withTenant(deps.db, tenant, (tx) =>
+      tx.insert(agentEvents).values({
+        orgId: tenant.orgId,
+        projectId: project.id,
+        agentConfigId: agent.id,
+        kind: "continue",
+        payload: { find },
       }),
     );
   /** Ends the run without working, saying why. */
@@ -381,7 +401,9 @@ export async function runProspecting(
       ),
     ];
     const notices = (input.events ?? []).filter((e) => e.kind === "webhook");
-    const allPending = Boolean(input.allPending || input.events?.some((e) => e.kind === "continue"));
+    const allPending = Boolean(
+      input.allPending || input.events?.some((e) => e.kind === "continue" && e.payload.find === undefined),
+    );
     const rowIds = input.rowIds?.length
       ? input.rowIds
       : eventRows.length && !notices.length
@@ -389,7 +411,7 @@ export async function runProspecting(
         : undefined;
 
     let mode: ProspectingMode =
-      rowIds?.length || allPending ? "complete" : (input.mode ?? settings.mode ?? "find");
+      rowIds?.length || allPending ? "complete" : continued ? "find" : (input.mode ?? settings.mode ?? "find");
 
     // The goal: once the base has enough rows that fit, no more new ones.
     const goal = settings.goal?.rows ? await goalProgress(deps.db, tenant, base.id, settings.goal) : null;
@@ -527,6 +549,13 @@ export async function runProspecting(
         engine && !discovery && engine.rows.length > 0 && engine.rows.every((r) => r.status === "failed"),
       );
       const costUsd = (engine?.costUsd ?? 0) + (discovery?.costUsd ?? 0);
+      // Short of the rows asked for but still finding: the rest in the next run.
+      const budgetLeft = runBudgetUsd === undefined || costUsd < runBudgetUsd;
+      if (discovery && discovery.added > 0 && discovery.added < target && budgetLeft) {
+        const rest = target - discovery.added;
+        await queueMoreFinding(rest);
+        summary += `\n\nFaltan ${rest} de las ${target} filas pedidas: sigue buscando en unos minutos.`;
+      }
       const sum = (k: "input" | "output" | "cacheRead" | "cacheWrite") =>
         (engine?.usage[k] ?? 0) + (discovery?.usage[k] ?? 0);
       await finish({
@@ -824,6 +853,12 @@ ${[
 
     // Writing to the rows that fit is the outbound agent's job (agents/outreach.ts).
     const costUsd = result.costUsd + (engine?.costUsd ?? 0);
+    // Short of the rows asked for but still finding: the rest in the next run.
+    if (loopFinds && ok && !outOfBudget && added > 0 && added < target) {
+      const rest = target - added;
+      await queueMoreFinding(rest);
+      summary += `\n\nFaltan ${rest} de las ${target} filas pedidas: sigue buscando en unos minutos.`;
+    }
     // «Completar vacíos» of the whole table: while it makes progress, the next batch goes by itself.
     if (allPending && ok && !outOfBudget && completed + (engine?.notFound ?? 0) + handedOver.length > 0) {
       const left = await countPendingCells(deps.db, tenant, base.id);

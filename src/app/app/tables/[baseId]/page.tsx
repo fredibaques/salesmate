@@ -42,7 +42,8 @@ import { getProspect, listProspects, type ProspectStatus } from "@/server/prospe
 import { listAgentRuns } from "@/server/services/agents";
 import { listProjects } from "@/server/services/projects";
 import { AiNotice } from "../../ai-notice";
-import { completeProspectsNow, runProspectingNow } from "../../projects/[projectId]/agents/actions";
+import { completeProspectsNow } from "../../projects/[projectId]/agents/actions";
+import { FindNowButton } from "../../projects/[projectId]/agents/find-now";
 import {
   addRowAction,
   changeProspectStatus,
@@ -267,14 +268,12 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
               </ActionForm>
             ) : null}
             {filledByAgent && canEdit ? (
-              <ActionForm
-                action={runProspectingNow.bind(null, filler!.projectId, filler!.id)}
-                submitLabel="Buscar ahora"
-                submitVariant="secondary"
-                className="flex flex-wrap items-center gap-3"
-              >
-                <input type="hidden" name="back" value={path} />
-              </ActionForm>
+              <FindNowButton
+                projectId={filler!.projectId}
+                agentId={filler!.id}
+                settings={filler!.settings}
+                back={path}
+              />
             ) : null}
             {data.total > 0 ? (
               <MenuButton

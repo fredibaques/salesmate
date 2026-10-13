@@ -15,9 +15,9 @@ import {
   removeAgentAction,
   runInboundNow,
   runOutreachNow,
-  runProspectingNow,
   toggleAgent,
 } from "../actions";
+import { FindNowButton } from "../find-now";
 
 export default async function AgentLayout({
   children,
@@ -73,14 +73,20 @@ export default async function AgentLayout({
         }
         actions={
           <>
-            {tenant.role !== "member" ? (
+            {tenant.role !== "member" && agentType === "prospecting" ? (
+              <FindNowButton
+                projectId={projectId}
+                agentId={agentId}
+                settings={agent.config.settings}
+                back={`${base}/log`}
+                label="Ejecutar ahora"
+              />
+            ) : tenant.role !== "member" ? (
               <ActionForm
                 action={
-                  agentType === "prospecting"
-                    ? runProspectingNow.bind(null, projectId, agentId)
-                    : agentType === "outbound"
-                      ? runOutreachNow.bind(null, projectId, agentId)
-                      : runInboundNow.bind(null, projectId, agentId)
+                  agentType === "outbound"
+                    ? runOutreachNow.bind(null, projectId, agentId)
+                    : runInboundNow.bind(null, projectId, agentId)
                 }
                 submitLabel="Ejecutar ahora"
                 submitVariant="secondary"

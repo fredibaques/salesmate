@@ -585,6 +585,16 @@ Cinco webs a la vez, hasta el número de filas de la ejecución, el tiempo o el
 gasto que queda. Cuesta unas décimas de céntimo por fila. Sin Serper, o en
 tablas de personas, sigue buscando el agente con sus herramientas.
 
+**Filas nuevas por ejecución.** Cada ejecución busca `settings.findPerRun`
+filas nuevas (10 si no se ha elegido; «Filas nuevas por ejecución» en su
+configuración). «Buscar ahora» / «Ejecutar ahora» pregunta cuántas, con ese
+número de partida (`wanted`, hasta 200). Si una ejecución acaba sin llegar
+pero ha encontrado alguna (y queda gasto del mes), deja un evento
+`continue` con `{ find: lo que falta }` y el planificador lanza la siguiente,
+que solo busca (un `continue` sin `find` es la siguiente tanda de «Completar
+vacíos»). Sin progreso, para. El objetivo del agente (`goal`) sigue
+limitando cuántas busca.
+
 **Prospección** (`agents/prospector.ts`). El agente outbound busca lo que
 encaja con el cliente ideal y lo guarda con `save_prospects` en su base. El
 esquema JSON de la herramienta y una sección del prompt se generan a partir de
