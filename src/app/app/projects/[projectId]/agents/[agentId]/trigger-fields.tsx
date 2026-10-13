@@ -17,9 +17,9 @@ export type TriggerEvent = {
 };
 
 /**
- * «Cuándo trabaja», the same for every agent: when asked (always, with
- * «Ejecutar ahora»), on a schedule, and by itself when one of the events
- * that make sense for this agent happens. What one run does is its own.
+ * «Cuándo trabaja», the same for every agent: when asked is always there
+ * («Ejecutar ahora»); on top of it, a schedule and the events that make
+ * sense for this agent. What one run does is its own.
  */
 export function TriggerFields({
   projectId,
@@ -42,15 +42,12 @@ export function TriggerFields({
   return (
     <FormSection
       title="Cuándo trabaja"
-      tip={`Hay tres formas de ponerlo a trabajar, y se pueden combinar. ${run}`}
+      tip={`Siempre que se lo pidas con «Ejecutar ahora» (arriba a la derecha), tenga o no horario. Además, puede trabajar por su cuenta con un horario o cuando ocurra algo. ${run}`}
     >
-      <Field label="1. Cuando tú se lo pides" tip="Aunque tenga horario, puedes lanzarlo cuando quieras.">
-        <p className="text-sm text-muted">Siempre, con «Ejecutar ahora» (arriba a la derecha).</p>
-      </Field>
-      <ScheduleFields schedule={config.schedule} label="2. Con horario" manualLabel="Sin horario" />
+      <ScheduleFields schedule={config.schedule} label="Con horario" />
       <ScheduleStatus projectId={projectId} config={config} />
       <Field
-        label="3. Solo, cuando ocurre algo de esto"
+        label="Cuando ocurre algo"
         group
         tip="Marca lo que quieras que lo ponga a trabajar sin esperar a su horario. Solo funciona con el agente activo; si ya está trabajando, lo hace al terminar."
       >

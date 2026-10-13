@@ -355,7 +355,7 @@ export function ProspectingWizard({
     {
       id: "when",
       title: "Cuándo trabaja",
-      summary: "Solo cuando se lo pidas, una vez o de forma recurrente. Siempre en la hora del proyecto.",
+      summary: "Siempre que se lo pidas con «Ejecutar ahora». Además, si quieres, con un horario.",
       content: <ScheduleFields schedule={defaults.schedule} />,
     },
     {
@@ -504,7 +504,7 @@ export function OutreachWizard({
     {
       id: "when",
       title: "Cuándo trabaja",
-      summary: "Con horario, cuando se añaden filas a su tabla o cuando se lo pidas.",
+      summary: "Siempre que se lo pidas con «Ejecutar ahora». Además, con horario o cuando se añaden filas a su tabla.",
       content: (
         <>
           <ScheduleFields schedule={defaults.schedule} />

@@ -36,6 +36,7 @@ import {
   saveColumn,
   setBaseProject,
   setColumnHidden,
+  setColumnWidth,
   setFieldHidden,
 } from "@/server/prospects/bases";
 import { setIntakeKey } from "@/server/prospects/intake";
@@ -163,6 +164,11 @@ export async function saveColumnAction(
   });
   refresh();
   return result;
+}
+
+/** A column dragged wider or narrower on the table. Anyone who works on the table can. */
+export async function setColumnWidthAction(baseId: string, key: string, width: number) {
+  await setColumnWidth(getDb(), await requireBase(baseId), baseId, key, width);
 }
 
 export async function moveColumnAction(baseId: string, columnId: string, direction: -1 | 1) {

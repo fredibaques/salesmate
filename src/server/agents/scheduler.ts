@@ -42,15 +42,36 @@ function monthlyDay(schedule: { day: number }, year: number, month: number): num
   return Math.min(schedule.day, daysInMonth(year, month));
 }
 
+/** Days since 1970 of a "YYYY-MM-DD" date. */
+const dayNumber = (date: string) => {
+  const [y, m, d] = date.split("-").map(Number);
+  return Math.round(Date.UTC(y, m - 1, d) / 86_400_000);
+};
+
+/** Whether a period (days, weeks or months since `from`) is one of the «every N». */
+function inStep(elapsed: number, every: number | undefined): boolean {
+  return !every || every <= 1 || (elapsed >= 0 && elapsed % every === 0);
+}
+
 /** Whether a recurring schedule works on a local calendar date ("YYYY-MM-DD", weekday 1–7). */
-function worksOn(schedule: AgentSchedule, date: string, weekday: number): boolean {
+export function worksOn(schedule: AgentSchedule, date: string, weekday: number): boolean {
   if (schedule.kind === "once") return false;
-  if (schedule.kind === "daily") return true;
+  const from = schedule.every && schedule.every > 1 ? schedule.from : undefined;
+  if (from && date < from) return false;
+  if (schedule.kind === "daily") return inStep(from ? dayNumber(date) - dayNumber(from) : 0, schedule.every);
   if (schedule.kind === "monthly") {
     const [y, m, d] = date.split("-").map(Number);
-    return d === monthlyDay(schedule, y, m);
+    if (d !== monthlyDay(schedule, y, m)) return false;
+    if (!from) return true;
+    const [fy, fm] = from.split("-").map(Number);
+    return inStep((y - fy) * 12 + (m - fm), schedule.every);
   }
-  return schedule.days.includes(weekday);
+  if (!schedule.days.includes(weekday)) return false;
+  if (!from) return true;
+  // Weeks counted Monday to Sunday: the week of `from` is the first.
+  const monday = (d: string, wd: number) => dayNumber(d) - (wd - 1);
+  const fromWeekday = ((dayNumber(from) + 3) % 7) + 1;
+  return inStep(Math.round((monday(date, weekday) - monday(from, fromWeekday)) / 7), schedule.every);
 }
 
 /**

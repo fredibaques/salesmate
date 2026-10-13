@@ -534,17 +534,36 @@ export async function listChannelOptions(db: Db, tenant: Pick<TenantContext, "or
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+const every = z
+  .number()
+  .int()
+  .min(1, "Cada cuánto: al menos 1.")
+  .max(52, "Cada cuánto: como mucho 52.")
+  .optional();
+const from = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .optional();
 const scheduleInput = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("daily"), time: z.string().regex(TIME, "Hora no válida (HH:MM).") }),
+  z.object({
+    kind: z.literal("daily"),
+    time: z.string().regex(TIME, "Hora no válida (HH:MM)."),
+    every,
+    from,
+  }),
   z.object({
     kind: z.literal("weekly"),
     time: z.string().regex(TIME, "Hora no válida (HH:MM)."),
     days: z.array(z.number().int().min(1).max(7)).min(1, "Elige al menos un día."),
+    every,
+    from,
   }),
   z.object({
     kind: z.literal("monthly"),
     time: z.string().regex(TIME, "Hora no válida (HH:MM)."),
     day: z.number().int().min(1, "Elige un día del mes.").max(31, "Elige un día del mes."),
+    every,
+    from,
   }),
   z.object({
     kind: z.literal("once"),
@@ -565,7 +584,12 @@ export const instructionsInput = z.object({
     .object({
       mode: z.enum(PROSPECTING_MODES).optional(),
       /** New rows each run looks for. */
-      findPerRun: z.number().int().min(1, "Pide al menos 1 fila nueva.").max(200, "Como mucho 200 filas nuevas por vez.").optional(),
+      findPerRun: z
+        .number()
+        .int()
+        .min(1, "Pide al menos 1 fila nueva.")
+        .max(200, "Como mucho 200 filas nuevas por vez.")
+        .optional(),
       /** "" = the organization's model. */
       model: z.string().optional(),
     })

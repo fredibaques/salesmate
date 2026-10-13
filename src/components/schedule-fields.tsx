@@ -2,16 +2,12 @@
 
 import { useState } from "react";
 import type { AgentSchedule } from "@/server/db/schema";
-import { scheduleChoice, type Frequency, type RunMode } from "@/lib/schedule";
+import { repeatOf, type Repeat } from "@/lib/schedule";
 import { Chip, Field, Input, Segmented, Select } from "./ui";
 
-const MODES: { value: RunMode; label: string }[] = [
-  { value: "manual", label: "Cuando se lo pida" },
+const REPEATS: { value: Repeat; label: string }[] = [
+  { value: "never", label: "Sin horario" },
   { value: "once", label: "Una vez" },
-  { value: "recurring", label: "Se repite" },
-];
-
-const FREQUENCIES: { value: Frequency; label: string }[] = [
   { value: "daily", label: "Cada día" },
   { value: "weekly", label: "Cada semana" },
   { value: "monthly", label: "Cada mes" },
@@ -36,43 +32,57 @@ function tomorrowMorning(): string {
 }
 
 /**
- * When an agent works: only when someone asks («Ejecutar ahora»), once at a
- * given moment, or again and again (every day, some weekdays, or a day of
- * the month). Times are the project's. Read with `scheduleFromForm`.
+ * When an agent works by itself, on top of «Ejecutar ahora» (always there):
+ * never, once, or every N days, weeks (on some weekdays) or months (on a
+ * day), at a time. Times are the project's. Read with `scheduleFromForm`.
  */
 export function ScheduleFields({
   schedule,
-  label = "Cuándo trabaja",
-  manualLabel = "Cuando se lo pida",
+  label = "Por su cuenta",
 }: {
   schedule: AgentSchedule | null;
   label?: string;
-  /** Name of the option without a schedule. */
-  manualLabel?: string;
 }) {
-  const initial = scheduleChoice(schedule);
-  const [mode, setMode] = useState<RunMode>(initial.mode);
-  const [frequency, setFrequency] = useState<Frequency>(initial.frequency);
-  const time = schedule && schedule.kind !== "once" ? schedule.time : "08:00";
+  const [repeat, setRepeat] = useState<Repeat>(repeatOf(schedule));
+  const recurring = schedule && schedule.kind !== "once" ? schedule : null;
+  const time = recurring?.time ?? "08:00";
+  const every = recurring?.every ?? 1;
   const days =
-    schedule && (schedule.kind === undefined || schedule.kind === "weekly") ? schedule.days : [1, 2, 3, 4, 5];
-  const monthDay = schedule?.kind === "monthly" ? schedule.day : 1;
+    recurring && (recurring.kind === undefined || recurring.kind === "weekly")
+      ? recurring.days
+      : [1, 2, 3, 4, 5];
+  const monthDay = recurring?.kind === "monthly" ? recurring.day : 1;
+  // Changing how often it repeats counts «every N» from today again.
+  const from = recurring && repeat === repeatOf(schedule) ? recurring.from : undefined;
+  const everyField = (unit: string, units: string) => (
+    <Field label="Cada cuánto" tip={`1: cada ${unit}. 2: uno sí y otro no. 3: uno de cada tres…`}>
+      <Input
+        name="every"
+        type="number"
+        min={1}
+        max={52}
+        defaultValue={every}
+        suffix={units}
+        className="w-36"
+      />
+    </Field>
+  );
 
   return (
     <>
       <Field
         label={label}
         group
-        tip="Siempre en la hora del proyecto y solo mientras el agente esté activo. Sea cual sea la opción, puedes lanzarlo cuando quieras con «Ejecutar ahora»."
+        tip="Además de cuando se lo pides con «Ejecutar ahora», que siempre puedes. En la hora del proyecto y solo mientras el agente esté activo."
       >
         <Segmented
-          name="runMode"
-          options={MODES.map((m) => (m.value === "manual" ? { ...m, label: manualLabel } : m))}
-          defaultValue={initial.mode}
-          onChange={(v) => setMode(v as RunMode)}
+          name="repeat"
+          options={REPEATS}
+          defaultValue={repeatOf(schedule)}
+          onChange={(v) => setRepeat(v as Repeat)}
         />
       </Field>
-      {mode === "once" ? (
+      {repeat === "once" ? (
         <Field label="Día y hora">
           <Input
             name="onceAt"
@@ -83,47 +93,41 @@ export function ScheduleFields({
           />
         </Field>
       ) : null}
-      {mode === "recurring" ? (
-        <>
-          <Field label="Frecuencia" group>
-            <Segmented
-              name="frequency"
-              options={FREQUENCIES}
-              defaultValue={initial.frequency}
-              onChange={(v) => setFrequency(v as Frequency)}
-            />
-          </Field>
-          <div className="flex flex-wrap gap-4">
-            {frequency === "weekly" ? (
-              <Field label="Días" group>
-                <div className="flex flex-wrap gap-1.5">
-                  {DAYS.map(([n, label]) => (
-                    <Chip key={n} name="days" value={n} defaultChecked={days.includes(n)}>
-                      {label}
-                    </Chip>
-                  ))}
-                </div>
-              </Field>
-            ) : null}
-            {frequency === "monthly" ? (
-              <Field label="Día del mes" tip="Si un mes no tiene ese día (31 en abril), trabaja el último.">
-                <Select name="monthDay" defaultValue={String(monthDay)} className="w-32">
-                  {Array.from({ length: 31 }, (_, i) => (
-                    <option key={i + 1} value={i + 1}>
-                      Día {i + 1}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            ) : null}
-            <Field
-              label="Hora"
-              tip="Trabaja a partir de esa hora: el programador pasa cada 15 minutos de día y cada hora de noche."
-            >
-              <Input name="time" type="time" defaultValue={time} required className="w-32" />
+      {repeat === "daily" || repeat === "weekly" || repeat === "monthly" ? (
+        <div className="flex flex-wrap gap-4">
+          {from ? <input type="hidden" name="from" value={from} /> : null}
+          {repeat === "weekly" ? (
+            <Field label="Qué días" group>
+              <div className="flex flex-wrap gap-1.5">
+                {DAYS.map(([n, label]) => (
+                  <Chip key={n} name="days" value={n} defaultChecked={days.includes(n)}>
+                    {label}
+                  </Chip>
+                ))}
+              </div>
             </Field>
-          </div>
-        </>
+          ) : null}
+          {repeat === "monthly" ? (
+            <Field label="Qué día del mes" tip="Si un mes no tiene ese día (31 en abril), trabaja el último.">
+              <Select name="monthDay" defaultValue={String(monthDay)} className="w-32">
+                {Array.from({ length: 31 }, (_, i) => (
+                  <option key={i + 1} value={i + 1}>
+                    Día {i + 1}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : null}
+          {repeat === "daily" ? everyField("día", "días") : null}
+          {repeat === "weekly" ? everyField("semana", "semanas") : null}
+          {repeat === "monthly" ? everyField("mes", "meses") : null}
+          <Field
+            label="Hora"
+            tip="Trabaja a partir de esa hora: el programador pasa cada 15 minutos de día y cada hora de noche."
+          >
+            <Input name="time" type="time" defaultValue={time} required className="w-32" />
+          </Field>
+        </div>
       ) : null}
     </>
   );

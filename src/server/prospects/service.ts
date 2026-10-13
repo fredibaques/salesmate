@@ -1,6 +1,20 @@
-import { and, asc, count, desc, eq, ilike, inArray, or, sql, type AnyColumn } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  getTableColumns,
+  ilike,
+  inArray,
+  or,
+  sql,
+  type AnyColumn,
+  type SQL,
+} from "drizzle-orm";
 import { z } from "zod";
 import { checkCell, formatCell, type BaseColumn, type RowKind } from "@/lib/prospect-columns";
+import type { RowFilter } from "@/lib/table-filters";
 import { audit } from "../audit";
 import type { Db } from "../db/client";
 import { prospectBases, prospects, PROSPECT_STATUSES, type CellMeta } from "../db/schema";
@@ -501,9 +515,70 @@ const SYSTEM_SORTS: Record<string, AnyColumn> = {
   created: prospects.createdAt,
 };
 
+/** A field's value as text in SQL, for filtering and grouping: a fixed field or a column. */
+function fieldText(key: string): SQL {
+  switch (key) {
+    case "company":
+      return sql`${prospects.companyName}`;
+    case "person":
+      return sql`${prospects.personName}`;
+    case "web":
+      return sql`${prospects.website}`;
+    case "status":
+      // «Nueva» covers the old «accepted» too.
+      return sql`(case when ${prospects.status} = 'accepted' then 'new' else ${prospects.status} end)`;
+    case "created":
+      return sql`to_char(${prospects.createdAt} at time zone 'UTC', 'YYYY-MM-DD')`;
+    default:
+      return sql`(${prospects.data} ->> ${key})`;
+  }
+}
+
+/** A number in text, or null when it isn't one. */
+const asNumber = (text: SQL) =>
+  sql`(case when ${text} ~ '^-?[0-9]+([.][0-9]+)?$' then (${text})::numeric end)`;
+
+/** The SQL condition of one filter. */
+function filterCondition(f: RowFilter, type: string | undefined): SQL {
+  const text = fieldText(f.key);
+  const value = f.value ?? "";
+  const numeric = type === "number" || type === "score";
+  const empty = sql`(${text} is null or ${text} = '' or ${text} = '[]')`;
+  switch (f.op) {
+    case "contains":
+      return sql`${text} ilike ${`%${value}%`}`;
+    case "is":
+      return numeric ? sql`${asNumber(text)} = ${Number(value)}` : sql`lower(${text}) = lower(${value})`;
+    case "isNot":
+      return sql`coalesce(lower(${text}), '') <> lower(${value})`;
+    case "has":
+      return sql`jsonb_exists(coalesce(${prospects.data} -> ${f.key}, '[]'::jsonb), ${value})`;
+    case "gt":
+      return sql`${asNumber(text)} > ${Number(value)}`;
+    case "lt":
+      return sql`${asNumber(text)} < ${Number(value)}`;
+    case "before":
+      return sql`${text} < ${value}`;
+    case "after":
+      return sql`${text} > ${value}`;
+    case "yes":
+      return sql`${text} = 'true'`;
+    case "no":
+      return sql`coalesce(${text}, 'false') <> 'true'`;
+    case "empty":
+      return empty;
+    case "notEmpty":
+      return sql`not ${empty}`;
+  }
+}
+
 export type ListOptions = {
   status?: ProspectStatus;
   q?: string;
+  /** Conditions on any field, all of them must hold. */
+  filters?: RowFilter[];
+  /** A field to group the rows by: they come ordered by it, with the count of each value. */
+  group?: string;
   /** A system sort key (name, web, fit, status, created) or a column id. */
   sort?: string;
   dir?: "asc" | "desc";
@@ -530,23 +605,45 @@ export async function listProspects(
       search
         ? or(ilike(prospects.companyName, `%${search}%`), ilike(prospects.personName, `%${search}%`))
         : undefined,
+      ...(options.filters ?? []).map((f) =>
+        filterCondition(f, base.columns.find((c) => c.id === f.key)?.type),
+      ),
     );
     const column = base.columns.find((c) => c.id === options.sort);
     const sortExpr = column
       ? sql`${prospects.data} -> ${column.id}`
       : (SYSTEM_SORTS[options.sort ?? ""] ?? prospects.createdAt);
     const direction = options.dir ?? (options.sort ? "asc" : "desc");
+    const groupable =
+      options.group &&
+      (["company", "person", "web", "status", "created"].includes(options.group) ||
+        base.columns.some((c) => c.id === options.group));
+    const group = groupable ? fieldText(options.group!) : null;
     const rows = await tx
-      .select()
+      .select({
+        ...getTableColumns(prospects),
+        groupValue: group ? sql<string | null>`${group}` : sql<null>`null`,
+      })
       .from(prospects)
       .where(where)
       .orderBy(
+        ...(group ? [sql`${group} asc nulls last`] : []),
         direction === "asc" ? sql`${sortExpr} asc nulls last` : sql`${sortExpr} desc nulls last`,
         desc(prospects.createdAt),
       )
       .limit(options.limit ?? 100)
       .offset(options.offset ?? 0);
     const [{ matching }] = await tx.select({ matching: count() }).from(prospects).where(where);
+    const groups = group
+      ? (
+          await tx
+            .select({ value: sql<string | null>`${group}`, n: count() })
+            .from(prospects)
+            .where(where)
+            .groupBy(sql`1`)
+            .orderBy(sql`1 asc nulls last`)
+        ).map((g) => ({ value: g.value, n: Number(g.n) }))
+      : null;
     const totals = await tx
       .select({ status: prospects.status, n: count() })
       .from(prospects)
@@ -557,6 +654,7 @@ export async function listProspects(
     >;
     return {
       rows,
+      groups,
       matching: Number(matching),
       byStatus,
       total: totals.reduce((n, t) => n + Number(t.n), 0),

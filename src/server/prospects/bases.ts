@@ -592,6 +592,33 @@ export async function setFieldHidden(
   });
 }
 
+/** Narrowest and widest a column can be dragged to. */
+export const COLUMN_WIDTH = { min: 60, max: 800 } as const;
+
+/** Stores how wide a column (or fixed field) shows; everyone sees the table the same way. */
+export async function setColumnWidth(
+  db: Db,
+  tenant: TenantContext,
+  baseId: string,
+  key: string,
+  width: number,
+) {
+  const px = Math.round(Math.min(COLUMN_WIDTH.max, Math.max(COLUMN_WIDTH.min, width)));
+  return withTenant(db, tenant, async (tx) => {
+    const base = await lockedBase(tx, baseId);
+    const known =
+      key === "id" ||
+      base.columns.some((c) => c.id === key) ||
+      systemFields(base.rowKind).includes(key as SystemField);
+    if (!known) throw new Error("Esa columna no existe.");
+    await tx
+      .update(prospectBases)
+      .set({ columnWidths: { ...base.columnWidths, [key]: px } })
+      .where(eq(prospectBases.id, base.id));
+    return px;
+  });
+}
+
 /** Shows or hides a column in the table (its values stay). */
 export async function setColumnHidden(
   db: Db,

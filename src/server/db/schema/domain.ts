@@ -410,12 +410,17 @@ export type AgentTools = {
  * "HH:MM". Rows saved before `kind` existed are weekly. No schedule (null)
  * means it works only when someone asks («Ejecutar ahora»).
  */
+/**
+ * When an agent works by itself (besides «Ejecutar ahora», always there).
+ * `every` repeats it every N days, weeks or months counting from `from`
+ * ("YYYY-MM-DD", the day it was set); 1 or absent is every one.
+ */
 export type AgentSchedule =
-  | { kind: "daily"; time: string }
+  | { kind: "daily"; time: string; every?: number; from?: string }
   /** days: 1 = Monday … 7 = Sunday */
-  | { kind?: "weekly"; time: string; days: number[] }
+  | { kind?: "weekly"; time: string; days: number[]; every?: number; from?: string }
   /** day: 1–31; months without that day run on their last day. */
-  | { kind: "monthly"; time: string; day: number }
+  | { kind: "monthly"; time: string; day: number; every?: number; from?: string }
   /** A single run at "YYYY-MM-DDTHH:MM". */
   | { kind: "once"; at: string };
 
@@ -990,6 +995,8 @@ export const prospectBases = pgTable(
       .$type<SystemField[]>()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /** Width in pixels of the columns someone resized, by column id or fixed field key. */
+    columnWidths: jsonb("column_widths").$type<Record<string, number>>().notNull().default({}),
     /** Secret that external forms send to add rows (POST /api/tables/:id/rows); null = closed. */
     intakeKey: text("intake_key"),
     /** Last row number given (prospects.seq): a trigger hands out the next one. */
