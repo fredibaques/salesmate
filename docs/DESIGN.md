@@ -16,7 +16,8 @@ screen needs something new, add it here and as a component, not inline.
   pulse while it works (its icon hops and wiggles, `agent-working`, and its
   tile sends out rings in its colour, `agent-halo`), grey at rest, a
   grey ring when paused). The person's own settings live in the `UserMenu` at the bottom:
-  **Mi cuenta** (Perfil, Seguridad, Organización), switching organization and
+  **Mi cuenta** (Perfil, Seguridad, Organización), the person's organizations
+  (the active one ticked; click another to switch), «Nueva organización» and
   «Salir».
 - **Phones** (below `md`): the sidebar hides behind a top bar with the logo
   and a menu button and slides in from the left (it closes on navigating,

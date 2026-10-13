@@ -1,7 +1,7 @@
 "use client";
 
 import { colorLook } from "@/lib/agent-look";
-import { ChevronRight, ChevronsUpDown, Check, LogOut, Menu, UserRound, X } from "lucide-react";
+import { ChevronRight, ChevronsUpDown, Check, LogOut, Menu, Plus, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -357,27 +357,27 @@ export function UserMenu({
             <UserRound />
             Mi cuenta
           </Link>
-          {organizations.length > 1 ? (
-            <>
-              <div className="my-1 border-t border-border" />
-              <p className="px-2.5 py-1 text-xs font-medium text-muted">Organización</p>
-              {organizations.map((o) =>
-                o.id === organization.id ? (
-                  <div key={o.id} className={cx(item, "font-medium hover:bg-transparent")}>
-                    <Check className="!text-accent" />
-                    <span className="truncate">{o.name}</span>
-                  </div>
-                ) : (
-                  <form key={o.id} action={onSwitch.bind(null, o.id)}>
-                    <button role="menuitem" className={item}>
-                      <span className="size-4" />
-                      <span className="truncate">{o.name}</span>
-                    </button>
-                  </form>
-                ),
-              )}
-            </>
-          ) : null}
+          <div className="my-1 border-t border-border" />
+          <p className="px-2.5 py-1 text-xs font-medium text-muted">Organización</p>
+          {organizations.map((o) =>
+            o.id === organization.id ? (
+              <div key={o.id} className={cx(item, "font-medium hover:bg-transparent")}>
+                <Check className="!text-accent" />
+                <span className="truncate">{o.name}</span>
+              </div>
+            ) : (
+              <form key={o.id} action={onSwitch.bind(null, o.id)}>
+                <button role="menuitem" className={item}>
+                  <span className="size-4" />
+                  <span className="truncate">{o.name}</span>
+                </button>
+              </form>
+            ),
+          )}
+          <Link href="/onboarding?nueva=1" role="menuitem" className={item}>
+            <Plus />
+            Nueva organización
+          </Link>
           <div className="my-1 border-t border-border" />
           <form action={onSignOut}>
             <button role="menuitem" className={item}>

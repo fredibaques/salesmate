@@ -862,6 +862,15 @@ email. Invitar de nuevo al mismo email anula el enlace anterior. Solo un
 propietario da o quita el rol de propietario, siempre queda al menos uno y
 nadie se quita a sí mismo. Todo queda en auditoría (`member.*`).
 
+**Varias organizaciones.** Una persona puede crear todas las que quiera:
+«Nueva organización» en su menú abre `/onboarding?nueva=1` (la misma
+creación que al registrarse, `createOrganization` de better-auth, sin
+límite), la deja como activa y la lleva al panel. Empieza de cero: todo en
+SalesMate es de una organización (`org_id` + RLS), así que no ve proyectos,
+tablas, agentes, conocimiento, integraciones, «Tu negocio», IA ni personas
+de las otras; es su propietaria. Cambia de una a otra desde el mismo menú
+(`switchOrganization`).
+
 **Proyectos compartidos** (`services/access.ts`, migración 0029).
 Propietarios y administradores ven todos los proyectos. Un miembro solo los
 que se le comparten (`project_members`): desde Ajustes del proyecto
