@@ -87,17 +87,24 @@ export function IconTile({
   tone = "accent",
   size = "md",
   colors,
+  className,
 }: {
   children: ReactNode;
   tone?: keyof typeof tileTones;
   size?: keyof typeof tileSizes;
   /** Background and text classes chosen by the user (an agent's colour), instead of `tone`. */
   colors?: string;
+  className?: string;
 }) {
   return (
     <span
       aria-hidden
-      className={cx("flex shrink-0 items-center justify-center", tileSizes[size], colors ?? tileTones[tone])}
+      className={cx(
+        "flex shrink-0 items-center justify-center",
+        tileSizes[size],
+        colors ?? tileTones[tone],
+        className,
+      )}
     >
       {children}
     </span>

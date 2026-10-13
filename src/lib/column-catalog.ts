@@ -123,7 +123,12 @@ const SALES: CatalogColumn[] = [
   { name: "Fecha del próximo paso", type: "date", filledBy: "person" },
   { name: "Último contacto", type: "date", filledBy: "person" },
   { name: "Valor estimado (€)", type: "number", filledBy: "person" },
-  { name: "Origen", type: "select", options: ["Web", "Referido", "Evento", "Prospección", "Otro"], filledBy: "person" },
+  {
+    name: "Origen",
+    type: "select",
+    options: ["Web", "Referido", "Evento", "Prospección", "Otro"],
+    filledBy: "person",
+  },
   { name: "Notas", type: "long", filledBy: "person" },
 ];
 

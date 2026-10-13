@@ -13,7 +13,8 @@ screen needs something new, add it here and as a component, not inline.
   initial. Each project is a `SidebarGroup`: its agents hang below it, one
   level down, and a chevron shows or hides them (open by itself while on the
   project's pages; each agent shows its state: `AgentStatusDot`, green with a
-  pulse while it works (and its icon sways, `agent-working`), grey at rest, a
+  pulse while it works (its icon hops and wiggles, `agent-working`, and its
+  tile sends out rings in its colour, `agent-halo`), grey at rest, a
   grey ring when paused). The person's own settings live in the `UserMenu` at the bottom:
   **Mi cuenta** (Perfil, Seguridad, Organización), switching organization and
   «Salir».
@@ -89,8 +90,10 @@ screen needs something new, add it here and as a component, not inline.
   Cuándo trabaja, Configuración del modelo, Comunicación and, for
   prospecting, Siguiente paso; «Cuándo trabaja» is the same `TriggerFields`
   for every agent: a mano, con horario, cuando pasa algo), Herramientas,
-  Log (its runs as expandable rows with the cost breakdown, a steps
-  `Drawer`, the month's spending and, for prospecting, the results card) and
+  Tareas («En curso», each with a progress bar of its request across runs;
+  «Planificadas», what it will do next and when; and «Historial», its runs as
+  expandable rows with the cost breakdown and a steps `Drawer`; beside them
+  the month's spending and, for prospecting, the results card) and
   Aprobaciones. The inbound agent's Objetivo shows the project's sales
   process (with a link to edit it) and the table where it writes each
   contact.
@@ -144,13 +147,13 @@ Every page reads top to bottom the same way:
 Everything that acts is built with `buttonClass()` (or `Button`, `LinkButton`,
 `ModalButton`, `ActionForm`, which use it). Never style a button by hand.
 
-| Variant | Use |
-|---|---|
-| `primary` | The main action of the view. One per view. |
-| `secondary` | Other actions with weight. |
-| `ghost` | Discreet actions: headers, rows, next to a primary, «Cancelar». |
-| `danger` | Confirming something that can't be undone. |
-| `dangerGhost` | Remove/delete at rest. |
+| Variant       | Use                                                             |
+| ------------- | --------------------------------------------------------------- |
+| `primary`     | The main action of the view. One per view.                      |
+| `secondary`   | Other actions with weight.                                      |
+| `ghost`       | Discreet actions: headers, rows, next to a primary, «Cancelar». |
+| `danger`      | Confirming something that can't be undone.                      |
+| `dangerGhost` | Remove/delete at rest.                                          |
 
 Sizes: `sm` (rows, toolbars, dense cards), `md` (default), `lg` (empty states
 and landing actions). Icons go before the label and size with the button.
@@ -165,18 +168,18 @@ Every field is a `Field` (label, `tip`, `hint`, `error`, `optional`) around a
 control from `src/components/form-controls.tsx`. Never style a control by
 hand.
 
-| Control | Use |
-|---|---|
-| `Input` | Text, numbers, dates, URLs. `icon` on the left (search, user), `suffix` on the right for units («min», «€»). |
-| `PasswordInput` | Passwords, with a button to show them. |
-| `Select`, `Textarea` | Choosing from a list; long text. |
-| `Choice` | A checkbox or radio with its label and an optional description. `card` for options that need explaining (how a conversation ends). |
-| `Chip` | Small toggles in a row, e.g. the days of the week. |
-| `Segmented` | Two to four exclusive options side by side (B2B · B2C). |
-| `ChipSelect` | Several answers from a ready-made list plus «Otros» (zones, who decides). |
-| `ListInput` | A growing list of short texts, one per row (segments, problems). |
-| `PairListInput` | Pairs of texts per row (an objection and its answer). |
-| `FormSection` | Titled block inside a long form. |
+| Control              | Use                                                                                                                                |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `Input`              | Text, numbers, dates, URLs. `icon` on the left (search, user), `suffix` on the right for units («min», «€»).                       |
+| `PasswordInput`      | Passwords, with a button to show them.                                                                                             |
+| `Select`, `Textarea` | Choosing from a list; long text.                                                                                                   |
+| `Choice`             | A checkbox or radio with its label and an optional description. `card` for options that need explaining (how a conversation ends). |
+| `Chip`               | Small toggles in a row, e.g. the days of the week.                                                                                 |
+| `Segmented`          | Two to four exclusive options side by side (B2B · B2C).                                                                            |
+| `ChipSelect`         | Several answers from a ready-made list plus «Otros» (zones, who decides).                                                          |
+| `ListInput`          | A growing list of short texts, one per row (segments, problems).                                                                   |
+| `PairListInput`      | Pairs of texts per row (an objection and its answer).                                                                              |
+| `FormSection`        | Titled block inside a long form.                                                                                                   |
 
 Forms are **one column**. When the answers are predictable, offer them
 (selector, chips, option cards with a «Personalizado» way out) instead of a
@@ -335,11 +338,11 @@ a shadow at rest. No gradients.
 
 ### Colour
 
-| Scale | Use |
-|---|---|
-| **Brand** (lime, `brand-50…950`) | `brand-500` (#84CC16) fills the primary button, selected chips and options, counters, the user's chat bubble and the logo, always with `brand-950` text. `brand-700` (#4D7C0F) is the readable shade: links, active tabs and navigation, borders of selected things, focus. Tints `brand-50/100` for soft backgrounds. |
-| **Ink** (neutral greys, `ink-0…950`) | Text (`ink-900`), secondary text (`ink-500`), page, sidebar and surfaces (`ink-0`), active and hover rows (`ink-100`, `ink-50`), borders (`ink-200`, `ink-300` on hover). |
-| **Leaf / Amber / Coral** (status) | Working · needs attention · error. Dot `500`, text `700`, tint `50` for notices. |
+| Scale                                | Use                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Brand** (lime, `brand-50…950`)     | `brand-500` (#84CC16) fills the primary button, selected chips and options, counters, the user's chat bubble and the logo, always with `brand-950` text. `brand-700` (#4D7C0F) is the readable shade: links, active tabs and navigation, borders of selected things, focus. Tints `brand-50/100` for soft backgrounds. |
+| **Ink** (neutral greys, `ink-0…950`) | Text (`ink-900`), secondary text (`ink-500`), page, sidebar and surfaces (`ink-0`), active and hover rows (`ink-100`, `ink-50`), borders (`ink-200`, `ink-300` on hover).                                                                                                                                              |
+| **Leaf / Amber / Coral** (status)    | Working · needs attention · error. Dot `500`, text `700`, tint `50` for notices.                                                                                                                                                                                                                                       |
 
 Semantic names (use these in components): `background`, `surface`,
 `sidebar`, `foreground`, `muted`, `border`, `border-strong`, `accent` and
@@ -351,14 +354,14 @@ WCAG AA on its background.
 
 ### Typography
 
-| Role | Face | Size / line | Weight |
-|---|---|---|---|
-| Page title (h1) | Inter | 24/32 (`text-2xl`) | 600, tight tracking |
-| Section title (h2) | Inter | 20/28 (`text-xl`) | 600 |
-| Card title (h3) | Inter | 16/24 (`text-base`) | 600 |
-| Interface text | Inter | 14/20 (`text-sm`) | 400; labels and buttons 500 |
-| Secondary data | Inter | 12/16 (`text-xs`, `text-muted`) | 400 |
-| Code, identifiers | JetBrains Mono | 12/16 | 400 |
+| Role               | Face           | Size / line                     | Weight                      |
+| ------------------ | -------------- | ------------------------------- | --------------------------- |
+| Page title (h1)    | Inter          | 24/32 (`text-2xl`)              | 600, tight tracking         |
+| Section title (h2) | Inter          | 20/28 (`text-xl`)               | 600                         |
+| Card title (h3)    | Inter          | 16/24 (`text-base`)             | 600                         |
+| Interface text     | Inter          | 14/20 (`text-sm`)               | 400; labels and buttons 500 |
+| Secondary data     | Inter          | 12/16 (`text-xs`, `text-muted`) | 400                         |
+| Code, identifiers  | JetBrains Mono | 12/16                           | 400                         |
 
 One family for everything. Figures in tables and counters use
 `tabular-nums`. The fonts are self-hosted (`@fontsource-variable`).

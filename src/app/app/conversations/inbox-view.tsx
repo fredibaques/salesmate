@@ -139,7 +139,13 @@ export async function InboxView({
   // Opening someone reads them.
   const person = query.c ? await getPerson(db, tenant, query.c, { projectId, projectIds }) : null;
   if (person) await markRead(db, user, person.key);
-  const { rows, counts } = await listInbox(db, user, { projectId: filterProject, projectIds, box, channel, q });
+  const { rows, counts } = await listInbox(db, user, {
+    projectId: filterProject,
+    projectIds,
+    box,
+    channel,
+    q,
+  });
 
   const href = (changes: Partial<InboxQuery>) => {
     const params = new URLSearchParams();

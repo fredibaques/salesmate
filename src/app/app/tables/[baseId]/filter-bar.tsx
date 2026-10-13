@@ -6,8 +6,8 @@ import { describeFilter, filterParam, type FilterField, type RowFilter } from "@
 import { useFilterNav } from "./column-filter";
 
 /**
- * The filters in use (set from each column's header; all must hold) and
- * grouping by one field, kept in the address so a filtered view can be
+ * The filters in use, set from each column's header (all must hold), as
+ * chips to remove. They live in the address, so a filtered view can be
  * shared or bookmarked.
  */
 export function FilterBar({
@@ -15,14 +15,12 @@ export function FilterBar({
   search,
   fields,
   filters,
-  group,
 }: {
   path: string;
   /** The page's current query string, without «?». */
   search: string;
   fields: FilterField[];
   filters: RowFilter[];
-  group?: string;
 }) {
   const go = useFilterNav(path, search);
   const remove = (f: RowFilter) =>
@@ -31,7 +29,7 @@ export function FilterBar({
       p.delete("f");
       for (const x of rest) p.append("f", x);
     });
-  const groupable = fields.filter((f) => f.type !== "long" && f.key !== "web");
+  if (!filters.length) return null;
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -60,29 +58,47 @@ export function FilterBar({
           Quitar filtros
         </button>
       ) : null}
-      <label className="inline-flex items-center gap-1.5 text-xs text-muted">
-        <Layers className="size-3.5" aria-hidden />
-        <span className="sr-only">Agrupar por</span>
-        <Select
-          size="sm"
-          value={group ?? ""}
-          onChange={(e) =>
-            go((p) => {
-              if (e.target.value) p.set("group", e.target.value);
-              else p.delete("group");
-            })
-          }
-          aria-label="Agrupar por"
-          className="w-auto min-w-36"
-        >
-          <option value="">Sin agrupar</option>
-          {groupable.map((f) => (
-            <option key={f.key} value={f.key}>
-              Agrupar por {f.label}
-            </option>
-          ))}
-        </Select>
-      </label>
     </div>
+  );
+}
+
+/** Grouping the rows by one field (?group=), at the table's right edge. */
+export function GroupSelect({
+  path,
+  search,
+  fields,
+  group,
+}: {
+  path: string;
+  search: string;
+  fields: FilterField[];
+  group?: string;
+}) {
+  const go = useFilterNav(path, search);
+  const groupable = fields.filter((f) => f.type !== "long" && f.key !== "web");
+  return (
+    <label className="inline-flex items-center gap-1.5 text-xs text-muted">
+      <Layers className="size-3.5 shrink-0" aria-hidden />
+      <span className="sr-only">Agrupar por</span>
+      <Select
+        size="sm"
+        value={group ?? ""}
+        onChange={(e) =>
+          go((p) => {
+            if (e.target.value) p.set("group", e.target.value);
+            else p.delete("group");
+          })
+        }
+        aria-label="Agrupar por"
+        className="w-40"
+      >
+        <option value="">Sin agrupar</option>
+        {groupable.map((f) => (
+          <option key={f.key} value={f.key}>
+            {f.label}
+          </option>
+        ))}
+      </Select>
+    </label>
   );
 }

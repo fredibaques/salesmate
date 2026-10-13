@@ -68,9 +68,11 @@ export async function setProjectPeople(
     if (!project) throw new Error("Proyecto no encontrado.");
     await tx.delete(projectMembers).where(eq(projectMembers.projectId, projectId));
     if (wanted.length) {
-      await tx.insert(projectMembers).values(
-        wanted.map((userId) => ({ projectId, userId, orgId: actor.orgId, createdBy: actor.actorId })),
-      );
+      await tx
+        .insert(projectMembers)
+        .values(
+          wanted.map((userId) => ({ projectId, userId, orgId: actor.orgId, createdBy: actor.actorId })),
+        );
     }
     await audit(tx, actor, {
       event: "project.shared",
@@ -108,11 +110,7 @@ export async function setInvitationProjects(
 }
 
 /** On joining: the projects the invitation shared become theirs (inside the accepting transaction). */
-export async function grantInvitationProjects(
-  tx: Tx,
-  invitationId: string,
-  userId: string,
-) {
+export async function grantInvitationProjects(tx: Tx, invitationId: string, userId: string) {
   const rows = await tx
     .select()
     .from(invitationProjects)
@@ -146,7 +144,9 @@ export async function setMemberProjects(
     if (valid.length)
       await tx
         .insert(projectMembers)
-        .values(valid.map((projectId) => ({ projectId, userId, orgId: actor.orgId, createdBy: actor.actorId })));
+        .values(
+          valid.map((projectId) => ({ projectId, userId, orgId: actor.orgId, createdBy: actor.actorId })),
+        );
     await audit(tx, actor, {
       event: "member.projects_changed",
       entityType: "user",

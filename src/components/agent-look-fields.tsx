@@ -58,7 +58,7 @@ export function AgentTile({
 }) {
   const look = agentLook(type, icon, color);
   const tile = (
-    <IconTile size={size} colors={look.tile}>
+    <IconTile size={size} colors={look.tile} className={state === "working" ? "agent-halo" : undefined}>
       <look.Icon className={state === "working" ? "agent-working" : undefined} />
     </IconTile>
   );

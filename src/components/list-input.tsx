@@ -7,9 +7,9 @@ import { cx } from "./cx";
 import { buttonClass } from "./ui";
 
 let nextId = 0;
-const rowId = () => ++nextId;
+export const rowId = () => ++nextId;
 
-function RemoveButton({ onClick, label }: { onClick: () => void; label: string }) {
+export function RemoveButton({ onClick, label }: { onClick: () => void; label: string }) {
   return (
     <button
       type="button"
@@ -22,7 +22,7 @@ function RemoveButton({ onClick, label }: { onClick: () => void; label: string }
   );
 }
 
-function AddButton({ onClick, children }: { onClick: () => void; children: string }) {
+export function AddButton({ onClick, children }: { onClick: () => void; children: string }) {
   return (
     <button type="button" onClick={onClick} className={buttonClass({ variant: "ghost", size: "sm" })}>
       <Plus />

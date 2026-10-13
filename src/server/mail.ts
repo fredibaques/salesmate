@@ -18,7 +18,13 @@ export async function sendSystemEmail(email: SystemEmail, fetchFn: typeof fetch 
   const res = await fetchFn("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: EMAIL_FROM, to: [email.to], subject: email.subject, text: email.text, html: email.html }),
+    body: JSON.stringify({
+      from: EMAIL_FROM,
+      to: [email.to],
+      subject: email.subject,
+      text: email.text,
+      html: email.html,
+    }),
     signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) {

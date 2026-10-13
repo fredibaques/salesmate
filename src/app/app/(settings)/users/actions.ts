@@ -48,7 +48,11 @@ export async function inviteMemberAction(_: FormState, form: FormData): Promise<
 }
 
 /** The projects a member sees. */
-export async function setMemberProjectsAction(userId: string, _: FormState, form: FormData): Promise<FormState> {
+export async function setMemberProjectsAction(
+  userId: string,
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
   const result = await runForm(async () => {
     await setMemberProjects(getDb(), await requireRole(["owner", "admin"]), userId, list(form, "projects"));
   }, "Proyectos guardados.");

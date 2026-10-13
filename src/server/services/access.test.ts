@@ -29,7 +29,13 @@ async function newUser(email: string) {
 beforeAll(async () => {
   ({ db, close } = await createTestDb());
   const seeded = await seedOrg(db, "Swipoo");
-  owner = { orgId: seeded.orgId, actorType: "user", actorId: seeded.userId, userId: seeded.userId, role: "owner" };
+  owner = {
+    orgId: seeded.orgId,
+    actorType: "user",
+    actorId: seeded.userId,
+    userId: seeded.userId,
+    role: "owner",
+  };
 });
 afterAll(async () => close());
 
@@ -73,7 +79,11 @@ describe("project sharing", () => {
       ] as never),
     );
     const visible = await visibleProjectIds(db, asAdrian);
-    const inbox = await listInbox(db, { orgId: owner.orgId, userId: adrian.id }, { box: "all", projectIds: visible });
+    const inbox = await listInbox(
+      db,
+      { orgId: owner.orgId, userId: adrian.id },
+      { box: "all", projectIds: visible },
+    );
     expect(inbox.rows.map((r) => r.projectId)).toEqual([madrid.id]);
     expect(
       (await listInbox(db, { orgId: owner.orgId, userId: adrian.id }, { box: "all", projectIds: [] })).rows,

@@ -74,6 +74,31 @@ export type FilledBy = (typeof FILLED_BY)[number];
 export const ROW_KINDS = ["company", "person"] as const;
 export type RowKind = (typeof ROW_KINDS)[number];
 
+/** Colours a choice's tag can take (their look is in `components/option-chip.tsx`). */
+export const OPTION_COLORS = [
+  "gris",
+  "rojo",
+  "naranja",
+  "amarillo",
+  "verde",
+  "turquesa",
+  "azul",
+  "morado",
+  "rosa",
+] as const;
+export type OptionColor = (typeof OPTION_COLORS)[number];
+
+/** The colour a choice shows: the one chosen, or by its place in the list (never grey by default). */
+export function optionColor(
+  column: Pick<BaseColumn, "options" | "optionColors">,
+  value: string,
+): OptionColor {
+  const chosen = column.optionColors?.[value];
+  if (chosen) return chosen;
+  const at = (column.options ?? []).indexOf(value);
+  return at < 0 ? "gris" : OPTION_COLORS[1 + (at % (OPTION_COLORS.length - 1))];
+}
+
 export type BaseColumn = {
   /** Stable key of the values in `prospects.data`; renaming the column keeps it. */
   id: string;
@@ -81,6 +106,8 @@ export type BaseColumn = {
   type: ColumnType;
   /** Choices of a select or multi column. */
   options?: string[];
+  /** The colour of each choice's tag; a choice without one takes the palette's by its place. */
+  optionColors?: Record<string, OptionColor>;
   /** What to put here and where to find it: what the agent reads. */
   instructions?: string;
   filledBy: FilledBy;
@@ -200,6 +227,7 @@ export const columnDraft = z
     name: z.string().trim().min(1, "Ponle un nombre a la columna.").max(80),
     type: z.enum(COLUMN_TYPES),
     options: z.array(z.string().trim().min(1).max(80)).max(50).optional(),
+    optionColors: z.record(z.string(), z.enum(OPTION_COLORS)).optional(),
     instructions: z.string().trim().max(1000).optional(),
     filledBy: z.enum(FILLED_BY).default("agent"),
     hidden: z.boolean().optional(),
@@ -207,6 +235,11 @@ export const columnDraft = z
   .transform((c) => ({
     ...c,
     options: hasOptions(c.type) ? [...new Set(c.options ?? [])] : undefined,
+    // Only the colours of choices it still has.
+    optionColors:
+      hasOptions(c.type) && c.optionColors
+        ? Object.fromEntries(Object.entries(c.optionColors).filter(([o]) => c.options?.includes(o)))
+        : undefined,
     instructions: c.instructions || undefined,
   }))
   .refine((c) => !c.options || c.options.length > 0, {

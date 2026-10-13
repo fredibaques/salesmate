@@ -14,12 +14,14 @@ import {
   type AgentEventKind,
   type AgentRunStep,
   type ProspectingMode,
+  type RunTask,
 } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
 import { env } from "../env";
 import type { GatewayDeps } from "../gateway/gateway";
 import { defineTool, runAgentLoop, type AgentLoopResult } from "../llm/agent-loop";
 import { withModel, type LlmClient } from "../llm/client";
+import { isRunTask } from "./tasks";
 import { renderSalesProfile } from "../playbooks/spec";
 import { projectSales } from "../services/business";
 import {
@@ -211,7 +213,9 @@ async function saveDiscoveryQueries(db: Db, tenant: { orgId: string }, agentId: 
     if (!current) return;
     await tx
       .update(agentConfigs)
-      .set({ settings: { ...current.settings, discovery: { usedQueries: [...new Set(queries)].slice(-60) } } })
+      .set({
+        settings: { ...current.settings, discovery: { usedQueries: [...new Set(queries)].slice(-60) } },
+      })
       .where(eq(agentConfigs.id, agentId));
   });
 }
@@ -320,7 +324,9 @@ export async function runProspecting(
   const llm = withModel(deps.llm, agent.settings.model);
   const settings = agent.settings;
   // New rows wanted: the person's number, the rest of an earlier request, or the agent's setting.
-  const continued = (input.events ?? []).find((e) => e.kind === "continue" && typeof e.payload.find === "number");
+  const continued = (input.events ?? []).find(
+    (e) => e.kind === "continue" && typeof e.payload.find === "number",
+  );
   const wanted = input.wanted ?? (continued?.payload.find as number | undefined) ?? settings.findPerRun;
   let target = Math.min(MAX_FIND_PER_RUN, Math.max(1, Math.round(wanted ?? DEFAULT_FIND_PER_RUN)));
   const actor = { orgId: tenant.orgId, actorType: "agent" as const, actorId: run.id };
@@ -340,6 +346,8 @@ export async function runProspecting(
       console.error("notify failed", err);
     }
   };
+  /** The request this run works on (set once the mode is known); the next batch carries it on. */
+  const request: { task: RunTask | null } = { task: null };
   /** «Completar vacíos» of the whole table: the next batch, run by the scheduler in a few minutes. */
   const queueNextBatch = (left: number) =>
     withTenant(deps.db, tenant, (tx) =>
@@ -348,7 +356,12 @@ export async function runProspecting(
         projectId: project.id,
         agentConfigId: agent.id,
         kind: "continue",
-        payload: { left },
+        payload: {
+          left,
+          ...(request.task
+            ? { task: { ...request.task, done: Math.max(0, request.task.total - left) } }
+            : {}),
+        },
       }),
     );
   /** A request for more new rows than one run found: the rest, run by the scheduler in a few minutes. */
@@ -359,7 +372,12 @@ export async function runProspecting(
         projectId: project.id,
         agentConfigId: agent.id,
         kind: "continue",
-        payload: { find },
+        payload: {
+          find,
+          ...(request.task
+            ? { task: { ...request.task, done: Math.max(0, request.task.total - find) } }
+            : {}),
+        },
       }),
     );
   /** Ends the run without working, saying why. */
@@ -411,7 +429,11 @@ export async function runProspecting(
         : undefined;
 
     let mode: ProspectingMode =
-      rowIds?.length || allPending ? "complete" : continued ? "find" : (input.mode ?? settings.mode ?? "find");
+      rowIds?.length || allPending
+        ? "complete"
+        : continued
+          ? "find"
+          : (input.mode ?? settings.mode ?? "find");
 
     // The goal: once the base has enough rows that fit, no more new ones.
     const goal = settings.goal?.rows ? await goalProgress(deps.db, tenant, base.id, settings.goal) : null;
@@ -441,12 +463,24 @@ export async function runProspecting(
     }
     if (work.rows.length === 0) mode = "find";
     const finds = mode !== "complete";
-    if (work.rows.length > 0) {
+    // The request it works on: carried on from an earlier run, or a new one starting here.
+    const carried = (input.events ?? []).map((e) => e.payload.task).find(isRunTask);
+    if (allPending) {
+      const pending = await countPendingCells(deps.db, tenant, base.id);
+      request.task =
+        carried?.kind === "complete"
+          ? { ...carried, done: Math.max(0, carried.total - pending) }
+          : { id: run.id, kind: "complete", total: pending, done: 0 };
+    } else if (finds) {
+      request.task =
+        carried?.kind === "find" ? carried : { id: run.id, kind: "find", total: target, done: 0 };
+    }
+    if (work.rows.length > 0 || request.task) {
       const ids = work.rows.map((r) => r.id);
       await withTenant(deps.db, tenant, (tx) =>
         tx
           .update(agentRuns)
-          .set({ target: { baseId: base.id, rowIds: ids } })
+          .set({ ...(ids.length ? { target: { baseId: base.id, rowIds: ids } } : {}), task: request.task })
           .where(eq(agentRuns.id, run.id)),
       );
     }

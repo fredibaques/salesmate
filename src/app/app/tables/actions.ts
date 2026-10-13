@@ -8,6 +8,8 @@ import {
   COLUMN_TYPES,
   FILLED_BY,
   hasOptions,
+  OPTION_COLORS,
+  type OptionColor,
   newTableHiddenFields,
   SYSTEM_FIELDS,
   type ColumnDraft,
@@ -131,12 +133,27 @@ export async function deleteBaseAction(baseId: string) {
 
 // ---- Columns ----------------------------------------------------------------
 
+/** The choices and their colours, row by row (empty rows dropped). */
+function optionsFromForm(form: FormData): Pick<ColumnDraft, "options" | "optionColors"> {
+  const names = form.getAll("options").map((o) => String(o).trim());
+  const colors = form.getAll("optionColor").map(String);
+  const options: string[] = [];
+  const optionColors: Record<string, OptionColor> = {};
+  names.forEach((name, i) => {
+    if (!name) return;
+    options.push(name);
+    const color = OPTION_COLORS.find((c) => c === colors[i]);
+    if (color) optionColors[name] = color;
+  });
+  return { options, optionColors };
+}
+
 function columnFromForm(form: FormData): ColumnDraft {
   const type = COLUMN_TYPES.find((t) => t === str(form, "type")) ?? "text";
   return {
     name: str(form, "name") ?? "",
     type,
-    options: hasOptions(type) ? list(form, "options").map((o) => o.trim()) : undefined,
+    ...(hasOptions(type) ? optionsFromForm(form) : {}),
     instructions: str(form, "instructions"),
     filledBy: FILLED_BY.find((f) => f === str(form, "filledBy")) ?? "agent",
   };

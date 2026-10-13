@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
+import { OptionChip } from "@/components/option-chip";
 import { useToast } from "@/components/toast";
+import type { BaseColumn } from "@/lib/prospect-columns";
 import { cx } from "@/components/ui";
 import type { SaveCell } from "./grid-editing";
 
@@ -27,11 +29,14 @@ const NONE = "";
  */
 export function KanbanBoard({
   stages,
+  colors,
   cards,
   field,
   save,
 }: {
   stages: string[];
+  /** The phases' colours, as the column has them. */
+  colors?: BaseColumn["optionColors"];
   cards: BoardCard[];
   /** The pipeline column's id. */
   field: string;
@@ -94,7 +99,11 @@ export function KanbanBoard({
               )}
             >
               <h3 className="flex items-center justify-between px-1.5 pt-1 pb-2 text-sm font-medium">
-                <span className={cx("truncate", list.key === NONE && "text-muted")}>{list.label}</span>
+                {list.key === NONE ? (
+                  <span className="truncate text-muted">{list.label}</span>
+                ) : (
+                  <OptionChip column={{ options: stages, optionColors: colors }} value={list.key} />
+                )}
                 <span className="text-xs text-muted tabular-nums">{inList.length}</span>
               </h3>
               <ul className="flex flex-1 flex-col gap-2">

@@ -3,8 +3,8 @@ export function ConfigError({ problems }: { problems: string[] }) {
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center px-6">
       <h1 className="text-2xl font-semibold">Falta configurar SalesMate</h1>
       <p className="mt-2 text-sm text-muted">
-        Añade estas variables de entorno en tu proveedor de hosting (en Vercel: Settings → Environment Variables) y
-        vuelve a desplegar.
+        Añade estas variables de entorno en tu proveedor de hosting (en Vercel: Settings → Environment
+        Variables) y vuelve a desplegar.
       </p>
       <ul className="mt-6 space-y-2 text-sm">
         {problems.map((p) => (

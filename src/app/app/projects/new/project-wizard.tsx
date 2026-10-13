@@ -41,7 +41,8 @@ export function ProjectWizard({ business }: { business: BusinessProfile | null }
           {
             id: "offer",
             title: "Tu negocio",
-            summary: "Solo esta vez: lo comparten todos tus proyectos. Puedes cambiarlo en Ajustes › Tu negocio.",
+            summary:
+              "Solo esta vez: lo comparten todos tus proyectos. Puedes cambiarlo en Ajustes › Tu negocio.",
             content: (
               <>
                 <input type="hidden" name="withBusiness" value="1" />

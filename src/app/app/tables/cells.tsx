@@ -1,4 +1,5 @@
 import { ExternalLink, Lock, Sparkles } from "lucide-react";
+import { OptionChip } from "@/components/option-chip";
 import { formatCell, type BaseColumn } from "@/lib/prospect-columns";
 import type { CellMeta } from "@/server/db/schema";
 import { normalizeDomain } from "@/server/prospects/service";
@@ -52,16 +53,12 @@ export function CellValue({ column, value }: { column: BaseColumn; value: unknow
       );
     case "select":
     case "stage":
-      return (
-        <span className="rounded-sm bg-ink-100 px-1.5 py-0.5 text-xs text-ink-700">{String(value)}</span>
-      );
+      return <OptionChip column={column} value={String(value)} />;
     case "multi":
       return (
         <span className="inline-flex gap-1">
           {(Array.isArray(value) ? value : [value]).map((v) => (
-            <span key={String(v)} className="rounded-sm bg-ink-100 px-1.5 py-0.5 text-xs text-ink-700">
-              {String(v)}
-            </span>
+            <OptionChip key={String(v)} column={column} value={String(v)} />
           ))}
         </span>
       );
