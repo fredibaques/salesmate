@@ -459,7 +459,8 @@ async function writeColumns(
 /**
  * Adds a column, or changes one (`columnId`). Changing its type or options
  * re-checks the values it already holds: the ones that no longer fit are
- * cleared, and how many is returned.
+ * cleared, and how many is returned. New instructions mean the cells the
+ * agent didn't find are looked for again (`retried`).
  */
 export async function saveColumn(
   db: Db,
@@ -467,7 +468,7 @@ export async function saveColumn(
   baseId: string,
   draft: ColumnDraft,
   existingId?: string,
-): Promise<{ column: BaseColumn; cleared: number }> {
+): Promise<{ column: BaseColumn; cleared: number; retried: number }> {
   return withTenant(db, tenant, async (tx) => {
     const base = await lockedBase(tx, baseId);
     if (!existingId) {
@@ -476,7 +477,7 @@ export async function saveColumn(
         column: column.name,
         type: column.type,
       });
-      return { column, cleared: 0 };
+      return { column, cleared: 0, retried: 0 };
     }
     const index = base.columns.findIndex((c) => c.id === existingId);
     if (index < 0) throw new Error("Esa columna ya no existe.");
@@ -514,12 +515,16 @@ export async function saveColumn(
           .where(eq(prospects.id, row.id));
       }
     }
+    const retried =
+      (before.instructions ?? "").trim() !== (column.instructions ?? "").trim()
+        ? await clearNotFound(tx, base.id, column.id)
+        : 0;
     await writeColumns(tx, tenant, base, columns, "prospect_base.column_changed", {
       column: column.name,
       type: column.type,
       cleared,
     });
-    return { column, cleared };
+    return { column, cleared, retried };
   });
 }
 
@@ -634,6 +639,42 @@ export async function setColumnHidden(
       .update(prospectBases)
       .set({ columns, updatedAt: new Date() })
       .where(eq(prospectBases.id, base.id));
+  });
+}
+
+/** Forgets the «not found» marks of a column, so the next completion looks for them again. */
+async function clearNotFound(tx: Tx, baseId: string, columnId: string): Promise<number> {
+  const rows = await tx
+    .update(prospects)
+    .set({ cellMeta: sql`${prospects.cellMeta} - ${columnId}` })
+    .where(
+      and(
+        eq(prospects.baseId, baseId),
+        sql`not (${prospects.data} ? ${columnId})`,
+        sql`coalesce((${prospects.cellMeta} -> ${columnId} ->> 'notFound')::boolean, false)`,
+      ),
+    )
+    .returning({ id: prospects.id });
+  return rows.length;
+}
+
+/** The cells of a column the agent didn't find, back to empty: «Volver a buscar». */
+export async function retryNotFound(db: Db, tenant: TenantContext, baseId: string, columnId: string) {
+  return withTenant(db, tenant, async (tx) => {
+    const base = await lockedBase(tx, baseId);
+    const column = base.columns.find((c) => c.id === columnId);
+    if (!column) throw new Error("Esa columna ya no existe.");
+    const retried = await clearNotFound(tx, base.id, column.id);
+    if (retried) {
+      await audit(tx, tenant, {
+        event: "prospect_base.not_found_retried",
+        projectId: base.projectId,
+        entityType: "prospect_base",
+        entityId: base.id,
+        data: { column: column.name, cells: retried },
+      });
+    }
+    return retried;
   });
 }
 

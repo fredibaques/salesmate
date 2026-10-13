@@ -8,10 +8,10 @@ import { agentConfigs, agentEvents, projects } from "../../db/schema";
 import { withTenant, type TenantContext } from "../../db/tenant";
 import type { LlmRequest } from "../../llm/client";
 import { addAgent } from "../../services/agents";
-import { createBase, setAgentBase } from "../bases";
+import { createBase, retryNotFound, setAgentBase } from "../bases";
 import { completionCost, countPendingCells, rowsToComplete } from "../complete";
 import { getProspect, saveProspects } from "../service";
-import { pickWebsite, runCompletionEngine } from "./engine";
+import { columnQuery, columnSites, pickWebsite, runCompletionEngine } from "./engine";
 import { siteFacts } from "./facts";
 import {
   isPublicAddress,
@@ -277,6 +277,123 @@ describe("runCompletionEngine", () => {
     expect(result.costUsd).toBeCloseTo(row.costUsd + 0.001, 6);
     // The rows it couldn't read keep their cells for the agent.
     expect(await countPendingCells(db, tenant, base.id, [motor.id, nada.id])).toBe(8);
+  });
+});
+
+describe("columns found elsewhere", () => {
+  const portal = {
+    id: "web_coches_net",
+    name: "Web coches.net",
+    type: "url" as const,
+    filledBy: "both" as const,
+    instructions: "Busca en internet el portal de coches.net que tiene ese concesionario",
+  };
+
+  it("searches within the site a column names, or the web when it asks to", () => {
+    expect(columnSites(portal)).toEqual(["coches.net"]);
+    expect(columnQuery(portal, { name: "Autos García", place: "Málaga" })).toBe(
+      "site:coches.net Autos García Málaga",
+    );
+    expect(
+      columnQuery(
+        { id: "g", name: "Reseñas", type: "text", filledBy: "agent", instructions: "Su nota en Google" },
+        { name: "Autos García" },
+      ),
+    ).toBe("Autos García Reseñas");
+    // A column the company's own site answers needs no search.
+    expect(
+      columnQuery({ id: "e", name: "Email", type: "email", filledBy: "agent" }, { name: "X" }),
+    ).toBeNull();
+  });
+
+  it("fills a column from a Google search when its data is on another site", async () => {
+    const base = await createBase(db, tenant, projectId, {
+      name: "Concesionarios coches.net",
+      rowKind: "company",
+      columns: [
+        { name: "Email", type: "email" },
+        { name: "Ciudad", type: "text", filledBy: "person" },
+        { name: portal.name, type: "url", instructions: portal.instructions },
+      ],
+    });
+    const { added } = await saveProspects(db, tenant, {
+      baseId: base.id,
+      items: [
+        { companyName: "Autos García", website: "autosgarcia.es", fields: { ciudad: "Málaga" } },
+        { companyName: "Sin Web" },
+      ],
+    });
+    const [garcia, sinWeb] = added;
+    const searches: string[] = [];
+    const portalAnswer = (req: LlmRequest) => {
+      const prompt = String(req.messages[0].content);
+      const ficha = prompt.includes("Autos García")
+        ? "https://www.coches.net/concesionario/autosgarcia/"
+        : null;
+      return {
+        blocks: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              cells: ficha ? [{ column: "web_coches_net", value: ficha, source: ficha }] : [],
+              notFound: ficha ? ["email"] : ["web_coches_net"],
+            }),
+          },
+        ],
+      };
+    };
+    const { llm, requests } = scriptedLlm([portalAnswer, portalAnswer]);
+    const work = await rowsToComplete(db, tenant, base.id, { limit: 100 });
+    const result = await runCompletionEngine(
+      {
+        db,
+        llm,
+        reader: fakeWeb().reader,
+        search: async ({ query }) => {
+          searches.push(query);
+          return {
+            website: null,
+            results: query.includes("García")
+              ? [
+                  {
+                    title: "Autos García - Concesionario en Málaga | coches.net",
+                    url: "https://www.coches.net/concesionario/autosgarcia/",
+                    snippet: "120 coches de ocasión",
+                  },
+                ]
+              : [],
+          };
+        },
+      },
+      { ...tenant, actorType: "agent", actorId: "run" },
+      { base, rows: work.rows, deadline: Date.now() + 120_000 },
+    );
+
+    expect(searches.sort()).toEqual([
+      "Sin Web web oficial",
+      "site:coches.net Autos García Málaga",
+      "site:coches.net Sin Web",
+    ]);
+    const prompt = String(
+      requests.find((r) => String(r.messages[0].content).includes("García"))!.messages[0].content,
+    );
+    expect(prompt).toContain("## Búsquedas en Google");
+    expect(prompt).toContain("https://www.coches.net/concesionario/autosgarcia/");
+    const row = (await getProspect(db, tenant, base.id, garcia.id))!;
+    expect(row.data.web_coches_net).toBe("https://www.coches.net/concesionario/autosgarcia/");
+    expect(row.cellMeta.web_coches_net).toMatchObject({
+      source: "https://www.coches.net/concesionario/autosgarcia/",
+    });
+    // A row without a site is asked only the searched column; its email stays for the agent.
+    const lone = (await getProspect(db, tenant, base.id, sinWeb.id))!;
+    expect(lone.cellMeta.web_coches_net).toMatchObject({ notFound: true });
+    expect(lone.cellMeta.email).toBeUndefined();
+    expect(result.rows.find((r) => r.id === sinWeb.id)?.status).toBe("no_site");
+
+    // «Volver a buscar lo no encontrado»: the mark goes, the value found stays.
+    expect(await retryNotFound(db, tenant, base.id, "web_coches_net")).toBe(1);
+    expect((await getProspect(db, tenant, base.id, sinWeb.id))!.cellMeta.web_coches_net).toBeUndefined();
+    expect((await getProspect(db, tenant, base.id, garcia.id))!.data.web_coches_net).toBeTruthy();
   });
 });
 

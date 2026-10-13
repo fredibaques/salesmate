@@ -35,7 +35,35 @@ function tick(value: number, step: number, unit: "usd") {
 }
 
 /**
- * One series over time: a 2px line on recessive gridlines, with a
+ * A smooth curve through the points that never overshoots them (monotone
+ * cubic, as d3's curveMonotoneX): a cost never dips below zero between two
+ * days, and a peak stays where it was.
+ */
+export function smoothPath(pts: { x: number; y: number }[]): string {
+  const f = (n: number) => n.toFixed(1);
+  if (pts.length < 3) return pts.map((p, i) => `${i ? "L" : "M"}${f(p.x)},${f(p.y)}`).join("");
+  const n = pts.length;
+  const slope = pts.slice(0, -1).map((p, i) => (pts[i + 1].y - p.y) / (pts[i + 1].x - p.x));
+  const tangent = pts.map((_, i) => {
+    if (i === 0) return slope[0];
+    if (i === n - 1) return slope[n - 2];
+    const [a, b] = [slope[i - 1], slope[i]];
+    // A turn (or a flat side) keeps the curve flat there: no overshoot.
+    if (a * b <= 0) return 0;
+    // Harmonic mean of the two sides (Fritsch–Carlson, evenly spaced points).
+    return (2 * a * b) / (a + b);
+  });
+  let d = `M${f(pts[0].x)},${f(pts[0].y)}`;
+  for (let i = 0; i < n - 1; i++) {
+    const [p, q] = [pts[i], pts[i + 1]];
+    const h = (q.x - p.x) / 3;
+    d += `C${f(p.x + h)},${f(p.y + h * tangent[i])},${f(q.x - h)},${f(q.y - h * tangent[i + 1])},${f(q.x)},${f(q.y)}`;
+  }
+  return d;
+}
+
+/**
+ * One series over time: a smooth 2px line on recessive gridlines, with a
  * crosshair that snaps to the nearest point and a tooltip (also with the
  * arrow keys). A hidden table carries the same numbers for screen readers.
  */
@@ -67,7 +95,7 @@ export function LineChart({
   const plotH = HEIGHT - PAD.top - PAD.bottom;
   const x = (i: number) => PAD.left + (points.length === 1 ? plotW / 2 : (i * plotW) / (points.length - 1));
   const y = (v: number) => PAD.top + plotH - (v / max) * plotH;
-  const path = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join("");
+  const path = smoothPath(points.map((p, i) => ({ x: x(i), y: y(p.value) })));
   const ticks = [0, max / 3, (2 * max) / 3, max];
   // First, middle and last labels: enough to place the dates without crowding.
   const labelled = new Set([0, Math.floor((points.length - 1) / 2), points.length - 1]);

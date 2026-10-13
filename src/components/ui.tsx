@@ -105,8 +105,27 @@ export function IconTile({
 }
 
 /** Responsive grid for entity cards. */
-export function CardGrid({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cx("grid gap-4 sm:grid-cols-2 xl:grid-cols-3", className)}>{children}</div>;
+export function CardGrid({
+  children,
+  columns = 3,
+  className,
+}: {
+  children: ReactNode;
+  /** Columns on a wide screen: 4 for small cards (integrations). */
+  columns?: 3 | 4;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cx(
+        "grid gap-4 sm:grid-cols-2",
+        columns === 4 ? "lg:grid-cols-3 xl:grid-cols-4" : "xl:grid-cols-3",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
 }
 
 /**

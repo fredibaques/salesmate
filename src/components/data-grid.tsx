@@ -62,9 +62,12 @@ export function GridHead({
   align = "start",
   dropId,
   resize,
+  filter,
   className,
 }: {
   children: ReactNode;
+  /** A control at the header's edge, after the title (the column's filter). */
+  filter?: ReactNode;
   /** A column that others can be dropped next to (dragging headers). */
   dropId?: string;
   /** Its key in `DataGrid`'s columns and where to save a new width: shows the handle to resize it. */
@@ -86,7 +89,14 @@ export function GridHead({
         className,
       )}
     >
-      {children}
+      {filter ? (
+        <div className={cx("flex items-center gap-1", align === "end" && "flex-row-reverse")}>
+          <div className="min-w-0 flex-1 truncate">{children}</div>
+          {filter}
+        </div>
+      ) : (
+        children
+      )}
       {resize ? <ColumnResizer colKey={resize.key} save={resize.save} /> : null}
     </th>
   );

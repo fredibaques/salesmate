@@ -455,9 +455,13 @@ Cada tabla vive en `/app/tables/<id>` (las rutas antiguas bajo el proyecto
 redirigen); la sección Tablas y el resumen del proyecto las listan
 igual (`TablesList`). La rejilla se ve siempre, también vacía, con filtros,
 orden por cualquier columna, búsqueda y exportación a CSV. Se puede
-**filtrar por cualquier campo** (fijo o columna, con condiciones según su
-tipo: contiene, es, mayor que, antes del, incluye, sí/no, vacío…; todos los
-filtros a la vez) y **agrupar por uno** (las filas vienen ordenadas por él,
+**filtrar por cualquier campo** desde el embudo de su cabecera
+(`ColumnFilter`, uno por campo), con el control que le toca a su tipo: un
+rango de fechas (con atajos: hoy, últimos 7 o 30 días, este mes) o de
+números (`between`, `desde..hasta`), una lista para marcar opciones (`in`,
+`a|b`), sí/no, o texto (contiene, es); y en todos, vacío o con valor. Los
+filtros en uso se ven como chips sobre la tabla y se cumplen todos a la vez.
+También se puede **agrupar por uno** (las filas vienen ordenadas por él,
 con una cabecera por valor y su recuento): van en la dirección
 (`?f=<campo>~<condición>~<valor>`, `?group=<campo>`; `lib/table-filters.ts`,
 `listProspects({ filters, group })`), así que una vista filtrada se puede
@@ -546,6 +550,14 @@ sin agente, por un camino fijo:
    Serper (si la organización lo ha conectado; `pickWebsite` descarta
    directorios y redes y exige que el dominio contenga una palabra del
    nombre). La que encuentra se guarda en la fila si seguía sin web.
+   Una columna cuyo dato está en otro sitio tiene además su propia búsqueda
+   (`columnQuery`): si su nombre o sus instrucciones nombran un dominio
+   («Web coches.net», «su ficha en coches.net») busca `site:<dominio>
+   <empresa> <ciudad>`; si piden buscar fuera (internet, Google, portal,
+   ficha, perfil, directorio), `<empresa> <columna>`. Los resultados (y el
+   primero, si se deja leer) van al modelo junto a las páginas y valen como
+   fuente. Sin web propia, o si no se puede leer, el motor pregunta solo por
+   esas columnas y deja las demás al agente.
 2. Sus páginas (`reader.ts`): la de inicio y hasta 3 de contacto, aviso
    legal o quiénes somos (`usefulSubpages`). Petición HTTP normal, solo a
    direcciones públicas (DNS comprobado, sin redes privadas ni otros puertos,
@@ -563,7 +575,10 @@ sin agente, por un camino fijo:
    `notFound`). Se guarda con `completeProspects` (misma validación y
    bloqueos que el agente); una fuente que no es una página leída pasa a ser
    la de inicio, y lo que no da o no encaja con su columna queda como «no
-   encontrado»: cada fila que lee queda respondida.
+   encontrado»: cada fila que lee queda respondida. «Volver a buscar lo no
+   encontrado» en el menú de una columna (`retryNotFound`) borra esas
+   marcas, y cambiar sus instrucciones también: la próxima vez que se
+   complete, se buscan otra vez.
 
 Trabaja 6 filas a la vez y no empieza ninguna a menos de 25 s del final ni
 pasado lo que le queda del gasto máximo del mes. Las filas que no puede leer (sin

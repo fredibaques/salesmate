@@ -14,7 +14,7 @@ import {
 } from "drizzle-orm";
 import { z } from "zod";
 import { checkCell, formatCell, type BaseColumn, type RowKind } from "@/lib/prospect-columns";
-import type { RowFilter } from "@/lib/table-filters";
+import { listOf, rangeOf, type RowFilter } from "@/lib/table-filters";
 import { audit } from "../audit";
 import type { Db } from "../db/client";
 import { prospectBases, prospects, PROSPECT_STATUSES, type CellMeta } from "../db/schema";
@@ -553,6 +553,34 @@ function filterCondition(f: RowFilter, type: string | undefined): SQL {
       return sql`coalesce(lower(${text}), '') <> lower(${value})`;
     case "has":
       return sql`jsonb_exists(coalesce(${prospects.data} -> ${f.key}, '[]'::jsonb), ${value})`;
+    case "in": {
+      const values = listOf(value);
+      if (type === "multi") {
+        const any = sql.join(
+          values.map((v) => sql`${v}`),
+          sql`, `,
+        );
+        return sql`jsonb_exists_any(coalesce(${prospects.data} -> ${f.key}, '[]'::jsonb), array[${any}]::text[])`;
+      }
+      return sql`lower(${text}) in (${sql.join(
+        values.map((v) => sql`lower(${v})`),
+        sql`, `,
+      )})`;
+    }
+    case "between": {
+      const { from, to } = rangeOf(value);
+      // A date range compares the day, whatever time a value carries.
+      const at = numeric ? asNumber(text) : sql`left(${text}, 10)`;
+      const end = (v: string) => (numeric ? sql`${Number(v)}` : sql`${v}`);
+      return sql.join(
+        [
+          ...(from.trim() ? [sql`${at} >= ${end(from)}`] : []),
+          ...(to.trim() ? [sql`${at} <= ${end(to)}`] : []),
+          sql`true`,
+        ],
+        sql` and `,
+      );
+    }
     case "gt":
       return sql`${asNumber(text)} > ${Number(value)}`;
     case "lt":

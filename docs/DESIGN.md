@@ -102,21 +102,23 @@ screen needs something new, add it here and as a component, not inline.
   after the ordered ones, new sections where they go by default (`sectionOrder`). The same modal edits each agent inline. Agents have an icon and a colour the team
   picks (`lib/agent-look.tsx`: `AgentTile`, `AgentIcon`, `AgentLookFields`),
   shown in the sidebar, their header and their card.
-- A project has six tabs: **Resumen** (its home: on top the cost chart, ¾,
+- A project has five tabs: **Resumen** (its home: on top the cost chart, ¾,
   with Por día / Por semana / Por mes as `SegmentedLinks`, and its tables, ¼,
   the same height; below, its agents as cards, the on/off switch at each
   card's top right, and always a dashed «Añadir agente» card the size of an
   agent's (as many agents of each kind as the project needs: prospecting,
   outbound and inbound, each with its own wizard and setup screen; the wizard
-  asks for a name to tell them apart); what the project needs is asked in its creation wizard), **Ventas** (sub-tabs «Oferta
-  y cliente» and «Proceso de venta»: the sale is the project's, not each
-  agent's), **Conocimiento** (documents and tables; text can be edited in
-  place), **Conversaciones**, **Reuniones** and **Ajustes** (General:
-  project data and contact hours; and Reglas y exclusiones). Adding an agent
+  asks for a name to tell them apart); what the project needs is asked in its creation wizard),
+  **Conocimiento** (documents and tables; text can be edited in place),
+  **Conversaciones**, **Reuniones** and **Configuración** (sub-tabs General:
+  project data, contact hours and who has access; Objetivo y público;
+  Proceso de venta, the project's and not each agent's; and Reglas y
+  exclusiones). Adding an agent
   is a modal: pick its kind, then its `Wizard`, without leaving the project
   (`?agente=<type>` opens it).
-- Charts are SVG from `components/line-chart.tsx`: one series, a 2px
-  `brand-600` line, hairline grid, three date labels, a crosshair and tooltip
+- Charts are SVG from `components/line-chart.tsx`: one series, a smooth 2px
+  `brand-600` line (monotone curve: it never overshoots a point nor dips
+  below zero), hairline grid, three date labels, a crosshair and tooltip
   on hover and with the arrow keys, and a hidden table for screen readers.
 - Light theme only.
 
@@ -204,7 +206,8 @@ for errors), `TypingIndicator`, `ChatWelcome` with `SuggestionButton`s, and
 
 Things the user creates or owns and opens to configure (projects, agents,
 connections, knowledge sources, tools in the catalog) are `EntityCard`s in a
-`CardGrid`:
+`CardGrid` (3 columns on a wide screen; `columns={4}` for small cards like
+integrations):
 
 - icon or avatar, name, one line of meta (`Meta`: «PDF · 2 MB»), status
   badge on the right;
@@ -259,7 +262,9 @@ Remove actions on a row are a `dangerGhost` icon button with an
 ## 9. States
 
 - **On/off** (an agent, a project): `SwitchButton` inside a form whose server
-  action flips it. Green = acting; grey «En pausa» = not acting.
+  action flips it. Green = acting; grey «En pausa» = not acting. On a card
+  the switch goes alone (`bare`): its colour says it, the word is only for
+  screen readers.
 - **Status badges** use one vocabulary and tone: success = working /
   connected / active, warning = paused or needs attention, danger = error or
   blocked, accent = waiting for the user, neutral = informative.

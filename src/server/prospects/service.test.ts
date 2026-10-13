@@ -348,6 +348,20 @@ describe("filters and groups", () => {
       ]),
     ).toEqual(["Garaje Este"]);
     expect(await names([{ key: "web", op: "contains", value: "sur" }])).toEqual(["Motos Sur"]);
+    // From a column's header: ranges and several options.
+    expect(await names([{ key: "empleados", op: "between", value: "10..40" }])).toEqual([
+      "Autos Norte",
+      "Garaje Este",
+    ]);
+    expect(await names([{ key: "empleados", op: "between", value: "..10" }])).toEqual(["Motos Sur"]);
+    expect(await names([{ key: "sector", op: "in", value: "Coches|Motos" }])).toEqual([
+      "Autos Norte",
+      "Motos Sur",
+    ]);
+    expect(await names([{ key: "marcas", op: "in", value: "Seat|Opel" }])).toEqual(["Autos Norte"]);
+    const today = new Date().toISOString().slice(0, 10);
+    expect(await names([{ key: "created", op: "between", value: `${today}..${today}` }])).toHaveLength(3);
+    expect(await names([{ key: "created", op: "between", value: "..2000-01-01" }])).toEqual([]);
     expect(await names([{ key: "status", op: "is", value: "new" }])).toHaveLength(3);
 
     const grouped = await listProspects(db, tenant, table.id, { group: "ciudad", sort: "name" });
