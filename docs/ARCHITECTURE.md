@@ -395,13 +395,18 @@ agente, es ahora el trabajo del outbound. Lo común a todos:
 - **Nombre** (`agent_configs.name`): el que le da el usuario; vacío = el de
   la plantilla (`agentName()` en `lib/agents.ts`). Lo usan la cabecera, el
   menú lateral, las migas y las tablas.
-- **Cuándo trabaja** (`agent_configs.schedule`, en la zona del proyecto): `null`
-  = solo cuando se lo piden («Ejecutar ahora»); `daily`, `weekly` (días;
+- **Cuándo trabaja** (`agent_configs.schedule`, en la zona del proyecto).
+  «Ejecutar ahora» está siempre, tenga o no horario; el horario es lo que
+  hace además por su cuenta: `null` = sin horario; `daily`, `weekly` (días;
   las filas sin `kind` son semanales), `monthly` (día del mes; si el mes es
-  más corto, el último) u `once` (un momento `YYYY-MM-DDTHH:MM`: se ejecuta
-  una vez a partir de él y vuelve a hacerlo solo si se elige otro momento
-  posterior). Lo leen `isDue` y `describeNextRun` (`agents/scheduler.ts`);
-  el formulario es `ScheduleFields` y `scheduleFromForm` (`lib/schedule.ts`).
+  más corto, el último), con `every` (cada N días, semanas o meses, contando
+  desde `from`, el día en que se eligió; las semanas van de lunes a
+  domingo), u `once` (un momento `YYYY-MM-DDTHH:MM`: se ejecuta una vez a
+  partir de él y vuelve a hacerlo solo si se elige otro momento posterior).
+  Lo leen `worksOn`, `isDue` y `describeNextRun` (`agents/scheduler.ts`); el
+  formulario es `ScheduleFields` («Con horario»: sin horario, una vez, cada
+  día, cada semana, cada mes; cada cuánto y a qué hora) y `scheduleFromForm`
+  (`lib/schedule.ts`).
   `GET /api/cron/agents` ejecuta los que tocan (`agents/scheduler.ts`), hasta
   tres a la vez en paralelo. Cada franja se reclama con un `UPDATE`
   condicional sobre `last_scheduled_run_at` (comparado al milisegundo:
@@ -449,7 +454,17 @@ dominio de la web, o nombre y ciudad; en bases de personas, persona y empresa).
 Cada tabla vive en `/app/tables/<id>` (las rutas antiguas bajo el proyecto
 redirigen); la sección Tablas y el resumen del proyecto las listan
 igual (`TablesList`). La rejilla se ve siempre, también vacía, con filtros,
-orden por cualquier columna, búsqueda y exportación a CSV. Exportar a otra
+orden por cualquier columna, búsqueda y exportación a CSV. Se puede
+**filtrar por cualquier campo** (fijo o columna, con condiciones según su
+tipo: contiene, es, mayor que, antes del, incluye, sí/no, vacío…; todos los
+filtros a la vez) y **agrupar por uno** (las filas vienen ordenadas por él,
+con una cabecera por valor y su recuento): van en la dirección
+(`?f=<campo>~<condición>~<valor>`, `?group=<campo>`; `lib/table-filters.ts`,
+`listProspects({ filters, group })`), así que una vista filtrada se puede
+guardar o compartir. El **ancho de cada columna** se cambia arrastrando el
+borde de su cabecera (`ColumnResizer`) y se guarda para la tabla
+(`prospect_bases.column_widths`, migración 0030, `setColumnWidth`); la
+rejilla usa anchos fijos y corta con «…» lo que no cabe. Exportar a otra
 herramienta pasa por el gateway, que registra por proyecto: solo en tablas con
 proyecto.
 
@@ -648,9 +663,10 @@ instrucciones en una sola pestaña «Configuración» (`outbound-setup.tsx`,
 acción `saveAgentSetup`), agrupados en Objetivo, Ejecución, Configuración del
 modelo, Comunicación y Siguiente paso; `/automation` redirige ahí:
 
-- **Cuándo trabaja**, igual para todos los agentes: **a mano** («Ejecutar
-  ahora», en su cabecera), **con horario** (`agent_configs.schedule`, el
-  programador: `runDueAgents`) y **cuando pasa algo** (`triggers`). Qué hace
+- **Cuándo trabaja**, igual para todos los agentes: **a mano** siempre
+  («Ejecutar ahora», en su cabecera) y, además, **con horario**
+  (`agent_configs.schedule`, el programador: `runDueAgents`) y **cuando pasa
+  algo** (`triggers`). Qué hace
   una ejecución es propio de cada agente: el de prospección busca o completa
   filas; el inbound (`runInboundSweep`) lee su buzón y atiende lo pendiente
   de su proyecto, cada contacto en su propia ejecución. Eventos:

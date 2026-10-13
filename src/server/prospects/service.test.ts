@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { RowFilter } from "@/lib/table-filters";
 import { createTestDb, seedOrg } from "../../../tests/helpers/db";
 import { DEFAULT_COMPANY_COLUMNS, checkCell, type BaseColumn } from "@/lib/prospect-columns";
 import type { Db } from "../db/client";
@@ -286,5 +287,81 @@ describe("the agent's view of a base", () => {
     await expect(setAgentBase(db, tenant, project.id, config.id, baseId)).rejects.toThrow(
       /es de otro proyecto/,
     );
+  });
+});
+
+describe("filters and groups", () => {
+  it("filters by any field and groups the rows by one", async () => {
+    const table = await createBase(db, tenant, projectId, {
+      name: "Filtros",
+      rowKind: "company",
+      columns: [
+        { name: "Ciudad", type: "text" },
+        { name: "Empleados", type: "number" },
+        { name: "Sector", type: "select", options: ["Coches", "Motos"] },
+        { name: "Marcas", type: "multi", options: ["Seat", "Kia"] },
+        { name: "Cliente", type: "bool" },
+      ],
+    });
+    await saveProspects(db, tenant, {
+      baseId: table.id,
+      items: [
+        {
+          companyName: "Autos Norte",
+          website: "norte.es",
+          fields: {
+            ciudad: "Málaga",
+            empleados: 40,
+            sector: "Coches",
+            marcas: ["Seat", "Kia"],
+            cliente: true,
+          },
+        },
+        {
+          companyName: "Motos Sur",
+          website: "sur.es",
+          fields: { ciudad: "Sevilla", empleados: 8, sector: "Motos", marcas: ["Kia"] },
+        },
+        { companyName: "Garaje Este", website: "este.es", fields: { ciudad: "Málaga", empleados: 12 } },
+      ],
+    });
+    const names = async (filters: RowFilter[]) =>
+      (await listProspects(db, tenant, table.id, { filters, sort: "name" })).rows.map((r) => r.companyName);
+
+    expect(await names([{ key: "ciudad", op: "contains", value: "mála" }])).toEqual([
+      "Autos Norte",
+      "Garaje Este",
+    ]);
+    expect(await names([{ key: "empleados", op: "gt", value: "10" }])).toEqual([
+      "Autos Norte",
+      "Garaje Este",
+    ]);
+    expect(await names([{ key: "sector", op: "is", value: "Motos" }])).toEqual(["Motos Sur"]);
+    expect(await names([{ key: "sector", op: "empty" }])).toEqual(["Garaje Este"]);
+    expect(await names([{ key: "marcas", op: "has", value: "Kia" }])).toEqual(["Autos Norte", "Motos Sur"]);
+    expect(await names([{ key: "cliente", op: "no" }])).toEqual(["Garaje Este", "Motos Sur"]);
+    // All of them must hold.
+    expect(
+      await names([
+        { key: "ciudad", op: "is", value: "málaga" },
+        { key: "empleados", op: "lt", value: "20" },
+      ]),
+    ).toEqual(["Garaje Este"]);
+    expect(await names([{ key: "web", op: "contains", value: "sur" }])).toEqual(["Motos Sur"]);
+    expect(await names([{ key: "status", op: "is", value: "new" }])).toHaveLength(3);
+
+    const grouped = await listProspects(db, tenant, table.id, { group: "ciudad", sort: "name" });
+    expect(grouped.groups).toEqual([
+      { value: "Málaga", n: 2 },
+      { value: "Sevilla", n: 1 },
+    ]);
+    // Rows come by group, then by the sort.
+    expect(grouped.rows.map((r) => r.companyName)).toEqual(["Autos Norte", "Garaje Este", "Motos Sur"]);
+    const bySector = await listProspects(db, tenant, table.id, { group: "sector" });
+    expect(bySector.groups).toEqual([
+      { value: "Coches", n: 1 },
+      { value: "Motos", n: 1 },
+      { value: null, n: 1 },
+    ]);
   });
 });

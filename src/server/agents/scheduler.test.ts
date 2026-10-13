@@ -10,7 +10,8 @@ import { listBases } from "../prospects/bases";
 import { listProspects } from "../prospects/service";
 import { addAgent, saveAgentInstructions, setAgentEnabled } from "../services/agents";
 import { prospectingSteer, runProspecting } from "./prospector";
-import { closeStaleRuns, describeNextRun, isDue, localClock, runDueAgents } from "./scheduler";
+import { describeSchedule, scheduleFromForm } from "@/lib/schedule";
+import { closeStaleRuns, describeNextRun, isDue, localClock, runDueAgents, worksOn } from "./scheduler";
 
 let db: Db;
 let close: () => Promise<void>;
@@ -87,6 +88,68 @@ describe("schedule", () => {
         tz,
       ),
     ).toBe(true);
+  });
+
+  it("works every N days, weeks or months, counting from the day it was set", () => {
+    // From Monday 5 October 2026.
+    const from = "2026-10-05";
+    const everyTwoDays = { kind: "daily" as const, time: "08:00", every: 2, from };
+    expect(worksOn(everyTwoDays, "2026-10-05", 1)).toBe(true);
+    expect(worksOn(everyTwoDays, "2026-10-06", 2)).toBe(false);
+    expect(worksOn(everyTwoDays, "2026-10-07", 3)).toBe(true);
+    expect(worksOn(everyTwoDays, "2026-10-03", 6)).toBe(false); // before it was set
+    // Mondays and Thursdays, one week yes and one no.
+    const fortnightly = {
+      kind: "weekly" as const,
+      time: "08:00",
+      days: [1, 4],
+      every: 2,
+      from: "2026-10-07",
+    };
+    expect(worksOn(fortnightly, "2026-10-08", 4)).toBe(true); // same week as `from`
+    expect(worksOn(fortnightly, "2026-10-12", 1)).toBe(false);
+    expect(worksOn(fortnightly, "2026-10-15", 4)).toBe(false);
+    expect(worksOn(fortnightly, "2026-10-19", 1)).toBe(true);
+    const quarterly = { kind: "monthly" as const, time: "08:00", day: 1, every: 3, from };
+    expect(worksOn(quarterly, "2026-11-01", 7)).toBe(false);
+    expect(worksOn(quarterly, "2027-01-01", 5)).toBe(true);
+    // Every 1 is every one.
+    expect(worksOn({ kind: "daily", time: "08:00", every: 1, from }, "2026-10-06", 2)).toBe(true);
+    expect(describeSchedule(fortnightly)).toBe("Cada 2 semanas (L J) a las 08:00");
+    expect(describeSchedule(everyTwoDays)).toBe("Cada 2 días a las 08:00");
+  });
+
+  it("reads the picker: never, once, or every N with its start", () => {
+    const form = (entries: [string, string][]) => {
+      const f = new FormData();
+      for (const [k, v] of entries) f.append(k, v);
+      return f;
+    };
+    expect(scheduleFromForm(form([["repeat", "never"]]))).toBeNull();
+    expect(
+      scheduleFromForm(
+        form([
+          ["repeat", "weekly"],
+          ["days", "1"],
+          ["days", "4"],
+          ["every", "2"],
+          ["from", "2026-10-07"],
+          ["time", "09:30"],
+        ]),
+      ),
+    ).toEqual({ kind: "weekly", time: "09:30", days: [1, 4], every: 2, from: "2026-10-07" });
+    expect(
+      scheduleFromForm(
+        form([
+          ["repeat", "daily"],
+          ["every", "1"],
+          ["time", "07:00"],
+        ]),
+      ),
+    ).toEqual({
+      kind: "daily",
+      time: "07:00",
+    });
   });
 });
 

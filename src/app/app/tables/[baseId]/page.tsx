@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
+import { Fragment } from "react";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -20,6 +21,13 @@ import { MenuButton } from "@/components/menu-button";
 import { connectionCapabilities } from "@/server/connectors/service";
 import { listOrgConnections } from "@/server/services/projects";
 import { DataGrid, GridCell, GridHead, GridRow, NARROW_COLUMN } from "@/components/data-grid";
+import {
+  filterFields,
+  filterParam,
+  parseFilters,
+  STATUS_OPTIONS,
+  type FilterField,
+} from "@/lib/table-filters";
 import { Badge, Button, cx, Input, LinkButton, Notice, PageHeader, Tooltip } from "@/components/ui";
 import { formatDateTime, plural } from "@/lib/format";
 import {
@@ -53,11 +61,13 @@ import {
   saveCellAction,
   saveColumnAction,
   toggleColumnAction,
+  setColumnWidthAction,
   toggleFieldAction,
 } from "../actions";
 import { fillingRows } from "@/server/agents/runs";
 import { CellState, cellTitle, COLUMN_ICONS, NotFound, Pending, WebLink } from "../cells";
 import { AddColumnHeader, ColumnHeader, FieldHeader, HiddenColumns } from "./column-header";
+import { FilterBar } from "./filter-bar";
 import { EditableCell, ExpandRow, NewRow, type CellEditor, type NewRowField } from "./grid-editing";
 import { env } from "@/server/env";
 import { TableIntake, TableSettings } from "./table-settings";
@@ -87,6 +97,22 @@ const FILTERS: { key?: ProspectStatus; label: string }[] = [
   { key: "exported", label: "Exportados" },
   { key: "discarded", label: "Descartados" },
 ];
+
+/** How a group's value reads in its header. */
+function groupLabel(key: string, value: string | null, fields: FilterField[]): string {
+  if (value === null || value === "" || value === "[]") return "(vacío)";
+  const field = fields.find((f) => f.key === key);
+  if (field?.type === "status") return STATUS_OPTIONS[value] ?? value;
+  if (field?.type === "bool") return value === "true" ? "Sí" : "No";
+  if (field?.type === "multi") {
+    try {
+      return (JSON.parse(value) as string[]).join(", ") || "(vacío)";
+    } catch {
+      return value;
+    }
+  }
+  return value;
+}
 
 type GridField = { kind: "system"; key: SystemField } | { kind: "column"; column: BaseColumn };
 const system = (key: SystemField): GridField => ({ kind: "system", key });
@@ -152,6 +178,13 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
   const stage = stageColumn(base.columns);
   const board = Boolean(stage) && query.view === "board";
   const sending = canEdit && query.send === "1";
+  // Filters on any field (?f=) and grouping by one (?group=), in the table view.
+  const filterFieldList = filterFields(base.rowKind, base.columns, SYSTEM_FIELD_LABELS);
+  const filters = parseFilters(query.f, filterFieldList);
+  const group =
+    !board && typeof query.group === "string" && filterFieldList.some((f) => f.key === query.group)
+      ? query.group
+      : undefined;
   const agents = await baseAgents(db, tenant, baseId);
   // The prospecting agent that fills it (the first active one, if several do).
   const prospecting = agents.filter((a) => a.agentType === "prospecting");
@@ -160,6 +193,8 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
     listProspects(db, tenant, baseId, {
       status,
       q,
+      filters,
+      group,
       sort,
       dir,
       limit: board ? BOARD_SIZE : PAGE_SIZE,
@@ -189,6 +224,14 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
     ...columns.map((column) => ({ kind: "column" as const, column })),
     ...(["status", "sources", "created"] as const).filter(shown).map(system),
   ];
+  // Widths: what someone dragged, or a default by kind (the row's name wider).
+  const widthOf = (f: GridField, i: number) => {
+    const key = f.kind === "system" ? f.key : f.column.id;
+    const fallback = i === 0 ? 240 : f.kind === "system" && f.key === "created" ? 170 : 180;
+    return { key, width: base.columnWidths[key] ?? fallback };
+  };
+  const gridColumns = [{ key: "id", width: 56 }, ...fields.map(widthOf), { key: "add", width: 56 }];
+  const resizeColumn = setColumnWidthAction.bind(null, baseId);
   const hidden = [
     ...hiddenFields.map((f) => ({ id: `field:${f}`, name: SYSTEM_FIELD_LABELS[f] })),
     ...base.columns.filter((c) => c.hidden),
@@ -210,9 +253,12 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
       if (v === undefined || v === "" || (k === "page" && Number(v) === 1)) continue;
       params.set(k, String(v));
     }
+    for (const f of filters) params.append("f", filterParam(f));
+    if (group && !("group" in changes)) params.set("group", group);
     const s = params.toString();
     return s ? `${path}?${s}` : path;
   };
+  const currentSearch = href({}).split("?")[1] ?? "";
   const sortLink = (key: string, label: React.ReactNode, align: "start" | "end" = "start") => {
     const active = sort === key;
     const nextDir = active && (dir ?? "asc") === "asc" ? "desc" : "asc";
@@ -394,6 +440,15 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                     );
                   })}
                 </nav>
+                {!board ? (
+                  <FilterBar
+                    path={path}
+                    search={currentSearch}
+                    fields={filterFieldList}
+                    filters={filters}
+                    group={group}
+                  />
+                ) : null}
               </>
             ) : null}
             <span className="ml-auto flex flex-wrap items-center gap-1">
@@ -444,6 +499,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
             />
           ) : (
             <DataGrid
+              columns={gridColumns}
               head={
                 <>
                   <GridHead sticky className={cx(NARROW_COLUMN, "px-2")} align="end">
@@ -454,7 +510,12 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                       const key = SORT_KEYS[f.key];
                       const label = SYSTEM_FIELD_LABELS[f.key];
                       return (
-                        <GridHead key={f.key} sticky={i === 0 ? "second" : false} align="start">
+                        <GridHead
+                          key={f.key}
+                          sticky={i === 0 ? "second" : false}
+                          align="start"
+                          resize={{ key: f.key, save: resizeColumn }}
+                        >
                           {canEdit ? (
                             <FieldHeader
                               label={label}
@@ -486,7 +547,12 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                     const end = c.type === "number";
                     const at = columns.indexOf(c);
                     return (
-                      <GridHead key={c.id} align={end ? "end" : "start"} dropId={canEdit ? c.id : undefined}>
+                      <GridHead
+                        key={c.id}
+                        align={end ? "end" : "start"}
+                        dropId={canEdit ? c.id : undefined}
+                        resize={{ key: c.id, save: resizeColumn }}
+                      >
                         {canEdit ? (
                           <ColumnHeader
                             column={c}
@@ -530,152 +596,174 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                 </>
               }
             >
-              {data.rows.map((r) => {
+              {data.rows.map((r, n) => {
                 const name = (person ? r.personName : r.companyName) || "esta fila";
+                // Grouped: a header before the first row of each value, with how many there are.
+                const startsGroup = group && (n === 0 || data.rows[n - 1].groupValue !== r.groupValue);
+                const groupCount = data.groups?.find((g) => g.value === r.groupValue)?.n ?? 0;
                 return (
-                  <GridRow key={r.id}>
-                    <GridCell sticky align="end" className={cx(NARROW_COLUMN, "px-2 font-normal text-muted")}>
-                      {r.seq}
-                    </GridCell>
-                    {fields.map((f, i) => {
-                      if (f.kind === "column") {
-                        const c = f.column;
-                        return (
-                          <GridCell
-                            key={c.id}
-                            align={c.type === "number" ? "end" : "start"}
-                            title={filledByAgent ? cellTitle(r.cellMeta[c.id]) : undefined}
-                          >
-                            <EditableCell
-                              rowId={r.id}
-                              field={c.id}
-                              editor={{ type: c.type, options: c.options }}
-                              value={r.data[c.id]}
-                              save={saveCell}
-                              label={`${c.name} de ${name}`}
-                            >
-                              <CellState
-                                column={c}
-                                value={r.data[c.id]}
-                                meta={r.cellMeta[c.id]}
-                                agent={filledByAgent}
-                                pending={
-                                  filledByAgent &&
-                                  r.status !== "discarded" &&
-                                  isPendingCell(c, r.data[c.id], r.cellMeta[c.id])
-                                }
-                                filling={filling.has(r.id)}
-                              />
-                            </EditableCell>
-                          </GridCell>
-                        );
-                      }
-                      const label = `${SYSTEM_FIELD_LABELS[f.key]} de ${name}`;
-                      switch (f.key) {
-                        case "person":
-                        case "company": {
-                          const value = f.key === "person" ? r.personName : r.companyName;
+                  <Fragment key={r.id}>
+                    {startsGroup ? (
+                      <tr>
+                        <td
+                          colSpan={gridColumns.length}
+                          className="h-9 border-b border-border bg-ink-50 px-3 text-xs font-medium text-ink-700"
+                        >
+                          <span className="sticky left-3">
+                            {groupLabel(group, r.groupValue, filterFieldList)}{" "}
+                            <span className="font-normal text-muted tabular-nums">· {groupCount}</span>
+                          </span>
+                        </td>
+                      </tr>
+                    ) : null}
+                    <GridRow>
+                      <GridCell
+                        sticky
+                        align="end"
+                        className={cx(NARROW_COLUMN, "px-2 font-normal text-muted")}
+                      >
+                        {r.seq}
+                      </GridCell>
+                      {fields.map((f, i) => {
+                        if (f.kind === "column") {
+                          const c = f.column;
                           return (
                             <GridCell
-                              key={f.key}
-                              sticky={i === 0 ? "second" : false}
-                              className={i === 0 ? "pr-8" : undefined}
+                              key={c.id}
+                              align={c.type === "number" ? "end" : "start"}
+                              title={filledByAgent ? cellTitle(r.cellMeta[c.id]) : undefined}
                             >
                               <EditableCell
                                 rowId={r.id}
-                                field={f.key}
-                                editor={{ type: "text" }}
-                                value={value}
+                                field={c.id}
+                                editor={{ type: c.type, options: c.options }}
+                                value={r.data[c.id]}
                                 save={saveCell}
-                                label={label}
+                                label={`${c.name} de ${name}`}
                               >
-                                {value}
+                                <CellState
+                                  column={c}
+                                  value={r.data[c.id]}
+                                  meta={r.cellMeta[c.id]}
+                                  agent={filledByAgent}
+                                  pending={
+                                    filledByAgent &&
+                                    r.status !== "discarded" &&
+                                    isPendingCell(c, r.data[c.id], r.cellMeta[c.id])
+                                  }
+                                  filling={filling.has(r.id)}
+                                />
                               </EditableCell>
-                              {i === 0 ? <ExpandRow href={href({ row: r.id })} label={name} /> : null}
                             </GridCell>
                           );
                         }
-                        case "web":
-                          return (
-                            <GridCell key={f.key}>
-                              <EditableCell
-                                rowId={r.id}
-                                field="web"
-                                editor={{ type: "url" }}
-                                value={r.website}
-                                save={saveCell}
-                                label={label}
+                        const label = `${SYSTEM_FIELD_LABELS[f.key]} de ${name}`;
+                        switch (f.key) {
+                          case "person":
+                          case "company": {
+                            const value = f.key === "person" ? r.personName : r.companyName;
+                            return (
+                              <GridCell
+                                key={f.key}
+                                sticky={i === 0 ? "second" : false}
+                                className={i === 0 ? "pr-8" : undefined}
                               >
-                                {r.website ? <WebLink href={r.website} /> : null}
-                              </EditableCell>
-                            </GridCell>
-                          );
-                        case "status":
-                          return (
-                            <GridCell key={f.key}>
-                              <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge>
-                            </GridCell>
-                          );
-                        case "created":
-                          return (
-                            <GridCell key={f.key} className="text-muted tabular-nums">
-                              {formatDateTime(r.createdAt)}
-                            </GridCell>
-                          );
-                        case "sources":
-                          return (
-                            <GridCell key={f.key}>
-                              <span className="inline-flex gap-2">
-                                {r.sources.map((src, n) => (
-                                  <a
-                                    key={src}
-                                    href={src}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    title={src}
-                                    className="text-accent hover:underline"
-                                  >
-                                    {n + 1}
-                                  </a>
-                                ))}
-                              </span>
-                            </GridCell>
-                          );
-                      }
-                    })}
-                    <GridCell>
-                      <form
-                        action={changeProspectStatus.bind(
-                          null,
-                          baseId,
-                          [r.id],
-                          r.status === "discarded" ? "new" : "discarded",
-                        )}
-                      >
-                        {r.status === "discarded" ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            iconOnly
-                            aria-label={`Recuperar ${name}`}
-                            title="Recuperar"
-                          >
-                            <Undo2 />
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="dangerGhost"
-                            size="sm"
-                            iconOnly
-                            aria-label={`Descartar ${name}`}
-                            title="Descartar"
-                          >
-                            <X />
-                          </Button>
-                        )}
-                      </form>
-                    </GridCell>
-                  </GridRow>
+                                <EditableCell
+                                  rowId={r.id}
+                                  field={f.key}
+                                  editor={{ type: "text" }}
+                                  value={value}
+                                  save={saveCell}
+                                  label={label}
+                                >
+                                  {value}
+                                </EditableCell>
+                                {i === 0 ? <ExpandRow href={href({ row: r.id })} label={name} /> : null}
+                              </GridCell>
+                            );
+                          }
+                          case "web":
+                            return (
+                              <GridCell key={f.key}>
+                                <EditableCell
+                                  rowId={r.id}
+                                  field="web"
+                                  editor={{ type: "url" }}
+                                  value={r.website}
+                                  save={saveCell}
+                                  label={label}
+                                >
+                                  {r.website ? <WebLink href={r.website} /> : null}
+                                </EditableCell>
+                              </GridCell>
+                            );
+                          case "status":
+                            return (
+                              <GridCell key={f.key}>
+                                <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge>
+                              </GridCell>
+                            );
+                          case "created":
+                            return (
+                              <GridCell key={f.key} className="text-muted tabular-nums">
+                                {formatDateTime(r.createdAt)}
+                              </GridCell>
+                            );
+                          case "sources":
+                            return (
+                              <GridCell key={f.key}>
+                                <span className="inline-flex gap-2">
+                                  {r.sources.map((src, n) => (
+                                    <a
+                                      key={src}
+                                      href={src}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      title={src}
+                                      className="text-accent hover:underline"
+                                    >
+                                      {n + 1}
+                                    </a>
+                                  ))}
+                                </span>
+                              </GridCell>
+                            );
+                        }
+                      })}
+                      <GridCell>
+                        <form
+                          action={changeProspectStatus.bind(
+                            null,
+                            baseId,
+                            [r.id],
+                            r.status === "discarded" ? "new" : "discarded",
+                          )}
+                        >
+                          {r.status === "discarded" ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              iconOnly
+                              aria-label={`Recuperar ${name}`}
+                              title="Recuperar"
+                            >
+                              <Undo2 />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="dangerGhost"
+                              size="sm"
+                              iconOnly
+                              aria-label={`Descartar ${name}`}
+                              title="Descartar"
+                            >
+                              <X />
+                            </Button>
+                          )}
+                        </form>
+                      </GridCell>
+                    </GridRow>
+                  </Fragment>
                 );
               })}
               <NewRow

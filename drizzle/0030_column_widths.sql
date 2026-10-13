@@ -1,0 +1,1 @@
+ALTER TABLE "prospect_bases" ADD COLUMN "column_widths" jsonb DEFAULT '{}'::jsonb NOT NULL;
