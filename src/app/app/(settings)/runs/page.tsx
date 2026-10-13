@@ -2,10 +2,9 @@ import { AgentTile } from "@/components/agent-look-fields";
 import { Card } from "@/components/ui";
 import { SubmitOnChange } from "@/app/app/conversations/inbox-client";
 import { getRun, listRuns, monthStart, runTotals } from "@/server/agents/runs";
-import { requireTenant } from "@/server/auth/session";
+import { listVisibleProjects, projectAccess, requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { AGENT_TYPES, type AgentType } from "@/server/db/schema";
-import { listProjects } from "@/server/services/projects";
 import { RunLog, RunSteps, usd } from "./run-log";
 
 export const metadata = { title: "Ejecuciones" };
@@ -41,11 +40,11 @@ export default async function RunsPage({ searchParams }: PageProps<"/app/runs">)
   const db = getDb();
   const periodKey = PERIODS.some((p) => p.value === one("period")) ? one("period")! : "month";
   const { since, until } = period(periodKey);
-  const projects = await listProjects(db, tenant);
+  const projects = await listVisibleProjects();
   const projectId = projects.some((p) => p.id === one("project")) ? one("project") : undefined;
   const agentType = AGENT_TYPES.find((a) => a === one("agent"));
   const before = one("before") ? new Date(one("before")!) : until;
-  const filter = { projectId, agentType, since };
+  const filter = { projectId, projectIds: await projectAccess(), agentType, since };
   const [{ runs, next }, totals, open] = await Promise.all([
     listRuns(db, tenant, { ...filter, before }),
     runTotals(db, tenant, { ...filter, until }),

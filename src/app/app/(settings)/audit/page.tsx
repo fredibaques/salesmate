@@ -1,19 +1,22 @@
 import { ScrollText } from "lucide-react";
 import { Card, EmptyState, Table, Td } from "@/components/ui";
 import { describeEvent, formatDateTime } from "@/lib/format";
-import { requireTenant } from "@/server/auth/session";
+import { listVisibleProjects, projectAccess, requireTenant } from "@/server/auth/session";
+import { canSee } from "@/server/services/access";
 import { getDb } from "@/server/db/client";
-import { listAudit, listProjects } from "@/server/services/projects";
+import { listAudit } from "@/server/services/projects";
 
 export const metadata = { title: "Auditoría" };
 
 export default async function AuditPage() {
   const tenant = await requireTenant();
   const db = getDb();
-  const [events, projects] = await Promise.all([
+  const [all, projects, visible] = await Promise.all([
     listAudit(db, tenant, { limit: 300 }),
-    listProjects(db, tenant),
+    listVisibleProjects(),
+    projectAccess(),
   ]);
+  const events = all.filter((e) => canSee(visible, e.projectId));
   const projectName = new Map(projects.map((p) => [p.id, p.name]));
 
   return (

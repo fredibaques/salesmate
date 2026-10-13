@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { askCopilot, type CopilotTurn } from "@/server/agents/copilot";
-import { requireTenant } from "@/server/auth/session";
+import { requireProjectAccess } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { gatewayDeps } from "@/server/gateway/runtime";
 import { requireOrgLlm } from "@/server/llm/org-ai";
@@ -14,7 +14,8 @@ export async function ask(
   history: CopilotTurn[],
   question: string,
 ): Promise<CopilotReply> {
-  const tenant = await requireTenant();
+  const tenant = await requireProjectAccess(projectId).catch(() => null);
+  if (!tenant) return { ok: false, error: "No tienes acceso a este proyecto." };
   if (!question.trim()) return { ok: false, error: "Escribe una pregunta." };
   try {
     const db = getDb();

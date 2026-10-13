@@ -1,5 +1,6 @@
 import { FileInput, Video } from "lucide-react";
 import Link from "next/link";
+import { LinkRow } from "@/components/link-row";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
 import { Badge, Card, EmptyState, Field, Input, Table, Td, Toolbar } from "@/components/ui";
@@ -57,11 +58,11 @@ export default async function MeetingsPage({ params }: PageProps<"/app/projects/
             {rows.map((m) => {
               const status = TRANSCRIPT_STATUS[m.transcriptStatus];
               return (
-                <tr key={m.id} className="group relative transition-colors hover:bg-background">
+                <LinkRow key={m.id} href={`/app/projects/${projectId}/meetings/${m.id}`}>
                   <Td>
                     <Link
                       href={`/app/projects/${projectId}/meetings/${m.id}`}
-                      className="font-medium group-hover:text-accent after:absolute after:inset-0"
+                      className="font-medium group-hover:text-accent"
                     >
                       {m.title}
                     </Link>
@@ -76,7 +77,7 @@ export default async function MeetingsPage({ params }: PageProps<"/app/projects/
                   <Td>
                     <Badge tone={status.tone}>{status.label}</Badge>
                   </Td>
-                </tr>
+                </LinkRow>
               );
             })}
           </Table>

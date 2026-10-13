@@ -33,7 +33,8 @@ import {
   type SystemField,
 } from "@/lib/prospect-columns";
 import { PROSPECT_STATUSES } from "@/server/db/schema";
-import { requireTenant } from "@/server/auth/session";
+import { projectAccess, requireTenant } from "@/server/auth/session";
+import { canSee } from "@/server/services/access";
 import { getDb } from "@/server/db/client";
 import { baseAgents, getBase } from "@/server/prospects/bases";
 import { completionCost, countPendingCells } from "@/server/prospects/complete";
@@ -137,7 +138,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
   const tenant = await requireTenant();
   const db = getDb();
   const base = await getBase(db, tenant, baseId);
-  if (!base) notFound();
+  if (!base || !canSee(await projectAccess(), base.projectId)) notFound();
 
   const status = PROSPECT_STATUSES.find((s) => s === query.status);
   const q = typeof query.q === "string" ? query.q : "";

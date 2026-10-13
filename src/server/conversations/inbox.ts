@@ -116,7 +116,14 @@ async function pendingByConversation(tx: Parameters<Parameters<typeof withTenant
 export async function listInbox(
   db: Db,
   tenant: User,
-  filter: { projectId?: string; box?: InboxBox | "all"; channel?: string; q?: string } = {},
+  filter: {
+    projectId?: string;
+    /** Only these projects (a member's shared ones); null or absent: all. */
+    projectIds?: string[] | null;
+    box?: InboxBox | "all";
+    channel?: string;
+    q?: string;
+  } = {},
 ): Promise<{ rows: InboxRow[]; counts: Record<InboxBox | "all", number> }> {
   return withTenant(db, tenant, async (tx) => {
     const convs = await tx
@@ -129,7 +136,12 @@ export async function listInbox(
       .from(conversations)
       .innerJoin(projects, eq(projects.id, conversations.projectId))
       .leftJoin(contacts, eq(contacts.id, conversations.contactId))
-      .where(filter.projectId ? eq(conversations.projectId, filter.projectId) : undefined)
+      .where(
+        and(
+          filter.projectId ? eq(conversations.projectId, filter.projectId) : undefined,
+          filter.projectIds ? inArray(conversations.projectId, [...filter.projectIds, NO_PROJECT]) : undefined,
+        ),
+      )
       .orderBy(sql`${conversations.lastMessageAt} desc nulls last`)
       .limit(1000);
     const ids = convs.map((c) => c.conversation.id);
@@ -236,6 +248,7 @@ async function conversationsOf(
   tx: Parameters<Parameters<typeof withTenant>[2]>[0],
   key: string,
   projectId?: string,
+  projectIds?: string[] | null,
 ) {
   const [kind, ...rest] = key.includes(":") ? key.split(":") : ["c", key];
   const value = rest.join(":");
@@ -250,8 +263,23 @@ async function conversationsOf(
   return tx
     .select()
     .from(conversations)
-    .where(and(who, projectId ? eq(conversations.projectId, projectId) : undefined))
+    .where(
+      and(
+        who,
+        projectId ? eq(conversations.projectId, projectId) : undefined,
+        projectIds ? inArray(conversations.projectId, [...projectIds, NO_PROJECT]) : undefined,
+      ),
+    )
     .orderBy(sql`${conversations.lastMessageAt} desc nulls last`);
+}
+
+/** Keeps `inArray` valid when someone has no project shared: matches nothing. */
+const NO_PROJECT = "00000000-0000-0000-0000-000000000000";
+
+/** The project a person's answers go out from (their latest conversation's), or null. */
+export async function personProjectId(db: Db, tenant: Pick<TenantContext, "orgId">, key: string) {
+  const [latest] = await withTenant(db, tenant, (tx) => conversationsOf(tx, key));
+  return latest?.projectId ?? null;
 }
 
 const WHATSAPP_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -265,11 +293,11 @@ export async function getPerson(
   db: Db,
   tenant: Pick<TenantContext, "orgId">,
   key: string,
-  options: { now?: Date; projectId?: string } = {},
+  options: { now?: Date; projectId?: string; projectIds?: string[] | null } = {},
 ) {
   const now = options.now ?? new Date();
   return withTenant(db, tenant, async (tx) => {
-    const convs = await conversationsOf(tx, key, options.projectId);
+    const convs = await conversationsOf(tx, key, options.projectId, options.projectIds);
     if (!convs.length) return null;
     const ids = convs.map((c) => c.id);
     // Answers go out from the project of their latest conversation.

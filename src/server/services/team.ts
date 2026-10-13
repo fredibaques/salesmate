@@ -3,8 +3,10 @@ import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { audit } from "../audit";
 import type { Db } from "../db/client";
-import { invitation, member, organization, user } from "../db/schema";
+import { invitation, member, organization, projectMembers, user } from "../db/schema";
 import { withSystem, withTenant } from "../db/tenant";
+import { invitationEmail, sendSystemEmail } from "../mail";
+import { grantInvitationProjects } from "./access";
 
 /**
  * People in an organization. Owners and admins invite people (by link: the
@@ -209,7 +211,13 @@ export async function removeMember(db: Db, actor: TeamActor, memberId: string) {
   if (target.role === "owner" && (await ownerCount(db, actor.orgId)) <= 1) {
     throw new Error("La organización necesita al menos un propietario.");
   }
-  await withSystem(db, (tx) => tx.delete(member).where(eq(member.id, memberId)));
+  await withSystem(db, async (tx) => {
+    await tx.delete(member).where(eq(member.id, memberId));
+    // The projects shared with them go too: coming back means being shared again.
+    await tx
+      .delete(projectMembers)
+      .where(and(eq(projectMembers.orgId, actor.orgId), eq(projectMembers.userId, target.userId)));
+  });
   await withTenant(db, ctx(actor), (t) =>
     audit(t, ctx(actor), {
       event: "member.removed",
@@ -307,6 +315,7 @@ export async function acceptInvitation(
         createdAt: now,
       });
     }
+    await grantInvitationProjects(tx, invitationId, person.id);
   });
   const actor = { orgId: view.organizationId, actorType: "user" as const, actorId: person.id };
   await withTenant(db, actor, (t) =>
@@ -318,4 +327,51 @@ export async function acceptInvitation(
     }),
   );
   return view.organizationId;
+}
+
+/**
+ * Emails a pending invitation its link (when SalesMate's emails are set up).
+ * Used right after inviting and from «Reenviar».
+ */
+export async function emailInvitation(
+  db: Db,
+  actor: TeamActor & { name: string; organizationName: string },
+  invitationId: string,
+  input: { appUrl: string; fetch?: typeof fetch },
+  now = new Date(),
+) {
+  canManage(actor);
+  const [row] = await withSystem(db, (tx) =>
+    tx
+      .select({ email: invitation.email })
+      .from(invitation)
+      .where(
+        and(
+          eq(invitation.id, invitationId),
+          eq(invitation.organizationId, actor.orgId),
+          eq(invitation.status, "pending"),
+          gt(invitation.expiresAt, now),
+        ),
+      ),
+  );
+  if (!row) throw new Error("Esa invitación ya no está pendiente.");
+  await sendSystemEmail(
+    invitationEmail({
+      to: row.email,
+      inviter: actor.name,
+      organization: actor.organizationName,
+      link: `${input.appUrl}/invite/${invitationId}`,
+      days: INVITATION_DAYS,
+    }),
+    input.fetch,
+  );
+  await withTenant(db, ctx(actor), (t) =>
+    audit(t, ctx(actor), {
+      event: "member.invitation_emailed",
+      entityType: "invitation",
+      entityId: invitationId,
+      data: { email: row.email },
+    }),
+  );
+  return row.email;
 }

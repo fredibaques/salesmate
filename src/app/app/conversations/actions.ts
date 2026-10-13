@@ -2,10 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/action-form";
-import { requireTenant } from "@/server/auth/session";
+import { requireProjectAccess, requireTenant } from "@/server/auth/session";
 import {
   addNote,
   changePerson,
+  personProjectId,
   replyToPerson,
   whatsappTemplates,
   type PersonChange,
@@ -15,13 +16,19 @@ import { getDb } from "@/server/db/client";
 import { list, runForm, str } from "@/server/form";
 import { gatewayDeps } from "@/server/gateway/runtime";
 
+/** A member acts on a person only if the project their answers go out from is shared with them. */
+async function requirePerson(key: string) {
+  const tenant = await requireTenant();
+  return requireProjectAccess(await personProjectId(getDb(), tenant, key));
+}
+
 /** The inbox shows in its section and in each project's tab: refresh everything under /app. */
 const refresh = () => revalidatePath("/app", "layout");
 
 /** A person's reply from the inbox, by email or WhatsApp (through the gateway). */
 export async function replyAction(key: string, _: FormState, form: FormData): Promise<FormState> {
   const result = await runForm(async () => {
-    const tenant = await requireTenant();
+    const tenant = await requirePerson(key);
     const channel = str(form, "channel") === "whatsapp" ? "whatsapp" : "email";
     const templateName = str(form, "templateName");
     return replyToPerson(gatewayDeps(), tenant, key, {
@@ -45,7 +52,7 @@ export async function replyAction(key: string, _: FormState, form: FormData): Pr
 /** A note for the team on the thread. */
 export async function noteAction(key: string, _: FormState, form: FormData): Promise<FormState> {
   const result = await runForm(async () => {
-    const tenant = await requireTenant();
+    const tenant = await requirePerson(key);
     await addNote(
       getDb(),
       tenant,
@@ -69,7 +76,7 @@ const CHANGE_MESSAGES: Record<PersonChange, string> = {
 /** Takes a person over from the agents, gives them back, closes or reopens them. */
 export async function changePersonAction(key: string, change: PersonChange): Promise<FormState> {
   const result = await runForm(async () => {
-    await changePerson(getDb(), await requireTenant(), key, change);
+    await changePerson(getDb(), await requirePerson(key), key, change);
     return CHANGE_MESSAGES[change];
   });
   refresh();
@@ -81,7 +88,7 @@ export async function templatesAction(
   key: string,
 ): Promise<{ ok: true; templates: WhatsappTemplate[] } | { ok: false; message: string }> {
   try {
-    const tenant = await requireTenant();
+    const tenant = await requirePerson(key);
     return { ok: true, templates: await whatsappTemplates({ db: getDb() }, tenant, key) };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
