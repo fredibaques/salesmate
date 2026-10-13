@@ -12,7 +12,7 @@ import {
 import { MenuSettingsButton } from "@/components/menu-settings";
 import { ToastProvider } from "@/components/toast";
 import { Tooltip } from "@/components/ui";
-import { listMemberships, requireTenant } from "@/server/auth/session";
+import { listMemberships, listVisibleProjects, requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { AgentIcon, AgentStatusDot, agentState } from "@/components/agent-look-fields";
 import { agentName } from "@/lib/agents";
@@ -25,7 +25,6 @@ import {
   type NavGroup,
   type NavSection,
 } from "@/server/services/preferences";
-import { listProjects } from "@/server/services/projects";
 import { signOut, switchOrganization } from "./actions";
 import { NewProjectButton } from "./projects/new-project";
 
@@ -33,7 +32,7 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
   const tenant = await requireTenant();
   const db = getDb();
   const [allProjects, memberships, agents, nav] = await Promise.all([
-    listProjects(db, tenant),
+    listVisibleProjects(),
     listMemberships(tenant.userId),
     listSidebarAgents(db, tenant),
     getNavPreferences(db, tenant),

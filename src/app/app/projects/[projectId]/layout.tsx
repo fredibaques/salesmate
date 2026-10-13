@@ -4,7 +4,8 @@ import { FolderKanban, OctagonPause, Play } from "lucide-react";
 import { SectionChrome } from "@/components/section-chrome";
 import { Badge, Button, IconTile, Notice, PageHeader } from "@/components/ui";
 import { colorLook } from "@/lib/agent-look";
-import { requireTenant } from "@/server/auth/session";
+import { projectAccess, requireTenant } from "@/server/auth/session";
+import { canSee } from "@/server/services/access";
 import { getDb } from "@/server/db/client";
 import { getProject } from "@/server/services/projects";
 import { toggleAgents } from "./actions";
@@ -12,6 +13,8 @@ import { toggleAgents } from "./actions";
 export default async function ProjectLayout({ children, params }: LayoutProps<"/app/projects/[projectId]">) {
   const { projectId } = await params;
   const tenant = await requireTenant();
+  // A member only opens the projects shared with them.
+  if (!canSee(await projectAccess(), projectId)) notFound();
   const project = await getProject(getDb(), tenant, projectId).catch(() => null);
   if (!project) notFound();
   const base = `/app/projects/${project.id}`;

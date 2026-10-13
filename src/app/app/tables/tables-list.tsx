@@ -1,5 +1,6 @@
 import { Building2, User } from "lucide-react";
 import Link from "next/link";
+import { LinkRow } from "@/components/link-row";
 import { Card, Table, Td } from "@/components/ui";
 import { formatDateTime, plural } from "@/lib/format";
 import type { listAllBases } from "@/server/prospects/bases";
@@ -33,11 +34,11 @@ export function TablesList({
         ]}
       >
         {bases.map((b, i) => (
-          <tr key={b.id} className="relative transition-colors hover:bg-ink-25">
+          <LinkRow key={b.id} href={`/app/tables/${b.id}`}>
             <Td>
               <Link
                 href={`/app/tables/${b.id}`}
-                className="inline-flex items-center gap-2 font-medium after:absolute after:inset-0 hover:text-accent"
+                className="inline-flex items-center gap-2 font-medium group-hover:text-accent"
               >
                 {b.rowKind === "person" ? (
                   <User className="size-4 text-muted" aria-hidden />
@@ -56,7 +57,7 @@ export function TablesList({
               {b.agents.length ? b.agentNames.join(", ") : "A mano o formulario"}
             </Td>
             <Td className="whitespace-nowrap text-muted">{formatDateTime(b.lastActivity)}</Td>
-          </tr>
+          </LinkRow>
         ))}
       </Table>
     </Card>

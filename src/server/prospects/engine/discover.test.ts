@@ -6,7 +6,7 @@ import { mockFetch } from "../../../../tests/helpers/fetch";
 import { runProspecting } from "../../agents/prospector";
 import { createDataConnection } from "../../connectors/service";
 import type { Db } from "../../db/client";
-import { agentConfigs, projects, webPages } from "../../db/schema";
+import { agentConfigs, agentEvents, projects, webPages } from "../../db/schema";
 import { withSystem, withTenant, type TenantContext } from "../../db/tenant";
 import type { LlmRequest } from "../../llm/client";
 import { addAgent } from "../../services/agents";
@@ -199,7 +199,8 @@ describe("prospecting with Serper connected", () => {
         reader: fakeWeb().reader,
       },
       tenant,
-      { agentId: agent.id, trigger: "manual" },
+      // The person asks for 5 new rows.
+      { agentId: agent.id, trigger: "manual", wanted: 5 },
     );
 
     // Three calls to the small model, none with tools: the agent loop didn't run.
@@ -211,6 +212,33 @@ describe("prospecting with Serper connected", () => {
       tx.select().from(agentConfigs).where(eq(agentConfigs.id, agent.id)),
     );
     expect(config.settings.discovery?.usedQueries).toEqual(["concesionario Málaga"]);
+    // It found 1 of the 5 asked for: the other 4 are queued for the next run.
+    expect(result.summary).toContain("Faltan 4 de las 5 filas pedidas");
+    const queued = await withTenant(db, tenant, (tx) =>
+      tx.select().from(agentEvents).where(eq(agentEvents.agentConfigId, agent.id)),
+    );
+    expect(queued.map((e) => [e.kind, e.payload])).toEqual([["continue", { find: 4 }]]);
+
+    // The next run looks for those 4 (not «Completar vacíos»); with nothing new, it stops asking.
+    await withTenant(db, tenant, (tx) => tx.delete(agentEvents).where(eq(agentEvents.agentConfigId, agent.id)));
+    const next = scriptedLlm([plan(["compraventa coches Málaga"])]);
+    const again = await runProspecting(
+      {
+        db,
+        llm: next.llm,
+        gateway: { db, executor: { execute: async () => ({}) } },
+        connectors: { fetch },
+        reader: fakeWeb().reader,
+      },
+      tenant,
+      { agentId: agent.id, trigger: "event", events: [{ kind: "continue", payload: { find: 4 } }] },
+    );
+    expect(String(next.requests[0].messages[0].content)).toContain("concesionario Málaga");
+    expect(again).toMatchObject({ status: "completed", added: 0 });
+    const after = await withTenant(db, tenant, (tx) =>
+      tx.select().from(agentEvents).where(eq(agentEvents.agentConfigId, agent.id)),
+    );
+    expect(after).toEqual([]);
   });
 });
 

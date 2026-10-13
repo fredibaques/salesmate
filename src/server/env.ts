@@ -14,6 +14,10 @@ const schema = z.object({
   JINA_API_KEY: z.string().optional(),
   /** Shared secret for scheduler calls (Authorization: Bearer …). */
   CRON_SECRET: z.string().optional(),
+  /** Resend key for SalesMate's own emails (invitations). Without it, invitations are links to copy. */
+  RESEND_API_KEY: z.string().optional(),
+  /** Sender of those emails, on a domain verified in Resend: «SalesMate <hola@tudominio.com>». */
+  EMAIL_FROM: z.string().optional(),
 });
 
 export type Env = Omit<z.infer<typeof schema>, "DATABASE_URL" | "APP_URL"> & {

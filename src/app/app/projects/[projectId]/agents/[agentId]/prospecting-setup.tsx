@@ -15,6 +15,7 @@ import {
 import { MonthlyBudgetField } from "./budget-field";
 import { AI_PROVIDER_INFO } from "@/lib/ai-providers";
 import { goalProgress, monthSpendUsd } from "@/server/agents/automation";
+import { DEFAULT_FIND_PER_RUN, MAX_FIND_PER_RUN } from "@/server/agents/prospector";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { env } from "@/server/env";
@@ -130,6 +131,19 @@ export async function ProspectingSetup({ projectId, agentId }: { projectId: stri
               tip="Completar rellena las celdas vacías de filas que ya están en la tabla. No toca lo que ha escrito una persona."
             >
               <Segmented name="mode" options={MODES} defaultValue={s.mode ?? "find"} />
+            </Field>
+            <Field
+              label="Filas nuevas por ejecución"
+              tip="Las que busca cada vez que trabaja solo (programado o por avisos). Al pulsar «Ejecutar ahora» te pregunta cuántas, con este número de partida. Si una ejecución no llega, sigue en la siguiente hasta conseguirlas."
+            >
+              <Input
+                name="findPerRun"
+                type="number"
+                min={1}
+                max={MAX_FIND_PER_RUN}
+                defaultValue={s.findPerRun ?? DEFAULT_FIND_PER_RUN}
+                className="w-40"
+              />
             </Field>
             <Field
               label="Filas que quieres conseguir"

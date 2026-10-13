@@ -1,12 +1,13 @@
 import { Trash2 } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";
-import { Card, Chip, Field, FormSection, Input, Notice } from "@/components/ui";
+import { Card, Chip, Choice, Field, FormSection, Input, Notice } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
+import { projectPeople } from "@/server/services/access";
 import { getProject } from "@/server/services/projects";
 import { ProjectBasicsFields } from "../../profile-fields";
-import { deleteProjectAction, saveProject } from "../actions";
+import { deleteProjectAction, saveProject, shareProjectAction } from "../actions";
 import { SettingsNav } from "../section-navs";
 
 export const metadata = { title: "Ajustes del proyecto" };
@@ -27,7 +28,11 @@ export default async function ProjectSettingsPage({
   const { projectId } = await params;
   const tenant = await requireTenant();
   const db = getDb();
-  const project = await getProject(db, tenant, projectId);
+  const canEdit = tenant.role !== "member";
+  const [project, people] = await Promise.all([
+    getProject(db, tenant, projectId),
+    canEdit ? projectPeople(db, tenant.orgId, projectId) : Promise.resolve([]),
+  ]);
   const s = project!.settings;
   const sendDays = s.sendDays ?? [1, 2, 3, 4, 5];
 
@@ -74,7 +79,47 @@ export default async function ProjectSettingsPage({
           </ActionForm>
         </Card>
 
-        {tenant.role !== "member" ? (
+        {canEdit ? (
+          <Card
+            title="Personas con acceso"
+            tip="Quién de tu organización puede abrir este proyecto: sus tablas, conversaciones y aprobaciones. Quien administra la organización los ve todos."
+          >
+            <ActionForm
+              action={shareProjectAction.bind(null, projectId)}
+              submitLabel="Guardar"
+              cancel={false}
+              className="space-y-4"
+            >
+              <div className="grid gap-2 sm:grid-cols-2">
+                {people.map((p) =>
+                  p.role === "member" ? (
+                    <Choice
+                      key={p.userId}
+                      card
+                      name="userIds"
+                      value={p.userId}
+                      defaultChecked={p.access}
+                      label={p.name}
+                      description={p.email}
+                    />
+                  ) : (
+                    <Choice
+                      key={p.userId}
+                      card
+                      checked
+                      disabled
+                      readOnly
+                      label={p.name}
+                      description={`${p.role === "owner" ? "Propietario" : "Administrador"}: ve todos los proyectos`}
+                    />
+                  ),
+                )}
+              </div>
+            </ActionForm>
+          </Card>
+        ) : null}
+
+        {canEdit ? (
           <Card title="Eliminar el proyecto">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <p className="max-w-xl text-sm text-muted">

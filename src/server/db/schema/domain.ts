@@ -19,7 +19,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { AI_PROVIDERS } from "../../../lib/ai-providers";
 import { ROW_KINDS, type BaseColumn, type SystemField } from "../../../lib/prospect-columns";
-import { organization } from "./auth";
+import { invitation, organization, user } from "./auth";
 
 /**
  * Tenant isolation
@@ -240,6 +240,45 @@ export const projectIdentities = pgTable(
   (t) => [primaryKey({ columns: [t.projectId, t.identityId] }), tenantPolicy("project_identities")],
 );
 
+/**
+ * The members (role «member») a project is shared with. Owners and admins
+ * see every project; a member only the ones listed here.
+ */
+export const projectMembers = pgTable(
+  "project_members",
+  {
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    orgId: orgId(),
+    createdBy: text("created_by"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.projectId, t.userId] }),
+    index("project_members_user_idx").on(t.orgId, t.userId),
+    tenantPolicy("project_members"),
+  ],
+);
+
+/** Projects to share with someone once they accept their invitation. */
+export const invitationProjects = pgTable(
+  "invitation_projects",
+  {
+    invitationId: text("invitation_id")
+      .notNull()
+      .references(() => invitation.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    orgId: orgId(),
+  },
+  (t) => [primaryKey({ columns: [t.invitationId, t.projectId] }), tenantPolicy("invitation_projects")],
+);
+
 export const projectConnections = pgTable(
   "project_connections",
   {
@@ -387,6 +426,8 @@ export type ProspectingMode = (typeof PROSPECTING_MODES)[number];
 export type AgentSettings = {
   /** Prospecting: look for new rows, fill the empty cells of existing ones, or both. */
   mode?: ProspectingMode;
+  /** Prospecting: new rows each run looks for (10 if unset); «Buscar ahora» asks, with this as default. */
+  findPerRun?: number;
   /** Model of the organization's provider for this agent; none = the organization's. */
   model?: string;
   /** What else makes it work, besides its schedule and «Ejecutar ahora». */

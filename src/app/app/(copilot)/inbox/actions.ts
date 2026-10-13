@@ -1,9 +1,12 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import type { FormState } from "@/components/action-form";
-import { requireRole, requireTenant } from "@/server/auth/session";
-import { AGENT_TYPES, type AgentType } from "@/server/db/schema";
+import { requireProjectAccess, requireRole, requireTenant } from "@/server/auth/session";
+import { getDb } from "@/server/db/client";
+import { withTenant } from "@/server/db/tenant";
+import { actions, AGENT_TYPES, type AgentType } from "@/server/db/schema";
 import { runForm, str } from "@/server/form";
 import { decideAction, GatewayError, proposeAction } from "@/server/gateway/gateway";
 import { gatewayDeps } from "@/server/gateway/runtime";
@@ -34,6 +37,15 @@ function editedPayload(type: string, original: Record<string, unknown>, form: Fo
   }
 }
 
+/** A member decides only on actions of the projects shared with them. */
+async function requireActionAccess(actionId: string) {
+  const tenant = await requireTenant();
+  const [row] = await withTenant(getDb(), tenant, (tx) =>
+    tx.select({ projectId: actions.projectId }).from(actions).where(eq(actions.id, actionId)),
+  );
+  return requireProjectAccess(row?.projectId);
+}
+
 export async function approve(
   actionId: string,
   type: string,
@@ -42,7 +54,7 @@ export async function approve(
   form: FormData,
 ): Promise<FormState> {
   const result = await runForm(async () => {
-    const tenant = await requireTenant();
+    const tenant = await requireActionAccess(actionId);
     const payload = editedPayload(type, original, form);
     const edited = JSON.stringify(payload) !== JSON.stringify(original);
     const outcome = await decideAction(gatewayDeps(), tenant, {
@@ -59,7 +71,7 @@ export async function approve(
 
 export async function reject(actionId: string, _: FormState, form: FormData): Promise<FormState> {
   const result = await runForm(async () => {
-    const tenant = await requireTenant();
+    const tenant = await requireActionAccess(actionId);
     await decideAction(gatewayDeps(), tenant, {
       actionId,
       decision: "rejected",

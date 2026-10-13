@@ -33,7 +33,8 @@ import {
   type SystemField,
 } from "@/lib/prospect-columns";
 import { PROSPECT_STATUSES } from "@/server/db/schema";
-import { requireTenant } from "@/server/auth/session";
+import { projectAccess, requireTenant } from "@/server/auth/session";
+import { canSee } from "@/server/services/access";
 import { getDb } from "@/server/db/client";
 import { baseAgents, getBase } from "@/server/prospects/bases";
 import { completionCost, countPendingCells } from "@/server/prospects/complete";
@@ -41,7 +42,8 @@ import { getProspect, listProspects, type ProspectStatus } from "@/server/prospe
 import { listAgentRuns } from "@/server/services/agents";
 import { listProjects } from "@/server/services/projects";
 import { AiNotice } from "../../ai-notice";
-import { completeProspectsNow, runProspectingNow } from "../../projects/[projectId]/agents/actions";
+import { completeProspectsNow } from "../../projects/[projectId]/agents/actions";
+import { FindNowButton } from "../../projects/[projectId]/agents/find-now";
 import {
   addRowAction,
   changeProspectStatus,
@@ -137,7 +139,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
   const tenant = await requireTenant();
   const db = getDb();
   const base = await getBase(db, tenant, baseId);
-  if (!base) notFound();
+  if (!base || !canSee(await projectAccess(), base.projectId)) notFound();
 
   const status = PROSPECT_STATUSES.find((s) => s === query.status);
   const q = typeof query.q === "string" ? query.q : "";
@@ -266,14 +268,12 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
               </ActionForm>
             ) : null}
             {filledByAgent && canEdit ? (
-              <ActionForm
-                action={runProspectingNow.bind(null, filler!.projectId, filler!.id)}
-                submitLabel="Buscar ahora"
-                submitVariant="secondary"
-                className="flex flex-wrap items-center gap-3"
-              >
-                <input type="hidden" name="back" value={path} />
-              </ActionForm>
+              <FindNowButton
+                projectId={filler!.projectId}
+                agentId={filler!.id}
+                settings={filler!.settings}
+                back={path}
+              />
             ) : null}
             {data.total > 0 ? (
               <MenuButton

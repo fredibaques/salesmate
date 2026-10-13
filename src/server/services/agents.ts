@@ -564,6 +564,8 @@ export const instructionsInput = z.object({
   settings: z
     .object({
       mode: z.enum(PROSPECTING_MODES).optional(),
+      /** New rows each run looks for. */
+      findPerRun: z.number().int().min(1, "Pide al menos 1 fila nueva.").max(200, "Como mucho 200 filas nuevas por vez.").optional(),
       /** "" = the organization's model. */
       model: z.string().optional(),
     })

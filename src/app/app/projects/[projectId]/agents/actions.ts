@@ -11,7 +11,7 @@ import { getDb } from "@/server/db/client";
 import { PROSPECTING_MODES, SALES_MOTIONS, type ProspectingMode } from "@/server/db/schema";
 import { bool, list, num, runForm, str } from "@/server/form";
 import { ACTION_DEFINITIONS } from "@/server/gateway/definitions";
-import { runProspecting } from "@/server/agents/prospector";
+import { MAX_FIND_PER_RUN, runProspecting } from "@/server/agents/prospector";
 import { closeStaleRuns } from "@/server/agents/scheduler";
 import { DEFAULT_HANDOFF_PER_RUN } from "@/server/agents/first-contact";
 import { runInboundSweep } from "@/server/agents/inbound-sweep";
@@ -57,6 +57,7 @@ function instructionsFromForm(form: FormData, scheduled: boolean) {
     settings: scheduled
       ? {
           mode: PROSPECTING_MODES.find((m) => m === str(form, "mode")) ?? "both",
+          findPerRun: num(form, "findPerRun"),
           model: str(form, "model") ?? "",
         }
       : {},
@@ -444,7 +445,7 @@ export async function saveMcpToolsAction(
 async function startRun(
   projectId: string,
   agentId: string,
-  options: { mode?: ProspectingMode; rowIds?: string[]; allPending?: boolean },
+  options: { mode?: ProspectingMode; rowIds?: string[]; allPending?: boolean; wanted?: number },
 ) {
   const tenant = await admin();
   const db = getDb();
@@ -512,7 +513,7 @@ export async function runInboundNow(
   return result;
 }
 
-/** «Buscar ahora»: a run in the agent's own mode. */
+/** «Buscar ahora»: a run in the agent's own mode, for the new rows the person asks for. */
 export async function runProspectingNow(
   projectId: string,
   agentId: string,
@@ -520,8 +521,13 @@ export async function runProspectingNow(
   form?: FormData,
 ): Promise<FormState> {
   const result = await runForm(async () => {
-    await startRun(projectId, agentId, {});
-    return "En marcha. Lo que encuentre irá apareciendo en unos minutos.";
+    const wanted = form ? num(form, "wanted") : undefined;
+    if (wanted !== undefined && (!Number.isInteger(wanted) || wanted < 1 || wanted > MAX_FIND_PER_RUN))
+      throw new Error(`Pide entre 1 y ${MAX_FIND_PER_RUN} filas nuevas.`);
+    await startRun(projectId, agentId, { wanted });
+    return wanted
+      ? `En marcha: buscará ${wanted} ${wanted === 1 ? "fila nueva" : "filas nuevas"}. Irán apareciendo en unos minutos.`
+      : "En marcha. Lo que encuentre irá apareciendo en unos minutos.";
   });
   const back = result?.ok ? backTo(form) : null;
   if (back) redirect(back);

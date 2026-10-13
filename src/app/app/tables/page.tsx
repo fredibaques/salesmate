@@ -1,10 +1,10 @@
 import { Sheet } from "lucide-react";
 import { EmptyState, PageHeader } from "@/components/ui";
-import { requireTenant } from "@/server/auth/session";
+import { listVisibleProjects, projectAccess, requireTenant } from "@/server/auth/session";
+import { canSee } from "@/server/services/access";
 import { getDb } from "@/server/db/client";
 import { listAllBases } from "@/server/prospects/bases";
 import { countPendingCells } from "@/server/prospects/complete";
-import { listProjects } from "@/server/services/projects";
 import { NewTableButton } from "./new-table-button";
 import { TablesList } from "./tables-list";
 
@@ -17,7 +17,12 @@ export const metadata = { title: "Tablas" };
 export default async function TablesPage() {
   const tenant = await requireTenant();
   const db = getDb();
-  const [bases, projects] = await Promise.all([listAllBases(db, tenant), listProjects(db, tenant)]);
+  const [all, projects, visible] = await Promise.all([
+    listAllBases(db, tenant),
+    listVisibleProjects(),
+    projectAccess(),
+  ]);
+  const bases = all.filter((b) => canSee(visible, b.projectId));
   const pending = await Promise.all(
     bases.map((b) => (b.agents.length ? countPendingCells(db, tenant, b.id) : Promise.resolve(0))),
   );

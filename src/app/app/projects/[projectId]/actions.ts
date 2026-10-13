@@ -3,13 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { FormState } from "@/components/action-form";
-import { requireRole, requireTenant } from "@/server/auth/session";
+import { requireProjectAccess, requireRole, requireTenant } from "@/server/auth/session";
 import { getAvailability } from "@/server/calendar/availability";
 import { getDb } from "@/server/db/client";
 import { list, num, runForm, str } from "@/server/form";
 import { answerFromKnowledge } from "@/server/agents/knowledge-answer";
 import { LlmProviderError } from "@/server/llm/errors";
 import { orgLlm } from "@/server/llm/org-ai";
+import { setProjectPeople } from "@/server/services/access";
 import {
   addComplianceRule,
   addSuppression,
@@ -47,6 +48,16 @@ export async function saveProject(projectId: string, _: FormState, form: FormDat
     });
     refreshSidebar();
   });
+}
+
+/** Who of the organization's members can open the project. */
+export async function shareProjectAction(projectId: string, _: FormState, form: FormData): Promise<FormState> {
+  const result = await runForm(async () => {
+    const shared = await setProjectPeople(getDb(), await admin(), projectId, list(form, "userIds"));
+    return shared === 1 ? "Compartido con 1 miembro." : `Compartido con ${shared} miembros.`;
+  });
+  refreshSidebar();
+  return result;
 }
 
 export async function deleteProjectAction(
@@ -143,7 +154,7 @@ export async function askKnowledge(projectId: string, _: AskState, form: FormDat
   const question = str(form, "q") ?? "";
   if (!question) return null;
   try {
-    const tenant = await requireTenant();
+    const tenant = await requireProjectAccess(projectId);
     const db = getDb();
     const llm = await orgLlm(db, tenant);
     if (!llm) {

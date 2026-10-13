@@ -1,8 +1,6 @@
 import { MessagesSquare } from "lucide-react";
 import { PageHeader } from "@/components/ui";
-import { requireTenant } from "@/server/auth/session";
-import { getDb } from "@/server/db/client";
-import { listProjects } from "@/server/services/projects";
+import { listVisibleProjects, requireTenant } from "@/server/auth/session";
 import { InboxView, type InboxQuery } from "./inbox-view";
 
 export const metadata = { title: "Conversaciones" };
@@ -14,7 +12,7 @@ export default async function ConversationsPage({ searchParams }: PageProps<"/ap
     Object.entries(raw).filter((e): e is [string, string] => typeof e[1] === "string"),
   ) as InboxQuery;
   const tenant = await requireTenant();
-  const projects = await listProjects(getDb(), tenant);
+  const projects = await listVisibleProjects();
   return (
     <>
       <PageHeader

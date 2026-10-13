@@ -585,6 +585,16 @@ Cinco webs a la vez, hasta el número de filas de la ejecución, el tiempo o el
 gasto que queda. Cuesta unas décimas de céntimo por fila. Sin Serper, o en
 tablas de personas, sigue buscando el agente con sus herramientas.
 
+**Filas nuevas por ejecución.** Cada ejecución busca `settings.findPerRun`
+filas nuevas (10 si no se ha elegido; «Filas nuevas por ejecución» en su
+configuración). «Buscar ahora» / «Ejecutar ahora» pregunta cuántas, con ese
+número de partida (`wanted`, hasta 200). Si una ejecución acaba sin llegar
+pero ha encontrado alguna (y queda gasto del mes), deja un evento
+`continue` con `{ find: lo que falta }` y el planificador lanza la siguiente,
+que solo busca (un `continue` sin `find` es la siguiente tanda de «Completar
+vacíos»). Sin progreso, para. El objetivo del agente (`goal`) sigue
+limitando cuántas busca.
+
 **Prospección** (`agents/prospector.ts`). El agente outbound busca lo que
 encaja con el cliente ideal y lo guarda con `save_prospects` en su base. El
 esquema JSON de la herramienta y una sección del prompt se generan a partir de
@@ -778,12 +788,31 @@ horas desde el último mensaje del contacto, Meta exige plantillas aprobadas
 Configuración → Usuarios (`services/team.ts`, sobre las tablas `member` e
 `invitation` de Better Auth). Propietarios y administradores invitan por
 email con un rol; la invitación es un enlace (`/invite/<id>`, el id es el
-secreto, 7 días) que se copia y se envía: no hay correo transaccional.
+secreto, 7 días). Si están `RESEND_API_KEY` y `EMAIL_FROM`, sale por email
+(`server/mail.ts`, Resend; «Reenviar» lo manda otra vez); si no, se copia y
+se envía a mano, y la pantalla lo avisa. Son los únicos emails de la propia
+plataforma: no son acciones de un proyecto, así que no pasan por el gateway
+(lo que los agentes envían a contactos, siempre).
 Quien lo abre se registra o entra con ese email (`?next=` lleva de vuelta)
 y se une con un clic; en el onboarding también ve las invitaciones a su
 email. Invitar de nuevo al mismo email anula el enlace anterior. Solo un
 propietario da o quita el rol de propietario, siempre queda al menos uno y
 nadie se quita a sí mismo. Todo queda en auditoría (`member.*`).
+
+**Proyectos compartidos** (`services/access.ts`, migración 0029).
+Propietarios y administradores ven todos los proyectos. Un miembro solo los
+que se le comparten (`project_members`): desde Ajustes del proyecto
+(«Personas con acceso», `setProjectPeople`), desde su ficha en Usuarios
+(`setMemberProjects`) o al invitarle (`invitation_projects`, que pasan a ser
+suyos al aceptar). Lo que no ve no aparece en la barra lateral, el panel,
+Tablas, Por aprobar, Conversaciones, Ejecuciones ni Auditoría
+(`listVisibleProjects`, `projectAccess`, `canSee`), y abrir su dirección da
+«no encontrado» (layout del proyecto, página de la tabla). Las acciones que
+puede hacer un miembro lo comprueban (`requireProjectAccess`: aprobar,
+responder en conversaciones, editar filas, preguntar al conocimiento o al
+Copilot). Las tablas sin proyecto son de la organización y las ven todos.
+Al quitar a alguien de la organización se borran sus proyectos compartidos;
+la migración dio a los miembros que había todos los proyectos que ya veían.
 
 ## Pendiente
 

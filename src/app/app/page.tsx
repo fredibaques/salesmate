@@ -1,5 +1,6 @@
 import { Bot, Building2, CheckCircle2, Circle, FolderKanban, Plug, Sheet, User } from "lucide-react";
 import Link from "next/link";
+import { LinkRow } from "@/components/link-row";
 import {
   Badge,
   Card,
@@ -11,9 +12,10 @@ import {
   Table,
   Td,
 } from "@/components/ui";
-import { requireTenant } from "@/server/auth/session";
+import { listVisibleProjects, projectAccess, requireTenant } from "@/server/auth/session";
+import { canSee } from "@/server/services/access";
 import { getDb } from "@/server/db/client";
-import { listOrgConnections, listProjects } from "@/server/services/projects";
+import { listOrgConnections } from "@/server/services/projects";
 import { formatDateTime, plural } from "@/lib/format";
 import { listAllBases } from "@/server/prospects/bases";
 import { AI_CONNECT_HREF, AiNotice, currentAi } from "./ai-notice";
@@ -30,10 +32,13 @@ export default async function DashboardPage() {
   const tenant = await requireTenant();
   const db = getDb();
   const [projects, connections, ai, bases] = await Promise.all([
-    listProjects(db, tenant),
+    listVisibleProjects(),
     listOrgConnections(db, tenant),
     currentAi(),
-    listAllBases(db, tenant),
+    listAllBases(db, tenant).then(async (all) => {
+      const visible = await projectAccess();
+      return all.filter((b) => canSee(visible, b.projectId));
+    }),
   ]);
   const first = tenant.user.name.split(" ")[0];
   // Copilot is always the top of the home; until it can answer, it says why and how to fix it.
@@ -116,11 +121,11 @@ export default async function DashboardPage() {
         >
           <Table head={["Tabla", "Proyecto", "Filas", "Última actividad"]}>
             {bases.slice(0, 5).map((b) => (
-              <tr key={b.id} className="relative transition-colors hover:bg-ink-25">
+              <LinkRow key={b.id} href={`/app/tables/${b.id}`}>
                 <Td>
                   <Link
                     href={`/app/tables/${b.id}`}
-                    className="inline-flex items-center gap-2 font-medium after:absolute after:inset-0 hover:text-accent"
+                    className="inline-flex items-center gap-2 font-medium group-hover:text-accent"
                   >
                     {b.rowKind === "person" ? (
                       <User className="size-4 text-muted" aria-hidden />
@@ -133,7 +138,7 @@ export default async function DashboardPage() {
                 <Td className="text-muted">{b.projectName ?? "Sin proyecto"}</Td>
                 <Td className="tabular-nums">{plural(b.rows, "fila", "filas")}</Td>
                 <Td className="whitespace-nowrap text-muted">{formatDateTime(b.lastActivity)}</Td>
-              </tr>
+              </LinkRow>
             ))}
           </Table>
         </Card>

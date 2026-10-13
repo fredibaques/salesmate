@@ -4,10 +4,11 @@ import { ModalButton } from "@/components/modal";
 import { Badge, Card, EmptyState, Field, Input, PageHeader, Select, Textarea } from "@/components/ui";
 import { AGENT_INFO, agentName, type ProjectAgentKey } from "@/lib/agents";
 import { AGENT_LABELS, AUTONOMY_LABELS, formatDateTime } from "@/lib/format";
-import { requireTenant } from "@/server/auth/session";
+import { listVisibleProjects, projectAccess, requireTenant } from "@/server/auth/session";
+import { canSee } from "@/server/services/access";
 import { getDb } from "@/server/db/client";
 import { getActionDefinition } from "@/server/gateway/definitions";
-import { listActions, listOrgIdentities, listProjects } from "@/server/services/projects";
+import { listActions, listOrgIdentities } from "@/server/services/projects";
 import { approve, reject, simulateAgentProposal } from "./actions";
 import { INBOX_TIP } from "../tips";
 
@@ -110,11 +111,13 @@ function PendingAction({ row }: { row: Row }) {
 export default async function InboxPage() {
   const tenant = await requireTenant();
   const db = getDb();
-  const [pending, projects, identities] = await Promise.all([
+  const [all, projects, identities, visible] = await Promise.all([
     listActions(db, tenant, { statuses: ["pending_approval"] }),
-    listProjects(db, tenant),
+    listVisibleProjects(),
     listOrgIdentities(db, tenant),
+    projectAccess(),
   ]);
+  const pending = all.filter((a) => canSee(visible, a.action.projectId));
   const emailIdentity = identities.find((i) => i.kind === "email");
 
   return (

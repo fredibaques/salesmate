@@ -6,6 +6,8 @@ import { cache } from "react";
 import { getDb } from "../db/client";
 import { member, organization, session } from "../db/schema";
 import type { TenantContext } from "../db/tenant";
+import { canSee, visibleProjectIds } from "../services/access";
+import { listProjects } from "../services/projects";
 import { getAuth } from "./auth";
 
 export type OrgRole = "owner" | "admin" | "member";
@@ -61,6 +63,23 @@ export const requireTenant = cache(async (): Promise<CurrentTenant> => {
     organization: { id: current.org.id, name: current.org.name, slug: current.org.slug },
   };
 });
+
+/** The projects the current person can open (null: all of them), once per request. */
+export const projectAccess = cache(async () => visibleProjectIds(getDb(), await requireTenant()));
+
+/** The organization's projects the current person can open, once per request. */
+export const listVisibleProjects = cache(async () => {
+  const tenant = await requireTenant();
+  const [projects, visible] = await Promise.all([listProjects(getDb(), tenant), projectAccess()]);
+  return visible ? projects.filter((p) => visible.includes(p.id)) : projects;
+});
+
+/** Throws when the current person can't open this project (use inside server actions). */
+export async function requireProjectAccess(projectId: string | null | undefined): Promise<CurrentTenant> {
+  const tenant = await requireTenant();
+  if (!canSee(await projectAccess(), projectId)) throw new Error("No tienes acceso a este proyecto.");
+  return tenant;
+}
 
 /** Throws when the current member lacks one of the roles (use inside server actions). */
 export async function requireRole(roles: OrgRole[]): Promise<CurrentTenant> {

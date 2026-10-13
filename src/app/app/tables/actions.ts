@@ -16,7 +16,7 @@ import {
 } from "@/lib/prospect-columns";
 import { rowsAdded } from "@/server/agents/events";
 import { workOnAddedRows } from "@/server/agents/runtime";
-import { requireRole, requireTenant } from "@/server/auth/session";
+import { requireProjectAccess, requireRole, requireTenant } from "@/server/auth/session";
 import { connections } from "@/server/db/schema";
 import { withTenant } from "@/server/db/tenant";
 import { describeConnectorError } from "@/server/connectors/types";
@@ -55,9 +55,17 @@ const tablePath = (baseId: string) => `/app/tables/${baseId}`;
 /** Lists and project tabs show tables too: refresh everything under /app. */
 const refresh = () => revalidatePath("/app", "layout");
 
+/** Any member edits the rows of the tables they can open (a project's, if it's shared with them). */
+async function requireBase(baseId: string) {
+  const tenant = await requireTenant();
+  const base = await getBase(getDb(), tenant, baseId);
+  if (!base) throw new Error("Tabla no encontrada.");
+  return requireProjectAccess(base.projectId);
+}
+
 /** Discards a row, or brings it back. Any member of the organization can. */
 export async function changeProspectStatus(baseId: string, ids: string[], status: "new" | "discarded") {
-  const tenant = await requireTenant();
+  const tenant = await requireBase(baseId);
   await setProspectStatus(getDb(), tenant, baseId, ids, status);
   revalidatePath(tablePath(baseId));
 }
@@ -201,7 +209,7 @@ type CellValue = string | boolean | string[] | null;
 /** A row typed on the table's last line: fixed fields by key, columns by id. */
 export async function addRowAction(baseId: string, values: Record<string, CellValue>): Promise<FormState> {
   const result = await runForm(async () => {
-    const tenant = await requireTenant();
+    const tenant = await requireBase(baseId);
     const row = await addProspectRow(getDb(), tenant, baseId, rowEditFromValues(values));
     return (await completeNewRow(tenant, baseId, row.id))
       ? "Fila añadida. El agente la completará."
@@ -219,7 +227,7 @@ export async function saveCellAction(
   value: CellValue,
 ): Promise<FormState> {
   const result = await runForm(async () => {
-    await setProspectCell(getDb(), await requireTenant(), baseId, rowId, key, value);
+    await setProspectCell(getDb(), await requireBase(baseId), baseId, rowId, key, value);
   }, "Guardado.");
   revalidatePath(tablePath(baseId));
   return result;
@@ -233,7 +241,7 @@ export async function saveRowAction(
   form: FormData,
 ): Promise<FormState> {
   const result = await runForm(async () => {
-    const tenant = await requireTenant();
+    const tenant = await requireBase(baseId);
     const db = getDb();
     const base = await getBase(db, tenant, baseId);
     if (!base) throw new Error("Tabla de prospectos no encontrada.");

@@ -1,6 +1,6 @@
 import { TZDate } from "@date-fns/tz";
 import { addDays, addMonths, addWeeks, format, startOfDay, startOfMonth, startOfWeek } from "date-fns";
-import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lt, sql, inArray } from "drizzle-orm";
 import { AGENT_INFO, agentName, type ProjectAgentKey } from "@/lib/agents";
 import type { Db } from "../db/client";
 import { agentConfigs, agentRuns, projects, type AgentType } from "../db/schema";
@@ -21,6 +21,8 @@ export function monthStart(timeZone: string, offset = 0, now = Date.now()) {
 
 export type RunFilter = {
   projectId?: string;
+  /** Only these projects (a member's shared ones); null or absent: all. */
+  projectIds?: string[] | null;
   agentType?: AgentType;
   /** One agent (a project may have several of a kind). */
   agentId?: string;
@@ -35,9 +37,13 @@ function label(agentType: string, name: string | null) {
   return AGENT_LABELS[agentType] ?? agentType;
 }
 
+/** Keeps `inArray` valid when nothing is shared: matches nothing. */
+const NO_PROJECT = "00000000-0000-0000-0000-000000000000";
+
 const where = (f: RunFilter, before?: Date) =>
   and(
     f.projectId ? eq(agentRuns.projectId, f.projectId) : undefined,
+    f.projectIds ? inArray(agentRuns.projectId, [...f.projectIds, NO_PROJECT]) : undefined,
     f.agentType ? eq(agentRuns.agentType, f.agentType) : undefined,
     f.agentId ? eq(agentRuns.agentConfigId, f.agentId) : undefined,
     f.since ? gte(agentRuns.startedAt, f.since) : undefined,
