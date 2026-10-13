@@ -139,7 +139,9 @@ export async function listInbox(
       .where(
         and(
           filter.projectId ? eq(conversations.projectId, filter.projectId) : undefined,
-          filter.projectIds ? inArray(conversations.projectId, [...filter.projectIds, NO_PROJECT]) : undefined,
+          filter.projectIds
+            ? inArray(conversations.projectId, [...filter.projectIds, NO_PROJECT])
+            : undefined,
         ),
       )
       .orderBy(sql`${conversations.lastMessageAt} desc nulls last`)

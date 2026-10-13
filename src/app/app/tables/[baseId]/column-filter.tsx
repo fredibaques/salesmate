@@ -3,7 +3,9 @@
 import { Filter } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { OPTION_COLOR_LOOK } from "@/components/option-chip";
 import { Popover } from "@/components/popover";
+import { optionColor } from "@/lib/prospect-columns";
 import { buttonClass, Chip, cx, Field, Input, Segmented } from "@/components/ui";
 import {
   filterParam,
@@ -244,7 +246,19 @@ function FilterForm({
                   setPicked((p) => (e.target.checked ? [...p, o.value] : p.filter((x) => x !== o.value)))
                 }
               >
-                {o.label}
+                {field.type === "status" ? (
+                  o.label
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      className={cx(
+                        "size-2.5 rounded-full",
+                        OPTION_COLOR_LOOK[optionColor(field, o.value)].dot,
+                      )}
+                    />
+                    {o.label}
+                  </span>
+                )}
               </Chip>
             ))}
           </div>

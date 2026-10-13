@@ -51,7 +51,11 @@ export async function saveProject(projectId: string, _: FormState, form: FormDat
 }
 
 /** Who of the organization's members can open the project. */
-export async function shareProjectAction(projectId: string, _: FormState, form: FormData): Promise<FormState> {
+export async function shareProjectAction(
+  projectId: string,
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
   const result = await runForm(async () => {
     const shared = await setProjectPeople(getDb(), await admin(), projectId, list(form, "userIds"));
     return shared === 1 ? "Compartido con 1 miembro." : `Compartido con ${shared} miembros.`;

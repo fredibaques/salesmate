@@ -130,7 +130,10 @@ export default async function UsersPage() {
                   <RoleChoices current="member" canOwn={isOwner} />
                 </Field>
                 {projects.length ? (
-                  <ProjectChips projects={projects} tip="Si entra como miembro, solo verá estos. Quien administra ve todos." />
+                  <ProjectChips
+                    projects={projects}
+                    tip="Si entra como miembro, solo verá estos. Quien administra ve todos."
+                  />
                 ) : null}
               </ActionForm>
             </ModalButton>

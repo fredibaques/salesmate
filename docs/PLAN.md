@@ -6,8 +6,8 @@
 > herramientas que ese proyecto ya usa (CRM, correo, calendario, teléfono,
 > WhatsApp…), vía API, MCP o navegador.
 >
-> Inspiración: [Alta](https://www.altahq.com/) (agentes *Katie* outbound,
-> *Alex* inbound y *Luna* inteligencia/crecimiento).
+> Inspiración: [Alta](https://www.altahq.com/) (agentes _Katie_ outbound,
+> _Alex_ inbound y _Luna_ inteligencia/crecimiento).
 >
 > Agnóstica de sector y de modelo de venta. Pensada primero para uso propio en
 > varios proyectos y, desde el diseño, preparada para venderse como SaaS.
@@ -49,18 +49,18 @@ sobre lo que sale en su nombre.
 
 **Principios de diseño**
 
-| Principio | Qué implica |
-|---|---|
-| **Agnóstico de sector** | Nada del núcleo depende de un sector concreto. Lo específico de cada negocio (productos, reglas, objetos del CRM, normativa sectorial) entra como configuración, conocimiento o reglas del proyecto. |
-| **Agnóstico de modelo de venta** | B2B consultivo, B2B transaccional, B2C asistido y B2C autoservicio son variantes configurables del mismo motor, no productos distintos. |
-| **Ver y hacer, separados** | Un agente primero se informa (conocimiento) y después actúa (ejecución). Son capas distintas, con permisos distintos y auditables por separado. |
-| **El proyecto aísla** | Cada proyecto tiene su oferta, su proceso de venta, sus fuentes de datos, sus conexiones, sus contactos y sus límites. Nada se mezcla entre proyectos sin una regla explícita. |
-| **El usuario es el experto** | El usuario transmite su proceso de venta (documentos, tablas, reglas, ejemplos) y el sistema lo convierte en un *playbook* que los agentes siguen. |
-| **Humano en el bucle por defecto** | Todo empieza en "borrador + aprobación". La autonomía se concede por proyecto, por agente y por tipo de acción. |
-| **Herramientas existentes como fuente de verdad** | El CRM del proyecto sigue siendo el sistema de registro. SalesMate lee, orquesta y escribe en él; no obliga a migrar. |
-| **Cualquier vía de integración** | API nativa, servidores MCP, webhooks, ficheros y, como último recurso, automatización del navegador. |
-| **Multi-tenant desde el día 1** | Aunque al principio el único cliente seas tú, el modelo de datos, la seguridad y las integraciones se diseñan para clientes externos. |
-| **Todo es auditable** | Cada acción queda registrada con qué datos se usaron, por qué, quién la aprobó y su resultado. |
+| Principio                                         | Qué implica                                                                                                                                                                                          |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Agnóstico de sector**                           | Nada del núcleo depende de un sector concreto. Lo específico de cada negocio (productos, reglas, objetos del CRM, normativa sectorial) entra como configuración, conocimiento o reglas del proyecto. |
+| **Agnóstico de modelo de venta**                  | B2B consultivo, B2B transaccional, B2C asistido y B2C autoservicio son variantes configurables del mismo motor, no productos distintos.                                                              |
+| **Ver y hacer, separados**                        | Un agente primero se informa (conocimiento) y después actúa (ejecución). Son capas distintas, con permisos distintos y auditables por separado.                                                      |
+| **El proyecto aísla**                             | Cada proyecto tiene su oferta, su proceso de venta, sus fuentes de datos, sus conexiones, sus contactos y sus límites. Nada se mezcla entre proyectos sin una regla explícita.                       |
+| **El usuario es el experto**                      | El usuario transmite su proceso de venta (documentos, tablas, reglas, ejemplos) y el sistema lo convierte en un _playbook_ que los agentes siguen.                                                   |
+| **Humano en el bucle por defecto**                | Todo empieza en "borrador + aprobación". La autonomía se concede por proyecto, por agente y por tipo de acción.                                                                                      |
+| **Herramientas existentes como fuente de verdad** | El CRM del proyecto sigue siendo el sistema de registro. SalesMate lee, orquesta y escribe en él; no obliga a migrar.                                                                                |
+| **Cualquier vía de integración**                  | API nativa, servidores MCP, webhooks, ficheros y, como último recurso, automatización del navegador.                                                                                                 |
+| **Multi-tenant desde el día 1**                   | Aunque al principio el único cliente seas tú, el modelo de datos, la seguridad y las integraciones se diseñan para clientes externos.                                                                |
+| **Todo es auditable**                             | Cada acción queda registrada con qué datos se usaron, por qué, quién la aprobó y su resultado.                                                                                                       |
 
 **Proyectos piloto.** Los primeros proyectos reales del usuario (varios
 negocios B2B, uno con venta B2B y B2C, y una actividad profesional como
@@ -72,13 +72,13 @@ resuelve con la configuración genérica descrita aquí.
 
 ## 2. Qué tomamos de Alta y qué adaptamos
 
-| Alta | SalesMate | Adaptación |
-|---|---|---|
-| **Katie**: agente outbound; busca prospectos, detecta señales, outreach multicanal | **Agente Outbound** | Por proyecto y por *playbook*; válido para empresas (B2B) y, donde la ley lo permita, personas (B2C). |
-| **Alex**: agente inbound; cualifica por llamada/chat con contexto CRM, puntúa y enruta | **Agente Inbound** | El destino no es siempre una reunión: depende del modelo de venta (ver §4). |
-| **Luna**: agente de crecimiento; señales, lookalikes, mejora continua | **Agente de Inteligencia** | Señales configurables por proyecto, lookalikes y optimización de playbooks. |
-| — | **Agente Account Manager** | Clientes existentes, con enfoque comercial: renovaciones, vencimientos, recompra, venta cruzada, reactivación y referencias. |
-| — | **Copiloto** | Chat transversal: "¿qué tengo hoy?", "prepárame la llamada con X", "¿qué está parado?". |
+| Alta                                                                                   | SalesMate                  | Adaptación                                                                                                                   |
+| -------------------------------------------------------------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **Katie**: agente outbound; busca prospectos, detecta señales, outreach multicanal     | **Agente Outbound**        | Por proyecto y por _playbook_; válido para empresas (B2B) y, donde la ley lo permita, personas (B2C).                        |
+| **Alex**: agente inbound; cualifica por llamada/chat con contexto CRM, puntúa y enruta | **Agente Inbound**         | El destino no es siempre una reunión: depende del modelo de venta (ver §4).                                                  |
+| **Luna**: agente de crecimiento; señales, lookalikes, mejora continua                  | **Agente de Inteligencia** | Señales configurables por proyecto, lookalikes y optimización de playbooks.                                                  |
+| —                                                                                      | **Agente Account Manager** | Clientes existentes, con enfoque comercial: renovaciones, vencimientos, recompra, venta cruzada, reactivación y referencias. |
+| —                                                                                      | **Copiloto**               | Chat transversal: "¿qué tengo hoy?", "prepárame la llamada con X", "¿qué está parado?".                                      |
 
 Diferencia de fondo: Alta sirve a un equipo comercial B2B de una empresa.
 SalesMate sirve a **una persona o equipo con varios negocios y modelos de
@@ -117,7 +117,7 @@ flowchart LR
 ```
 
 - **Ver**: toda la información que un agente puede consultar para decidir. Solo lectura.
-- **Hacer**: todo efecto en el mundo exterior. Siempre pasa por el *Action Gateway*.
+- **Hacer**: todo efecto en el mundo exterior. Siempre pasa por el _Action Gateway_.
 - Una misma conexión (p. ej. el CRM) puede aportar a las dos capas: leer oportunidades (ver) y crear tareas (hacer). Los **permisos se conceden por separado**.
 
 ---
@@ -131,22 +131,22 @@ El sistema debe distinguirlo y comportarse en consecuencia.
 
 ### 4.1 Dimensiones que definen un modelo de venta
 
-| Dimensión | Valores |
-|---|---|
-| **Tipo de cliente** | Empresa (B2B) · Persona (B2C) |
-| **Ciclo** | Consultivo (varias interacciones, varios decisores) · Transaccional (decisión rápida, un decisor) |
-| **Paso de conversión** | Reunión/demo · Propuesta/presupuesto · Enlace de pago o contratación · Llamada de cierre · Visita presencial · Formulario/alta |
-| **Volumen** | Pocas cuentas de alto valor · Muchos contactos de bajo valor |
-| **Base legal de contacto** | Interés legítimo (B2B) · Consentimiento (B2C, habitualmente) |
+| Dimensión                  | Valores                                                                                                                        |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Tipo de cliente**        | Empresa (B2B) · Persona (B2C)                                                                                                  |
+| **Ciclo**                  | Consultivo (varias interacciones, varios decisores) · Transaccional (decisión rápida, un decisor)                              |
+| **Paso de conversión**     | Reunión/demo · Propuesta/presupuesto · Enlace de pago o contratación · Llamada de cierre · Visita presencial · Formulario/alta |
+| **Volumen**                | Pocas cuentas de alto valor · Muchos contactos de bajo valor                                                                   |
+| **Base legal de contacto** | Interés legítimo (B2B) · Consentimiento (B2C, habitualmente)                                                                   |
 
-### 4.2 Plantillas de modelo de venta (*motions*)
+### 4.2 Plantillas de modelo de venta (_motions_)
 
-| Plantilla | Ejemplo genérico | Objetivo de conversión | Calendario | Cualificación | Canales típicos |
-|---|---|---|---|---|---|
-| **B2B consultivo** | Servicios profesionales, software para empresas | Reunión o demo con el decisor → propuesta | **Sí**: reuniones con disponibilidad real | Encaje con ICP, necesidad, decisor, plazo, presupuesto | Email, LinkedIn, llamada |
-| **B2B transaccional** | Servicios estandarizados con tarifa pública | Presupuesto o alta directa; reunión solo si la piden | Opcional | Encaje + volumen | Email, llamada, WhatsApp |
-| **B2C asistido** | Producto que requiere datos o asesoramiento antes de comprar | Presupuesto personalizado → contratación; llamada de cierre si hace falta | **No** para demos; sí para *franjas de llamada* o *callback* si se quiere | Necesidad, datos mínimos, urgencia | Formulario, WhatsApp, llamada, email |
-| **B2C autoservicio** | Producto con precio cerrado y compra online | Enlace de pago o compra online | No | Mínima (intención) | Formulario, chat, WhatsApp, email |
+| Plantilla             | Ejemplo genérico                                             | Objetivo de conversión                                                    | Calendario                                                                | Cualificación                                          | Canales típicos                      |
+| --------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------ |
+| **B2B consultivo**    | Servicios profesionales, software para empresas              | Reunión o demo con el decisor → propuesta                                 | **Sí**: reuniones con disponibilidad real                                 | Encaje con ICP, necesidad, decisor, plazo, presupuesto | Email, LinkedIn, llamada             |
+| **B2B transaccional** | Servicios estandarizados con tarifa pública                  | Presupuesto o alta directa; reunión solo si la piden                      | Opcional                                                                  | Encaje + volumen                                       | Email, llamada, WhatsApp             |
+| **B2C asistido**      | Producto que requiere datos o asesoramiento antes de comprar | Presupuesto personalizado → contratación; llamada de cierre si hace falta | **No** para demos; sí para _franjas de llamada_ o _callback_ si se quiere | Necesidad, datos mínimos, urgencia                     | Formulario, WhatsApp, llamada, email |
+| **B2C autoservicio**  | Producto con precio cerrado y compra online                  | Enlace de pago o compra online                                            | No                                                                        | Mínima (intención)                                     | Formulario, chat, WhatsApp, email    |
 
 Cada proyecto puede tener **varios playbooks con modelos distintos** (p. ej. una
 línea B2B consultiva y otra B2C asistida en el mismo negocio).
@@ -157,27 +157,27 @@ El playbook elige qué acciones de conversión están permitidas y en qué orden
 El agente no "busca una reunión" por defecto: busca el **siguiente paso
 configurado**.
 
-| Siguiente paso | Qué hace el agente | Capacidad necesaria |
-|---|---|---|
-| Agendar reunión o demo | Ofrece huecos reales, reserva y prepara un *brief* | `calendar.*` |
-| Agendar llamada (callback) | Ofrece franjas de llamada o crea una tarea de llamada inmediata | `calendar.*` o `crm.create_task` |
-| Enviar presupuesto o propuesta | Recoge los datos necesarios, calcula desde las tablas de precios y genera un borrador | `table.query`, `doc.generate` |
-| Enviar enlace de pago o contratación | Envía el enlace correcto según el producto | `payment.link` / URL configurada |
-| Recoger datos o documentación | Pide la información que falta y la guarda en el CRM | `crm.upsert_*`, `files.store` |
-| Derivar a una persona | Crea la tarea y avisa, con todo el contexto | `crm.create_task`, notificaciones |
-| Nutrir (*nurturing*) | Lo apunta a una secuencia de contenido hasta que muestre intención | `sequence.enroll` |
+| Siguiente paso                       | Qué hace el agente                                                                    | Capacidad necesaria               |
+| ------------------------------------ | ------------------------------------------------------------------------------------- | --------------------------------- |
+| Agendar reunión o demo               | Ofrece huecos reales, reserva y prepara un _brief_                                    | `calendar.*`                      |
+| Agendar llamada (callback)           | Ofrece franjas de llamada o crea una tarea de llamada inmediata                       | `calendar.*` o `crm.create_task`  |
+| Enviar presupuesto o propuesta       | Recoge los datos necesarios, calcula desde las tablas de precios y genera un borrador | `table.query`, `doc.generate`     |
+| Enviar enlace de pago o contratación | Envía el enlace correcto según el producto                                            | `payment.link` / URL configurada  |
+| Recoger datos o documentación        | Pide la información que falta y la guarda en el CRM                                   | `crm.upsert_*`, `files.store`     |
+| Derivar a una persona                | Crea la tarea y avisa, con todo el contexto                                           | `crm.create_task`, notificaciones |
+| Nutrir (_nurturing_)                 | Lo apunta a una secuencia de contenido hasta que muestre intención                    | `sequence.enroll`                 |
 
 ### 4.4 Cómo cambia el comportamiento según el modelo
 
-| Aspecto | B2B | B2C |
-|---|---|---|
-| Unidad | Cuenta (empresa) con varias personas | Persona |
-| Investigación previa | Profunda: empresa, cargo, señales | Ligera o nula; prima la velocidad de respuesta |
-| Tono y longitud | Profesional y personalizado | Cercano, breve y claro |
-| Velocidad de respuesta | Importante | Crítica (minutos) |
-| Horario | Laboral del destinatario | Ampliado, según las reglas del proyecto |
-| Outbound en frío | Posible con interés legítimo y sus límites | Muy restringido: normalmente solo con consentimiento o relación previa |
-| Cierre | Humano, tras reunión y propuesta | Puede completarse sin reunión |
+| Aspecto                | B2B                                        | B2C                                                                    |
+| ---------------------- | ------------------------------------------ | ---------------------------------------------------------------------- |
+| Unidad                 | Cuenta (empresa) con varias personas       | Persona                                                                |
+| Investigación previa   | Profunda: empresa, cargo, señales          | Ligera o nula; prima la velocidad de respuesta                         |
+| Tono y longitud        | Profesional y personalizado                | Cercano, breve y claro                                                 |
+| Velocidad de respuesta | Importante                                 | Crítica (minutos)                                                      |
+| Horario                | Laboral del destinatario                   | Ampliado, según las reglas del proyecto                                |
+| Outbound en frío       | Posible con interés legítimo y sus límites | Muy restringido: normalmente solo con consentimiento o relación previa |
+| Cierre                 | Humano, tras reunión y propuesta           | Puede completarse sin reunión                                          |
 
 ---
 
@@ -189,31 +189,33 @@ debe ir a una búsqueda semántica**: un precio se consulta, no se "recuerda".
 
 ### 5.1 Tipos de fuente
 
-| Tipo | Ejemplos | Cómo se ingiere | Cómo la usa el agente |
-|---|---|---|---|
-| **Documentos estáticos** | Presentaciones, propuestas antiguas, FAQs, condiciones, guiones, web | Subida o URL → extracción → fragmentos + embeddings | Búsqueda semántica (RAG) con cita de la fuente |
-| **Datos tabulares** | Tarifas, catálogos, matrices de precios, listados de cuentas | Excel/CSV o Google Sheets → **tabla consultable** con esquema validado por el usuario | Consulta estructurada; nunca inventa cifras |
-| **Fuentes vivas** | CRM, base de datos externa, API interna, servidor MCP de terceros | Conexión con credenciales; descubrimiento del esquema; selección de qué se expone | Consulta en tiempo real como herramienta, con caché corta y límites |
-| **Playbook** | Modelo de venta, etapas, cualificación, objeciones, plantillas, reglas | Editor guiado o generado desde documentos y validado (§6) | Proceso que el agente sigue paso a paso |
-| **Ejemplos** | Emails buenos, llamadas transcritas, propuestas ganadas | Subida o captura desde el buzón/CRM | Para imitar voz y estructura |
-| **Memoria** | Correcciones, motivos de rechazo, qué funcionó | Automática | Mejora continua por proyecto |
+| Tipo                     | Ejemplos                                                               | Cómo se ingiere                                                                       | Cómo la usa el agente                                               |
+| ------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| **Documentos estáticos** | Presentaciones, propuestas antiguas, FAQs, condiciones, guiones, web   | Subida o URL → extracción → fragmentos + embeddings                                   | Búsqueda semántica (RAG) con cita de la fuente                      |
+| **Datos tabulares**      | Tarifas, catálogos, matrices de precios, listados de cuentas           | Excel/CSV o Google Sheets → **tabla consultable** con esquema validado por el usuario | Consulta estructurada; nunca inventa cifras                         |
+| **Fuentes vivas**        | CRM, base de datos externa, API interna, servidor MCP de terceros      | Conexión con credenciales; descubrimiento del esquema; selección de qué se expone     | Consulta en tiempo real como herramienta, con caché corta y límites |
+| **Playbook**             | Modelo de venta, etapas, cualificación, objeciones, plantillas, reglas | Editor guiado o generado desde documentos y validado (§6)                             | Proceso que el agente sigue paso a paso                             |
+| **Ejemplos**             | Emails buenos, llamadas transcritas, propuestas ganadas                | Subida o captura desde el buzón/CRM                                                   | Para imitar voz y estructura                                        |
+| **Memoria**              | Correcciones, motivos de rechazo, qué funcionó                         | Automática                                                                            | Mejora continua por proyecto                                        |
 
 ### 5.2 Modos de sincronización
 
-| Modo | Cuándo | Ejemplo |
-|---|---|---|
-| **Instantánea** | Información que cambia poco | PDF de condiciones |
-| **Programada** | Datos que cambian a diario o semanal | Hoja de tarifas cada noche |
-| **Consulta en vivo** | Datos que deben estar al segundo | Estado de una oportunidad, disponibilidad del calendario |
-| **Push por evento** | Cambios que deben despertar a un agente | Webhook del CRM, nuevo email, formulario enviado |
+| Modo                 | Cuándo                                  | Ejemplo                                                  |
+| -------------------- | --------------------------------------- | -------------------------------------------------------- |
+| **Instantánea**      | Información que cambia poco             | PDF de condiciones                                       |
+| **Programada**       | Datos que cambian a diario o semanal    | Hoja de tarifas cada noche                               |
+| **Consulta en vivo** | Datos que deben estar al segundo        | Estado de una oportunidad, disponibilidad del calendario |
+| **Push por evento**  | Cambios que deben despertar a un agente | Webhook del CRM, nuevo email, formulario enviado         |
 
 ### 5.3 Catálogo de conocimiento del proyecto
+
 - Qué sabe el agente, de dónde, cuándo se actualizó y quién lo validó.
-- Fiabilidad de cada fuente: *fuente de verdad* (p. ej. tarifas) u *orientativa* (p. ej. propuestas antiguas).
+- Fiabilidad de cada fuente: _fuente de verdad_ (p. ej. tarifas) u _orientativa_ (p. ej. propuestas antiguas).
 - Detección de contradicciones entre fuentes.
 - "Pregúntale al agente" para probar antes de activar.
 
 ### 5.4 Reglas de uso
+
 - Precios, plazos, condiciones y compromisos **solo** salen de fuentes marcadas como fuente de verdad; si no hay dato, el agente lo dice y pregunta.
 - Toda afirmación factual guarda su cita (fuente + fragmento o fila), visible en la aprobación.
 - De las fuentes vivas solo se expone lo que el usuario elige (objetos, campos y operaciones).
@@ -222,7 +224,7 @@ debe ir a una búsqueda semántica**: un precio se consulta, no se "recuerda".
 
 ## 6. Playbook: el proceso de venta como dato
 
-El *playbook* es la forma en que el usuario transmite **cómo vende**. Es lo que
+El _playbook_ es la forma en que el usuario transmite **cómo vende**. Es lo que
 convierte una IA genérica en un comercial de ese proyecto.
 
 ### 6.1 Contenido (ejemplos genéricos)
@@ -232,7 +234,7 @@ convierte una IA genérica en un comercial de ese proyecto.
 ```yaml
 playbook: "Servicio profesional para pymes"
 modelo: b2b_consultivo
-objetivo_conversion: reunion            # → usa calendario
+objetivo_conversion: reunion # → usa calendario
 siguientes_pasos_permitidos: [reunion, enviar_propuesta, derivar_humano]
 segmento:
   incluye: [empresas de 10-200 empleados, sector X]
@@ -241,7 +243,7 @@ segmento:
 decisores: [gerente, director de operaciones]
 dolores: ["fuente: kb/dolores.md"]
 propuesta_de_valor: "fuente: kb/presentacion.pdf"
-precios: "fuente: tabla/tarifas"         # nunca se improvisan
+precios: "fuente: tabla/tarifas" # nunca se improvisan
 cualificacion: [necesidad, decisor, plazo, volumen]
 etapas: [nuevo, contactado, respondio, reunion, propuesta, ganado, perdido]
 cadencia:
@@ -261,8 +263,9 @@ handoff: "si pide precio cerrado o volumen alto → avisar al responsable"
 ```yaml
 playbook: "Producto para particulares con presupuesto"
 modelo: b2c_asistido
-objetivo_conversion: presupuesto         # sin reunión
-siguientes_pasos_permitidos: [recoger_datos, enviar_presupuesto, llamada_callback, enlace_contratacion, derivar_humano]
+objetivo_conversion: presupuesto # sin reunión
+siguientes_pasos_permitidos:
+  [recoger_datos, enviar_presupuesto, llamada_callback, enlace_contratacion, derivar_humano]
 entradas: [formulario_web, whatsapp, email]
 datos_necesarios: "fuente: tabla/campos-presupuesto"
 precios: "fuente: tabla/tarifas"
@@ -277,6 +280,7 @@ reglas:
 ```
 
 ### 6.2 Cómo se crea
+
 1. **Desde tus documentos**: la IA propone un borrador a partir de presentaciones, tarifas y ejemplos.
 2. **Entrevista guiada**: el sistema pregunta lo que falta, empezando por "¿B2B o B2C? ¿cuál es el paso de conversión?".
 3. **Edición directa**: formulario + YAML avanzado.
@@ -284,8 +288,10 @@ reglas:
 5. **Plantillas**: biblioteca de playbooks base por modelo de venta (§4.2) y, en el SaaS, por tipo de negocio.
 
 ### 6.3 Reglas de cumplimiento del proyecto
+
 Cada proyecto o playbook puede declarar reglas propias de su sector **sin que el
 núcleo las conozca de antemano**:
+
 - **Acciones reservadas a personas** (p. ej. "recomendar producto", "enviar contrato").
 - **Avisos o documentos obligatorios** antes de un paso concreto.
 - **Restricciones de canal** por tipo de destinatario.
@@ -321,19 +327,21 @@ cual al agente con su descripción.
 
 ### 7.2 Vías de ejecución
 
-| Vía | Cuándo | Ejemplos |
-|---|---|---|
-| **API nativa** | Siempre que exista y sea estable | Gmail, Google Calendar, API del CRM |
-| **Cliente MCP** | La herramienta publica un servidor MCP; también para las que aporte el cliente | MCP del CRM, de herramientas de datos, MCP propios del cliente |
-| **Webhooks** | Recibir eventos y disparar flujos | Eventos del CRM, formularios, telefonía |
-| **Navegador** (último recurso) | Herramientas sin API: portales de terceros, webs de proveedores | Agente de navegador aislado, con grabación de pasos y aprobación |
-| **Ficheros** | Intercambio por lotes | Exportar listas a Excel, importar leads en CSV |
+| Vía                            | Cuándo                                                                         | Ejemplos                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| **API nativa**                 | Siempre que exista y sea estable                                               | Gmail, Google Calendar, API del CRM                              |
+| **Cliente MCP**                | La herramienta publica un servidor MCP; también para las que aporte el cliente | MCP del CRM, de herramientas de datos, MCP propios del cliente   |
+| **Webhooks**                   | Recibir eventos y disparar flujos                                              | Eventos del CRM, formularios, telefonía                          |
+| **Navegador** (último recurso) | Herramientas sin API: portales de terceros, webs de proveedores                | Agente de navegador aislado, con grabación de pasos y aprobación |
+| **Ficheros**                   | Intercambio por lotes                                                          | Exportar listas a Excel, importar leads en CSV                   |
 
 Reglas:
+
 - Las herramientas de servidores MCP externos **no** se dan al agente tal cual: se mapean a capacidades y pasan por el gateway.
 - La automatización de navegador se limita a tareas concretas definidas por el usuario, con credenciales en una bóveda.
 
 ### 7.3 SalesMate como servidor MCP
+
 SalesMate expone su propio servidor MCP para que agentes externos (Claude, otros
 asistentes, los de los clientes) consulten el pipeline, creen tareas o pidan
 borradores con las mismas políticas y aprobaciones.
@@ -402,34 +410,38 @@ flowchart LR
 ```
 
 ### 8.3 Agente Account Manager
+
 Hace crecer y retiene a los **clientes existentes** con un enfoque comercial
-(no es *Customer Success*: no cubre puesta en marcha ni soporte). Actúa sobre
+(no es _Customer Success_: no cubre puesta en marcha ni soporte). Actúa sobre
 eventos configurables por proyecto:
+
 - **Vencimientos y renovaciones** (contratos, suscripciones, servicios periódicos).
 - **Propuestas o presupuestos a punto de caducar**.
-- **Venta cruzada y *upsell*** a partir de lo que el cliente ya tiene.
+- **Venta cruzada y _upsell_** a partir de lo que el cliente ya tiene.
 - **Reactivación** de clientes con caída de actividad.
 - **Peticiones de reseñas y referencias** tras una venta satisfactoria.
 
 Usa **señales de satisfacción** para decidir cuándo y cómo actuar:
 
-| Señal | Ejemplos | Comportamiento |
-|---|---|---|
-| Positiva | Buena valoración, actividad creciente, mensajes de agradecimiento | Propone venta cruzada, *upsell* o petición de referencia |
-| Neutra | Sin cambios relevantes | Solo actúa ante eventos (renovación, vencimiento) |
+| Señal     | Ejemplos                                                             | Comportamiento                                                                   |
+| --------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Positiva  | Buena valoración, actividad creciente, mensajes de agradecimiento    | Propone venta cruzada, _upsell_ o petición de referencia                         |
+| Neutra    | Sin cambios relevantes                                               | Solo actúa ante eventos (renovación, vencimiento)                                |
 | De riesgo | Quejas, caída de actividad, falta de respuesta, incidencias abiertas | No vende; avisa a una persona con el contexto y propone un contacto de retención |
 
 La puesta en marcha, el seguimiento del uso y el soporte quedan fuera de
-alcance; si se necesitan, se añadirían como un agente de *Customer Success*
+alcance; si se necesitan, se añadirían como un agente de _Customer Success_
 sobre la misma infraestructura.
 
 ### 8.4 Agente de Inteligencia
+
 - Investigación de cuentas bajo demanda.
 - Señales configurables por proyecto (noticias, contrataciones, aperturas, visitas a la web, cambios de puesto…).
 - Lookalikes a partir de los mejores clientes de cada proyecto.
 - Análisis de resultados por playbook, versión, asunto y canal → propone cambios que el usuario aprueba.
 
 ### 8.5 Copiloto
+
 Resumen diario multiproyecto, preparación de llamadas, búsqueda en
 conversaciones y "hazlo tú" (lanzar un agente sobre una tarea concreta).
 
@@ -439,12 +451,12 @@ conversaciones y "hazlo tú" (lanzar un agente sobre una tarea concreta).
 
 ### 9.1 Niveles de autonomía (por proyecto × agente × tipo de acción)
 
-| Nivel | Nombre | Comportamiento |
-|---|---|---|
-| 0 | **Sugerir** | Solo propone; tú ejecutas. |
-| 1 | **Borrador** | Prepara la acción completa; nada sale sin aprobación. *(por defecto)* |
-| 2 | **Autónomo con límites** | Ejecuta acciones de bajo riesgo dentro de reglas y pide aprobación para el resto. |
-| 3 | **Autónomo** | Ejecuta todo dentro de los límites; revisión a posteriori. |
+| Nivel | Nombre                   | Comportamiento                                                                    |
+| ----- | ------------------------ | --------------------------------------------------------------------------------- |
+| 0     | **Sugerir**              | Solo propone; tú ejecutas.                                                        |
+| 1     | **Borrador**             | Prepara la acción completa; nada sale sin aprobación. _(por defecto)_             |
+| 2     | **Autónomo con límites** | Ejecuta acciones de bajo riesgo dentro de reglas y pide aprobación para el resto. |
+| 3     | **Autónomo**             | Ejecuta todo dentro de los límites; revisión a posteriori.                        |
 
 Nunca automáticas por defecto: precios fuera de tarifa o descuentos, envío de
 documentación contractual, borrado de datos y cualquier acción marcada como
@@ -455,6 +467,7 @@ pronto al nivel 2 para respuestas con plantilla validada (acuse, petición de
 datos, envío de un presupuesto calculado desde tablas de verdad).
 
 ### 9.2 Guardarraíles del Action Gateway
+
 - Límites por buzón, número y proyecto; ventanas horarias por zona del destinatario y modelo de venta.
 - Listas de exclusión globales y por proyecto.
 - Deduplicación y "enfriamiento" entre proyectos.
@@ -466,6 +479,7 @@ datos, envío de un presupuesto calculado desde tablas de verdad).
 - Botón de parada global y por proyecto.
 
 ### 9.3 Aprendizaje
+
 Cada edición o rechazo se guarda con su motivo y alimenta los ejemplos del
 proyecto y el conjunto de evaluación.
 
@@ -506,17 +520,20 @@ El calendario solo interviene si el playbook incluye reuniones, demos o
 franjas de llamada. Un playbook B2C autoservicio puede no tocarlo nunca.
 
 Cuando interviene:
-- **Disponibilidad global**: el usuario es una sola persona; al buscar huecos se consultan *todos* sus calendarios conectados, sea cual sea el proyecto.
-- **Tipos de reunión por proyecto y playbook**: demo, reunión de descubrimiento, llamada de cierre o *callback*, con duración, márgenes, horario, enlace de videollamada, plantilla de invitación y calendario de destino.
+
+- **Disponibilidad global**: el usuario es una sola persona; al buscar huecos se consultan _todos_ sus calendarios conectados, sea cual sea el proyecto.
+- **Tipos de reunión por proyecto y playbook**: demo, reunión de descubrimiento, llamada de cierre o _callback_, con duración, márgenes, horario, enlace de videollamada, plantilla de invitación y calendario de destino.
 - **Etiquetado**: cada evento lleva el proyecto y el playbook en sus metadatos (y opcionalmente un color o calendario secundario) para poder filtrar y medir.
 - **Franjas reservadas por proyecto**, si se desean.
 
 ### 10.2 Identidad de cada proyecto
+
 Cada proyecto define desde qué buzón, firma, dominio y número sale cada canal.
 El gateway rechaza cualquier acción que use una identidad no asignada al
 proyecto.
 
 ### 10.3 Relaciones entre proyectos
+
 - Detección de contactos o cuentas presentes en varios proyectos.
 - **Jugadas cruzadas explícitas** (presentar el proyecto B a clientes del proyecto A) con reglas propias de quién contacta, con qué identidad y con qué base legal.
 - Bloqueo del contacto cruzado accidental.
@@ -540,24 +557,24 @@ proyecto.
 
 ## 12. Integraciones
 
-| Categoría | Prioridad 1 | Después | Notas |
-|---|---|---|---|
-| **CRM** | **Twenty** (API + MCP + webhooks), por ser el que ya usa el usuario | HubSpot, Pipedrive, Salesforce, Zoho; Notion/Airtable como CRM ligero; CRM interno mínimo para quien no tenga | Descubrimiento de objetos personalizados. |
-| **Email** | Gmail / Google Workspace | Microsoft 365, IMAP/SMTP | Envío desde el buzón real. |
-| **Calendario** | Google Calendar (varias cuentas, free/busy) | Outlook, Cal.com, Calendly | Solo para playbooks que lo usen (§10.1). |
-| **Conocimiento tabular** | Excel/CSV, Google Sheets | Postgres/MySQL externos, Airtable, API REST genérica | Tablas consultables. |
-| **Documentos** | Subida de ficheros, URLs | Google Drive, Notion | RAG. |
-| **Formularios** | Webhook genérico + snippet propio | Typeform, Tally, WordPress | Entrada clave en B2C. |
-| **Pagos** | Enlaces configurados por producto | Stripe y pasarelas habituales | Para B2C autoservicio y B2B transaccional. |
-| **Datos/enriquecimiento** | Un proveedor B2B (Apollo o Clay) + Google Places | Lusha, Hunter, Crunchbase, fuentes propias del cliente | Configurable por proyecto; en B2C apenas se usa. |
-| **Verificación de email** | NeverBounce / ZeroBounce | — | Obligatoria antes de outbound. |
-| **WhatsApp** | — | WhatsApp Business Cloud API | Muy relevante en B2C; opt-in y plantillas. |
-| **Voz** | Click-to-call + grabación + resumen | Agente de voz (Twilio + Vapi/Retell/ElevenLabs) | Voz IA solo inbound o con consentimiento. |
-| **LinkedIn** | Tareas manuales asistidas | Proveedor de automatización (riesgo) | Solo B2B. |
-| **Navegador** | — | Portales sin API | Fase avanzada. |
-| **Notificaciones** | Email + push web | Slack, Telegram | Leads calientes y aprobaciones. |
-| **ERP/facturación** | — | Founderp, Holded | Venta ganada → alta y factura en borrador. |
-| **MCP genérico** | Conectar cualquier servidor MCP | Marketplace de conectores | Clave para el SaaS. |
+| Categoría                 | Prioridad 1                                                         | Después                                                                                                       | Notas                                            |
+| ------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| **CRM**                   | **Twenty** (API + MCP + webhooks), por ser el que ya usa el usuario | HubSpot, Pipedrive, Salesforce, Zoho; Notion/Airtable como CRM ligero; CRM interno mínimo para quien no tenga | Descubrimiento de objetos personalizados.        |
+| **Email**                 | Gmail / Google Workspace                                            | Microsoft 365, IMAP/SMTP                                                                                      | Envío desde el buzón real.                       |
+| **Calendario**            | Google Calendar (varias cuentas, free/busy)                         | Outlook, Cal.com, Calendly                                                                                    | Solo para playbooks que lo usen (§10.1).         |
+| **Conocimiento tabular**  | Excel/CSV, Google Sheets                                            | Postgres/MySQL externos, Airtable, API REST genérica                                                          | Tablas consultables.                             |
+| **Documentos**            | Subida de ficheros, URLs                                            | Google Drive, Notion                                                                                          | RAG.                                             |
+| **Formularios**           | Webhook genérico + snippet propio                                   | Typeform, Tally, WordPress                                                                                    | Entrada clave en B2C.                            |
+| **Pagos**                 | Enlaces configurados por producto                                   | Stripe y pasarelas habituales                                                                                 | Para B2C autoservicio y B2B transaccional.       |
+| **Datos/enriquecimiento** | Un proveedor B2B (Apollo o Clay) + Google Places                    | Lusha, Hunter, Crunchbase, fuentes propias del cliente                                                        | Configurable por proyecto; en B2C apenas se usa. |
+| **Verificación de email** | NeverBounce / ZeroBounce                                            | —                                                                                                             | Obligatoria antes de outbound.                   |
+| **WhatsApp**              | —                                                                   | WhatsApp Business Cloud API                                                                                   | Muy relevante en B2C; opt-in y plantillas.       |
+| **Voz**                   | Click-to-call + grabación + resumen                                 | Agente de voz (Twilio + Vapi/Retell/ElevenLabs)                                                               | Voz IA solo inbound o con consentimiento.        |
+| **LinkedIn**              | Tareas manuales asistidas                                           | Proveedor de automatización (riesgo)                                                                          | Solo B2B.                                        |
+| **Navegador**             | —                                                                   | Portales sin API                                                                                              | Fase avanzada.                                   |
+| **Notificaciones**        | Email + push web                                                    | Slack, Telegram                                                                                               | Leads calientes y aprobaciones.                  |
+| **ERP/facturación**       | —                                                                   | Founderp, Holded                                                                                              | Venta ganada → alta y factura en borrador.       |
+| **MCP genérico**          | Conectar cualquier servidor MCP                                     | Marketplace de conectores                                                                                     | Clave para el SaaS.                              |
 
 ---
 
@@ -605,32 +622,34 @@ flowchart TB
 
 ### 13.2 Stack recomendado
 
-| Capa | Elección | Por qué / alternativas |
-|---|---|---|
-| Lenguaje | **TypeScript** en todo el stack | Un único lenguaje para UI, API y agentes. |
-| Frontend + API | **Next.js** (App Router) + Tailwind + shadcn/ui | Alternativa: React Router. |
-| Base de datos | **Postgres** (Supabase o Neon) + **pgvector** | Relacional, vectores y tablas de conocimiento juntos; RLS por organización y proyecto. |
-| ORM | Drizzle | Alternativa: Prisma. |
-| Auth | Supabase Auth o Clerk (organizaciones y roles) | Clerk trae organizaciones de serie. |
-| Workflows durables | **Inngest** o **Trigger.dev** | Esperas largas, reintentos, reanudación tras aprobación. Alternativa: Temporal. |
-| LLM | **Claude** (API de Anthropic): *tool use*, salidas estructuradas, *prompt caching* | Modelo grande para investigación y redacción; rápido para clasificación. Proveedor abstraído. |
-| MCP | SDK oficial de MCP (TypeScript), como cliente y como servidor | |
-| Integraciones OAuth | Adaptadores propios + **Nango** o **Composio** | Ahorra meses en OAuth y sincronización. |
-| Ingesta | Extracción PDF/Office + fragmentado + embeddings; Excel/CSV → tablas | |
-| Navegador | Playwright aislado o servicio gestionado | Fase avanzada. |
-| Secretos | Cifrado por columna (pgsodium/KMS) | |
-| Ficheros | Supabase Storage / S3 | |
-| Hosting | **Vercel** + workers del proveedor de workflows; región UE | Alternativa: Railway/Fly.io. |
-| Facturación SaaS | Stripe | Fase SaaS. |
-| Observabilidad | Sentry + Langfuse | Trazas y evaluaciones de LLM. |
+| Capa                | Elección                                                                           | Por qué / alternativas                                                                        |
+| ------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Lenguaje            | **TypeScript** en todo el stack                                                    | Un único lenguaje para UI, API y agentes.                                                     |
+| Frontend + API      | **Next.js** (App Router) + Tailwind + shadcn/ui                                    | Alternativa: React Router.                                                                    |
+| Base de datos       | **Postgres** (Supabase o Neon) + **pgvector**                                      | Relacional, vectores y tablas de conocimiento juntos; RLS por organización y proyecto.        |
+| ORM                 | Drizzle                                                                            | Alternativa: Prisma.                                                                          |
+| Auth                | Supabase Auth o Clerk (organizaciones y roles)                                     | Clerk trae organizaciones de serie.                                                           |
+| Workflows durables  | **Inngest** o **Trigger.dev**                                                      | Esperas largas, reintentos, reanudación tras aprobación. Alternativa: Temporal.               |
+| LLM                 | **Claude** (API de Anthropic): _tool use_, salidas estructuradas, _prompt caching_ | Modelo grande para investigación y redacción; rápido para clasificación. Proveedor abstraído. |
+| MCP                 | SDK oficial de MCP (TypeScript), como cliente y como servidor                      |                                                                                               |
+| Integraciones OAuth | Adaptadores propios + **Nango** o **Composio**                                     | Ahorra meses en OAuth y sincronización.                                                       |
+| Ingesta             | Extracción PDF/Office + fragmentado + embeddings; Excel/CSV → tablas               |                                                                                               |
+| Navegador           | Playwright aislado o servicio gestionado                                           | Fase avanzada.                                                                                |
+| Secretos            | Cifrado por columna (pgsodium/KMS)                                                 |                                                                                               |
+| Ficheros            | Supabase Storage / S3                                                              |                                                                                               |
+| Hosting             | **Vercel** + workers del proveedor de workflows; región UE                         | Alternativa: Railway/Fly.io.                                                                  |
+| Facturación SaaS    | Stripe                                                                             | Fase SaaS.                                                                                    |
+| Observabilidad      | Sentry + Langfuse                                                                  | Trazas y evaluaciones de LLM.                                                                 |
 
 ### 13.3 Contexto de los agentes
+
 - **Proyecto y playbook** (estable, cacheado): modelo de venta, proceso, voz, reglas y ejemplos aprobados.
 - **Contacto** (dinámico): ficha, historial, actividades e investigación previa.
 - **Conocimiento** (bajo demanda): documentos, tablas y fuentes vivas como herramientas.
 - **Memoria**: correcciones y resultados.
 
 ### 13.4 Calidad
+
 - Casos de prueba por playbook (leads anonimizados, emails entrantes, prospectos).
 - Evaluación automática (reglas + LLM como juez) antes de cambiar prompts, modelos o playbooks.
 - Métrica principal: **% de acciones aprobadas sin edición**.
@@ -640,7 +659,7 @@ flowchart TB
 ## 14. Modelo de datos inicial
 
 Todas las tablas llevan `org_id` y, salvo las globales, `project_id`, con
-*row-level security*.
+_row-level security_.
 
 ```
 -- Tenancy
@@ -717,6 +736,7 @@ opportunities_cache  (id, project_id, crm_external_id, stage, amount, close_date
 > mediante reglas de cumplimiento (§6.3).
 
 ### 15.1 Marco general (España/UE)
+
 - **RGPD / LOPDGDD**: base jurídica por contacto, información del art. 14 en la primera comunicación cuando los datos no se obtienen del interesado, derechos de los interesados, registro de actividades, contratos de encargado y transferencias internacionales.
 - **LSSI-CE (art. 21)**: restringe las comunicaciones comerciales electrónicas no solicitadas sin consentimiento o relación previa. Para **B2C** implica, en la práctica, outbound solo con consentimiento o con clientes. Para **B2B** su aplicación al email en frío es delicada: se necesita una política explícita por proyecto, que el sistema aplica.
 - **Llamadas comerciales (Ley 11/2022 General de Telecomunicaciones)**: las llamadas no solicitadas a personas físicas requieren consentimiento previo u otra base legitimadora; hay que consultar la **Lista Robinson**.
@@ -725,6 +745,7 @@ opportunities_cache  (id, project_id, crm_external_id, stage, amount, close_date
 - **LinkedIn**: prohíbe la automatización.
 
 ### 15.2 Requisitos del producto
+
 - Tipo de cliente (B2B/B2C), base jurídica, referencia del consentimiento y origen del dato en cada contacto.
 - Matriz canal × tipo de destinatario × base legal aplicada en el gateway.
 - Pie legal, información del art. 14 y baja en un clic por proyecto; propagación opcional de las bajas entre proyectos.
@@ -735,6 +756,7 @@ opportunities_cache  (id, project_id, crm_external_id, stage, amount, close_date
 - Para el SaaS: DPA, lista de subencargados, alojamiento en la UE y registro por organización.
 
 ### 15.3 Entregabilidad de email
+
 - Dominios secundarios para outbound por proyecto.
 - SPF, DKIM y DMARC comprobados al conectar un buzón.
 - Calentamiento y límites conservadores (orientativo: 30–50 emails/día por buzón al principio).
@@ -742,9 +764,11 @@ opportunities_cache  (id, project_id, crm_external_id, stage, amount, close_date
 - Verificación previa y parada automática por rebotes.
 
 ### 15.4 Requisito SaaS crítico: verificación de Google
+
 Para que clientes externos conecten su Gmail hace falta la **verificación OAuth
-de Google**. Los permisos de Gmail son *restringidos* y exigen una
+de Google**. Los permisos de Gmail son _restringidos_ y exigen una
 **evaluación de seguridad anual por un tercero** (CASA). Estrategia:
+
 - **Uso propio**: app OAuth en modo interno o de pruebas.
 - **Primeros clientes**: Microsoft 365, el envío a través de las cuentas ya conectadas en el CRM del cliente o un proveedor de integraciones ya verificado.
 - **SaaS abierto**: presupuestar la verificación y la evaluación CASA.
@@ -756,6 +780,7 @@ de Google**. Los permisos de Gmail son *restringidos* y exigen una
 Estimaciones para 1 desarrollador apoyado por IA.
 
 ### Fase 0 — Fundamentos multi-tenant (3–4 semanas)
+
 - Repo, CI, entornos, auth con organizaciones y roles, Postgres con RLS.
 - Proyectos, identidades y tipos de reunión (disponibilidad global de calendario).
 - Conexiones: el CRM del usuario (**Twenty**: API + MCP + webhooks), **Google Calendar** y **Gmail**.
@@ -772,6 +797,7 @@ Estimaciones para 1 desarrollador apoyado por IA.
 > worker de workflows en la Fase 1. Detalle en [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ### Fase 1 — Playbooks y Agente Inbound (4 semanas)
+
 - Plantillas de modelo de venta (§4.2), editor de playbooks, entrevista guiada y simulador.
 - Inbound por email y formularios con los siguientes pasos **reunión**, **presupuesto desde tablas**, **callback** y **derivar a una persona**.
 - Registro en el CRM y notificaciones; bandeja móvil.
@@ -781,10 +807,11 @@ Estimaciones para 1 desarrollador apoyado por IA.
 > playbooks versionado y borrador con IA; agente inbound para formularios web y
 > Gmail con cualificación, contacto, conversación y acciones propuestas por el
 > Action Gateway; copiloto por proyecto. La "recogida de datos para cotizar" se
-> cubre con el campo *Datos que hay que reunir* del playbook. Pendiente de esta
+> cubre con el campo _Datos que hay que reunir_ del playbook. Pendiente de esta
 > fase: Gmail push (ahora se lee cada 30 minutos) y una vista móvil dedicada.
 
 ### Fase 2 — Agente Outbound (4–6 semanas)
+
 - Construcción de listas (CRM, CSV, proveedor de datos), deduplicación, exclusiones y comprobación de base legal.
 - Verificación, puntuación, investigación y redacción con citas.
 - Cadencias email + tareas de llamada/LinkedIn; primer contacto aprobado a mano y seguimientos con autonomía 2.
@@ -793,12 +820,14 @@ Estimaciones para 1 desarrollador apoyado por IA.
 - **Hito:** al menos un playbook outbound B2B generando conversiones semanales.
 
 ### Fase 3 — Account Manager y multicanal (4–6 semanas)
+
 - Agente Account Manager (vencimientos, renovaciones, venta cruzada, reactivación) con señales de satisfacción.
 - WhatsApp Business, chat web por proyecto, click-to-call con grabación y resumen.
 - Enlaces de pago y generación de propuestas/presupuestos en documento.
 - Fuentes vivas adicionales (bases de datos externas, API REST) y cliente MCP genérico.
 
 ### Fase 4 — Inteligencia y autonomía
+
 - Señales configurables, cuentas calientes y lookalikes.
 - Optimización de playbooks por versiones.
 - Agente de voz inbound.
@@ -806,6 +835,7 @@ Estimaciones para 1 desarrollador apoyado por IA.
 - Subida de autonomía donde la tasa de aprobación sin edición lo justifique.
 
 ### Fase 5 — SaaS
+
 - Onboarding autoservicio y biblioteca de plantillas de playbooks.
 - Facturación (Stripe), planes y límites de uso.
 - Servidor MCP público de SalesMate.
@@ -816,16 +846,16 @@ Estimaciones para 1 desarrollador apoyado por IA.
 
 ## 17. Métricas
 
-| Tipo | Métrica |
-|---|---|
+| Tipo                                | Métrica                                                                                                                                  |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | **Negocio** (por proyecto/playbook) | Conversiones por tipo (reuniones, presupuestos, pagos, altas), oportunidades, ventas ganadas, ingresos atribuidos, coste por conversión. |
-| **Inbound** | Tiempo hasta la primera respuesta, % cualificados, % que alcanza el siguiente paso. |
-| **Outbound** | Respuesta, respuesta positiva, rebotes, bajas, quejas de spam. |
-| **Account Manager** | Renovaciones a tiempo, retención, venta cruzada, reactivaciones, clientes en riesgo detectados a tiempo. |
-| **Calidad del agente** | % aprobado sin edición, motivos de rechazo, afirmaciones sin cita. |
-| **Conocimiento** | Fuentes desactualizadas, contradicciones, preguntas sin respuesta. |
-| **Operación** | Coste de LLM y datos por proyecto, salud de conexiones, minutos al día aprobando. |
-| **SaaS** | Activación (primer playbook activo), retención, ingresos recurrentes. |
+| **Inbound**                         | Tiempo hasta la primera respuesta, % cualificados, % que alcanza el siguiente paso.                                                      |
+| **Outbound**                        | Respuesta, respuesta positiva, rebotes, bajas, quejas de spam.                                                                           |
+| **Account Manager**                 | Renovaciones a tiempo, retención, venta cruzada, reactivaciones, clientes en riesgo detectados a tiempo.                                 |
+| **Calidad del agente**              | % aprobado sin edición, motivos de rechazo, afirmaciones sin cita.                                                                       |
+| **Conocimiento**                    | Fuentes desactualizadas, contradicciones, preguntas sin respuesta.                                                                       |
+| **Operación**                       | Coste de LLM y datos por proyecto, salud de conexiones, minutos al día aprobando.                                                        |
+| **SaaS**                            | Activación (primer playbook activo), retención, ingresos recurrentes.                                                                    |
 
 ---
 
@@ -834,35 +864,35 @@ Estimaciones para 1 desarrollador apoyado por IA.
 Órdenes de magnitud mensuales para uso propio con varios proyectos; verifica
 los precios actuales.
 
-| Partida | Rango aproximado |
-|---|---|
-| Hosting web + BD + workflows (planes iniciales) | 0–75 € |
-| LLM (Claude), con modelo pequeño para triaje y caching | 20–200 € |
-| Datos/enriquecimiento | 50–300 € |
-| Verificación de email | 10–50 € |
-| Dominios y buzones secundarios para outbound | 10–20 € por buzón |
-| WhatsApp / voz (fase 3+) | por uso |
-| Observabilidad | 0–50 € |
-| Fase SaaS: verificación de Google/CASA, asesoría legal | coste puntual |
+| Partida                                                | Rango aproximado  |
+| ------------------------------------------------------ | ----------------- |
+| Hosting web + BD + workflows (planes iniciales)        | 0–75 €            |
+| LLM (Claude), con modelo pequeño para triaje y caching | 20–200 €          |
+| Datos/enriquecimiento                                  | 50–300 €          |
+| Verificación de email                                  | 10–50 €           |
+| Dominios y buzones secundarios para outbound           | 10–20 € por buzón |
+| WhatsApp / voz (fase 3+)                               | por uso           |
+| Observabilidad                                         | 0–50 €            |
+| Fase SaaS: verificación de Google/CASA, asesoría legal | coste puntual     |
 
 ---
 
 ## 19. Riesgos y mitigaciones
 
-| Riesgo | Mitigación |
-|---|---|
-| Diseño sesgado por los primeros proyectos | Núcleo agnóstico; lo específico va a configuración, conocimiento y reglas; probar cada funcionalidad con al menos un caso B2B y uno B2C. |
-| El agente envía algo incorrecto | Borrador por defecto, citas obligatorias, fuentes de verdad, botón de parada, auditoría. |
-| Precios o condiciones inventados | Solo desde tablas de verdad; validación de cifras en el gateway. |
-| Mezcla de datos entre proyectos u organizaciones | `org_id`/`project_id` + RLS, identidades por proyecto, tests de aislamiento. |
-| Incumplimiento normativo | Base legal por contacto, matriz canal × destinatario, reglas por proyecto, revisión legal. |
-| Herramientas MCP de terceros con permisos excesivos | Solo capacidades mapeadas; lectura y escritura separadas. |
-| Reputación de dominio | Dominios secundarios, calentamiento, límites, verificación. |
-| Bloqueo de LinkedIn | Tareas manuales por defecto. |
-| Dependencia de APIs de terceros | Capa de capacidades + monitor de salud. |
-| Bloqueo del SaaS por la verificación de Google | Plan escalonado de §15.4. |
-| Coste de IA descontrolado | Presupuesto por proyecto, modelos pequeños, caching. |
-| Alcance excesivo | Fases con hitos. |
+| Riesgo                                              | Mitigación                                                                                                                               |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Diseño sesgado por los primeros proyectos           | Núcleo agnóstico; lo específico va a configuración, conocimiento y reglas; probar cada funcionalidad con al menos un caso B2B y uno B2C. |
+| El agente envía algo incorrecto                     | Borrador por defecto, citas obligatorias, fuentes de verdad, botón de parada, auditoría.                                                 |
+| Precios o condiciones inventados                    | Solo desde tablas de verdad; validación de cifras en el gateway.                                                                         |
+| Mezcla de datos entre proyectos u organizaciones    | `org_id`/`project_id` + RLS, identidades por proyecto, tests de aislamiento.                                                             |
+| Incumplimiento normativo                            | Base legal por contacto, matriz canal × destinatario, reglas por proyecto, revisión legal.                                               |
+| Herramientas MCP de terceros con permisos excesivos | Solo capacidades mapeadas; lectura y escritura separadas.                                                                                |
+| Reputación de dominio                               | Dominios secundarios, calentamiento, límites, verificación.                                                                              |
+| Bloqueo de LinkedIn                                 | Tareas manuales por defecto.                                                                                                             |
+| Dependencia de APIs de terceros                     | Capa de capacidades + monitor de salud.                                                                                                  |
+| Bloqueo del SaaS por la verificación de Google      | Plan escalonado de §15.4.                                                                                                                |
+| Coste de IA descontrolado                           | Presupuesto por proyecto, modelos pequeños, caching.                                                                                     |
+| Alcance excesivo                                    | Fases con hitos.                                                                                                                         |
 
 ---
 

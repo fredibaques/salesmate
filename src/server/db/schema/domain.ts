@@ -1183,6 +1183,20 @@ export type AgentRunStep =
   | { type: "tool_call"; name: string; input: unknown }
   | { type: "tool_result"; name: string; output: unknown; isError?: boolean };
 
+/**
+ * A request that may take several runs: «find 120 new rows» or «complete the
+ * table's empty cells». Each run carries it, with how much was done before
+ * it; the first run's id is the task's.
+ */
+export type RunTask = {
+  id: string;
+  kind: "find" | "complete";
+  /** Rows asked for, or cells to fill when it began. */
+  total: number;
+  /** Done before this run. */
+  done: number;
+};
+
 export const agentRuns = pgTable(
   "agent_runs",
   {
@@ -1217,6 +1231,8 @@ export const agentRuns = pgTable(
     error: text("error"),
     /** The rows of a table it is filling right now (the table shows them as «completándose»). */
     target: jsonb("target").$type<{ baseId: string; rowIds: string[] }>(),
+    /** The request this run works on, which may take several runs (Tareas shows its progress). */
+    task: jsonb("task").$type<RunTask>(),
     startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
   },

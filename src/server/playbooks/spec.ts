@@ -357,7 +357,5 @@ export function renderSalesProfile(profile: SalesProfile): string {
   if (profile.segment.geography.length) parts.push(`Zona: ${profile.segment.geography.join(", ")}`);
   if (profile.decisionMakers.length) parts.push(`Quién decide la compra:\n${bullet(profile.decisionMakers)}`);
   if (profile.pains.length) parts.push(`Problemas que resolvemos:\n${bullet(profile.pains)}`);
-  return parts.length
-    ? parts.join("\n\n")
-    : "(Todavía no se ha descrito el negocio ni su cliente ideal.)";
+  return parts.length ? parts.join("\n\n") : "(Todavía no se ha descrito el negocio ni su cliente ideal.)";
 }

@@ -5,13 +5,13 @@ Este documento describe el código tal como está. La visión completa está en
 
 ## Stack
 
-| Capa | Elección |
-|---|---|
-| App | Next.js 16 (App Router, Server Actions, `proxy.ts`), React 19, Tailwind 4 |
-| Datos | Postgres 16 vía Drizzle ORM. Local y tests: PGlite (Postgres en WASM). Producción: cualquier Postgres (`postgres-js`) |
-| Auth | Better Auth (email + contraseña, Google opcional) con el plugin de organizaciones |
-| Validación | Zod |
-| Tests | Vitest con PGlite en memoria y `fetch` simulado |
+| Capa       | Elección                                                                                                              |
+| ---------- | --------------------------------------------------------------------------------------------------------------------- |
+| App        | Next.js 16 (App Router, Server Actions, `proxy.ts`), React 19, Tailwind 4                                             |
+| Datos      | Postgres 16 vía Drizzle ORM. Local y tests: PGlite (Postgres en WASM). Producción: cualquier Postgres (`postgres-js`) |
+| Auth       | Better Auth (email + contraseña, Google opcional) con el plugin de organizaciones                                     |
+| Validación | Zod                                                                                                                   |
+| Tests      | Vitest con PGlite en memoria y `fetch` simulado                                                                       |
 
 **Por qué Better Auth** y no Clerk o Supabase Auth: se aloja en nuestra propia
 base de datos (sin dependencia de un proveedor), trae organizaciones, miembros
@@ -228,7 +228,7 @@ aplica a cualquier `ConnectorError`.
 
 La plataforma no tiene clave de IA propia. Cada organización conecta la suya
 (`org_ai`: una por organización) con **Anthropic**, **OpenAI** o **Kimi** y
-elige el modelo en *Configuración → IA*. Sin ella, la IA está apagada:
+elige el modelo en _Configuración → IA_. Sin ella, la IA está apagada:
 Copilot y las propuestas piden conectarla, los mensajes entrantes esperan en
 la cola y el planificador salta a sus agentes sin consumir la franja.
 
@@ -342,7 +342,7 @@ src/server/
   externo es `propose_action`, que entra en el Action Gateway con
   `actorType: "agent"`; la autonomía del proyecto decide si se ejecuta, se
   programa o espera aprobación.
-- **Prompt estable y cacheable.** El *system prompt* contiene proyecto,
+- **Prompt estable y cacheable.** El _system prompt_ contiene proyecto,
   identidades y playbook (cambia solo al cambiar el playbook); la hora y el
   mensaje del contacto van en el turno de usuario. El historial del bucle es
   solo de anexado.
@@ -460,12 +460,20 @@ orden por cualquier columna, búsqueda y exportación a CSV. Se puede
 rango de fechas (con atajos: hoy, últimos 7 o 30 días, este mes) o de
 números (`between`, `desde..hasta`), una lista para marcar opciones (`in`,
 `a|b`), sí/no, o texto (contiene, es); y en todos, vacío o con valor. Los
-filtros en uso se ven como chips sobre la tabla y se cumplen todos a la vez.
-También se puede **agrupar por uno** (las filas vienen ordenadas por él,
-con una cabecera por valor y su recuento): van en la dirección
+filtros en uso se ven como chips sobre la tabla y se cumplen todos a la vez
+(el estado de las filas se filtra igual, desde su columna). También se puede
+**agrupar por uno** con el selector a la derecha de la barra (`GroupSelect`;
+las filas vienen ordenadas por él, con una cabecera por valor y su
+recuento): van en la dirección
 (`?f=<campo>~<condición>~<valor>`, `?group=<campo>`; `lib/table-filters.ts`,
 `listProspects({ filters, group })`), así que una vista filtrada se puede
-guardar o compartir. El **ancho de cada columna** se cambia arrastrando el
+guardar o compartir. Las opciones de las columnas de selección, varias y fase
+tienen **color**: `optionColors` en la columna (dentro de
+`prospect_bases.columns`, sin migración), elegido con el punto de cada opción
+al editar la columna (`OptionsInput`); la que no tiene uno toma el de la
+paleta por su posición (`optionColor`), y se pinta como etiqueta
+(`OptionChip`) en las celdas, las cabeceras de grupo, el tablero y el
+filtro. El **ancho de cada columna** se cambia arrastrando el
 borde de su cabecera (`ColumnResizer`) y se guarda para la tabla
 (`prospect_bases.column_widths`, migración 0030, `setColumnWidth`); la
 rejilla usa anchos fijos y corta con «…» lo que no cabe. Exportar a otra
@@ -546,6 +554,7 @@ programadas) pasa primero por el motor de completado.
 
 **Motor de completado** (`prospects/engine/`). Rellena las celdas fila a fila
 sin agente, por un camino fijo:
+
 1. La web de la empresa: la de la fila o, si no tiene, la que encuentra
    Serper (si la organización lo ha conectado; `pickWebsite` descarta
    directorios y redes y exige que el dominio contenga una palabra del
@@ -553,7 +562,7 @@ sin agente, por un camino fijo:
    Una columna cuyo dato está en otro sitio tiene además su propia búsqueda
    (`columnQuery`): si su nombre o sus instrucciones nombran un dominio
    («Web coches.net», «su ficha en coches.net») busca `site:<dominio>
-   <empresa> <ciudad>`; si piden buscar fuera (internet, Google, portal,
+<empresa> <ciudad>`; si piden buscar fuera (internet, Google, portal,
    ficha, perfil, directorio), `<empresa> <columna>`. Los resultados (y el
    primero, si se deja leer) van al modelo junto a las páginas y valen como
    fuente. Sin web propia, o si no se puede leer, el motor pregunta solo por
@@ -600,6 +609,7 @@ herramientas del servidor quedan en los pasos del registro.
 
 **Descubrimiento** (`prospects/engine/discover.ts`). Con Serper conectado y
 una tabla de empresas, las filas nuevas tampoco las busca el agente:
+
 1. El modelo pequeño prepara 6 búsquedas de Google a partir de «Lo que se
    busca» (proyecto, oferta y cliente, instrucciones del agente), distintas de
    las ya hechas (`settings.discovery.usedQueries`, las últimas 60).
@@ -611,9 +621,9 @@ una tabla de empresas, las filas nuevas tampoco las busca el agente:
    columnas con lo que dicen sus páginas (con su fuente; lo demás, no
    encontrado).
 4. Las que encajan se guardan como filas, con su coste.
-Cinco webs a la vez, hasta el número de filas de la ejecución, el tiempo o el
-gasto que queda. Cuesta unas décimas de céntimo por fila. Sin Serper, o en
-tablas de personas, sigue buscando el agente con sus herramientas.
+   Cinco webs a la vez, hasta el número de filas de la ejecución, el tiempo o el
+   gasto que queda. Cuesta unas décimas de céntimo por fila. Sin Serper, o en
+   tablas de personas, sigue buscando el agente con sus herramientas.
 
 **Filas nuevas por ejecución.** Cada ejecución busca `settings.findPerRun`
 filas nuevas (10 si no se ha elegido; «Filas nuevas por ejecución» en su
@@ -665,10 +675,32 @@ y `getRun` (con sus pasos). Cada ejecución lleva su desglose
 (`costBreakdown` en `llm/client.ts`): entrada, salida, caché y búsquedas web a
 los precios del modelo, y «Otros» con lo que no se desglosa (borradores de
 primeros emails, ejecuciones anteriores a la migración 0022). Se ve en la
-pestaña «Log» de cada agente (con los resultados del agente de prospección y
-el gasto del mes), en el resumen de cada proyecto (gráfico de líneas del
+pestaña «Tareas» de cada agente (bajo sus tareas; con los resultados del
+agente de prospección y el gasto del mes), en el resumen de cada proyecto (gráfico de líneas del
 coste por día, semana o mes: `costSeries`, en la hora del proyecto) y en Configuración → Ejecuciones (`/app/runs`, filtros de
 periodo, proyecto y agente; meses en hora de Madrid con `monthStart`).
+
+## Tareas de los agentes
+
+Un encargo puede llevar varias ejecuciones: «120 filas nuevas» se hace por
+tandas, y «Completar vacíos» de toda la tabla, también. Cada ejecución del
+agente de prospección lleva su **tarea** (`agent_runs.task`, migración 0031,
+`RunTask`: `id` —el de la primera ejecución—, `kind` `find` o `complete`,
+`total` y `done`, lo hecho antes de ella), y la tanda que deja en cola
+(`continue`) la lleva en su `payload`, así que la siguiente sigue la misma
+tarea. `agents/tasks.ts` (`agentTasks`) arma la pestaña «Tareas» del agente
+(`/agents/<id>/tasks`; `/log` redirige):
+
+- **En curso**: sus ejecuciones `running` de los últimos 10 minutos, con el
+  avance de su tarea en vivo (filas: lo de antes más las filas con su
+  `run_id`; celdas: el total menos las que quedan por completar), cuándo
+  empezó, lo que lleva gastado y sus pasos.
+- **Planificadas**: sus eventos sin procesar, en orden (las tandas que le
+  quedan de un encargo con su avance, las filas nuevas por completar, los
+  avisos recibidos), «en unos minutos» o «cuando actives el agente», y su
+  próxima ronda programada (`describeNextRun`).
+- **Historial**: el registro de ejecuciones de siempre.
+  La página se refresca sola mientras trabaja o tiene una tanda a punto.
 
 ## Automatización de los agentes
 
@@ -698,9 +730,9 @@ modelo, Comunicación y Siguiente paso; `/automation` redirige ahí:
     (`leadFromEvent`).
   - Tras añadir filas, `workOnAddedRows` lanza después de responder lo que
     toque a cada agente. Los eventos se guardan en `agent_events` y se
-  procesan enseguida (`after()`) o en la siguiente pasada del programador si
-  el agente está ocupado (`agents/events.ts`); cada evento se reclama antes de
-  ejecutar, así que nunca se procesa dos veces.
+    procesan enseguida (`after()`) o en la siguiente pasada del programador si
+    el agente está ocupado (`agents/events.ts`); cada evento se reclama antes de
+    ejecutar, así que nunca se procesa dos veces.
 - **Límite de gasto** (`budget.maxCostPerMonthUsd`): el único límite de un
   agente (prospección y outbound; se elige en su ficha). Con él gastado
   (`monthSpendUsd`, en la zona del proyecto) no arranca más ejecuciones; lo que

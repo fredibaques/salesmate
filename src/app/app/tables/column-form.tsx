@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { ActionForm, type FormAction } from "@/components/action-form";
-import { ListInput } from "@/components/list-input";
 import { Field, Input, Segmented, Select, Textarea } from "@/components/ui";
+import { OptionsInput } from "./options-input";
 import {
   COLUMN_TYPE_LABELS,
   COLUMN_TYPES,
@@ -56,18 +56,22 @@ export function ColumnForm({ action, column }: { action: FormAction; column?: Ba
           hint="En orden. Con esta columna puedes ver la tabla como un tablero, con una lista por fase."
           tip="Una tabla solo tiene una columna de fase. El agente solo puede elegir entre estas."
         >
-          <ListInput
+          <OptionsInput
             key="stage"
-            name="options"
+            column={column}
             defaultValue={column?.type === "stage" ? (column.options ?? []) : DEFAULT_STAGES}
             addLabel="Añadir fase"
           />
         </Field>
       ) : hasOptions(type) ? (
-        <Field label="Opciones" group hint="El agente solo puede elegir entre estas.">
-          <ListInput
+        <Field
+          label="Opciones"
+          group
+          hint="El agente solo puede elegir entre estas. El punto elige el color de su etiqueta."
+        >
+          <OptionsInput
             key="options"
-            name="options"
+            column={column}
             defaultValue={column?.options ?? []}
             addLabel="Añadir opción"
           />

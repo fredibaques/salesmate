@@ -91,7 +91,6 @@
   --radius-lg: 4px;
   --radius-xl: 6px;
   --radius-2xl: 8px;
-
 }
 
 :root {
@@ -148,7 +147,6 @@ body {
   }
 }
 
-
 /* Loading placeholders: a soft light sweeps across the shape of what is coming. */
 @keyframes shimmer {
   from {
@@ -198,24 +196,52 @@ body {
   }
 }
 
-/* An agent at work: its icon sways a little, as if busy. */
+/* An agent at work: its icon hops and wiggles, clearly busy… */
 @keyframes agent-working {
   0%,
   100% {
-    transform: rotate(0deg) scale(1);
+    transform: translateY(0) rotate(0deg) scale(1);
   }
-  25% {
-    transform: rotate(-8deg) scale(1.08);
+  15% {
+    transform: translateY(-3px) rotate(-16deg) scale(1.2);
   }
-  75% {
-    transform: rotate(8deg) scale(1.08);
+  30% {
+    transform: translateY(-3px) rotate(14deg) scale(1.2);
+  }
+  45% {
+    transform: translateY(0) rotate(-8deg) scale(1.08);
+  }
+  60% {
+    transform: translateY(0) rotate(0deg) scale(1);
   }
 }
 
 @utility agent-working {
-  animation: agent-working 1.4s ease-in-out infinite;
+  animation: agent-working 1.1s ease-in-out infinite;
 
   @media (prefers-reduced-motion: reduce) {
     animation: none;
+  }
+}
+
+/* …and its tile sends out rings in the agent's colour. */
+@keyframes agent-halo {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 55%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 8px color-mix(in srgb, currentColor 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@utility agent-halo {
+  animation: agent-halo 1.6s ease-out infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 45%, transparent);
   }
 }

@@ -20,6 +20,7 @@ import { AgentTile, agentState } from "@/components/agent-look-fields";
 import { MenuButton } from "@/components/menu-button";
 import { connectionCapabilities } from "@/server/connectors/service";
 import { listOrgConnections } from "@/server/services/projects";
+import { OptionChip } from "@/components/option-chip";
 import { DataGrid, GridCell, GridHead, GridRow, NARROW_COLUMN } from "@/components/data-grid";
 import {
   filterFields,
@@ -70,7 +71,7 @@ import { fillingRows } from "@/server/agents/runs";
 import { CellState, cellTitle, COLUMN_ICONS, NotFound, Pending, WebLink } from "../cells";
 import { AddColumnHeader, ColumnHeader, FieldHeader, HiddenColumns } from "./column-header";
 import { ColumnFilter } from "./column-filter";
-import { FilterBar } from "./filter-bar";
+import { FilterBar, GroupSelect } from "./filter-bar";
 import { EditableCell, ExpandRow, NewRow, type CellEditor, type NewRowField } from "./grid-editing";
 import { env } from "@/server/env";
 import { TableIntake, TableSettings } from "./table-settings";
@@ -93,13 +94,6 @@ const STATUS: Record<ProspectStatus, { label: string; tone: "accent" | "neutral"
   exported: { label: "Exportado", tone: "neutral" },
   discarded: { label: "Descartado", tone: "warning" },
 };
-
-const FILTERS: { key?: ProspectStatus; label: string }[] = [
-  { label: "Todos" },
-  { key: "new", label: "Nuevos" },
-  { key: "exported", label: "Exportados" },
-  { key: "discarded", label: "Descartados" },
-];
 
 /** How a group's value reads in its header. */
 function groupLabel(key: string, value: string | null, fields: FilterField[]): string {
@@ -233,7 +227,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
     const fallback = i === 0 ? 240 : f.kind === "system" && f.key === "created" ? 170 : 180;
     return { key, width: base.columnWidths[key] ?? fallback };
   };
-  const gridColumns = [{ key: "id", width: 56 }, ...fields.map(widthOf), { key: "add", width: 56 }];
+  const gridColumns = [{ key: "id", width: 56 }, ...fields.map(widthOf), { key: "add", width: 72 }];
   const resizeColumn = setColumnWidthAction.bind(null, baseId);
   const hidden = [
     ...hiddenFields.map((f) => ({ id: `field:${f}`, name: SYSTEM_FIELD_LABELS[f] })),
@@ -262,6 +256,8 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
     return s ? `${path}?${s}` : path;
   };
   const currentSearch = href({}).split("?")[1] ?? "";
+  // Grouped by a choice column: its headers show the choice's coloured tag.
+  const groupColumn = base.columns.find((c) => c.id === group && (c.type === "select" || c.type === "stage"));
   // The funnel in each header filters by that field («sources» has none).
   const columnFilter = (key: string) => {
     const field = filterFieldList.find((f) => f.key === key);
@@ -397,7 +393,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
             tone={lastRun.status === "failed" ? "danger" : "success"}
             action={
               <LinkButton
-                href={`/app/projects/${filler!.projectId}/agents/${filler!.id}/log`}
+                href={`/app/projects/${filler!.projectId}/agents/${filler!.id}/tasks`}
                 variant="secondary"
                 size="sm"
               >
@@ -427,41 +423,15 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                     aria-label="Buscar por nombre"
                   />
                 </form>
-                <nav className="flex flex-wrap gap-1" aria-label="Filtrar por estado">
-                  {FILTERS.map((f) => {
-                    const n = f.key
-                      ? (data.byStatus[f.key] ?? 0) + (f.key === "new" ? (data.byStatus.accepted ?? 0) : 0)
-                      : data.total;
-                    const active = f.key === status;
-                    return (
-                      <Link
-                        key={f.label}
-                        href={href({ status: f.key, page: undefined })}
-                        aria-current={active ? "page" : undefined}
-                        className={cx(
-                          "rounded-full border px-3 py-1 text-xs transition-colors",
-                          active
-                            ? "border-border-strong bg-ink-100 font-medium text-foreground"
-                            : "border-border text-ink-700 hover:bg-ink-50",
-                        )}
-                      >
-                        {f.label} <span className="tabular-nums">{n}</span>
-                      </Link>
-                    );
-                  })}
-                </nav>
                 {!board ? (
-                  <FilterBar
-                    path={path}
-                    search={currentSearch}
-                    fields={filterFieldList}
-                    filters={filters}
-                    group={group}
-                  />
+                  <FilterBar path={path} search={currentSearch} fields={filterFieldList} filters={filters} />
                 ) : null}
               </>
             ) : null}
             <span className="ml-auto flex flex-wrap items-center gap-1">
+              {data.total > 0 && !board ? (
+                <GroupSelect path={path} search={currentSearch} fields={filterFieldList} group={group} />
+              ) : null}
               {stage && data.total > 0 ? (
                 <SegmentedLinks
                   label="Vista"
@@ -490,6 +460,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
           ) : board && stage ? (
             <KanbanBoard
               stages={stage.options ?? []}
+              colors={stage.optionColors}
               field={stage.id}
               save={saveCell}
               cards={data.rows.map((r) => ({
@@ -623,7 +594,11 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                           className="h-9 border-b border-border bg-ink-50 px-3 text-xs font-medium text-ink-700"
                         >
                           <span className="sticky left-3">
-                            {groupLabel(group, r.groupValue, filterFieldList)}{" "}
+                            {groupColumn && r.groupValue ? (
+                              <OptionChip column={groupColumn} value={r.groupValue} />
+                            ) : (
+                              groupLabel(group, r.groupValue, filterFieldList)
+                            )}{" "}
                             <span className="font-normal text-muted tabular-nums">· {groupCount}</span>
                           </span>
                         </td>

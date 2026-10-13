@@ -69,6 +69,7 @@ export type FilterField = {
   /** How it compares: like a column type; the fixed fields map to one. */
   type: ColumnType | "status";
   options?: string[];
+  optionColors?: BaseColumn["optionColors"];
 };
 
 /** The conditions a kind of field offers, the usual one first. */
@@ -114,7 +115,16 @@ export function filterFields(
     { key: "status", label: labels.status, type: "status", options: ["new", "exported", "discarded"] },
     { key: "created", label: labels.created, type: "date" },
   ];
-  return [...fixed, ...columns.map((c) => ({ key: c.id, label: c.name, type: c.type, options: c.options }))];
+  return [
+    ...fixed,
+    ...columns.map((c) => ({
+      key: c.id,
+      label: c.name,
+      type: c.type,
+      options: c.options,
+      optionColors: c.optionColors,
+    })),
+  ];
 }
 
 /** Reads the ?f= filters, keeping only the ones that make sense for the table. */

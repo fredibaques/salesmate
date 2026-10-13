@@ -78,7 +78,7 @@ export default async function AgentLayout({
                 projectId={projectId}
                 agentId={agentId}
                 settings={agent.config.settings}
-                back={`${base}/log`}
+                back={`${base}/tasks`}
                 label="Ejecutar ahora"
               />
             ) : tenant.role !== "member" ? (
@@ -92,8 +92,8 @@ export default async function AgentLayout({
                 submitVariant="secondary"
                 className="flex items-center"
               >
-                {/* Then its Log, which follows the run while it works. */}
-                <input type="hidden" name="back" value={`${base}/log`} />
+                {/* Then its Tareas, which follows the run while it works. */}
+                <input type="hidden" name="back" value={`${base}/tasks`} />
               </ActionForm>
             ) : null}
             <ConfirmForm
@@ -123,7 +123,7 @@ export default async function AgentLayout({
           Configuración
         </TabLink>
         <TabLink href={`${base}/channels`}>Herramientas</TabLink>
-        <TabLink href={`${base}/log`}>Log</TabLink>
+        <TabLink href={`${base}/tasks`}>Tareas</TabLink>
         <TabLink href={`${base}/approvals`}>Aprobaciones</TabLink>
       </Tabs>
       {children}

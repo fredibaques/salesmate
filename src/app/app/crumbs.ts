@@ -44,7 +44,8 @@ function agentPageLabel(page: string) {
     case "automation":
       return "Configuración";
     case "log":
-      return "Log";
+    case "tasks":
+      return "Tareas";
     default:
       return null;
   }

@@ -4,9 +4,10 @@ import { createTestDb, seedOrg } from "../../../../tests/helpers/db";
 import { scriptedLlm, type ScriptedTurn } from "../../../../tests/helpers/fake-llm";
 import { mockFetch } from "../../../../tests/helpers/fetch";
 import { runProspecting } from "../../agents/prospector";
+import { agentTasks } from "../../agents/tasks";
 import { createDataConnection } from "../../connectors/service";
 import type { Db } from "../../db/client";
-import { agentConfigs, agentEvents, projects, webPages } from "../../db/schema";
+import { agentConfigs, agentEvents, agentRuns, projects, webPages } from "../../db/schema";
 import { withSystem, withTenant, type TenantContext } from "../../db/tenant";
 import type { LlmRequest } from "../../llm/client";
 import { addAgent } from "../../services/agents";
@@ -219,13 +220,33 @@ describe("prospecting with Serper connected", () => {
     const queued = await withTenant(db, tenant, (tx) =>
       tx.select().from(agentEvents).where(eq(agentEvents.agentConfigId, agent.id)),
     );
-    expect(queued.map((e) => [e.kind, e.payload])).toEqual([["continue", { find: 4 }]]);
+    expect(queued.map((e) => [e.kind, e.payload])).toEqual([
+      ["continue", { find: 4, task: { id: result.runId, kind: "find", total: 5, done: 1 } }],
+    ]);
+    // «Tareas» shows it as planned, 1 of the 5 rows done.
+    const planned = await agentTasks(db, tenant, {
+      agentId: agent.id,
+      timezone: "Europe/Madrid",
+      projectPaused: false,
+    });
+    expect(planned.running).toEqual([]);
+    expect(planned.planned[0]).toMatchObject({
+      title: "Buscar 5 filas nuevas: siguiente tanda",
+      progress: { done: 1, total: 5, unit: "filas" },
+      // The agent is switched off in this test: it waits for it.
+      when: "cuando actives el agente",
+    });
+    const [firstRun] = await withTenant(db, tenant, (tx) =>
+      tx.select().from(agentRuns).where(eq(agentRuns.id, result.runId)),
+    );
+    expect(firstRun.task).toEqual({ id: result.runId, kind: "find", total: 5, done: 0 });
 
     // The next run looks for those 4 (not «Completar vacíos»); with nothing new, it stops asking.
     await withTenant(db, tenant, (tx) =>
       tx.delete(agentEvents).where(eq(agentEvents.agentConfigId, agent.id)),
     );
     const next = scriptedLlm([plan(["compraventa coches Málaga"])]);
+    const queuedEvent = queued[0];
     const again = await runProspecting(
       {
         db,
@@ -235,10 +256,15 @@ describe("prospecting with Serper connected", () => {
         reader: fakeWeb().reader,
       },
       tenant,
-      { agentId: agent.id, trigger: "event", events: [{ kind: "continue", payload: { find: 4 } }] },
+      { agentId: agent.id, trigger: "event", events: [{ kind: "continue", payload: queuedEvent.payload }] },
     );
     expect(String(next.requests[0].messages[0].content)).toContain("concesionario Málaga");
     expect(again).toMatchObject({ status: "completed", added: 0 });
+    // The follow-up run carries the same task, with what was done before it.
+    const [secondRun] = await withTenant(db, tenant, (tx) =>
+      tx.select().from(agentRuns).where(eq(agentRuns.id, again.runId)),
+    );
+    expect(secondRun.task).toEqual({ id: result.runId, kind: "find", total: 5, done: 1 });
     const after = await withTenant(db, tenant, (tx) =>
       tx.select().from(agentEvents).where(eq(agentEvents.agentConfigId, agent.id)),
     );
