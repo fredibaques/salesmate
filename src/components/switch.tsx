@@ -11,11 +11,14 @@ export function SwitchButton({
   on,
   onLabel = "Activo",
   offLabel = "Inactivo",
+  bare = false,
   label,
 }: {
   on: boolean;
   onLabel?: string;
   offLabel?: string;
+  /** Only the switch, no word next to it (a card, where the colour says enough). */
+  bare?: boolean;
   /** Accessible name, e.g. «Activar el agente inbound». */
   label: string;
 }) {
@@ -43,7 +46,9 @@ export function SwitchButton({
           )}
         />
       </span>
-      <span className={on ? "text-success" : "text-muted"}>{pending ? "…" : on ? onLabel : offLabel}</span>
+      {bare ? null : (
+        <span className={on ? "text-success" : "text-muted"}>{pending ? "…" : on ? onLabel : offLabel}</span>
+      )}
     </button>
   );
 }

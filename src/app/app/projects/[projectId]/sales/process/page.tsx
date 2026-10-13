@@ -19,7 +19,7 @@ import { listChannelOptions } from "@/server/services/agents";
 import { getProject, listMeetingTypes } from "@/server/services/projects";
 import { AI_CONNECT_HREF, currentAi } from "../../../../ai-notice";
 import { MeetingTypesCard } from "../../meeting-types";
-import { SalesNav } from "../../section-navs";
+import { ConfigNav } from "../../section-navs";
 import { draftProcess, saveProcess } from "../actions";
 
 export const metadata = { title: "Proceso de venta" };
@@ -50,7 +50,7 @@ export default async function ProjectProcessPage({
 
   return (
     <>
-      <SalesNav projectId={projectId} />
+      <ConfigNav projectId={projectId} />
       <div className="grid items-start gap-6 xl:grid-cols-[2fr_1fr]">
         <div className="space-y-6">
           <Card

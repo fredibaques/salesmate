@@ -6,7 +6,7 @@ import { getDb } from "@/server/db/client";
 import { getBusinessProfile, getProjectAudience } from "@/server/services/business";
 import { GoalFields } from "../../profile-fields";
 import { saveGoal } from "../offer/actions";
-import { SalesNav } from "../section-navs";
+import { ConfigNav } from "../section-navs";
 
 export const metadata = { title: "Objetivo y público" };
 
@@ -22,7 +22,7 @@ export default async function ProjectGoalPage({ params }: PageProps<"/app/projec
 
   return (
     <>
-      <SalesNav projectId={projectId} />
+      <ConfigNav projectId={projectId} />
       <div className="max-w-3xl space-y-6">
         {business?.offer ? null : (
           <Notice

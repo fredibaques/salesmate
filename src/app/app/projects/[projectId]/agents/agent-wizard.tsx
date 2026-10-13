@@ -94,7 +94,7 @@ function saleStep(
             target="_blank"
             className="inline-flex items-center gap-1 text-accent hover:underline"
           >
-            Ventas → Proceso de venta
+            Configuración → Proceso de venta
             <ExternalLink className="size-3.5" />
           </Link>
         </ReviewRow>
@@ -103,7 +103,7 @@ function saleStep(
       <Field
         label="Tipo de venta"
         group
-        tip="Es del proyecto: lo seguirán todos los agentes que hablan con personas. Lo ajustas en Ventas → Proceso de venta."
+        tip="Es del proyecto: lo seguirán todos los agentes que hablan con personas. Lo ajustas en Configuración → Proceso de venta."
       >
         <div className="grid gap-2 sm:grid-cols-2">
           {(Object.keys(SALES_MOTION_LABELS) as SalesMotion[]).map((m) => (
@@ -299,7 +299,7 @@ export function ProspectingWizard({
       content: (
         <Field
           label="Instrucciones"
-          tip="Sector, tamaño, zona, qué fuentes usar o evitar y qué datos recoger. Qué vendes lo toma de Tu negocio, y el objetivo y a quién va dirigido, de Ventas → Objetivo y público."
+          tip="Sector, tamaño, zona, qué fuentes usar o evitar y qué datos recoger. Qué vendes lo toma de Tu negocio, y el objetivo y a quién va dirigido, de Configuración → Objetivo y público."
         >
           <Textarea name="instructions" required defaultValue={defaults.instructions} className="min-h-56" />
         </Field>
@@ -504,7 +504,8 @@ export function OutreachWizard({
     {
       id: "when",
       title: "Cuándo trabaja",
-      summary: "Siempre que se lo pidas con «Ejecutar ahora». Además, con horario o cuando se añaden filas a su tabla.",
+      summary:
+        "Siempre que se lo pidas con «Ejecutar ahora». Además, con horario o cuando se añaden filas a su tabla.",
       content: (
         <>
           <ScheduleFields schedule={defaults.schedule} />

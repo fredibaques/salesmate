@@ -57,12 +57,11 @@ export default async function ProjectLayout({ children, params }: LayoutProps<"/
           <TabLink href={base} exact also={[`${base}/agents`]}>
             Resumen
           </TabLink>
-          <TabLink href={`${base}/sales`}>Ventas</TabLink>
           <TabLink href={`${base}/knowledge`}>Conocimiento</TabLink>
           <TabLink href={`${base}/conversations`}>Conversaciones</TabLink>
           <TabLink href={`${base}/meetings`}>Reuniones</TabLink>
-          <TabLink href={`${base}/settings`} also={[`${base}/rules`]}>
-            Ajustes
+          <TabLink href={`${base}/settings`} also={[`${base}/sales`, `${base}/rules`]}>
+            Configuración
           </TabLink>
         </Tabs>
       </SectionChrome>

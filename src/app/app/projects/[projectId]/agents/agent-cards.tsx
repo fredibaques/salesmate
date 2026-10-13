@@ -186,7 +186,7 @@ export function AgentCards({
               >
                 <SwitchButton
                   on={agent.config.enabled}
-                  offLabel="En pausa"
+                  bare
                   label={
                     agent.config.enabled
                       ? `Pausar «${agentName(type, agent.config.name)}»`

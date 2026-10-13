@@ -9,6 +9,7 @@ import {
   Eye,
   Pencil,
   Plus,
+  RotateCcw,
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
@@ -83,6 +84,7 @@ export function ColumnHeader({
   place,
   hide,
   remove,
+  retry,
 }: {
   column: BaseColumn;
   first: boolean;
@@ -95,7 +97,10 @@ export function ColumnHeader({
   place: (target: DropTarget) => Promise<void>;
   hide: () => Promise<void>;
   remove: () => Promise<void>;
+  /** Clears its «no encontrado» cells; says how many. */
+  retry: () => Promise<string>;
 }) {
+  const toast = useToast();
   const [view, setView] = useState<"menu" | "edit">("menu");
   const [, start] = useTransition();
   const drag = useColumnDrag(column.id, column.name, (target) => start(() => place(target)));
@@ -147,6 +152,12 @@ export function ColumnHeader({
                 <ArrowRight />
                 Mover a la derecha
               </ActionItem>
+              {column.filledBy !== "person" ? (
+                <ActionItem run={async () => toast?.({ ok: true, message: await retry() })} close={close}>
+                  <RotateCcw />
+                  Volver a buscar lo no encontrado
+                </ActionItem>
+              ) : null}
               <ActionItem run={hide} close={close}>
                 <EyeOff />
                 Ocultar (sus valores se conservan)

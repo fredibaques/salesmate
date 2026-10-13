@@ -12,6 +12,8 @@ export const FILTER_OPS = [
   "is",
   "isNot",
   "has",
+  "in",
+  "between",
   "gt",
   "lt",
   "before",
@@ -28,6 +30,8 @@ export const FILTER_OP_LABELS: Record<FilterOp, string> = {
   is: "es",
   isNot: "no es",
   has: "incluye",
+  in: "es",
+  between: "entre",
   gt: "mayor que",
   lt: "menor que",
   before: "antes del",
@@ -43,6 +47,21 @@ export const NO_VALUE: FilterOp[] = ["yes", "no", "empty", "notEmpty"];
 
 export type RowFilter = { key: string; op: FilterOp; value?: string };
 
+/**
+ * «in» takes several values (any of them): «Coches|Motos». «between» takes a
+ * range, either end optional: «2026-10-01..2026-10-31», «10..».
+ */
+export const LIST_SEPARATOR = "|";
+export const RANGE_SEPARATOR = "..";
+
+export const listValue = (values: string[]) => values.join(LIST_SEPARATOR);
+export const listOf = (value: string | undefined) => (value ? value.split(LIST_SEPARATOR) : []);
+export const rangeValue = (from: string, to: string) => `${from.trim()}${RANGE_SEPARATOR}${to.trim()}`;
+export function rangeOf(value: string | undefined): { from: string; to: string } {
+  const [from = "", to = ""] = (value ?? "").split(RANGE_SEPARATOR);
+  return { from, to };
+}
+
 /** A field of the table as filters and groups see it. */
 export type FilterField = {
   key: string;
@@ -57,17 +76,17 @@ export function opsFor(type: FilterField["type"]): FilterOp[] {
   switch (type) {
     case "number":
     case "score":
-      return ["is", "gt", "lt", "empty", "notEmpty"];
+      return ["between", "is", "gt", "lt", "empty", "notEmpty"];
     case "date":
-      return ["before", "after", "is", "empty", "notEmpty"];
+      return ["between", "before", "after", "is", "empty", "notEmpty"];
     case "bool":
       return ["yes", "no"];
     case "select":
     case "stage":
     case "status":
-      return ["is", "isNot", "empty", "notEmpty"];
+      return ["in", "is", "isNot", "empty", "notEmpty"];
     case "multi":
-      return ["has", "empty", "notEmpty"];
+      return ["in", "has", "empty", "notEmpty"];
     default:
       return ["contains", "is", "empty", "notEmpty"];
   }
@@ -107,6 +126,7 @@ export function parseFilters(raw: string | string[] | undefined, fields: FilterF
     if (!field || !opsFor(field.type).includes(op as FilterOp)) return [];
     const value = rest.join("~");
     if (!NO_VALUE.includes(op as FilterOp) && !value.trim()) return [];
+    if (op === "between" && !Object.values(rangeOf(value)).some((v) => v.trim())) return [];
     return [{ key, op: op as FilterOp, value: NO_VALUE.includes(op as FilterOp) ? undefined : value }];
   });
 }
@@ -114,9 +134,34 @@ export function parseFilters(raw: string | string[] | undefined, fields: FilterF
 /** One filter as it goes in the address. */
 export const filterParam = (f: RowFilter) => [f.key, f.op, f.value ?? ""].join("~");
 
-/** «Ciudad contiene Málaga». */
+/** The filter on a field, if there is one (the first: a column's filter sets just one). */
+export const filterOn = (filters: RowFilter[], key: string) => filters.find((f) => f.key === key);
+
+/** «Ciudad contiene Málaga», «Sector es Coches o Motos», «Empleados entre 10 y 50». */
 export function describeFilter(f: RowFilter, fields: FilterField[]): string {
   const field = fields.find((x) => x.key === f.key);
-  const value = field?.type === "status" && f.value ? (STATUS_OPTIONS[f.value] ?? f.value) : f.value;
-  return [field?.label ?? f.key, FILTER_OP_LABELS[f.op], value].filter(Boolean).join(" ");
+  const label = field?.label ?? f.key;
+  const shown = (v: string) =>
+    field?.type === "status"
+      ? (STATUS_OPTIONS[v] ?? v)
+      : field?.type === "date" || field?.key === "created"
+        ? shortDate(v)
+        : v;
+  if (f.op === "in") return `${label} es ${listOf(f.value).map(shown).join(" o ")}`;
+  if (f.op === "between") {
+    const { from, to } = rangeOf(f.value);
+    const date = field?.type === "date";
+    if (from && to)
+      return `${label} ${date ? "del" : "entre"} ${shown(from)} ${date ? "al" : "y"} ${shown(to)}`;
+    if (from) return `${label} ${date ? "desde el" : "desde"} ${shown(from)}`;
+    return `${label} ${date ? "hasta el" : "hasta"} ${shown(to)}`;
+  }
+  const value = f.value ? shown(f.value) : undefined;
+  return [label, FILTER_OP_LABELS[f.op], value].filter(Boolean).join(" ");
+}
+
+/** 2026-10-05 → 05/10/2026. */
+function shortDate(v: string) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : v;
 }

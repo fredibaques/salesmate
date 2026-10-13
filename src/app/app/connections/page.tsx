@@ -107,7 +107,7 @@ export default async function ConnectionsPage({ searchParams }: PageProps<"/app/
           action={<AddConnectionButton label="Conectar una herramienta" {...setup} />}
         />
       ) : (
-        <CardGrid className="xl:grid-cols-2">
+        <CardGrid columns={4}>
           {connections
             // A Google account is one card per tool it has on: each is connected and disconnected by itself.
             .flatMap((c): { c: (typeof connections)[number]; tool: GoogleTool | null }[] =>

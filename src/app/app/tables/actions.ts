@@ -36,6 +36,7 @@ import {
   saveColumn,
   setBaseProject,
   setColumnHidden,
+  retryNotFound,
   setColumnWidth,
   setFieldHidden,
 } from "@/server/prospects/bases";
@@ -151,19 +152,35 @@ export async function saveColumnAction(
   const result = await runForm(async () => {
     const draft = columnFromForm(form);
     const tenant = await admin();
-    const { cleared } = await saveColumn(getDb(), tenant, baseId, draft, columnId ?? undefined);
+    const { cleared, retried } = await saveColumn(getDb(), tenant, baseId, draft, columnId ?? undefined);
     if (!columnId) {
       const filled = (await baseAgents(getDb(), tenant, baseId)).length > 0;
       return draft.filledBy === "person" || !filled
         ? "Columna añadida."
         : "Columna añadida. El agente la rellenará en las filas que ya hay al completar vacíos.";
     }
-    return cleared
-      ? `Columna guardada. ${cleared === 1 ? "Se ha borrado 1 valor que ya no encajaba" : `Se han borrado ${cleared} valores que ya no encajaban`} con su tipo.`
-      : "Columna guardada.";
+    return [
+      "Columna guardada.",
+      cleared
+        ? `${cleared === 1 ? "Se ha borrado 1 valor que ya no encajaba" : `Se han borrado ${cleared} valores que ya no encajaban`} con su tipo.`
+        : "",
+      retried ? retriedMessage(retried) : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
   });
   refresh();
   return result;
+}
+
+const retriedMessage = (n: number) =>
+  `${n === 1 ? "La celda no encontrada se volverá" : `Las ${n} celdas no encontradas se volverán`} a buscar al completar vacíos.`;
+
+/** The column's «no encontrado» cells, to be looked for again. */
+export async function retryNotFoundAction(baseId: string, columnId: string): Promise<string> {
+  const retried = await retryNotFound(getDb(), await admin(), baseId, columnId);
+  refresh();
+  return retried ? retriedMessage(retried) : "No hay celdas sin encontrar en esta columna.";
 }
 
 /** A column dragged wider or narrower on the table. Anyone who works on the table can. */

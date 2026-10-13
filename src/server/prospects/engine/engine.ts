@@ -18,7 +18,10 @@ import { ReadError, siteReader, usefulSubpages, webUrl, type Page, type ReaderDe
  * and asks the provider's small model, once, for the columns still empty,
  * each with the page it comes from. A fixed path, so a row costs a fraction
  * of a cent instead of an agent's search; the rows it can't read (no site,
- * a site that doesn't answer) are left for the agent.
+ * a site that doesn't answer) are left for the agent. A column whose
+ * instructions point elsewhere («su ficha en coches.net», «búscalo en
+ * internet») gets its own Google search per row, and the model sees those
+ * results too.
  */
 
 export type EngineDeps = {
@@ -131,6 +134,62 @@ function outputSchema(columns: BaseColumn[]) {
   } as const;
 }
 
+const DOMAIN =
+  /\b((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com|net|es|org|eu|io|info|biz|co|cat|pt|fr|de|it|uk|mx|ar))\b/gi;
+
+/** Sites a column points to, in its name or instructions: «Web coches.net» → [«coches.net»]. */
+export function columnSites(c: BaseColumn): string[] {
+  const text = `${c.name} ${c.instructions ?? ""}`.toLowerCase();
+  return [...new Set([...text.matchAll(DOMAIN)].map((m) => m[1].replace(/^www\./, "")))];
+}
+
+/** Instructions that ask to look outside the company's site. */
+const SEARCH_ELSEWHERE =
+  /\b(internet|google|en la red|en la web de|online|portal|perfil|ficha|directorio)\b/i;
+
+/**
+ * The Google search a column needs for a row, when its data isn't on the
+ * company's own site: within the site it names, or the web at large.
+ */
+export function columnQuery(c: BaseColumn, row: { name: string; place?: string }): string | null {
+  const [site] = columnSites(c);
+  const who = [row.name, row.place].filter(Boolean).join(" ");
+  if (site) return `site:${site} ${who}`;
+  if (c.instructions && SEARCH_ELSEWHERE.test(c.instructions)) return `${who} ${c.name}`;
+  return null;
+}
+
+/** A row's town or province, from a column that holds it: narrows a search. */
+function placeOf(known: Record<string, unknown>, columns: Map<string, BaseColumn>): string | undefined {
+  for (const [id, v] of Object.entries(known)) {
+    const name = foldText(columns.get(id)?.name ?? "").toLowerCase();
+    if (
+      typeof v === "string" &&
+      v.trim() &&
+      /\b(ciudad|localidad|municipio|poblacion|provincia)\b/.test(name)
+    )
+      return v.trim();
+  }
+  return undefined;
+}
+
+type Searched = { column: BaseColumn; query: string; results: WebSearchResult["results"]; page: Page | null };
+
+export function searchesBlock(searched: Searched[]): string {
+  return searched
+    .map(
+      (s) =>
+        `### Google: «${s.query}» (para «${s.column.name}»)\n${
+          s.results.length
+            ? s.results
+                .map((r, i) => `${i + 1}. ${r.title} — ${r.url}${r.snippet ? `\n   ${r.snippet}` : ""}`)
+                .join("\n")
+            : "Sin resultados."
+        }${s.page ? `\n\nPrimer resultado (${s.page.url}):\n${s.page.text.slice(0, 3000)}` : ""}`,
+    )
+    .join("\n\n");
+}
+
 export function columnLine(c: BaseColumn): string {
   const how = [
     COLUMN_TYPE_LABELS[c.type],
@@ -158,6 +217,7 @@ export function factsBlock(f: SiteFacts): string {
 
 /** The pages' text within the budget: the home is cut first, the contact and legal pages are kept. */
 export function pagesBlock(pages: Page[]): string {
+  if (!pages.length) return "";
   const per = Math.floor(TEXT_BUDGET / pages.length);
   return pages
     .map((p) => `### ${p.url}${p.title ? ` — ${p.title}` : ""}\n${p.text.slice(0, per)}`)
@@ -171,7 +231,12 @@ export async function readSite(read: (url: string) => Promise<Page>, site: strin
   return [home, ...more.filter((p): p is Page => Boolean(p))];
 }
 
-export async function pool<T>(items: T[], size: number, canStart: () => boolean, work: (item: T) => Promise<void>) {
+export async function pool<T>(
+  items: T[],
+  size: number,
+  canStart: () => boolean,
+  work: (item: T) => Promise<void>,
+) {
   const queue = [...items];
   const skipped: T[] = [];
   await Promise.all(
@@ -255,41 +320,81 @@ export async function runCompletionEngine(
         });
       }
     }
+    // 2. Columns whose data is somewhere else (a portal, a directory): a search each.
+    const place = placeOf(row.known, columnsById);
+    const searched: Searched[] = [];
+    if (deps.search && row.companyName.trim()) {
+      for (const column of columns) {
+        const query = columnQuery(column, { name: row.companyName, place });
+        if (!query) continue;
+        result.steps.push({ type: "tool_call", name: "buscar_web", input: { fila: label, query } });
+        try {
+          const found = await deps.search({ query, country: input.country, limit: 6 });
+          result.searches++;
+          out.costUsd += SEARCH_USD;
+          const [portal] = columnSites(column);
+          // The first result on the site it names is read too, when it lets us (many portals don't).
+          const first = found.results.find((r) => !portal || webUrl(r.url)?.hostname.endsWith(portal));
+          const page = first ? await read(first.url).catch(() => null) : null;
+          if (page) result.pagesRead++;
+          searched.push({ column, query, results: found.results, page });
+          result.steps.push({
+            type: "tool_result",
+            name: "buscar_web",
+            output: { resultados: found.results.length },
+          });
+        } catch (err) {
+          result.steps.push({
+            type: "tool_result",
+            name: "buscar_web",
+            output: { error: err instanceof Error ? err.message : String(err) },
+            isError: true,
+          });
+        }
+      }
+    }
+
+    // 3. Its pages: the home, then contact, legal notice and about.
+    let pages: Page[] = [];
+    // Why the company's own pages can't be used, if they can't: those rows are the agent's.
+    let ownSite: "no_site" | "unreadable" | null = null;
     if (!site) {
-      out.status = "no_site";
+      ownSite = "no_site";
       out.note = "sin web";
+    } else {
+      out.website = site.toString();
+      try {
+        pages = await readSite(read, site.toString());
+        result.pagesRead += pages.length;
+        result.steps.push({
+          type: "tool_call",
+          name: "leer_web",
+          input: { fila: label, paginas: pages.map((p) => p.url) },
+        });
+        if (pages.every((p) => p.text.length < 80)) {
+          ownSite = "unreadable";
+          out.note = "la web no muestra texto sin JavaScript";
+          pages = [];
+        }
+      } catch (err) {
+        ownSite = "unreadable";
+        out.note = err instanceof ReadError ? err.message : "no se puede leer la web";
+        result.steps.push({
+          type: "tool_result",
+          name: "leer_web",
+          output: { fila: label, url: site.toString(), error: out.note },
+          isError: true,
+        });
+      }
+    }
+    // Without its pages, only the columns searched for elsewhere are asked: the rest stay for the agent.
+    const asked = ownSite ? searched.map((s) => s.column) : columns;
+    if (!asked.length) {
+      out.status = ownSite ?? "completed";
       return out;
     }
-    out.website = site.toString();
 
-    // 2. Its pages: the home, then contact, legal notice and about.
-    let pages: Page[];
-    try {
-      pages = await readSite(read, site.toString());
-    } catch (err) {
-      out.status = "unreadable";
-      out.note = err instanceof ReadError ? err.message : "no se puede leer la web";
-      result.steps.push({
-        type: "tool_result",
-        name: "leer_web",
-        output: { fila: label, url: site.toString(), error: out.note },
-        isError: true,
-      });
-      return out;
-    }
-    result.pagesRead += pages.length;
-    result.steps.push({
-      type: "tool_call",
-      name: "leer_web",
-      input: { fila: label, paginas: pages.map((p) => p.url) },
-    });
-    if (pages.every((p) => p.text.length < 80)) {
-      out.status = "unreadable";
-      out.note = "la web no muestra texto sin JavaScript";
-      return out;
-    }
-
-    // 3. One question to the small model, with the patterns' findings as hints.
+    // 4. One question to the small model, with the patterns' findings as hints.
     const facts = siteFacts(pages);
     const known = Object.entries(row.known)
       .map(([id, v]) => {
@@ -301,20 +406,21 @@ export async function runCompletionEngine(
       `Fila de la tabla «${input.base.name}»: ${person && row.personName ? `${row.personName}, de ${row.companyName}` : row.companyName}${out.website ? ` (${out.website})` : ""}.`,
       input.context ? `Contexto de quien vende: ${input.context}` : "",
       known.length ? `Ya sabemos:\n${known.join("\n")}` : "",
-      `Columnas por rellenar:\n${columns.map(columnLine).join("\n")}`,
+      `Columnas por rellenar:\n${asked.map(columnLine).join("\n")}`,
       factsBlock(facts)
         ? `Encontrado en las páginas con patrones (úsalo si encaja):\n${factsBlock(facts)}`
         : "",
-      `## Páginas de su web\n${pagesBlock(pages)}`,
+      pages.length ? `## Páginas de su web\n${pagesBlock(pages)}` : "",
+      searched.length ? `## Búsquedas en Google\n${searchesBlock(searched)}` : "",
     ]
       .filter(Boolean)
       .join("\n\n");
     const response = await deps.llm.create({
       max_tokens: 1500,
       system:
-        "Rellenas columnas de una tabla de prospección con lo que dicen las páginas de la web de una empresa. Solo datos que aparezcan en esas páginas o se deduzcan directamente de ellas, cada uno con la URL de la página de donde sale (source). No inventes ni supongas. Datos de contacto: solo los que la empresa publica para ser contactada; nada personal privado. Lo que no aparezca, ponlo en notFound. Responde solo con el JSON pedido.",
+        "Rellenas columnas de una tabla de prospección con lo que dicen las páginas de la web de una empresa y, para las columnas que lo piden, los resultados de búsqueda en Google. Solo datos que aparezcan en esas páginas o resultados, o se deduzcan directamente de ellos, cada uno con la URL de donde sale (source). Un resultado de Google vale si es claramente de esta empresa (mismo nombre o marca, misma ciudad si se conoce); si la columna pide una dirección web, su valor es la URL de ese resultado. No inventes ni supongas. Datos de contacto: solo los que la empresa publica para ser contactada; nada personal privado. Lo que no aparezca, ponlo en notFound. Responde solo con el JSON pedido.",
       messages: [{ role: "user", content: prompt }],
-      output_config: { format: { type: "json_schema", schema: outputSchema(columns) } },
+      output_config: { format: { type: "json_schema", schema: outputSchema(asked) } },
     });
     const usage = {
       input: response.usage.input_tokens ?? 0,
@@ -327,6 +433,7 @@ export async function runCompletionEngine(
     result.usage.cacheRead += usage.cacheRead;
     result.usage.cacheWrite += usage.cacheWrite;
     out.costUsd += estimateCostUsd(response.model ?? deps.llm.model, usage);
+    const askedIds = asked.map((c) => c.id);
 
     const text = response.content
       .filter((b): b is Extract<(typeof response.content)[number], { type: "text" }> => b.type === "text")
@@ -340,25 +447,32 @@ export async function runCompletionEngine(
       const closed = await completeProspects(deps.db, actor, {
         baseId: input.base.id,
         runId: input.runId,
-        items: [{ id: row.id, notFound: row.columns }],
+        items: [{ id: row.id, notFound: askedIds }],
       });
       out.notFound = closed.notFound;
       out.note = "la IA no ha devuelto los datos";
+      if (ownSite) out.status = ownSite;
       return out;
     }
 
-    // 4. Saved like the agent's: checked by column, never over a value or a person's cell.
-    const pageUrls = new Set(pages.map((p) => p.url));
+    // 5. Saved like the agent's: checked by column, never over a value or a person's cell.
+    const pageUrls = new Set([
+      ...pages.map((p) => p.url),
+      ...searched.flatMap((s) => [...s.results.map((r) => r.url), ...(s.page ? [s.page.url] : [])]),
+    ]);
     const fields: Record<string, unknown> = {};
     const sources: Record<string, string> = {};
     for (const cell of parsed.cells) {
-      if (!row.columns.includes(cell.column) || !cell.value.trim()) continue;
+      if (!askedIds.includes(cell.column) || !cell.value.trim()) continue;
+      // A source not among the pages read or the results seen is the home's: never one made up.
+      const source = pageUrls.has(cell.source) ? cell.source : pages[0]?.url;
+      // Without the company's own pages, a value needs a result it comes from.
+      if (!source) continue;
       fields[cell.column] = cell.value;
-      // A source not among the pages read is the home's: never one the model made up.
-      sources[cell.column] = pageUrls.has(cell.source) ? cell.source : pages[0].url;
+      sources[cell.column] = source;
     }
     // Every column asked for gets an answer: what it didn't give, it didn't find.
-    const notFound = row.columns.filter((id) => !(id in fields));
+    const notFound = askedIds.filter((id) => !(id in fields));
     const saved = await completeProspects(deps.db, actor, {
       baseId: input.base.id,
       runId: input.runId,
@@ -379,6 +493,8 @@ export async function runCompletionEngine(
     }
     out.filled = saved.filled;
     out.notFound = saved.notFound + rejected.length;
+    // The other columns of a row without its own pages are still the agent's.
+    if (ownSite) out.status = ownSite;
     result.steps.push({
       type: "tool_result",
       name: "completar_fila",

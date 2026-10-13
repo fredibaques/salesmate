@@ -23,6 +23,7 @@ import { listOrgConnections } from "@/server/services/projects";
 import { DataGrid, GridCell, GridHead, GridRow, NARROW_COLUMN } from "@/components/data-grid";
 import {
   filterFields,
+  filterOn,
   filterParam,
   parseFilters,
   STATUS_OPTIONS,
@@ -58,6 +59,7 @@ import {
   moveColumnAction,
   placeColumnAction,
   removeColumnAction,
+  retryNotFoundAction,
   saveCellAction,
   saveColumnAction,
   toggleColumnAction,
@@ -67,6 +69,7 @@ import {
 import { fillingRows } from "@/server/agents/runs";
 import { CellState, cellTitle, COLUMN_ICONS, NotFound, Pending, WebLink } from "../cells";
 import { AddColumnHeader, ColumnHeader, FieldHeader, HiddenColumns } from "./column-header";
+import { ColumnFilter } from "./column-filter";
 import { FilterBar } from "./filter-bar";
 import { EditableCell, ExpandRow, NewRow, type CellEditor, type NewRowField } from "./grid-editing";
 import { env } from "@/server/env";
@@ -259,6 +262,13 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
     return s ? `${path}?${s}` : path;
   };
   const currentSearch = href({}).split("?")[1] ?? "";
+  // The funnel in each header filters by that field («sources» has none).
+  const columnFilter = (key: string) => {
+    const field = filterFieldList.find((f) => f.key === key);
+    return field ? (
+      <ColumnFilter field={field} filter={filterOn(filters, key)} path={path} search={currentSearch} />
+    ) : undefined;
+  };
   const sortLink = (key: string, label: React.ReactNode, align: "start" | "end" = "start") => {
     const active = sort === key;
     const nextDir = active && (dir ?? "asc") === "asc" ? "desc" : "asc";
@@ -515,6 +525,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                           sticky={i === 0 ? "second" : false}
                           align="start"
                           resize={{ key: f.key, save: resizeColumn }}
+                          filter={columnFilter(f.key)}
                         >
                           {canEdit ? (
                             <FieldHeader
@@ -552,6 +563,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                         align={end ? "end" : "start"}
                         dropId={canEdit ? c.id : undefined}
                         resize={{ key: c.id, save: resizeColumn }}
+                        filter={columnFilter(c.id)}
                       >
                         {canEdit ? (
                           <ColumnHeader
@@ -568,6 +580,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                             place={placeColumnAction.bind(null, baseId, c.id)}
                             hide={toggleColumnAction.bind(null, baseId, c.id, true)}
                             remove={removeColumnAction.bind(null, baseId, c.id)}
+                            retry={retryNotFoundAction.bind(null, baseId, c.id)}
                           />
                         ) : (
                           sortLink(

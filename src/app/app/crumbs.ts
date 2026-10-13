@@ -24,13 +24,13 @@ const SECTION_PAGES: Record<string, { parent: Crumb; label: string }> = {
 
 const PROJECT_TABS: Record<string, string> = {
   prospects: "Tablas",
-  sales: "Ventas",
+  sales: "Configuración",
   knowledge: "Conocimiento",
   conversations: "Conversaciones",
   meetings: "Reuniones",
-  settings: "Ajustes",
-  rules: "Ajustes",
-  offer: "Ventas",
+  settings: "Configuración",
+  rules: "Configuración",
+  offer: "Configuración",
 };
 
 function agentPageLabel(page: string) {
@@ -107,7 +107,7 @@ export async function crumbsFor(segments: string[], names: NameLookup): Promise<
       const page = subsub ? agentPageLabel(subsub) : null;
       return page ? [project, agent, { label: page }] : [project, agent];
     }
-    // «Ventas» has sub-tabs under the project's header, like Ajustes: no trail.
+    // «Configuración» has sub-tabs under the project's header: no trail.
     if (tab === "sales") return [];
     const tabLabel = PROJECT_TABS[tab];
     if (!tabLabel) return [project];

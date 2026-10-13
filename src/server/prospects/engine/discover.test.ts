@@ -207,7 +207,9 @@ describe("prospecting with Serper connected", () => {
     expect(requests).toHaveLength(3);
     expect(requests.every((r) => r.model === "claude-haiku-4-5" && !r.tools?.length)).toBe(true);
     expect(result).toMatchObject({ status: "completed", added: 1 });
-    expect(result.summary).toContain("Ha encontrado 1 empresa nueva revisando 2 webs (1 búsquedas en Google)");
+    expect(result.summary).toContain(
+      "Ha encontrado 1 empresa nueva revisando 2 webs (1 búsquedas en Google)",
+    );
     const [config] = await withTenant(db, tenant, (tx) =>
       tx.select().from(agentConfigs).where(eq(agentConfigs.id, agent.id)),
     );
@@ -220,7 +222,9 @@ describe("prospecting with Serper connected", () => {
     expect(queued.map((e) => [e.kind, e.payload])).toEqual([["continue", { find: 4 }]]);
 
     // The next run looks for those 4 (not «Completar vacíos»); with nothing new, it stops asking.
-    await withTenant(db, tenant, (tx) => tx.delete(agentEvents).where(eq(agentEvents.agentConfigId, agent.id)));
+    await withTenant(db, tenant, (tx) =>
+      tx.delete(agentEvents).where(eq(agentEvents.agentConfigId, agent.id)),
+    );
     const next = scriptedLlm([plan(["compraventa coches Málaga"])]);
     const again = await runProspecting(
       {

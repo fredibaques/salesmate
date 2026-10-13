@@ -8,9 +8,9 @@ import { projectPeople } from "@/server/services/access";
 import { getProject } from "@/server/services/projects";
 import { ProjectBasicsFields } from "../../profile-fields";
 import { deleteProjectAction, saveProject, shareProjectAction } from "../actions";
-import { SettingsNav } from "../section-navs";
+import { ConfigNav } from "../section-navs";
 
-export const metadata = { title: "Ajustes del proyecto" };
+export const metadata = { title: "Configuración del proyecto" };
 
 const DAYS = [
   [1, "L"],
@@ -38,7 +38,7 @@ export default async function ProjectSettingsPage({
 
   return (
     <>
-      <SettingsNav projectId={projectId} />
+      <ConfigNav projectId={projectId} />
       <div className="max-w-3xl space-y-6">
         <Card title="Proyecto">
           <ActionForm action={saveProject.bind(null, projectId)} submitLabel="Guardar" className="space-y-5">

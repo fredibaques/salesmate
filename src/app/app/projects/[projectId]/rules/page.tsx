@@ -8,7 +8,7 @@ import { getDb } from "@/server/db/client";
 import { ACTION_DEFINITIONS } from "@/server/gateway/definitions";
 import { getProjectRules } from "@/server/services/projects";
 import { addProjectSuppression, addRule, deleteRule, deleteSuppression } from "../actions";
-import { SettingsNav } from "../section-navs";
+import { ConfigNav } from "../section-navs";
 
 const RULE_LABELS = {
   human_only: "Reservada a personas",
@@ -95,7 +95,7 @@ export default async function RulesPage({ params }: PageProps<"/app/projects/[pr
 
   return (
     <>
-      <SettingsNav projectId={projectId} />
+      <ConfigNav projectId={projectId} />
 
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <Card
