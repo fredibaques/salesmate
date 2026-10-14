@@ -1,17 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
-import {
-  Card,
-  Choice,
-  Field,
-  FormSection,
-  Input,
-  Notice,
-  Segmented,
-  Select,
-  Textarea,
-} from "@/components/ui";
+import { Choice, Field, FormSection, Input, Notice, Segmented, Select, Textarea } from "@/components/ui";
 import { MonthlyBudgetField } from "./budget-field";
 import { AI_PROVIDER_INFO } from "@/lib/ai-providers";
 import { goalProgress, monthSpendUsd } from "@/server/agents/automation";
@@ -66,11 +56,8 @@ export async function ProspectingSetup({ projectId, agentId }: { projectId: stri
   const notifyEmails = new Set((s.notify?.emails ?? []).map((e) => e.toLowerCase()));
 
   return (
-    <div className="max-w-3xl space-y-6">
-      <Card
-        title="Configuración"
-        tip="Lo que comparten todos los agentes ya lo saben: qué vendes y cómo hablar (Ajustes → Tu negocio) y el objetivo del proyecto (Configuración → Objetivo y público). Todo lo que hace por fuera pasa por el gateway: los avisos al equipo salen solos. Para escribir a las filas que encuentra, añade un agente outbound que trabaje con su tabla."
-      >
+    <div className="space-y-6">
+      <div>
         <ActionForm
           key={JSON.stringify([
             config.instructions,
@@ -318,10 +305,10 @@ export async function ProspectingSetup({ projectId, agentId }: { projectId: stri
             </Field>
           </FormSection>
         </ActionForm>
-      </Card>
+      </div>
 
       {hookUrl && s.triggers?.webhook ? (
-        <Card title="Webhook">
+        <FormSection title="Webhook">
           <Notice
             action={
               <ActionForm
@@ -335,7 +322,7 @@ export async function ProspectingSetup({ projectId, agentId }: { projectId: stri
           >
             Si la dirección se ha compartido con quien no debía, crea otra.
           </Notice>
-        </Card>
+        </FormSection>
       ) : null}
     </div>
   );

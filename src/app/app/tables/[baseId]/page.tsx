@@ -393,7 +393,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
             tone={lastRun.status === "failed" ? "danger" : "success"}
             action={
               <LinkButton
-                href={`/app/projects/${filler!.projectId}/agents/${filler!.id}/tasks`}
+                href={`/app/projects/${filler!.projectId}/agents/${filler!.id}`}
                 variant="secondary"
                 size="sm"
               >

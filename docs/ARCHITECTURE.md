@@ -688,8 +688,10 @@ agente de prospección lleva su **tarea** (`agent_runs.task`, migración 0031,
 `RunTask`: `id` —el de la primera ejecución—, `kind` `find` o `complete`,
 `total` y `done`, lo hecho antes de ella), y la tanda que deja en cola
 (`continue`) la lleva en su `payload`, así que la siguiente sigue la misma
-tarea. `agents/tasks.ts` (`agentTasks`) arma la pestaña «Tareas» del agente
-(`/agents/<id>/tasks`; `/log` redirige):
+tarea. `agents/tasks.ts` (`agentTasks`) arma la pestaña «Tareas», la
+portada del agente (`/agents/<id>`; `/tasks` y `/log` redirigen; su
+configuración y sus aprobaciones están en el modal «Configuración» de la
+cabecera, y `/approvals` lo abre):
 
 - **En curso**: sus ejecuciones `running` de los últimos 10 minutos, con el
   avance de su tarea en vivo (filas: lo de antes más las filas con su

@@ -1,4 +1,5 @@
 import { Pencil, Trash2 } from "lucide-react";
+import { Suspense } from "react";
 import { requireAgent } from "./require-agent";
 import { ActionForm } from "@/components/action-form";
 import { AgentLookFields, AgentTile, agentState } from "@/components/agent-look-fields";
@@ -18,6 +19,11 @@ import {
   toggleAgent,
 } from "../actions";
 import { FindNowButton } from "../find-now";
+import { ApprovalsSettings } from "./approvals-settings";
+import { AgentConfigModal } from "./config-modal";
+import { InboundSetup } from "./inbound-setup";
+import { OutreachSetup } from "./outreach-setup";
+import { ProspectingSetup } from "./prospecting-setup";
 
 export default async function AgentLayout({
   children,
@@ -73,12 +79,33 @@ export default async function AgentLayout({
         }
         actions={
           <>
+            <Suspense>
+              <AgentConfigModal
+                setup={
+                  agentType === "prospecting" ? (
+                    <ProspectingSetup projectId={projectId} agentId={agentId} />
+                  ) : agentType === "outbound" ? (
+                    <OutreachSetup projectId={projectId} agentId={agentId} />
+                  ) : (
+                    <InboundSetup projectId={projectId} agentId={agentId} />
+                  )
+                }
+                approvals={
+                  <ApprovalsSettings
+                    projectId={projectId}
+                    agentId={agentId}
+                    autonomy={agent.config.autonomy}
+                    limits={agent.config.limits}
+                  />
+                }
+              />
+            </Suspense>
             {tenant.role !== "member" && agentType === "prospecting" ? (
               <FindNowButton
                 projectId={projectId}
                 agentId={agentId}
                 settings={agent.config.settings}
-                back={`${base}/tasks`}
+                back={base}
                 label="Ejecutar ahora"
               />
             ) : tenant.role !== "member" ? (
@@ -93,7 +120,7 @@ export default async function AgentLayout({
                 className="flex items-center"
               >
                 {/* Then its Tareas, which follows the run while it works. */}
-                <input type="hidden" name="back" value={`${base}/tasks`} />
+                <input type="hidden" name="back" value={base} />
               </ActionForm>
             ) : null}
             <ConfirmForm
@@ -119,12 +146,10 @@ export default async function AgentLayout({
         }
       />
       <Tabs>
-        <TabLink href={base} exact also={[`${base}/automation`, `${base}/instructions`]}>
-          Configuración
+        <TabLink href={base} exact>
+          Tareas
         </TabLink>
         <TabLink href={`${base}/channels`}>Herramientas</TabLink>
-        <TabLink href={`${base}/tasks`}>Tareas</TabLink>
-        <TabLink href={`${base}/approvals`}>Aprobaciones</TabLink>
       </Tabs>
       {children}
     </>

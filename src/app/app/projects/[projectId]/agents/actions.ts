@@ -131,7 +131,7 @@ export async function setupAgentAction(
   });
   if (added) {
     refresh(projectId);
-    redirect(`/app/projects/${projectId}/agents/${added}`);
+    redirect(`/app/projects/${projectId}/agents/${added}?config=1`);
   }
   return result;
 }

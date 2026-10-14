@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { CopyButton } from "@/components/copy-button";
-import { Button, Card, EmptyState, Field, FormSection, Select, Textarea } from "@/components/ui";
+import { Button, EmptyState, Field, FormSection, Select, Textarea } from "@/components/ui";
 import { AI_PROVIDER_INFO } from "@/lib/ai-providers";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
@@ -52,11 +52,8 @@ export async function InboundSetup({ projectId, agentId }: { projectId: string; 
   const hookUrl = config.hookToken ? `${env().APP_URL}/api/hooks/agents/${config.hookToken}` : null;
 
   return (
-    <div className="max-w-3xl space-y-6">
-      <Card
-        title="Configuración"
-        tip="Atiende a quien escribe siguiendo el proceso de venta del proyecto. Todo lo que envía pasa por el gateway: sus respuestas esperan tu aprobación salvo que subas su autonomía."
-      >
+    <div className="space-y-6">
+      <div>
         <ActionForm
           key={JSON.stringify([
             config.instructions,
@@ -254,9 +251,9 @@ export async function InboundSetup({ projectId, agentId }: { projectId: string; 
             </div>
           </FormSection>
         </ActionForm>
-      </Card>
+      </div>
 
-      <Card
+      <FormSection
         title="Formulario de tu web"
         tip="Envía aquí los formularios de tu web (POST, en JSON o formulario normal) y el agente atiende cada envío en segundos."
       >
@@ -308,7 +305,7 @@ export async function InboundSetup({ projectId, agentId }: { projectId: string; 
             }
           />
         )}
-      </Card>
+      </FormSection>
     </div>
   );
 }
