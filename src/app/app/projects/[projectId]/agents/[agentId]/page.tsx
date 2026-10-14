@@ -1,9 +1,13 @@
 import { requireAgent } from "./require-agent";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { Card } from "@/components/ui";
+import { Card, EmptyState } from "@/components/ui";
 import { RunLog, RunSteps, usd } from "@/app/app/(settings)/runs/run-log";
 import { getRun, listRuns, monthStart, runTotals } from "@/server/agents/runs";
-import { agentTasks } from "@/server/agents/tasks";
+import { CalendarClock } from "lucide-react";
+import { DEFAULT_FIND_PER_RUN } from "@/server/agents/prospector";
+import { agentTasks, MAX_PLANNED_FIND, PLANNABLE, tomorrowIn, type PlannedKind } from "@/server/agents/tasks";
+import { cancelTaskAction, planTaskAction } from "../actions";
+import { PlanTaskButton } from "./tasks/plan-task";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getProject } from "@/server/services/projects";
@@ -42,6 +46,26 @@ export default async function AgentTasksPage({
     }),
   ]);
   const path = `/app/projects/${projectId}/agents/${agentId}`;
+  // «Planificar tarea», for those who can change the agent, if its kind can be planned.
+  const canEdit = tenant.role !== "member";
+  const kinds: PlannedKind[] = [...(PLANNABLE[agent.config.agentType as keyof typeof PLANNABLE] ?? [])];
+  const tomorrow = tomorrowIn(project?.timezone ?? "Europe/Madrid");
+  const planButton =
+    canEdit && kinds.length
+      ? (variant: "primary" | "secondary") => (
+          <PlanTaskButton
+            action={planTaskAction.bind(null, projectId, agentId)}
+            kinds={kinds}
+            variant={variant}
+            maxFind={MAX_PLANNED_FIND}
+            defaults={{
+              date: tomorrow,
+              time: "09:00",
+              find: agent.config.settings.findPerRun ?? DEFAULT_FIND_PER_RUN,
+            }}
+          />
+        )
+      : null;
   const keep = one("before") ? `before=${encodeURIComponent(one("before")!)}&` : "";
   const stepsHref = (id: string) => `${path}?${keep}run=${id}`;
   // While it works, or a batch is about to start, the page follows it.
@@ -62,9 +86,28 @@ export default async function AgentTasksPage({
         </Card>
         <Card
           title="Planificadas"
-          tip="Lo que hará después, en orden: las tandas que le quedan de un encargo, lo que le ha llegado y su próxima ronda programada."
+          tip="Lo que hará después, en orden: lo que le has planificado, las tandas que le quedan de un encargo, lo que le ha llegado y su próxima ronda programada."
+          actions={tasks.planned.length && planButton ? planButton("secondary") : null}
         >
-          <PlannedTasks tasks={tasks.planned} />
+          <PlannedTasks
+            tasks={tasks.planned}
+            cancel={canEdit ? cancelTaskAction.bind(null, projectId, agentId) : undefined}
+            empty={
+              <EmptyState
+                compact
+                icon={<CalendarClock />}
+                title="Nada planificado"
+                description={
+                  planButton
+                    ? kinds.includes("outreach")
+                      ? "Planifica cuándo quieres que haga una ronda de primeros contactos."
+                      : "Planifica lo que quieres que haga y cuándo: buscar filas nuevas o completar los vacíos de la tabla."
+                    : "Lo que tenga que hacer después aparecerá aquí."
+                }
+                action={planButton ? planButton("primary") : undefined}
+              />
+            }
+          />
         </Card>
         <section className="space-y-3">
           <h2 className="text-base font-semibold">Historial</h2>

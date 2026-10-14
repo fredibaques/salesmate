@@ -568,6 +568,8 @@ export const agentEvents = pgTable(
     createdAt: createdAt(),
     processedAt: timestamp("processed_at", { withTimezone: true }),
     runId: uuid("run_id"),
+    /** A task a person planned: not taken before this moment. */
+    dueAt: timestamp("due_at", { withTimezone: true }),
   },
   (t) => [index("agent_events_pending_idx").on(t.agentConfigId, t.processedAt), tenantPolicy("agent_events")],
 );

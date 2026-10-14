@@ -89,7 +89,8 @@ screen needs something new, add it here and as a component, not inline.
 - Every agent has «Configuración» and «Ejecutar ahora» in its header and
   two tabs. **Tareas** comes first and is its home: «En curso», each with a
   progress bar of its request across runs; «Planificadas», what it will do
-  next and when; and «Historial», its runs as expandable rows with the cost
+  next and when (with «Planificar tarea», a modal to plan one for a day and
+  time, also in its `EmptyState`, and a «×» to call off a queued one); and «Historial», its runs as expandable rows with the cost
   breakdown and a steps `Drawer`; beside them the month's spending and, for
   prospecting, the results card. Then **Herramientas**. «Configuración»
   opens a modal (`AgentConfigModal`) with two views, each saving on its own:

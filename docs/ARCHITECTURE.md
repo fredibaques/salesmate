@@ -702,6 +702,17 @@ cabecera, y `/approvals` lo abre):
   avisos recibidos), «en unos minutos» o «cuando actives el agente», y su
   próxima ronda programada (`describeNextRun`).
 - **Historial**: el registro de ejecuciones de siempre.
+
+**Tareas planificadas.** «Planificar tarea» (en «Planificadas», o en su
+estado vacío) deja un encargo para un día y una hora, en la hora del
+proyecto (`zonedInstant`): buscar N filas nuevas o completar los vacíos de
+la tabla (prospección), o una ronda de primeros contactos (outbound). Se
+guarda como un evento `continue` con `payload.planned` y `due_at`
+(migración 0032, `planTask`); el programador no toma un evento antes de su
+`due_at`, y desde entonces corre como cualquier otro (las filas pedidas
+siguen por tandas). Las tareas en cola (planificadas o tandas pendientes)
+se cancelan con su «×» (`cancelQueuedTask`). Todo queda en auditoría
+(`agent.task_planned`, `agent.task_cancelled`).
   La página se refresca sola mientras trabaja o tiene una tanda a punto.
 
 ## Automatización de los agentes

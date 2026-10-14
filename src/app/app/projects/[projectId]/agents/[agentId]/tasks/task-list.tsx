@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { CalendarClock, Loader2 } from "lucide-react";
-import { Meta } from "@/components/ui";
+import { CalendarClock, Loader2, X } from "lucide-react";
+import type { ReactNode } from "react";
+import { ConfirmForm } from "@/components/confirm-form";
+import { buttonClass, Meta } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import type { AgentTask, TaskProgress } from "@/server/agents/tasks";
 import { usd } from "@/app/app/(settings)/runs/run-log";
@@ -82,9 +84,19 @@ export function RunningTasks({
   );
 }
 
-/** What it will do next, in order. */
-export function PlannedTasks({ tasks }: { tasks: AgentTask[] }) {
-  if (!tasks.length) return <p className="text-sm text-muted">Nada planificado.</p>;
+/** What it will do next, in order; queued tasks can be called off. */
+export function PlannedTasks({
+  tasks,
+  cancel,
+  empty,
+}: {
+  tasks: AgentTask[];
+  /** Calls off a queued task (absent for whoever can't change the agent). */
+  cancel?: (eventId: string) => Promise<void>;
+  /** What shows when there is nothing planned (with the way to plan one). */
+  empty: ReactNode;
+}) {
+  if (!tasks.length) return <>{empty}</>;
   return (
     <ul className="divide-y divide-border">
       {tasks.map((t) => (
@@ -94,7 +106,24 @@ export function PlannedTasks({ tasks }: { tasks: AgentTask[] }) {
               <CalendarClock className="size-4 shrink-0 text-muted" aria-hidden />
               {t.title}
             </p>
-            <span className="shrink-0 text-sm text-muted first-letter:uppercase">{t.when}</span>
+            <span className="flex shrink-0 items-center gap-2 text-sm text-muted">
+              <span className="first-letter:uppercase">{t.when}</span>
+              {cancel && t.cancelId ? (
+                <ConfirmForm
+                  action={cancel.bind(null, t.cancelId)}
+                  message={`¿Cancelar «${t.title}»? El agente no la hará.`}
+                >
+                  <button
+                    type="submit"
+                    aria-label={`Cancelar «${t.title}»`}
+                    title="Cancelar"
+                    className={buttonClass({ variant: "ghost", size: "sm", iconOnly: true })}
+                  >
+                    <X className="size-4" />
+                  </button>
+                </ConfirmForm>
+              ) : null}
+            </span>
           </div>
           {t.progress ? <ProgressBar progress={t.progress} /> : null}
         </li>
