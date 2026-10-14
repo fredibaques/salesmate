@@ -5,7 +5,8 @@ import type { Db } from "../db/client";
 import { projects } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
 import { addAgent, setAgentEnabled } from "../services/agents";
-import { agentsWithPendingEvents, processAgentEvents } from "./events";
+import { agentsWithPendingEvents, processAgentEvents, queueTableCompletion } from "./events";
+import { createBase, setAgentBase } from "../prospects/bases";
 import { zonedInstant } from "./scheduler";
 import { agentTasks, cancelQueuedTask, planTask } from "./tasks";
 
@@ -99,5 +100,28 @@ describe("planned tasks", () => {
     expect(tasks.planned[0].title).toBe("Ronda de primeros contactos");
     // Switched off: it says it waits for that too.
     expect(tasks.planned[0].when).toMatch(/si activas el agente/);
+  });
+});
+
+describe("looking for cells again", () => {
+  it("asks the table's prospecting agent to complete it, once", async () => {
+    const base = await createBase(db, tenant, projectId, {
+      name: "Concesionarios",
+      rowKind: "company",
+      columns: [{ name: "Web coches.net", type: "url" }],
+    });
+    // No agent fills it yet.
+    expect(await queueTableCompletion(db, tenant, base.id)).toEqual({ queued: 0, paused: 0 });
+    const agent = await addAgent(db, tenant, projectId, "prospecting", "b2b_consultative");
+    await setAgentBase(db, tenant, projectId, agent.id, base.id);
+    expect(await queueTableCompletion(db, tenant, base.id)).toEqual({ queued: 1, paused: 1 });
+    // Asking twice leaves one «complete the table» waiting.
+    await queueTableCompletion(db, tenant, base.id);
+    const tasks = await agentTasks(db, tenant, {
+      agentId: agent.id,
+      timezone: "Europe/Madrid",
+      projectPaused: false,
+    });
+    expect(tasks.planned.map((t) => t.title)).toEqual(["Seguir completando la tabla"]);
   });
 });

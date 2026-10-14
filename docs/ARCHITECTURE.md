@@ -586,8 +586,10 @@ sin agente, por un camino fijo:
    la de inicio, y lo que no da o no encaja con su columna queda como «no
    encontrado»: cada fila que lee queda respondida. «Volver a buscar lo no
    encontrado» en el menú de una columna (`retryNotFound`) borra esas
-   marcas, y cambiar sus instrucciones también: la próxima vez que se
-   complete, se buscan otra vez.
+   marcas, y cambiar sus instrucciones también; y en los dos casos se pide
+   al agente de prospección de la tabla que la complete
+   (`queueTableCompletion`: un `continue` en su cola, una sola vez), así que
+   empieza en unos minutos (o al activarlo).
 
 Trabaja 6 filas a la vez y no empieza ninguna a menos de 25 s del final ni
 pasado lo que le queda del gasto máximo del mes. Las filas que no puede leer (sin

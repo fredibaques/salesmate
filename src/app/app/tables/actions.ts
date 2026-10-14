@@ -16,7 +16,7 @@ import {
   type RowKind,
   type SystemField,
 } from "@/lib/prospect-columns";
-import { rowsAdded } from "@/server/agents/events";
+import { queueTableCompletion, rowsAdded } from "@/server/agents/events";
 import { workOnAddedRows } from "@/server/agents/runtime";
 import { requireProjectAccess, requireRole, requireTenant } from "@/server/auth/session";
 import { connections } from "@/server/db/schema";
@@ -181,7 +181,7 @@ export async function saveColumnAction(
       cleared
         ? `${cleared === 1 ? "Se ha borrado 1 valor que ya no encajaba" : `Se han borrado ${cleared} valores que ya no encajaban`} con su tipo.`
         : "",
-      retried ? retriedMessage(retried) : "",
+      retried ? await lookAgain(tenant, baseId, retried) : "",
     ]
       .filter(Boolean)
       .join(" ");
@@ -190,14 +190,27 @@ export async function saveColumnAction(
   return result;
 }
 
-const retriedMessage = (n: number) =>
-  `${n === 1 ? "La celda no encontrada se volverá" : `Las ${n} celdas no encontradas se volverán`} a buscar al completar vacíos.`;
+/**
+ * Cells to look for again: the table's agent is asked to complete it (in a
+ * few minutes, by the scheduler), and the message says when it will.
+ */
+async function lookAgain(tenant: TenantContext, baseId: string, n: number): Promise<string> {
+  const cells = n === 1 ? "La celda no encontrada se volverá" : `Las ${n} celdas no encontradas se volverán`;
+  const { queued, paused } = await queueTableCompletion(getDb(), tenant, baseId);
+  if (!queued) return `${cells} a buscar cuando un agente complete la tabla.`;
+  if (paused === queued) return `${cells} a buscar cuando actives el agente de la tabla.`;
+  return `${cells} a buscar: el agente empieza en unos minutos.`;
+}
 
-/** The column's «no encontrado» cells, to be looked for again. */
+/** The column's «no encontrado» cells, to be looked for again (now). */
 export async function retryNotFoundAction(baseId: string, columnId: string): Promise<string> {
-  const retried = await retryNotFound(getDb(), await admin(), baseId, columnId);
+  const tenant = await admin();
+  const retried = await retryNotFound(getDb(), tenant, baseId, columnId);
+  const message = retried
+    ? await lookAgain(tenant, baseId, retried)
+    : "No hay celdas sin encontrar en esta columna.";
   refresh();
-  return retried ? retriedMessage(retried) : "No hay celdas sin encontrar en esta columna.";
+  return message;
 }
 
 /** A column dragged wider or narrower on the table. Anyone who works on the table can. */
