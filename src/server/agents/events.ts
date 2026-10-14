@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import {
   agentConfigs,
   agentEvents,
@@ -34,6 +34,9 @@ const TRIGGER_FOR: Record<AgentEventKind, "newRows" | "webhook" | null> = {
   // Asked by a person («Completar vacíos»): no trigger to turn on.
   continue: null,
 };
+
+/** An event that may be taken now: no date, or its date has come. */
+const isDue = (now: Date) => or(isNull(agentEvents.dueAt), lte(agentEvents.dueAt, now));
 
 /**
  * Stores an event for the agent if it listens to that kind (its trigger is
@@ -218,7 +221,9 @@ export async function processAgentEvents(
     const ids = await tx
       .select({ id: agentEvents.id })
       .from(agentEvents)
-      .where(and(eq(agentEvents.agentConfigId, agentConfigId), isNull(agentEvents.processedAt)))
+      .where(
+        and(eq(agentEvents.agentConfigId, agentConfigId), isNull(agentEvents.processedAt), isDue(now)),
+      )
       .orderBy(asc(agentEvents.createdAt))
       .limit(EVENTS_PER_RUN);
     if (!ids.length) return [];
@@ -289,6 +294,7 @@ export async function agentsWithPendingEvents(db: AgentRunDeps["db"]) {
       .where(
         and(
           isNull(agentEvents.processedAt),
+          isDue(new Date()),
           eq(agentConfigs.enabled, true),
           isNotNull(agentConfigs.addedAt),
           eq(projects.agentsPaused, false),

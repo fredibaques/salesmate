@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** The old «Log» address: it is «Tareas» now. */
+/** The old «Log» address: «Tareas», the agent's home. */
 export default async function OldLogPage({
   params,
   searchParams,
@@ -11,5 +11,5 @@ export default async function OldLogPage({
       typeof v === "string" ? [[k, v]] : (v ?? []).map((x) => [k, x]),
     ),
   ).toString();
-  redirect(`/app/projects/${projectId}/agents/${agentId}/tasks${q ? `?${q}` : ""}`);
+  redirect(`/app/projects/${projectId}/agents/${agentId}${q ? `?${q}` : ""}`);
 }

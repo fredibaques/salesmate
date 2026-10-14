@@ -32,6 +32,19 @@ export function localClock(at: Date, timeZone: string) {
   };
 }
 
+/** The instant of a wall-clock date and time ("YYYY-MM-DD", "HH:MM") in a time zone. */
+export function zonedInstant(date: string, time: string, timeZone: string): Date {
+  const [y, m, d] = date.split("-").map(Number);
+  const [h, min] = time.split(":").map(Number);
+  const guess = Date.UTC(y, m - 1, d, h, min);
+  // What that instant reads there tells the zone's offset at that moment.
+  const local = localClock(new Date(guess), timeZone);
+  const [ly, lm, ld] = local.date.split("-").map(Number);
+  const [lh, lmin] = local.time.split(":").map(Number);
+  const offset = Date.UTC(ly, lm - 1, ld, lh, lmin) - guess;
+  return new Date(guess - offset);
+}
+
 /** Days in a month (month 1–12). */
 function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();

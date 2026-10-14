@@ -197,7 +197,7 @@ export function AgentCards({
             }
             footer={
               <span className="ml-auto inline-flex items-center gap-0.5 text-sm text-muted transition-colors group-hover:text-accent">
-                Configurar
+                Ver tareas
                 <ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" />
               </span>
             }

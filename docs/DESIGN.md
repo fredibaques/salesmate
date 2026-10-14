@@ -16,7 +16,8 @@ screen needs something new, add it here and as a component, not inline.
   pulse while it works (its icon hops and wiggles, `agent-working`, and its
   tile sends out rings in its colour, `agent-halo`), grey at rest, a
   grey ring when paused). The person's own settings live in the `UserMenu` at the bottom:
-  **Mi cuenta** (Perfil, Seguridad, Organización), switching organization and
+  **Mi cuenta** (Perfil, Seguridad, Organización), the person's organizations
+  (the active one ticked; click another to switch), «Nueva organización» and
   «Salir».
 - **Phones** (below `md`): the sidebar hides behind a top bar with the logo
   and a menu button and slides in from the left (it closes on navigating,
@@ -85,18 +86,22 @@ screen needs something new, add it here and as a component, not inline.
     what is pending (what was decided is in Auditoría).
   - **Configuración**: IA, Ejecuciones (every agent run with its cost
     breakdown), Usuarios, Exclusiones and Auditoría.
-- Every agent has «Ejecutar ahora» in its header and the same four tabs:
-  Configuración (one form in `FormSection`s grouped by kind: Objetivo,
+- Every agent has «Configuración» and «Ejecutar ahora» in its header and
+  two tabs. **Tareas** comes first and is its home: «En curso», each with a
+  progress bar of its request across runs; «Planificadas», what it will do
+  next and when (with «Planificar tarea», a modal to plan one for a day and
+  time, also in its `EmptyState`, and a «×» to call off a queued one); and «Historial», its runs as expandable rows with the cost
+  breakdown and a steps `Drawer`; beside them the month's spending and, for
+  prospecting, the results card. Then **Herramientas**. «Configuración»
+  opens a modal (`AgentConfigModal`) with two views, each saving on its own:
+  «Cómo trabaja» (one form in `FormSection`s grouped by kind: Objetivo,
   Cuándo trabaja, Configuración del modelo, Comunicación and, for
   prospecting, Siguiente paso; «Cuándo trabaja» is the same `TriggerFields`
-  for every agent: a mano, con horario, cuando pasa algo), Herramientas,
-  Tareas («En curso», each with a progress bar of its request across runs;
-  «Planificadas», what it will do next and when; and «Historial», its runs as
-  expandable rows with the cost breakdown and a steps `Drawer`; beside them
-  the month's spending and, for prospecting, the results card) and
-  Aprobaciones. The inbound agent's Objetivo shows the project's sales
-  process (with a link to edit it) and the table where it writes each
-  contact.
+  for every agent: a mano, con horario, cuando pasa algo) and «Aprobaciones»
+  (what it may do without asking, action by action, and how many a day).
+  `?config=1` (or `=approvals`) opens it on arrival: a new agent lands there.
+  The inbound agent's Objetivo shows the project's sales process (with a
+  link to edit it) and the table where it writes each contact.
 - A table's header shows the avatars of the agents working on it
   (`AgentTile` with `state`: the status dot; a tooltip; a link to the agent).
 - Each person orders the sidebar (sections, projects, each project's agents)

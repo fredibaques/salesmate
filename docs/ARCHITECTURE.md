@@ -688,8 +688,10 @@ agente de prospección lleva su **tarea** (`agent_runs.task`, migración 0031,
 `RunTask`: `id` —el de la primera ejecución—, `kind` `find` o `complete`,
 `total` y `done`, lo hecho antes de ella), y la tanda que deja en cola
 (`continue`) la lleva en su `payload`, así que la siguiente sigue la misma
-tarea. `agents/tasks.ts` (`agentTasks`) arma la pestaña «Tareas» del agente
-(`/agents/<id>/tasks`; `/log` redirige):
+tarea. `agents/tasks.ts` (`agentTasks`) arma la pestaña «Tareas», la
+portada del agente (`/agents/<id>`; `/tasks` y `/log` redirigen; su
+configuración y sus aprobaciones están en el modal «Configuración» de la
+cabecera, y `/approvals` lo abre):
 
 - **En curso**: sus ejecuciones `running` de los últimos 10 minutos, con el
   avance de su tarea en vivo (filas: lo de antes más las filas con su
@@ -700,6 +702,17 @@ tarea. `agents/tasks.ts` (`agentTasks`) arma la pestaña «Tareas» del agente
   avisos recibidos), «en unos minutos» o «cuando actives el agente», y su
   próxima ronda programada (`describeNextRun`).
 - **Historial**: el registro de ejecuciones de siempre.
+
+**Tareas planificadas.** «Planificar tarea» (en «Planificadas», o en su
+estado vacío) deja un encargo para un día y una hora, en la hora del
+proyecto (`zonedInstant`): buscar N filas nuevas o completar los vacíos de
+la tabla (prospección), o una ronda de primeros contactos (outbound). Se
+guarda como un evento `continue` con `payload.planned` y `due_at`
+(migración 0032, `planTask`); el programador no toma un evento antes de su
+`due_at`, y desde entonces corre como cualquier otro (las filas pedidas
+siguen por tandas). Las tareas en cola (planificadas o tandas pendientes)
+se cancelan con su «×» (`cancelQueuedTask`). Todo queda en auditoría
+(`agent.task_planned`, `agent.task_cancelled`).
   La página se refresca sola mientras trabaja o tiene una tanda a punto.
 
 ## Automatización de los agentes
@@ -861,6 +874,15 @@ y se une con un clic; en el onboarding también ve las invitaciones a su
 email. Invitar de nuevo al mismo email anula el enlace anterior. Solo un
 propietario da o quita el rol de propietario, siempre queda al menos uno y
 nadie se quita a sí mismo. Todo queda en auditoría (`member.*`).
+
+**Varias organizaciones.** Una persona puede crear todas las que quiera:
+«Nueva organización» en su menú abre `/onboarding?nueva=1` (la misma
+creación que al registrarse, `createOrganization` de better-auth, sin
+límite), la deja como activa y la lleva al panel. Empieza de cero: todo en
+SalesMate es de una organización (`org_id` + RLS), así que no ve proyectos,
+tablas, agentes, conocimiento, integraciones, «Tu negocio», IA ni personas
+de las otras; es su propietaria. Cambia de una a otra desde el mismo menú
+(`switchOrganization`).
 
 **Proyectos compartidos** (`services/access.ts`, migración 0029).
 Propietarios y administradores ven todos los proyectos. Un miembro solo los

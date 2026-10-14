@@ -1,9 +1,10 @@
-import { and, asc, count, desc, eq, gt, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { agentConfigs, agentEvents, agentRuns, prospects, type RunTask } from "../db/schema";
 import { withTenant, type TenantContext } from "../db/tenant";
 import { countPendingCells } from "../prospects/complete";
-import { describeNextRun } from "./scheduler";
+import { audit } from "../audit";
+import { describeNextRun, localClock } from "./scheduler";
 
 /**
  * An agent's tasks: what it is doing now (with how far along a request that
@@ -40,7 +41,35 @@ export type AgentTask = {
   /** The run doing it, to open its steps. */
   runId?: string;
   costUsd?: number;
+  /** A queued task that can be called off (its event). */
+  cancelId?: string;
 };
+
+/** What a person can plan, by kind of agent. */
+export const PLANNABLE = {
+  prospecting: ["find", "complete"],
+  outbound: ["outreach"],
+} as const;
+export type PlannedKind = "find" | "complete" | "outreach";
+
+/** A planned task's title. */
+export function plannedTitle(kind: PlannedKind, find?: number): string {
+  if (kind === "find") return `Buscar ${find === 1 ? "1 fila nueva" : `${find ?? ""} filas nuevas`.trim()}`;
+  if (kind === "complete") return "Completar los vacíos de la tabla";
+  return "Ronda de primeros contactos";
+}
+
+/** «lun 20 oct, 09:00», in the project's time zone. */
+export function formatWhen(at: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("es-ES", {
+    timeZone,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(at);
+}
 
 const unitOf = (task: RunTask) => (task.kind === "find" ? "filas" : "celdas");
 
@@ -98,7 +127,7 @@ export async function agentTasks(
       .select()
       .from(agentEvents)
       .where(and(eq(agentEvents.agentConfigId, input.agentId), isNull(agentEvents.processedAt)))
-      .orderBy(asc(agentEvents.createdAt));
+      .orderBy(sql`coalesce(${agentEvents.dueAt}, ${agentEvents.createdAt}) asc`, asc(agentEvents.createdAt));
     return { agent, runs, events };
   });
   if (!agent) return { running: [], planned: [] };
@@ -140,16 +169,25 @@ export async function agentTasks(
     const task = isRunTask(e.payload.task) ? e.payload.task : null;
     const find = typeof e.payload.find === "number" ? e.payload.find : null;
     const left = typeof e.payload.left === "number" ? e.payload.left : null;
+    // Planned by a person for a moment: it says when (and waits for it).
+    const dated = e.dueAt && e.dueAt.getTime() > now.getTime() ? formatWhen(e.dueAt, input.timezone) : null;
+    const when = dated ? (works ? dated : `${dated} (si activas el agente)`) : soon;
     planned.push({
       key: e.id,
       state: "planned",
-      title: task
-        ? `${taskTitle(task)}: siguiente tanda`
-        : find !== null
-          ? `Buscar ${find} filas nuevas más`
-          : `Seguir completando la tabla${left ? ` (${left} celdas)` : ""}`,
+      title: e.payload.planned
+        ? plannedTitle(
+            agent.agentType === "outbound" ? "outreach" : find !== null ? "find" : "complete",
+            find ?? undefined,
+          )
+        : task
+          ? `${taskTitle(task)}: siguiente tanda`
+          : find !== null
+            ? `Buscar ${find} filas nuevas más`
+            : `Seguir completando la tabla${left ? ` (${left} celdas)` : ""}`,
       progress: task ? clampProgress(task, task.done) : null,
-      when: soon,
+      when,
+      cancelId: e.id,
     });
   }
   if (newRows.length) {
@@ -187,4 +225,83 @@ export async function agentTasks(
     });
   }
   return { running, planned };
+}
+
+/**
+ * A task a person plans for a moment: new rows to find or the table's empty
+ * cells (prospecting), or a round of first contacts (outbound). It waits in
+ * the agent's queue (`agent_events.due_at`) until the scheduler's first pass
+ * from then.
+ */
+export async function planTask(
+  db: Db,
+  tenant: TenantContext,
+  input: { agentId: string; kind: PlannedKind; find?: number; dueAt: Date; now?: Date },
+) {
+  const now = input.now ?? new Date();
+  if (Number.isNaN(input.dueAt.getTime())) throw new Error("Elige el día y la hora.");
+  if (input.dueAt.getTime() < now.getTime() - 60_000)
+    throw new Error("Elige un momento que aún no haya pasado.");
+  return withTenant(db, tenant, async (tx) => {
+    const [agent] = await tx.select().from(agentConfigs).where(eq(agentConfigs.id, input.agentId));
+    if (!agent?.addedAt) throw new Error("Agente no encontrado.");
+    const allowed: readonly string[] = PLANNABLE[agent.agentType as keyof typeof PLANNABLE] ?? [];
+    if (!allowed.includes(input.kind)) throw new Error("Este agente no puede hacer esa tarea.");
+    const find =
+      input.kind === "find"
+        ? Math.min(MAX_PLANNED_FIND, Math.max(1, Math.round(input.find ?? 0)))
+        : undefined;
+    const [event] = await tx
+      .insert(agentEvents)
+      .values({
+        orgId: tenant.orgId,
+        projectId: agent.projectId,
+        agentConfigId: agent.id,
+        kind: "continue",
+        payload: { planned: true, ...(find ? { find } : {}) },
+        dueAt: input.dueAt,
+      })
+      .returning();
+    await audit(tx, tenant, {
+      event: "agent.task_planned",
+      projectId: agent.projectId,
+      entityType: "agent_config",
+      entityId: agent.id,
+      data: { kind: input.kind, find, dueAt: input.dueAt.toISOString() },
+    });
+    return event;
+  });
+}
+
+/** Most new rows one planned task asks for (the agent goes on by batches). */
+export const MAX_PLANNED_FIND = 200;
+
+/** Calls off a queued task (planned, or the rest of a request) before the agent takes it. */
+export async function cancelQueuedTask(db: Db, tenant: TenantContext, agentId: string, eventId: string) {
+  return withTenant(db, tenant, async (tx) => {
+    const [gone] = await tx
+      .delete(agentEvents)
+      .where(
+        and(
+          eq(agentEvents.id, eventId),
+          eq(agentEvents.agentConfigId, agentId),
+          eq(agentEvents.kind, "continue"),
+          isNull(agentEvents.processedAt),
+        ),
+      )
+      .returning();
+    if (!gone) throw new Error("Esa tarea ya no está en cola: puede que el agente ya la haya empezado.");
+    await audit(tx, tenant, {
+      event: "agent.task_cancelled",
+      projectId: gone.projectId,
+      entityType: "agent_config",
+      entityId: agentId,
+      data: { payload: gone.payload },
+    });
+  });
+}
+
+/** Tomorrow's date in a time zone: what «Planificar tarea» proposes. */
+export function tomorrowIn(timeZone: string, now = new Date()): string {
+  return localClock(new Date(now.getTime() + 24 * 3600_000), timeZone).date;
 }

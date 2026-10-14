@@ -2,7 +2,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ActionForm, type FormState } from "@/components/action-form";
 import { Logo } from "@/components/logo";
-import { Field, Input } from "@/components/ui";
+import Link from "next/link";
+import { buttonClass, cx, Field, Input } from "@/components/ui";
 import { getAuth } from "@/server/auth/auth";
 import { requireUser } from "@/server/auth/session";
 import { runForm, str } from "@/server/form";
@@ -28,16 +29,26 @@ async function createOrganization(_: FormState, form: FormData): Promise<FormSta
   return result;
 }
 
-export default async function OnboardingPage() {
+/**
+ * Creating an organization: the first one on signing up, or another one
+ * later from the account menu (?nueva=1). A new organization starts empty —
+ * everything in SalesMate belongs to one organization —, and the person
+ * moves into it.
+ */
+export default async function OnboardingPage({ searchParams }: PageProps<"/onboarding">) {
   const session = await requireUser();
-  const invitations = await invitationsFor(getDb(), session.user.email);
+  const another = (await searchParams).nueva === "1";
+  const invitations = another ? [] : await invitationsFor(getDb(), session.user.email);
   return (
     <div className="mx-auto mt-24 w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-sm">
       <Logo size={36} className="mb-5" />
-      <h1 className="text-xl font-semibold">Hola, {session.user.name}</h1>
+      <h1 className="text-xl font-semibold">
+        {another ? "Nueva organización" : `Hola, ${session.user.name}`}
+      </h1>
       <p className="mt-2 text-sm text-muted">
-        Crea tu organización. Dentro podrás dar de alta todos tus proyectos (empresas, marcas o tu actividad
-        como autónomo) y, si quieres, invitar a otras personas.
+        {another
+          ? "Empieza de cero: sin proyectos, tablas, agentes, integraciones ni personas. Tus otras organizaciones siguen igual y puedes cambiar entre ellas desde tu menú."
+          : "Crea tu organización. Dentro podrás dar de alta todos tus proyectos (empresas, marcas o tu actividad como autónomo) y, si quieres, invitar a otras personas."}
       </p>
       {invitations.length ? (
         <div className="mt-6 space-y-3">
@@ -60,9 +71,14 @@ export default async function OnboardingPage() {
       ) : null}
       <ActionForm action={createOrganization} submitLabel="Crear organización" className="mt-6 space-y-4">
         <Field label="Nombre de la organización">
-          <Input name="name" required placeholder="p. ej. Mis negocios" />
+          <Input name="name" required placeholder="p. ej. Mis negocios" autoFocus={another} />
         </Field>
       </ActionForm>
+      {another ? (
+        <Link href="/app" className={cx(buttonClass({ variant: "ghost", size: "sm" }), "mt-3")}>
+          Cancelar
+        </Link>
+      ) : null}
     </div>
   );
 }

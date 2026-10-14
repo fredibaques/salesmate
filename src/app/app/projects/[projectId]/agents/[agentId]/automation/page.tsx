@@ -5,5 +5,5 @@ export default async function AgentAutomationPage({
   params,
 }: PageProps<"/app/projects/[projectId]/agents/[agentId]/automation">) {
   const { projectId, agentId } = await params;
-  redirect(`/app/projects/${projectId}/agents/${agentId}`);
+  redirect(`/app/projects/${projectId}/agents/${agentId}?config=1`);
 }

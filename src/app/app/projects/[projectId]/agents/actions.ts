@@ -12,12 +12,14 @@ import { PROSPECTING_MODES, SALES_MOTIONS, type ProspectingMode } from "@/server
 import { bool, list, num, runForm, str } from "@/server/form";
 import { ACTION_DEFINITIONS } from "@/server/gateway/definitions";
 import { MAX_FIND_PER_RUN, runProspecting } from "@/server/agents/prospector";
-import { closeStaleRuns } from "@/server/agents/scheduler";
+import { closeStaleRuns, zonedInstant } from "@/server/agents/scheduler";
+import { cancelQueuedTask, formatWhen, planTask } from "@/server/agents/tasks";
 import { DEFAULT_HANDOFF_PER_RUN } from "@/server/agents/first-contact";
 import { runInboundSweep } from "@/server/agents/inbound-sweep";
 import { runOutreach } from "@/server/agents/outreach";
 import { agentRunDeps, inboundDeps } from "@/server/agents/runtime";
 import { setAgentBase } from "@/server/prospects/bases";
+import { getProject } from "@/server/services/projects";
 import {
   addAgent,
   addAgentTool,
@@ -131,7 +133,7 @@ export async function setupAgentAction(
   });
   if (added) {
     refresh(projectId);
-    redirect(`/app/projects/${projectId}/agents/${added}`);
+    redirect(`/app/projects/${projectId}/agents/${added}?config=1`);
   }
   return result;
 }
@@ -552,4 +554,35 @@ export async function completeProspectsNow(
   const back = result?.ok ? backTo(form) : null;
   if (back) redirect(back);
   return result;
+}
+
+/** A task for a day and time («Planificar tarea» on Tareas), in the project's time zone. */
+export async function planTaskAction(
+  projectId: string,
+  agentId: string,
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const result = await runForm(async () => {
+    const tenant = await admin();
+    const project = await getProject(getDb(), tenant, projectId);
+    if (!project) throw new Error("Proyecto no encontrado.");
+    const kind = str(form, "kind");
+    if (kind !== "find" && kind !== "complete" && kind !== "outreach")
+      throw new Error("Elige qué tiene que hacer.");
+    const date = str(form, "date");
+    const time = str(form, "time");
+    if (!date || !time) throw new Error("Elige el día y la hora.");
+    const dueAt = zonedInstant(date, time, project.timezone);
+    await planTask(getDb(), tenant, { agentId, kind, find: num(form, "find"), dueAt });
+    return `Planificada para el ${formatWhen(dueAt, project.timezone)}.`;
+  });
+  refresh(projectId);
+  return result;
+}
+
+/** Calls off a queued task before the agent takes it. */
+export async function cancelTaskAction(projectId: string, agentId: string, eventId: string) {
+  await cancelQueuedTask(getDb(), await admin(), agentId, eventId);
+  refresh(projectId);
 }

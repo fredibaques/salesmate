@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
-import { Card, Field, FormSection, Input, Select, Textarea } from "@/components/ui";
+import { Field, FormSection, Input, Select, Textarea } from "@/components/ui";
 import { AI_PROVIDER_INFO } from "@/lib/ai-providers";
 import { DEFAULT_HANDOFF_PER_RUN } from "@/server/agents/first-contact";
 import { requireTenant } from "@/server/auth/session";
@@ -45,11 +45,8 @@ export async function OutreachSetup({ projectId, agentId }: { projectId: string;
   const mailboxes = options.mailboxes.filter((m) => m.canSend || m.id === config.channels.mailboxId);
 
   return (
-    <div className="max-w-3xl space-y-6">
-      <Card
-        title="Configuración"
-        tip="Escribe a las filas de su tabla que encajan siguiendo el proceso de venta del proyecto. Cada email pasa por el gateway: espera tu aprobación en «Por aprobar» salvo que subas su autonomía, y respeta el horario de envío y las exclusiones del proyecto."
-      >
+    <div className="space-y-6">
+      <div>
         <ActionForm
           key={JSON.stringify([
             config.instructions,
@@ -185,7 +182,7 @@ export async function OutreachSetup({ projectId, agentId }: { projectId: string;
             </Field>
           </FormSection>
         </ActionForm>
-      </Card>
+      </div>
     </div>
   );
 }
