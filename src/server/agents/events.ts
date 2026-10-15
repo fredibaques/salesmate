@@ -221,9 +221,7 @@ export async function processAgentEvents(
     const ids = await tx
       .select({ id: agentEvents.id })
       .from(agentEvents)
-      .where(
-        and(eq(agentEvents.agentConfigId, agentConfigId), isNull(agentEvents.processedAt), isDue(now)),
-      )
+      .where(and(eq(agentEvents.agentConfigId, agentConfigId), isNull(agentEvents.processedAt), isDue(now)))
       .orderBy(asc(agentEvents.createdAt))
       .limit(EVENTS_PER_RUN);
     if (!ids.length) return [];
@@ -353,4 +351,60 @@ export async function queueWebhookLead(
     }),
   );
   return true;
+}
+
+/**
+ * Asks the prospecting agents that fill a table to complete its empty cells
+ * («Completar vacíos» by batches), through their queue: the scheduler starts
+ * it in a few minutes, or when the agent is switched on. Used when cells are
+ * to be looked for again. Says how many agents were asked and how many of
+ * them are switched off.
+ */
+export async function queueTableCompletion(
+  db: AgentRunDeps["db"],
+  tenant: { orgId: string },
+  baseId: string,
+): Promise<{ queued: number; paused: number }> {
+  return withTenant(db, tenant, async (tx) => {
+    const agents = await tx
+      .select({ id: agentConfigs.id, projectId: agentConfigs.projectId, enabled: agentConfigs.enabled })
+      .from(agentConfigs)
+      .where(
+        and(
+          eq(agentConfigs.prospectBaseId, baseId),
+          eq(agentConfigs.agentType, "prospecting"),
+          isNotNull(agentConfigs.addedAt),
+        ),
+      );
+    let queued = 0;
+    let paused = 0;
+    for (const agent of agents) {
+      // One «complete the table» waiting is enough.
+      const [waiting] = await tx
+        .select({ id: agentEvents.id })
+        .from(agentEvents)
+        .where(
+          and(
+            eq(agentEvents.agentConfigId, agent.id),
+            eq(agentEvents.kind, "continue"),
+            isNull(agentEvents.processedAt),
+            isNull(agentEvents.dueAt),
+            sql`not (${agentEvents.payload} ? 'find')`,
+          ),
+        )
+        .limit(1);
+      if (!waiting) {
+        await tx.insert(agentEvents).values({
+          orgId: tenant.orgId,
+          projectId: agent.projectId,
+          agentConfigId: agent.id,
+          kind: "continue",
+          payload: {},
+        });
+      }
+      queued++;
+      if (!agent.enabled) paused++;
+    }
+    return { queued, paused };
+  });
 }
