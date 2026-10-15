@@ -1,20 +1,32 @@
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 export type Crumb = { label: string; href?: string };
 
 /**
- * Where you are, in a bar across the top of the content. Only on pages one
- * level below a section (an agent, a document, a base): the section's own
- * pages have its header. The last crumb is the current page.
+ * The bar across the top of the content, on every page. It holds the trail
+ * when there is one and stays empty otherwise, so the content always starts
+ * at the same height. On phones the app header is already there: the bar
+ * only shows when it has a trail.
+ */
+export function TopBar({ children }: { children: ReactNode }) {
+  return (
+    <div className="sticky top-14 z-30 hidden min-h-12 items-center border-b border-border bg-background/90 px-4 backdrop-blur has-[nav]:flex md:top-0 md:flex md:px-8">
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Where you are, inside the `TopBar`. Only on pages one level below a section
+ * (an agent, a document, a base): the section's own pages have its header.
+ * The last crumb is the current page.
  */
 export function Breadcrumbs({ items }: { items: Crumb[] }) {
   if (items.length < 2) return null;
   return (
-    <nav
-      aria-label="Ruta"
-      className="sticky top-14 z-30 flex min-h-12 items-center border-b border-border bg-background/90 px-4 backdrop-blur md:top-0 md:px-8"
-    >
+    <nav aria-label="Ruta">
       <ol className="flex flex-wrap items-center gap-1 text-sm text-muted">
         {items.map((item, i) => {
           const last = i === items.length - 1;

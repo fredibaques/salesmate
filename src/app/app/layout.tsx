@@ -9,6 +9,7 @@ import {
   SidebarSection,
   UserMenu,
 } from "@/components/sidebar";
+import { TopBar } from "@/components/breadcrumbs";
 import { MenuSettingsButton } from "@/components/menu-settings";
 import { ToastProvider } from "@/components/toast";
 import { Tooltip } from "@/components/ui";
@@ -161,8 +162,8 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
           />
         </Sidebar>
         <main className="min-w-0 flex-1">
-          {/* Top bar with the trail, only on pages below a section. */}
-          {crumbs}
+          {/* Top bar on every page; the trail only on pages below a section. */}
+          <TopBar>{crumbs}</TopBar>
           {/* Full width; forms keep their own reading width. */}
           <div className="px-4 pt-5 pb-10 md:px-8">{children}</div>
         </main>

@@ -34,11 +34,14 @@ screen needs something new, add it here and as a component, not inline.
   deeper pages (an agent, a document, a new connection) bring their own
   header. Tab pages don't repeat the tab's name: their actions go in a
   `Toolbar`.
-- **Breadcrumbs** go in a bar across the top of the content, sticky, and
-  only one level below a section: an agent, a document, a base, a new
-  connection. A section's own pages (a project and its tabs, a settings
-  page) have its header and tabs instead, so they get no bar (`@crumbs`
-  slot in `src/app/app`, rules in `src/app/app/crumbs.ts`). Agents hang
+- **Top bar**: every page has the same sticky bar across the top of the
+  content (`TopBar`), so content always starts at the same height. It
+  holds the **breadcrumbs** only one level below a section: an agent, a
+  document, a base, a new connection. A section's own pages (a project
+  and its tabs, a settings page) have its header and tabs instead, so
+  their bar stays empty (`@crumbs` slot in `src/app/app`, rules in
+  `src/app/app/crumbs.ts`). On phones the app header already plays that
+  role: the bar only shows there when it has a trail. Agents hang
   straight from their project in the trail, as in the sidebar. There are
   no «back» buttons.
 - **Loading**: every main route has a `loading.tsx` with skeletons

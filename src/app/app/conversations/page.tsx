@@ -26,7 +26,7 @@ export default async function ConversationsPage({ searchParams }: PageProps<"/ap
         projects={projects.map((p) => ({ id: p.id, name: p.name }))}
         query={query}
         basePath="/app/conversations"
-        heightClass="h-[calc(100dvh-12rem)] min-h-[26rem] md:h-[calc(100dvh-8.5rem)]"
+        heightClass="h-[calc(100dvh-12rem)] min-h-[26rem] md:h-[calc(100dvh-11.5rem)]"
       />
     </>
   );
