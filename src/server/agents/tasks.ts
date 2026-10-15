@@ -98,6 +98,38 @@ const SCHEDULED_TITLES: Record<string, string> = {
   inbound: "Ronda programada",
 };
 
+/**
+ * A run in progress as a task: a request's progress counts what earlier runs
+ * did and what this one has done so far.
+ */
+export async function runningTask(
+  db: Db,
+  tenant: Pick<TenantContext, "orgId">,
+  run: { id: string; trigger: string; task: unknown; startedAt: Date; costUsd: number },
+  baseId: string | null,
+): Promise<AgentTask> {
+  const task = isRunTask(run.task) ? run.task : null;
+  let progress: TaskProgress | null = null;
+  if (task?.kind === "find") {
+    const [{ n }] = await withTenant(db, tenant, (tx) =>
+      tx.select({ n: count() }).from(prospects).where(eq(prospects.runId, run.id)),
+    );
+    progress = clampProgress(task, task.done + Number(n));
+  } else if (task?.kind === "complete" && baseId) {
+    const pending = await countPendingCells(db, tenant, baseId);
+    progress = clampProgress(task, task.total - pending);
+  }
+  return {
+    key: run.id,
+    state: "running",
+    title: task ? taskTitle(task) : (RUN_TITLES[run.trigger] ?? "Trabajando"),
+    progress,
+    startedAt: run.startedAt,
+    runId: run.id,
+    costUsd: run.costUsd,
+  };
+}
+
 export async function agentTasks(
   db: Db,
   tenant: Pick<TenantContext, "orgId">,
@@ -133,31 +165,7 @@ export async function agentTasks(
   if (!agent) return { running: [], planned: [] };
   const baseId = agent.prospectBaseId;
 
-  // Running: a request's progress counts what earlier runs did and what this one has done so far.
-  const running = await Promise.all(
-    runs.map(async (run): Promise<AgentTask> => {
-      const task = isRunTask(run.task) ? run.task : null;
-      let progress: TaskProgress | null = null;
-      if (task?.kind === "find") {
-        const [{ n }] = await withTenant(db, tenant, (tx) =>
-          tx.select({ n: count() }).from(prospects).where(eq(prospects.runId, run.id)),
-        );
-        progress = clampProgress(task, task.done + Number(n));
-      } else if (task?.kind === "complete" && baseId) {
-        const pending = await countPendingCells(db, tenant, baseId);
-        progress = clampProgress(task, task.total - pending);
-      }
-      return {
-        key: run.id,
-        state: "running",
-        title: task ? taskTitle(task) : (RUN_TITLES[run.trigger] ?? "Trabajando"),
-        progress,
-        startedAt: run.startedAt,
-        runId: run.id,
-        costUsd: run.costUsd,
-      };
-    }),
-  );
+  const running = await Promise.all(runs.map((run) => runningTask(db, tenant, run, baseId)));
 
   // Planned: what is queued for it, in the order it will be taken, then its next scheduled run.
   const works = agent.enabled && !input.projectPaused;

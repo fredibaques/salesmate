@@ -28,15 +28,18 @@ import {
 } from "@/server/services/preferences";
 import { signOut, switchOrganization } from "./actions";
 import { NewProjectButton } from "./projects/new-project";
+import { topBarState } from "./top-bar/actions";
+import { TopBarActions } from "./top-bar/top-bar-actions";
 
 export default async function AppLayout({ children, crumbs }: LayoutProps<"/app">) {
   const tenant = await requireTenant();
   const db = getDb();
-  const [allProjects, memberships, agents, nav] = await Promise.all([
+  const [allProjects, memberships, agents, nav, topBar] = await Promise.all([
     listVisibleProjects(),
     listMemberships(tenant.userId),
     listSidebarAgents(db, tenant),
     getNavPreferences(db, tenant),
+    topBarState(),
   ]);
   // Each person arranges the sidebar their way (Mi cuenta → Menú).
   const projects = inOrder(allProjects, (p) => p.id, nav.projects);
@@ -162,8 +165,17 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
           />
         </Sidebar>
         <main className="min-w-0 flex-1">
-          {/* Top bar on every page; the trail only on pages below a section. */}
-          <TopBar>{crumbs}</TopBar>
+          {/* Top bar on every page: the trail (only below a section), agents at work, notices, Copilot. */}
+          <TopBar
+            actions={
+              <TopBarActions
+                initial={topBar}
+                projects={allProjects.map((p) => ({ id: p.id, name: p.name }))}
+              />
+            }
+          >
+            {crumbs}
+          </TopBar>
           {/* Full width; forms keep their own reading width. */}
           <div className="px-4 pt-5 pb-10 md:px-8">{children}</div>
         </main>

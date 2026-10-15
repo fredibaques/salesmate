@@ -523,6 +523,9 @@ export const agentConfigs = pgTable(
   (t) => [index("agent_configs_project_idx").on(t.projectId), tenantPolicy("agent_configs")],
 );
 
+/** A run's outcome in a line: a problem (failed, nothing found, a cap reached) or just its end. */
+export type RunNoticeRecord = { problem: boolean; headline: string; details?: string };
+
 /** How each person arranges the sidebar: order of sections, projects and each project's agents. */
 export type NavPreferences = {
   sections?: string[];
@@ -537,6 +540,8 @@ export const userPreferences = pgTable(
     orgId: orgId(),
     userId: text("user_id").notNull(),
     nav: jsonb("nav").$type<NavPreferences>().notNull().default({}),
+    /** Last time they opened the notices: newer ones show as unread. */
+    noticesSeenAt: timestamp("notices_seen_at", { withTimezone: true }),
     updatedAt: updatedAt(),
   },
   (t) => [primaryKey({ columns: [t.orgId, t.userId] }), tenantPolicy("user_preferences")],
@@ -1235,6 +1240,8 @@ export const agentRuns = pgTable(
     target: jsonb("target").$type<{ baseId: string; rowIds: string[] }>(),
     /** The request this run works on, which may take several runs (Tareas shows its progress). */
     task: jsonb("task").$type<RunTask>(),
+    /** How it went, in a line (the notice its agent sends the team): the bell shows it. */
+    notice: jsonb("notice").$type<RunNoticeRecord>(),
     startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
   },

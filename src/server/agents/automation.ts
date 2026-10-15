@@ -1,7 +1,15 @@
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { AGENT_INFO, agentName, type ProjectAgentKey } from "@/lib/agents";
 import type { Db } from "../db/client";
-import { agentConfigs, agentRuns, member, prospects, user, type AgentSettings } from "../db/schema";
+import {
+  agentConfigs,
+  agentRuns,
+  member,
+  prospects,
+  user,
+  type AgentSettings,
+  type RunNoticeRecord,
+} from "../db/schema";
 import { withSystem, withTenant } from "../db/tenant";
 import { env } from "../env";
 import { GatewayError, proposeAction, type GatewayDeps } from "../gateway/gateway";
@@ -73,14 +81,8 @@ export async function teamEmails(db: Db, orgId: string, emails: string[]): Promi
   return rows.map((r) => r.email.toLowerCase());
 }
 
-export type RunNotice = {
-  /** A problem (failed, nothing found, a cap reached) or just the end of a run. */
-  problem: boolean;
-  /** One line: what happened. */
-  headline: string;
-  /** The run's summary. */
-  details?: string;
-};
+/** A problem (failed, nothing found, a cap reached) or just the end of a run; `details` is its summary. */
+export type RunNotice = RunNoticeRecord;
 
 /**
  * Tells the team how a run went, where the agent says so: Slack and/or
@@ -104,6 +106,13 @@ export async function notifyTeam(
     notice: RunNotice;
   },
 ): Promise<{ sent: string[]; errors: string[] }> {
+  // Kept on the run, for the app's notices (the bell), whether or not the team is told elsewhere.
+  await withTenant(deps.db, tenant, (tx) =>
+    tx
+      .update(agentRuns)
+      .set({ notice: { ...input.notice, details: input.notice.details?.slice(0, 600) } })
+      .where(eq(agentRuns.id, input.runId)),
+  );
   const notify = input.agent.settings.notify;
   const sent: string[] = [];
   const errors: string[] = [];

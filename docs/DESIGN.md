@@ -40,8 +40,9 @@ screen needs something new, add it here and as a component, not inline.
   document, a base, a new connection. A section's own pages (a project
   and its tabs, a settings page) have its header and tabs instead, so
   their bar stays empty (`@crumbs` slot in `src/app/app`, rules in
-  `src/app/app/crumbs.ts`). On phones the app header already plays that
-  role: the bar only shows there when it has a trail. Agents hang
+  `src/app/app/crumbs.ts`). Its right side holds the bar's tools on every
+  page: the agents working now, the notices (bell) and the Copilot panel
+  (`src/app/app/top-bar/`). Agents hang
   straight from their project in the trail, as in the sidebar. There are
   no «back» buttons.
 - **Loading**: every main route has a `loading.tsx` with skeletons

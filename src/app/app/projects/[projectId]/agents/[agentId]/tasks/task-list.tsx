@@ -4,37 +4,9 @@ import type { ReactNode } from "react";
 import { ConfirmForm } from "@/components/confirm-form";
 import { buttonClass, Meta } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
-import type { AgentTask, TaskProgress } from "@/server/agents/tasks";
+import { ProgressBar } from "@/components/progress-bar";
+import type { AgentTask } from "@/server/agents/tasks";
 import { usd } from "@/app/app/(settings)/runs/run-log";
-
-/** «45 de 120 filas», with a bar. */
-export function ProgressBar({ progress, live = false }: { progress: TaskProgress; live?: boolean }) {
-  const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
-  return (
-    <div className="space-y-1">
-      <div
-        role="progressbar"
-        aria-valuemin={0}
-        aria-valuemax={progress.total}
-        aria-valuenow={progress.done}
-        aria-label={`${progress.done} de ${progress.total} ${progress.unit}`}
-        className="h-2 overflow-hidden rounded-full bg-ink-100"
-      >
-        <div
-          className={
-            live
-              ? "h-full rounded-full bg-brand-500 transition-[width] duration-700"
-              : "h-full rounded-full bg-ink-400"
-          }
-          style={{ width: `${Math.max(pct, progress.done > 0 ? 2 : 0)}%` }}
-        />
-      </div>
-      <p className="text-xs text-muted tabular-nums">
-        {progress.done} de {progress.total} {progress.unit} · {pct} %
-      </p>
-    </div>
-  );
-}
 
 function minutesSince(date: Date) {
   const min = Math.max(0, Math.round((Date.now() - date.getTime()) / 60_000));

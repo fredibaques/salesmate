@@ -18,6 +18,7 @@ export function Popover({
   children,
   width = "sm",
   align = "start",
+  onOpen,
 }: {
   trigger: ReactNode;
   triggerClassName?: string;
@@ -26,6 +27,8 @@ export function Popover({
   children: ReactNode | ((close: () => void) => ReactNode);
   width?: "sm" | "md";
   align?: "start" | "end";
+  /** Called when it opens (e.g. to mark what it shows as seen). */
+  onOpen?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(
@@ -94,7 +97,10 @@ export function Popover({
       <button
         ref={button}
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          if (!open) onOpen?.();
+          setOpen(!open);
+        }}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={triggerLabel}

@@ -717,6 +717,37 @@ se cancelan con su «×» (`cancelQueuedTask`). Todo queda en auditoría
 (`agent.task_planned`, `agent.task_cancelled`).
   La página se refresca sola mientras trabaja o tiene una tanda a punto.
 
+## Barra superior
+
+Todas las páginas de `/app` tienen la misma franja arriba (`TopBar` en
+`components/breadcrumbs.tsx`): la ruta a la izquierda cuando la hay, y a la
+derecha (`app/app/top-bar/`) tres herramientas. El layout las pinta con lo que
+lee (`topBarState`) y el cliente vuelve a preguntar al navegar y cada 20 s
+mientras la página está visible:
+
+- **Agentes trabajando** (`workingAgents` en `services/top-bar.ts`): los
+  agentes de los proyectos que la persona ve con una ejecución `running` de
+  los últimos 10 minutos, apilados, con «N trabajando». Al abrirlo, la tarea
+  de cada uno con su avance (`runningTask`, el mismo cálculo que «En
+  curso» en Tareas). No aparece si no trabaja ninguno.
+- **Avisos** (la campana, `appNotices`): las acciones por aprobar, una
+  conexión en error, la cuenta de IA en error y cómo fueron las ejecuciones de
+  los agentes en los últimos 7 días. Es el mismo aviso que el agente manda al
+  equipo: `notifyTeam` lo guarda siempre en `agent_runs.notice` (migración
+  0033), lo envíe o no por Slack o email; una ejecución fallida sin aviso
+  sale como «La ejecución ha fallado» con su error. El número cuenta lo nuevo
+  desde que la persona abrió la campana (`user_preferences.notices_seen_at`,
+  `markNoticesSeen`) más lo que sigue esperando a alguien.
+- **Copilot**: abre el Copilot en un panel lateral desde cualquier página.
+  Sabe qué hay en pantalla (`pageContext` en `agents/page-context.ts`): en
+  una tabla, sus columnas (cuántas celdas tienen valor y cuántas están
+  marcadas «no encontrado», con sus instrucciones) y sus primeras filas; en un
+  agente, su horario, sus instrucciones y sus últimas ejecuciones (resumen y
+  error); en un proyecto, el proyecto. Eso va al prompt (`askCopilot` con
+  `page`) y responde desde el proyecto de la página (o el que elija la
+  persona). La conversación se mantiene al cerrar el panel hasta «Nueva
+  conversación».
+
 ## Automatización de los agentes
 
 Ajustes en `agent_configs.settings` (`saveAgentAutomation` en

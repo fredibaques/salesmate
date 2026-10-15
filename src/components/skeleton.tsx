@@ -118,7 +118,7 @@ export function ChatSkeleton() {
     <div
       role="status"
       aria-busy
-      className="flex h-[calc(100dvh-9rem)] min-h-96 md:h-[calc(100dvh-12rem)] flex-col rounded-xl border border-border bg-surface shadow-xs"
+      className="flex h-[calc(100dvh-12rem)] min-h-96 flex-col rounded-xl border border-border bg-surface shadow-xs"
     >
       <Status />
       <div className="border-b border-border px-4 py-3">

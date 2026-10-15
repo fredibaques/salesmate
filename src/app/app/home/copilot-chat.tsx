@@ -116,7 +116,7 @@ export function CopilotChat({
 
   return (
     <ChatPanel
-      className="h-[calc(100dvh-9rem)] min-h-96 md:h-[calc(100dvh-12rem)]"
+      className="h-[calc(100dvh-12rem)] min-h-96"
       toolbar={
         <>
           <span className="text-muted">Proyecto</span>

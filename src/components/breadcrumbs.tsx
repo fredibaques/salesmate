@@ -5,15 +5,15 @@ import type { ReactNode } from "react";
 export type Crumb = { label: string; href?: string };
 
 /**
- * The bar across the top of the content, on every page. It holds the trail
- * when there is one and stays empty otherwise, so the content always starts
- * at the same height. On phones the app header is already there: the bar
- * only shows when it has a trail.
+ * The bar across the top of the content, on every page: the trail on the
+ * left when there is one (empty otherwise, so the content always starts at
+ * the same height) and the bar's tools on the right (`actions`).
  */
-export function TopBar({ children }: { children: ReactNode }) {
+export function TopBar({ children, actions }: { children: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="sticky top-14 z-30 hidden min-h-12 items-center border-b border-border bg-background/90 px-4 backdrop-blur has-[nav]:flex md:top-0 md:flex md:px-8">
-      {children}
+    <div className="sticky top-14 z-30 flex min-h-12 items-center gap-3 border-b border-border bg-background/90 px-4 backdrop-blur md:top-0 md:px-8">
+      <div className="min-w-0 flex-1">{children}</div>
+      {actions}
     </div>
   );
 }

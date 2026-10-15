@@ -168,3 +168,14 @@ export function describeEvent(event: string): string {
 export function plural(n: number, one: string, many: string): string {
   return `${n.toLocaleString("es-ES")} ${n === 1 ? one : many}`;
 }
+
+/** «hace 5 min», «hace 3 h», «hace 2 días»; past a week, the date. */
+export function timeAgo(at: Date, now: Date): string {
+  const min = Math.max(0, Math.round((now.getTime() - at.getTime()) / 60_000));
+  if (min < 1) return "ahora";
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `hace ${h} h`;
+  const d = Math.round(h / 24);
+  return d < 7 ? (d === 1 ? "ayer" : `hace ${d} días`) : formatDate(at);
+}

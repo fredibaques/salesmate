@@ -10,24 +10,33 @@ import { buttonClass, cx, IconTile } from "./ui";
  * A panel that slides over the right side of the page to show and edit one
  * record (a row of a prospect base) without leaving the list. It lives in
  * the URL: the page renders it while a parameter is set, and closing it
- * goes back to `closeHref`. Forms inside close it after saving.
+ * goes back to `closeHref`. Forms inside close it after saving. Without a
+ * URL (a panel opened from the top bar), `onClose` closes it instead.
  */
 export function Drawer({
   title,
   subtitle,
   icon,
   closeHref,
+  onClose,
+  flush = false,
   children,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
   icon?: ReactNode;
-  closeHref: string;
+  closeHref?: string;
+  onClose?: () => void;
+  /** The content lays itself out (a chat): no padding, no scrolling of its own. */
+  flush?: boolean;
   children: ReactNode;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const router = useRouter();
-  const close = useCallback(() => router.push(closeHref, { scroll: false }), [router, closeHref]);
+  const close = useCallback(
+    () => (onClose ? onClose() : closeHref && router.push(closeHref, { scroll: false })),
+    [router, closeHref, onClose],
+  );
 
   useEffect(() => {
     if (dialog.current && !dialog.current.open) dialog.current.showModal();
@@ -62,7 +71,7 @@ export function Drawer({
             <X className="size-4" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+        <div className={flush ? "flex min-h-0 flex-1 flex-col" : "flex-1 overflow-y-auto px-4 py-5 sm:px-6"}>
           <ModalScope close={close}>{children}</ModalScope>
         </div>
       </div>

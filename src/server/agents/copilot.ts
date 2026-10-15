@@ -44,7 +44,13 @@ export async function askCopilot(
     now?: () => Date;
   },
   tenant: { orgId: string; userId: string },
-  input: { projectId: string; history: CopilotTurn[]; question: string },
+  input: {
+    projectId: string;
+    history: CopilotTurn[];
+    question: string;
+    /** What the person is looking at (asked from the top bar on any page): see page-context.ts. */
+    page?: string;
+  },
 ): Promise<CopilotAnswer> {
   const now = deps.now?.() ?? new Date();
   const { project, playbook, run } = await withTenant(deps.db, tenant, async (tx) => {
@@ -137,6 +143,9 @@ export async function askCopilot(
           spec: playbook.spec,
           profile: sales.profile,
         })
+      : "",
+    input.page
+      ? `## Lo que la persona está viendo ahora\nPregunta desde esta pantalla: si dice «esta tabla», «este agente» o similar, se refiere a esto.\n${input.page}`
       : "",
   ]
     .filter(Boolean)

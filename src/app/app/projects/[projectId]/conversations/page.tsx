@@ -186,7 +186,7 @@ export default async function ConversationsPage({
             projectId={projectId}
             query={query}
             basePath={`/app/projects/${projectId}/conversations`}
-            heightClass="h-[calc(100dvh-19rem)] min-h-[26rem] md:h-[calc(100dvh-21rem)]"
+            heightClass="h-[calc(100dvh-22rem)] min-h-[26rem] md:h-[calc(100dvh-21rem)]"
           />
         )}
       </div>
