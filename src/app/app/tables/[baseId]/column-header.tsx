@@ -21,7 +21,7 @@ import { Badge, buttonClass, cx } from "@/components/ui";
 import { COLUMN_TYPE_LABELS, type BaseColumn, type RowKind } from "@/lib/prospect-columns";
 import { columnCatalog, type CatalogColumn } from "@/lib/column-catalog";
 import { COLUMN_ICONS } from "../column-icons";
-import { ColumnForm } from "../column-form";
+import { ColumnForm, type LinkTarget } from "../column-form";
 import { useColumnDrag, type DropTarget } from "./column-drag";
 
 const FILLED_BY_LABELS = {
@@ -85,6 +85,7 @@ export function ColumnHeader({
   hide,
   remove,
   retry,
+  tables,
 }: {
   column: BaseColumn;
   first: boolean;
@@ -99,6 +100,8 @@ export function ColumnHeader({
   remove: () => Promise<void>;
   /** Clears its «no encontrado» cells; says how many. */
   retry: () => Promise<string>;
+  /** The other tables, for a relation. */
+  tables?: LinkTarget[];
 }) {
   const toast = useToast();
   const [view, setView] = useState<"menu" | "edit">("menu");
@@ -122,14 +125,16 @@ export function ColumnHeader({
           view === "edit" ? (
             <div className="space-y-4">
               <p className="font-semibold">Editar «{column.name}»</p>
-              <ColumnForm action={save} column={column} />
+              <ColumnForm action={save} column={column} tables={tables} />
             </div>
           ) : (
             <div className="-m-2 space-y-1">
               <div className="px-2 pt-1 pb-2">
                 <p className="font-semibold">{column.name}</p>
                 <p className="text-xs text-muted">
-                  {COLUMN_TYPE_LABELS[column.type]} · {FILLED_BY_LABELS[column.filledBy]}
+                  {column.type === "link"
+                    ? `Relación con «${tables?.find((t) => t.id === column.linkBaseId)?.name ?? "otra tabla"}»`
+                    : `${COLUMN_TYPE_LABELS[column.type]} · ${FILLED_BY_LABELS[column.filledBy]}`}
                 </p>
               </div>
               <button type="button" className={item} onClick={() => setView("edit")}>
@@ -152,7 +157,7 @@ export function ColumnHeader({
                 <ArrowRight />
                 Mover a la derecha
               </ActionItem>
-              {column.filledBy !== "person" ? (
+              {column.filledBy !== "person" && column.type !== "link" ? (
                 <ActionItem run={async () => toast?.({ ok: true, message: await retry() })} close={close}>
                   <RotateCcw />
                   Volver a buscar lo no encontrado
@@ -247,10 +252,13 @@ export function AddColumnHeader({
   save,
   existing,
   rowKind,
+  tables,
 }: {
   save: FormAction;
   existing: string[];
   rowKind: RowKind;
+  /** The other tables, for a relation. */
+  tables?: LinkTarget[];
 }) {
   const toast = useToast();
   const [view, setView] = useState<"form" | "suggest">("form");
@@ -301,7 +309,7 @@ export function AddColumnHeader({
           ))}
         </div>
         {view === "form" ? (
-          <ColumnForm action={save} />
+          <ColumnForm action={save} tables={tables} />
         ) : (
           <div className="space-y-4">
             {columnCatalog(rowKind).map((group) => (

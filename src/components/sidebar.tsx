@@ -209,9 +209,11 @@ export function SidebarGroup({
   const under = (base: string) => pathname === base || pathname.startsWith(`${base}/`);
   const inside = under(href);
   const childActive = items.some((i) => under(i.href));
-  // Open while on its pages; the chevron overrides it until the next navigation into it.
+  // Open while on its pages (or one of its entries, like a table it uses); the chevron
+  // overrides it until the next navigation into it.
+  const here = inside || childActive;
   const [toggled, setToggled] = useState<{ at: boolean; open: boolean } | null>(null);
-  const open = toggled && toggled.at === inside ? toggled.open : inside;
+  const open = toggled && toggled.at === here ? toggled.open : here;
   const active = inside && !childActive;
   return (
     <div>
@@ -235,9 +237,9 @@ export function SidebarGroup({
         {items.length ? (
           <button
             type="button"
-            onClick={() => setToggled({ at: inside, open: !open })}
+            onClick={() => setToggled({ at: here, open: !open })}
             aria-expanded={open}
-            aria-label={open ? "Ocultar agentes" : "Mostrar agentes"}
+            aria-label={open ? "Ocultar agentes y tablas" : "Mostrar agentes y tablas"}
             className="mr-1 ml-1 flex size-7 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-ink-100 hover:text-foreground"
           >
             <ChevronRight className={cx("size-3.5 transition-transform", open && "rotate-90")} />

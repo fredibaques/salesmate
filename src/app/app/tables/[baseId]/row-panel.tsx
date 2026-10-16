@@ -1,16 +1,18 @@
 import Link from "next/link";
-import { Building2, Lock, Undo2, User, X } from "lucide-react";
+import { Building2, Lock, Network, Trash2, Undo2, User, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { ActionForm } from "@/components/action-form";
+import { ConfirmForm } from "@/components/confirm-form";
 import { Drawer } from "@/components/drawer";
 import { Badge, Button, Chip, Field, Input, Select, Textarea } from "@/components/ui";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, plural } from "@/lib/format";
 import { isPendingCell, type BaseColumn } from "@/lib/prospect-columns";
 import type { CellMeta } from "@/server/db/schema";
 import type { ProspectBase } from "@/server/prospects/bases";
-import { normalizeDomain, type ProspectRow } from "@/server/prospects/service";
+import { normalizeDomain, type linkedRows, type ProspectRow } from "@/server/prospects/service";
 import { completeProspectsNow } from "../../projects/[projectId]/agents/actions";
-import { changeProspectStatus, saveRowAction } from "../actions";
+import { changeProspectStatus, deleteRowsAction, saveRowAction } from "../actions";
+import { LinkField, type LinkValue, type SearchRows } from "../link-picker";
 import { COLUMN_ICONS } from "../column-icons";
 
 /** Where a value comes from, under its field. */
@@ -20,6 +22,13 @@ function provenance(
   meta: CellMeta | undefined,
   agentFills: boolean,
 ): ReactNode {
+  if (column.type === "link") {
+    return meta?.by === "agent"
+      ? `La relacionó el agente · ${formatDateTime(meta.at)}`
+      : meta?.by === "user"
+        ? `Relacionada a mano · ${formatDateTime(meta.at)}`
+        : null;
+  }
   if (meta?.notFound) {
     return `El agente lo buscó y no lo encontró publicado · ${formatDateTime(meta.at)}. «Completar esta fila» lo vuelve a buscar.`;
   }
@@ -116,6 +125,16 @@ function CellInput({ column, value }: { column: BaseColumn; value: unknown }) {
   }
 }
 
+/** The relation of the table: the column, the linked table and the row it points at now. */
+export type RowLink = {
+  column: BaseColumn;
+  tableName: string;
+  /** Where the linked table is. */
+  path: string;
+  search: SearchRows;
+  value: LinkValue;
+};
+
 const STATUS = {
   new: { label: "Nuevo", tone: "accent" },
   accepted: { label: "Nuevo", tone: "accent" },
@@ -134,6 +153,9 @@ export function RowPanel({
   closeHref,
   canRun = false,
   conversationKey = null,
+  link = null,
+  linked = null,
+  back,
 }: {
   /** Project of the prospecting agent that fills this table, if one does. */
   /** The prospecting agent that fills the table, if any. */
@@ -145,6 +167,12 @@ export function RowPanel({
   canRun?: boolean;
   /** The agent wrote to this row: its conversation in the inbox. */
   conversationKey?: string | null;
+  /** The table's relation column, if it has one. */
+  link?: RowLink | null;
+  /** The rows of other tables that belong to this one (the people of a company). */
+  linked?: Awaited<ReturnType<typeof linkedRows>> | null;
+  /** Where to go once the row is deleted. */
+  back: string;
 }) {
   const person = base.rowKind === "person";
   const title = row ? (person ? row.personName || row.companyName : row.companyName) : "Nueva fila";
@@ -221,7 +249,17 @@ export function RowPanel({
                       : c.instructions
                   }
                 >
-                  <CellInput column={c} value={row?.data[c.id]} />
+                  {c.type === "link" && link?.column.id === c.id ? (
+                    <LinkField
+                      name={`f:${c.id}`}
+                      defaultValue={link.value}
+                      search={link.search}
+                      tableName={link.tableName}
+                      targetPath={link.path}
+                    />
+                  ) : c.type === "link" ? null : (
+                    <CellInput column={c} value={row?.data[c.id]} />
+                  )}
                 </Field>
               );
             })}
@@ -243,6 +281,31 @@ export function RowPanel({
           </div>
         ) : null}
       </ActionForm>
+
+      {row && linked?.total ? (
+        <div className="mt-6 border-t border-border pt-5">
+          <h3 className="text-sm font-medium">Filas relacionadas ({linked.total})</h3>
+          <ul className="mt-2 space-y-0.5">
+            {linked.rows.map((r) => (
+              <li key={r.id}>
+                <Link
+                  href={`/app/tables/${r.baseId}?row=${r.id}`}
+                  className="-mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-ink-50"
+                >
+                  <Network className="size-3.5 shrink-0 text-muted" aria-hidden />
+                  <span className="min-w-0 flex-1 truncate">{r.name}</span>
+                  <span className="shrink-0 text-xs text-muted">{r.baseName}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {linked.total > linked.rows.length ? (
+            <p className="mt-1 text-xs text-muted">
+              Y {linked.total - linked.rows.length} más: filtra su tabla por esta fila para verlas.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {row ? (
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
@@ -266,6 +329,21 @@ export function RowPanel({
               </Button>
             )}
           </form>
+          <ConfirmForm
+            action={deleteRowsAction.bind(null, base.id, [row.id], back)}
+            message={`¿Borrar «${title}»${
+              linked?.total
+                ? ` y ${plural(linked.total, "fila relacionada", "filas relacionadas")} (${[
+                    ...new Set(linked.rows.map((r) => r.baseName)),
+                  ].join(", ")})`
+                : ""
+            }? No se puede deshacer.`}
+          >
+            <Button variant="dangerGhost" size="sm">
+              <Trash2 className="size-4" />
+              Borrar
+            </Button>
+          </ConfirmForm>
           {filler && canRun && row.status !== "discarded" ? (
             <ActionForm
               action={completeProspectsNow.bind(null, filler.projectId, filler.id, [row.id])}

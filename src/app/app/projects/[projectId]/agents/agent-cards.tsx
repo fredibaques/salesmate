@@ -56,7 +56,7 @@ export async function AddAgentButton({
     listChannelOptions(db, tenant),
     listMcpServers(db, tenant),
     withTenant(db, tenant, (tx) => projectProcess(tx, projectId)),
-    listBases(db, tenant, projectId, { standalone: true }),
+    listBases(db, tenant, projectId, { shared: true }),
   ]);
   const initial = types.find((t) => t.available && t.type === open)?.type;
   return (
@@ -94,7 +94,7 @@ export async function AddAgentButton({
         options={options}
         servers={servers}
         defaults={AGENT_DEFAULTS}
-        bases={bases.map((b) => ({ id: b.id, name: b.projectId ? b.name : `${b.name} (sin proyecto)` }))}
+        bases={bases.map((b) => ({ id: b.id, name: b.projectId ? b.name : `${b.name} (compartida)` }))}
         process={process ? { objective: process.spec.objective, nextSteps: process.spec.nextSteps } : null}
       />
     </ModalButton>

@@ -48,7 +48,7 @@ export function TablesList({
                 {b.name}
               </Link>
             </Td>
-            {showProject ? <Td className="text-muted">{b.projectName ?? "Sin proyecto"}</Td> : null}
+            {showProject ? <Td className="text-muted">{b.projectName ?? "Todos los proyectos"}</Td> : null}
             <Td className="tabular-nums">{plural(b.rows, "fila", "filas")}</Td>
             <Td className="tabular-nums">
               {pending[i] ? pending[i] : <span className="text-muted">—</span>}

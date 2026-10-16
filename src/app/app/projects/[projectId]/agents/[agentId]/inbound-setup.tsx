@@ -39,7 +39,7 @@ export async function InboundSetup({ projectId, agentId }: { projectId: string; 
     getAgent(db, tenant, projectId, agentId),
     getProject(db, tenant, projectId),
     listChannelOptions(db, tenant),
-    listBases(db, tenant, projectId, { standalone: true }),
+    listBases(db, tenant, projectId, { shared: true }),
     getOrgAi(db, tenant),
     withTenant(db, tenant, (tx) => projectProcess(tx, projectId)),
   ]);
@@ -84,7 +84,7 @@ export async function InboundSetup({ projectId, agentId }: { projectId: string; 
                 {bases.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
-                    {b.projectId ? "" : " (sin proyecto)"}
+                    {b.projectId ? "" : " (compartida)"}
                   </option>
                 ))}
               </Select>

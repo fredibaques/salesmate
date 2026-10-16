@@ -35,6 +35,7 @@ import { formatDateTime, plural } from "@/lib/format";
 import {
   formatCell,
   isPendingCell,
+  linkColumn,
   primaryField,
   stageColumn,
   SYSTEM_FIELD_LABELS,
@@ -44,11 +45,11 @@ import {
 } from "@/lib/prospect-columns";
 import { PROSPECT_STATUSES } from "@/server/db/schema";
 import { projectAccess, requireTenant } from "@/server/auth/session";
-import { canSee } from "@/server/services/access";
+import { canSeeBase } from "@/server/services/access";
 import { getDb } from "@/server/db/client";
-import { baseAgents, getBase } from "@/server/prospects/bases";
+import { baseAgents, getBase, linkedRowsOf, listBaseNames } from "@/server/prospects/bases";
 import { completionCost, countPendingCells } from "@/server/prospects/complete";
-import { getProspect, listProspects, type ProspectStatus } from "@/server/prospects/service";
+import { getProspect, linkedRows, listProspects, type ProspectStatus } from "@/server/prospects/service";
 import { listAgentRuns } from "@/server/services/agents";
 import { listProjects } from "@/server/services/projects";
 import { AiNotice } from "../../ai-notice";
@@ -63,10 +64,12 @@ import {
   retryNotFoundAction,
   saveCellAction,
   saveColumnAction,
+  searchLinkRowsAction,
   toggleColumnAction,
   setColumnWidthAction,
   toggleFieldAction,
 } from "../actions";
+import { LinkCell } from "../link-picker";
 import { fillingRows } from "@/server/agents/runs";
 import { CellState, cellTitle, COLUMN_ICONS, NotFound, Pending, WebLink } from "../cells";
 import { AddColumnHeader, ColumnHeader, FieldHeader, HiddenColumns } from "./column-header";
@@ -162,7 +165,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
   const tenant = await requireTenant();
   const db = getDb();
   const base = await getBase(db, tenant, baseId);
-  if (!base || !canSee(await projectAccess(), base.projectId)) notFound();
+  if (!base || !canSeeBase(await projectAccess(), base)) notFound();
 
   const status = PROSPECT_STATUSES.find((s) => s === query.status);
   const q = typeof query.q === "string" ? query.q : "";
@@ -186,7 +189,9 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
   // The prospecting agent that fills it (the first active one, if several do).
   const prospecting = agents.filter((a) => a.agentType === "prospecting");
   const filler = prospecting.find((a) => a.enabled) ?? prospecting[0] ?? null;
-  const [data, projects, runs, openRow, pendingCells, filling, cost] = await Promise.all([
+  // A relation column points at another table: its rows are picked by name.
+  const link = linkColumn(base.columns);
+  const [data, projects, runs, openRow, pendingCells, filling, cost, tableNames] = await Promise.all([
     listProspects(db, tenant, baseId, {
       status,
       q,
@@ -203,7 +208,21 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
     countPendingCells(db, tenant, baseId),
     fillingRows(db, tenant, baseId),
     completionCost(db, tenant, baseId),
+    listBaseNames(db, tenant),
   ]);
+  const otherTables = tableNames.filter((t) => t.id !== baseId);
+  const linkTable = link ? tableNames.find((t) => t.id === link.linkBaseId) : undefined;
+  const linkPath = link ? `/app/tables/${link.linkBaseId}` : "";
+  const searchLinked = searchLinkRowsAction.bind(null, baseId);
+  // The open row: the row it belongs to, and the rows of other tables that belong to it.
+  const [openParent, openLinked] = openRow
+    ? await Promise.all([
+        link && openRow.parentId
+          ? getProspect(db, tenant, link.linkBaseId!, openRow.parentId).catch(() => null)
+          : null,
+        linkedRows(db, tenant, openRow.id),
+      ])
+    : [null, null];
   const filledByAgent = Boolean(filler);
   const running = filledByAgent && runs[0]?.status === "running" && isRecent(runs[0].startedAt);
   const { starting, lastRun } = watchRuns(filledByAgent && !running, runs, Number(query.working) || 0);
@@ -371,7 +390,9 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                 rows={data.total}
                 agents={agents.length}
                 projectId={base.projectId}
+                projectIds={base.projectIds}
                 projects={projects.map((p) => ({ id: p.id, name: p.name }))}
+                linked={await linkedRowsOf(db, tenant, baseId)}
               />
             ) : null}
           </>
@@ -552,6 +573,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                             hide={toggleColumnAction.bind(null, baseId, c.id, true)}
                             remove={removeColumnAction.bind(null, baseId, c.id)}
                             retry={retryNotFoundAction.bind(null, baseId, c.id)}
+                            tables={otherTables}
                           />
                         ) : (
                           sortLink(
@@ -572,6 +594,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                         save={saveColumnAction.bind(null, baseId, null)}
                         existing={base.columns.map((c) => c.name)}
                         rowKind={base.rowKind}
+                        tables={otherTables}
                       />
                     ) : (
                       <span className="sr-only">Acciones</span>
@@ -613,6 +636,24 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                         {r.seq}
                       </GridCell>
                       {fields.map((f, i) => {
+                        if (f.kind === "column" && f.column.type === "link") {
+                          const c = f.column;
+                          return (
+                            <GridCell key={c.id}>
+                              <LinkCell
+                                rowId={r.id}
+                                field={c.id}
+                                value={r.parentId ? { id: r.parentId, name: r.parentName ?? "" } : null}
+                                save={saveCell}
+                                search={searchLinked}
+                                label={`${c.name} de ${name}`}
+                                tableName={linkTable?.name ?? c.name}
+                                targetPath={`/app/tables/${c.linkBaseId}`}
+                                canEdit={c.id === link?.id}
+                              />
+                            </GridCell>
+                          );
+                        }
                         if (f.kind === "column") {
                           const c = f.column;
                           return (
@@ -760,6 +801,9 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                 fields={[
                   { key: "_id", editor: null, sticky: true },
                   ...fields.map((f, i): NewRowField => {
+                    // The relation is picked once the row exists.
+                    if (f.kind === "column" && f.column.type === "link")
+                      return { key: f.column.id, editor: null };
                     if (f.kind === "column") {
                       return {
                         key: f.column.id,
@@ -855,6 +899,25 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
           closeHref={href({ row: undefined })}
           canRun={canEdit}
           conversationKey={openRow ? await personOfRow(db, tenant, openRow.id) : null}
+          link={
+            link
+              ? {
+                  column: link,
+                  tableName: linkTable?.name ?? link.name,
+                  path: linkPath,
+                  search: searchLinked,
+                  value:
+                    openRow?.parentId && openParent
+                      ? {
+                          id: openParent.id,
+                          name: openParent.personName || openParent.companyName,
+                        }
+                      : null,
+                }
+              : null
+          }
+          linked={openLinked}
+          back={href({ row: undefined })}
         />
       ) : null}
     </>

@@ -1,7 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
-import { Choice, Field, FormSection, Input, Notice, Segmented, Select, Textarea } from "@/components/ui";
+import {
+  Chip,
+  Choice,
+  Field,
+  FormSection,
+  Input,
+  Notice,
+  Segmented,
+  Select,
+  Textarea,
+} from "@/components/ui";
+import { linkColumn, stageColumn } from "@/lib/prospect-columns";
 import { MonthlyBudgetField } from "./budget-field";
 import { AI_PROVIDER_INFO } from "@/lib/ai-providers";
 import { goalProgress, monthSpendUsd } from "@/server/agents/automation";
@@ -10,7 +21,7 @@ import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { env } from "@/server/env";
 import { getOrgAi } from "@/server/llm/org-ai";
-import { listBases } from "@/server/prospects/bases";
+import { getBase, listBases } from "@/server/prospects/bases";
 import { getAgent, listChannelOptions, listSlackConnections } from "@/server/services/agents";
 import { getProject } from "@/server/services/projects";
 import { listTeam } from "@/server/services/team";
@@ -38,17 +49,21 @@ export async function ProspectingSetup({ projectId, agentId }: { projectId: stri
     listChannelOptions(db, tenant),
     listSlackConnections(db, tenant),
     listTeam(db, tenant.orgId),
-    listBases(db, tenant, projectId, { standalone: true }),
+    listBases(db, tenant, projectId, { shared: true }),
     getOrgAi(db, tenant),
   ]);
   if (!agent || !project) notFound();
   const config = agent.config;
   const s = config.settings;
   const base = bases.find((b) => b.id === config.prospectBaseId) ?? bases[0];
-  const [spent, goal] = await Promise.all([
+  // A table with a relation is filled by going through the linked table (its phases can narrow it).
+  const link = base ? linkColumn(base.columns) : undefined;
+  const [spent, goal, linkedTable] = await Promise.all([
     monthSpendUsd(db, tenant, { agentId, timezone: project.timezone }),
     s.goal && base ? goalProgress(db, tenant, base.id, s.goal) : null,
+    link?.linkBaseId ? getBase(db, tenant, link.linkBaseId) : null,
   ]);
+  const linkedStages = linkedTable ? (stageColumn(linkedTable.columns)?.options ?? []) : [];
   const models = ai ? AI_PROVIDER_INFO[ai.provider].models : [];
   const orgModel = models.find((m) => m.id === ai?.model);
   const hookUrl = config.hookToken ? `${env().APP_URL}/api/hooks/agents/${config.hookToken}` : null;
@@ -100,10 +115,38 @@ export async function ProspectingSetup({ projectId, agentId }: { projectId: stri
                   {bases.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.name}
-                      {b.projectId ? "" : " (sin proyecto)"}
+                      {b.projectId ? "" : " (compartida)"}
                     </option>
                   ))}
                 </Select>
+              </Field>
+            ) : null}
+            {linkedTable ? (
+              <Field
+                label={`Empresas de «${linkedTable.name}» en las que busca`}
+                group={linkedStages.length > 0}
+                tip={`Su tabla se relaciona con «${linkedTable.name}»: en cada ejecución revisa las siguientes filas de esa tabla que no estén descartadas, busca en cada una a quién contactar y deja a cada persona relacionada con su fila.`}
+                hint={
+                  linkedStages.length
+                    ? "Solo las que estén en estas fases. Si no marcas ninguna, todas."
+                    : "Todas las que no estén descartadas, una a una."
+                }
+              >
+                {linkedStages.length ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    <input type="hidden" name="linkedStagesShown" value="1" />
+                    {linkedStages.map((stage) => (
+                      <Chip
+                        key={stage}
+                        name="linkedStages"
+                        value={stage}
+                        defaultChecked={s.linked?.stages?.includes(stage)}
+                      >
+                        {stage}
+                      </Chip>
+                    ))}
+                  </div>
+                ) : null}
               </Field>
             ) : null}
             <Field

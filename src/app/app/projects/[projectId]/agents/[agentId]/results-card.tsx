@@ -12,7 +12,7 @@ export async function ResultsCard({ projectId, agentId }: { projectId: string; a
   const db = getDb();
   const [agent, bases] = await Promise.all([
     getAgent(db, tenant, projectId, agentId),
-    listBases(db, tenant, projectId, { standalone: true }),
+    listBases(db, tenant, projectId, { shared: true }),
   ]);
   const base = bases.find((b) => b.id === agent?.config.prospectBaseId) ?? bases[0];
   const [pending, waiting] = await Promise.all([

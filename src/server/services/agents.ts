@@ -592,6 +592,8 @@ export const instructionsInput = z.object({
         .optional(),
       /** "" = the organization's model. */
       model: z.string().optional(),
+      /** In a table with a relation: the phases of the linked table's rows it goes through (none = all). */
+      linked: z.object({ stages: z.array(z.string().max(80)).max(50).optional() }).optional(),
     })
     .default({}),
 });

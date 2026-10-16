@@ -454,6 +454,12 @@ export type AgentSettings = {
   goal?: { rows: number; minFit?: number };
   /** Prospecting: the Google searches its discovery has run, not to repeat them. */
   discovery?: { usedQueries?: string[] };
+  /**
+   * Prospecting in a table with a relation column (people of companies): it
+   * goes through the rows of the linked table, those not discarded and, with
+   * `stages`, only those in these phases of its pipeline column.
+   */
+  linked?: { stages?: string[] };
   /** Where it may look: only these domains, or never these. */
   sources?: { allow?: string[]; block?: string[] };
   /** Messages to the team (through the gateway) when a run ends or has a problem. */
@@ -1010,6 +1016,31 @@ export const prospectBases = pgTable(
   (t) => [index("prospect_bases_project_idx").on(t.projectId), tenantPolicy("prospect_bases")],
 );
 
+/**
+ * The projects a table without a project of its own is shared with. A table
+ * with `project_id` is that project's; one without it and without rows here
+ * is the whole account's (every project uses it); with rows here, only those
+ * projects use it.
+ */
+export const prospectBaseProjects = pgTable(
+  "prospect_base_projects",
+  {
+    orgId: orgId(),
+    baseId: uuid("base_id")
+      .notNull()
+      .references(() => prospectBases.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.baseId, t.projectId] }),
+    index("prospect_base_projects_project_idx").on(t.projectId),
+    tenantPolicy("prospect_base_projects"),
+  ],
+);
+
 export const prospects = pgTable(
   "prospects",
   {
@@ -1042,6 +1073,11 @@ export const prospects = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /**
+     * The row of another table this one belongs to (a person's company), set
+     * through the table's relation column. Deleting that row deletes this one.
+     */
+    parentId: uuid("parent_id").references((): AnyPgColumn => prospects.id, { onDelete: "cascade" }),
     /** Values of the base's columns, by column id. */
     data: jsonb("data").$type<Record<string, unknown>>().notNull().default({}),
     /** Who set each value and when, by column id. */
@@ -1058,8 +1094,33 @@ export const prospects = pgTable(
     unique("prospects_base_key_uq").on(t.baseId, t.dedupeKey),
     index("prospects_base_seq_idx").on(t.baseId, t.seq),
     index("prospects_project_created_idx").on(t.projectId, t.createdAt),
+    index("prospects_parent_idx").on(t.parentId),
     tenantPolicy("prospects"),
   ],
+);
+
+/**
+ * The rows of a linked table an agent has already looked into for a table
+ * that points at it (the companies it searched for people), so it moves on
+ * to the next ones. `found` is how many rows it saved for that one.
+ */
+export const prospectLinkSearches = pgTable(
+  "prospect_link_searches",
+  {
+    orgId: orgId(),
+    /** The table the agent fills (the people). */
+    baseId: uuid("base_id")
+      .notNull()
+      .references(() => prospectBases.id, { onDelete: "cascade" }),
+    /** The row of the linked table it looked into (the company). */
+    rowId: uuid("row_id")
+      .notNull()
+      .references(() => prospects.id, { onDelete: "cascade" }),
+    found: integer("found").notNull().default(0),
+    runId: uuid("run_id"),
+    searchedAt: timestamp("searched_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.baseId, t.rowId] }), tenantPolicy("prospect_link_searches")],
 );
 
 export const CONTACT_STATUSES = [

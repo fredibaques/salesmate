@@ -18,7 +18,7 @@ import {
 } from "@/lib/prospect-columns";
 import { queueTableCompletion, rowsAdded } from "@/server/agents/events";
 import { workOnAddedRows } from "@/server/agents/runtime";
-import { requireProjectAccess, requireRole, requireTenant } from "@/server/auth/session";
+import { requireBaseAccess, requireRole, requireTenant } from "@/server/auth/session";
 import { connections } from "@/server/db/schema";
 import { withTenant } from "@/server/db/tenant";
 import { describeConnectorError } from "@/server/connectors/types";
@@ -36,7 +36,7 @@ import {
   removeColumn,
   renameBase,
   saveColumn,
-  setBaseProject,
+  setBaseProjects,
   setColumnHidden,
   retryNotFound,
   setColumnWidth,
@@ -45,7 +45,9 @@ import {
 import { setIntakeKey } from "@/server/prospects/intake";
 import {
   addProspectRow,
+  deleteProspects,
   rowEditFromValues,
+  searchRows,
   setProspectCell,
   setProspectStatus,
   updateProspectRow,
@@ -64,7 +66,7 @@ async function requireBase(baseId: string) {
   const tenant = await requireTenant();
   const base = await getBase(getDb(), tenant, baseId);
   if (!base) throw new Error("Tabla no encontrada.");
-  return requireProjectAccess(base.projectId);
+  return requireBaseAccess(base);
 }
 
 /** Discards a row, or brings it back. Any member of the organization can. */
@@ -106,11 +108,12 @@ export async function renameBaseAction(baseId: string, _: FormState, form: FormD
   return result;
 }
 
-/** Moves a table to a project, or leaves it on its own. */
+/** The projects that use a table: every project of the account, or the ones picked. */
 export async function moveBaseAction(baseId: string, _: FormState, form: FormData): Promise<FormState> {
   const result = await runForm(async () => {
-    await setBaseProject(getDb(), await admin(), baseId, str(form, "projectId") ?? null);
-  }, "Proyecto guardado.");
+    const all = str(form, "scope") !== "some";
+    await setBaseProjects(getDb(), await admin(), baseId, all ? null : list(form, "projectIds"));
+  }, "Proyectos guardados.");
   refresh();
   return result;
 }
@@ -126,9 +129,9 @@ export async function intakeAction(baseId: string, open: boolean, _: FormState):
 }
 
 export async function deleteBaseAction(baseId: string) {
-  const base = await deleteBase(getDb(), await admin(), baseId);
+  await deleteBase(getDb(), await admin(), baseId);
   refresh();
-  redirect(base.projectId ? `/app/projects/${base.projectId}#tablas` : "/app/tables");
+  redirect("/app/tables");
 }
 
 // ---- Columns ----------------------------------------------------------------
@@ -154,6 +157,7 @@ function columnFromForm(form: FormData): ColumnDraft {
     name: str(form, "name") ?? "",
     type,
     ...(hasOptions(type) ? optionsFromForm(form) : {}),
+    ...(type === "link" ? { linkBaseId: str(form, "linkBaseId") } : {}),
     instructions: str(form, "instructions"),
     filledBy: FILLED_BY.find((f) => f === str(form, "filledBy")) ?? "agent",
   };
@@ -320,6 +324,35 @@ export async function saveRowAction(
   });
   revalidatePath(tablePath(baseId));
   return result;
+}
+
+/**
+ * Deletes rows, and the rows of other tables that belong to them (the people
+ * of a company). Any member who works on the table can; it can't be undone.
+ */
+export async function deleteRowsAction(baseId: string, ids: string[], back: string) {
+  const tenant = await requireBase(baseId);
+  await deleteProspects(getDb(), tenant, baseId, ids);
+  refresh();
+  redirect(back.startsWith(tablePath(baseId)) ? back : tablePath(baseId));
+}
+
+/**
+ * Rows of the table a relation column points at, by name: the picker of a
+ * relation cell. Only the linked table of a table the person can open.
+ */
+export async function searchLinkRowsAction(baseId: string, q: string) {
+  const tenant = await requireBase(baseId);
+  const base = await getBase(getDb(), tenant, baseId);
+  const target = base?.columns.find((c) => c.type === "link")?.linkBaseId;
+  if (!target) return [];
+  const rows = await searchRows(getDb(), tenant, target, q);
+  return rows.map((r) => ({
+    id: r.id,
+    seq: r.seq,
+    name: r.name,
+    detail: r.personName && r.companyName ? r.companyName : null,
+  }));
 }
 
 /**

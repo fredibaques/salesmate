@@ -1,4 +1,14 @@
-import { BookOpen, Inbox, LayoutDashboard, MessagesSquare, Plug, Settings, Sheet } from "lucide-react";
+import {
+  BookOpen,
+  Building2,
+  Inbox,
+  LayoutDashboard,
+  MessagesSquare,
+  Plug,
+  Settings,
+  Sheet,
+  User,
+} from "lucide-react";
 import {
   CountBadge,
   Sidebar,
@@ -17,6 +27,7 @@ import { getDb } from "@/server/db/client";
 import { AgentIcon, AgentStatusDot, agentState } from "@/components/agent-look-fields";
 import { agentName } from "@/lib/agents";
 import { listSidebarAgents } from "@/server/services/agents";
+import { tablesByProject } from "@/server/prospects/bases";
 import {
   getNavPreferences,
   inOrder,
@@ -39,6 +50,12 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
   ]);
   // Each person arranges the sidebar their way (Mi cuenta → Menú).
   const projects = inOrder(allProjects, (p) => p.id, nav.projects);
+  // Under each project, after its agents, the tables it uses (shared ones too).
+  const tables = await tablesByProject(
+    db,
+    tenant,
+    projects.map((p) => p.id),
+  );
   const pending = allProjects.reduce((n, p) => n + p.pendingApprovals, 0);
   const sections: Record<NavSection, React.ReactNode> = {
     home: (
@@ -133,16 +150,23 @@ export default async function AppLayout({ children, crumbs }: LayoutProps<"/app"
                     </Tooltip>
                   ) : null
                 }
-                items={inOrder(
-                  agents.filter((a) => a.projectId === p.id),
-                  (a) => a.id,
-                  nav.agents?.[p.id],
-                ).map((a) => ({
-                  href: `/app/projects/${p.id}/agents/${a.id}`,
-                  icon: <AgentIcon type={a.agentType} icon={a.icon} color={a.color} working={a.working} />,
-                  label: agentName(a.agentType, a.name),
-                  badge: <AgentStatusDot state={agentState(a)} />,
-                }))}
+                items={[
+                  ...inOrder(
+                    agents.filter((a) => a.projectId === p.id),
+                    (a) => a.id,
+                    nav.agents?.[p.id],
+                  ).map((a) => ({
+                    href: `/app/projects/${p.id}/agents/${a.id}`,
+                    icon: <AgentIcon type={a.agentType} icon={a.icon} color={a.color} working={a.working} />,
+                    label: agentName(a.agentType, a.name),
+                    badge: <AgentStatusDot state={agentState(a)} />,
+                  })),
+                  ...(tables.get(p.id) ?? []).map((t) => ({
+                    href: `/app/tables/${t.id}`,
+                    icon: t.rowKind === "person" ? <User /> : <Building2 />,
+                    label: t.name,
+                  })),
+                ]}
               />
             ))}
             {projects.length === 0 ? (
