@@ -61,6 +61,14 @@ function instructionsFromForm(form: FormData, scheduled: boolean) {
           mode: PROSPECTING_MODES.find((m) => m === str(form, "mode")) ?? "both",
           findPerRun: num(form, "findPerRun"),
           model: str(form, "model") ?? "",
+          // Only when the form shows the phases of a linked table (none checked = all).
+          ...(form.has("linkedStagesShown")
+            ? {
+                linked: {
+                  stages: list(form, "linkedStages").length ? list(form, "linkedStages") : undefined,
+                },
+              }
+            : {}),
         }
       : {},
   };

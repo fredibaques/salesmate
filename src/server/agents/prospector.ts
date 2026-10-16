@@ -1,6 +1,7 @@
 import { and, eq, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { smallModel } from "@/lib/ai-providers";
+import { linkColumn } from "@/lib/prospect-columns";
 import { audit } from "../audit";
 import { openConnection, type ConnectorDeps } from "../connectors/service";
 import type { McpDeps } from "../connectors/mcp";
@@ -42,6 +43,7 @@ import { dbPageCache } from "../prospects/engine/cache";
 import { runDiscovery, type DiscoveryResult } from "../prospects/engine/discover";
 import { runCompletionEngine, type EngineDeps, type EngineResult } from "../prospects/engine/engine";
 import type { ReaderDeps } from "../prospects/engine/reader";
+import { linkedRowsToSearch, recordLinkedSearches } from "../prospects/linked";
 import { knownProspects, prospectInput, recentProspectNames, saveProspects } from "../prospects/service";
 import { goalProgress, monthSpendUsd, notifyTeam, pauseAgent, type RunNotice } from "./automation";
 import { dataTools, knowledgeTools, mcpTools, webTools, type AgentToolContext } from "./tools";
@@ -463,6 +465,20 @@ export async function runProspecting(
     }
     if (work.rows.length === 0) mode = "find";
     const finds = mode !== "complete";
+    // A table with a relation (people of companies) is filled by going through the linked
+    // table: the next companies nobody has looked into yet for it.
+    const linked =
+      finds && linkColumn(base.columns)
+        ? await linkedRowsToSearch(deps.db, tenant, base, { stages: settings.linked?.stages })
+        : null;
+    if (linked && linked.rows.length === 0 && work.rows.length === 0) {
+      const summary = `Ya ha buscado en todas las filas de «${linked.table.name}»${settings.linked?.stages?.length ? " de las fases elegidas" : ""}: no le quedan por revisar. Cuando haya más, seguirá con ellas.`;
+      return await skip(summary, {
+        problem: false,
+        headline: "No quedan filas por revisar",
+        details: summary,
+      });
+    }
     // The request it works on: carried on from an earlier run, or a new one starting here.
     const carried = (input.events ?? []).map((e) => e.payload.task).find(isRunTask);
     if (allPending) {
@@ -504,7 +520,7 @@ export async function runProspecting(
       (work.rows.length && !manual) || (finds && base.rowKind === "company")
         ? await orgSearch(deps, tenant)
         : undefined;
-    const discovers = finds && Boolean(search) && base.rowKind === "company";
+    const discovers = finds && Boolean(search) && base.rowKind === "company" && !linked;
     let engine: EngineResult | null = null;
     let discovery: DiscoveryResult | null = null;
     let handedOver: RowToComplete[] = [];
@@ -564,7 +580,7 @@ export async function runProspecting(
       await saveDiscoveryQueries(deps.db, tenant, agent.id, [...usedQueries, ...discovery.queries]);
     }
     const completes = work.rows.length > 0;
-    const loopFinds = finds && !discovers;
+    const loopFinds = finds && !discovers && !(linked && linked.rows.length === 0);
 
     // The engine and discovery did it all: no agent this time.
     if ((engine || discovery) && !completes && !loopFinds) {
@@ -622,6 +638,11 @@ export async function runProspecting(
     }
     // Short references for the rows to complete: models copy them better than ids.
     const refs = new Map(work.rows.map((r, i) => [`F${i + 1}`, r.id]));
+    // And for the rows of the linked table it searches in (E1, E2…), with what it found in each.
+    const linkedRefs = new Map(loopFinds && linked ? linked.rows.map((r, i) => [`E${i + 1}`, r]) : []);
+    const linkedOf = (ref: string | undefined) => linkedRefs.get((ref ?? "").trim().toUpperCase());
+    const foundIn = new Map<string, number>();
+    const markedEmpty = new Set<string>();
     const known = loopFinds ? await recentProspectNames(deps.db, tenant, base.id) : [];
 
     const ctx: AgentToolContext = {
@@ -658,19 +679,37 @@ export async function runProspecting(
         ...defineTool({
           name: "save_prospects",
           description: `Guarda filas nuevas en la base «${base.name}»: lo que encaja con el cliente ideal, con los valores de sus columnas en fields y la URL de cada valor en fieldSources. Incluye en sources las URLs públicas de donde sale la fila. Las repetidas se ignoran.`,
-          input: z.object({ prospects: z.array(prospectInput).min(1).max(25) }),
+          input: z.object({
+            prospects: z
+              .array(prospectInput.extend({ linkedRef: z.string().optional() }))
+              .min(1)
+              .max(25),
+          }),
           run: async ({ prospects }) => {
+            // Going through a linked table, every row says which of its rows it belongs to.
+            const unlinked = linkedRefs.size
+              ? prospects.filter((p) => !linkedOf(p.linkedRef)).map((p) => p.personName ?? p.companyName)
+              : [];
+            const items = prospects
+              .filter((p) => !linkedRefs.size || linkedOf(p.linkedRef))
+              .map(({ linkedRef, ...p }) => ({ ...p, parentId: linkedOf(linkedRef)?.id ?? p.parentId }));
             const result = await saveProspects(deps.db, actor, {
               baseId: base.id,
               agentConfigId: agent.id,
               runId: run.id,
-              items: prospects,
+              items,
             });
             added += result.added.length;
+            for (const row of result.added) {
+              if (row.parentId) foundIn.set(row.parentId, (foundIn.get(row.parentId) ?? 0) + 1);
+            }
             return {
               saved: result.added.map((p) => p.personName ?? p.companyName),
               alreadyKnown: result.duplicates,
               invalid: result.invalid,
+              ...(unlinked.length
+                ? { notSavedWithoutLinkedRef: unlinked, hint: "Indica en linkedRef la empresa (E1, E2…)." }
+                : {}),
               // Values left out because they didn't fit their column: fix them in the next batch.
               fieldErrors: result.fieldErrors.slice(0, 20),
               savedThisRun: added,
@@ -679,8 +718,36 @@ export async function runProspecting(
           },
         }),
         // The model sees the base's own columns, with their types and instructions.
-        jsonSchema: saveRowsSchema(base.rowKind, base.columns),
+        jsonSchema: saveRowsSchema(
+          base.rowKind,
+          base.columns,
+          linkedRefs.size ? [...linkedRefs.keys()] : undefined,
+        ),
       },
+      ...(linkedRefs.size
+        ? [
+            defineTool({
+              name: "mark_linked_searched",
+              description:
+                "Marca empresas de la lista (E1, E2…) en las que ya has buscado y no hay nadie más que guardar, para pasar a las siguientes en la próxima ejecución.",
+              input: z.object({ refs: z.array(z.string()).min(1).max(25) }),
+              run: async ({ refs }) => {
+                const rows = refs.map(linkedOf).filter((r) => r !== undefined);
+                const fresh = rows.filter((r) => !markedEmpty.has(r.id));
+                await recordLinkedSearches(deps.db, tenant, {
+                  baseId: base.id,
+                  runId: run.id,
+                  rows: fresh.map((r) => ({ id: r.id, found: foundIn.get(r.id) ?? 0 })),
+                });
+                for (const r of fresh) markedEmpty.add(r.id);
+                return {
+                  marked: rows.map((r) => r.name),
+                  unknownRefs: refs.filter((ref) => !linkedOf(ref)),
+                };
+              },
+            }),
+          ]
+        : []),
     ];
     const completeTools = [
       {
@@ -753,7 +820,9 @@ export async function runProspecting(
         ? `completas los datos que faltan en las filas de su base de prospectos${loopFinds ? " y buscas" : ""}`
         : "buscas",
       loopFinds
-        ? ` ${base.rowKind === "person" ? "personas de empresas que podrían ser clientes (quienes deciden o influyen en la compra)" : "empresas que podrían ser clientes"} para guardarlas en ella`
+        ? linkedRefs.size
+          ? ` ${base.rowKind === "person" ? "personas de contacto (quienes deciden o influyen en la compra)" : "filas relacionadas"} de las empresas de «${linked!.table.name}» para guardarlas en ella`
+          : ` ${base.rowKind === "person" ? "personas de empresas que podrían ser clientes (quienes deciden o influyen en la compra)" : "empresas que podrían ser clientes"} para guardarlas en ella`
         : "",
     ].join("");
     const system = [
@@ -768,6 +837,9 @@ ${[
     : completes
       ? `- Objetivo de esta ejecución: completar las filas pendientes de abajo (${work.cells} celdas).`
       : `- Objetivo de esta ejecución: ${target} prospectos nuevos que encajen de verdad. Mejor menos y buenos que muchos dudosos.`,
+  linkedRefs.size
+    ? `- Busca solo en las empresas de la lista «Empresas en las que buscar» (abajo), una a una: en cada una, de 1 a 3 personas que decidan o influyan en la compra. Guarda cada persona con save_prospects indicando en linkedRef la empresa (E1, E2…). Cuando acabes con una empresa en la que no hay nadie (más) que guardar, márcala con mark_linked_searched y pasa a la siguiente.`
+    : "",
   goal && !goal.met ? `- Objetivo del agente: ${goal.target} filas; ya hay ${goal.rows}.` : "",
   !agent.tools.web
     ? "- No tienes búsqueda web: usa solo las herramientas conectadas."
@@ -800,6 +872,16 @@ ${[
             work.cells,
           )
         : "",
+      linkedRefs.size
+        ? `## Empresas en las que buscar\nDe la tabla «${linked!.table.name}» (quedan ${linked!.left} por revisar en total; estas son las de esta ejecución):\n${[
+            ...linkedRefs,
+          ]
+            .map(
+              ([ref, r]) =>
+                `- ${ref} · ${r.name}${r.website ? ` · ${r.website}` : ""}${r.known ? `\n  ${r.known}` : ""}`,
+            )
+            .join("\n")}`
+        : "",
       loopFinds
         ? known.length
           ? `## Ya están en la base (no los repitas)\n${known.join("\n")}`
@@ -821,7 +903,9 @@ ${[
       ? loopFinds
         ? `Completa las filas pendientes y busca ${target} prospectos nuevos para el proyecto.`
         : "Completa los datos que faltan en las filas pendientes."
-      : `Busca ${target} prospectos nuevos para el proyecto y guárdalos.`;
+      : linkedRefs.size
+        ? `Busca personas de contacto en las ${linkedRefs.size} empresas de la lista y guárdalas.`
+        : `Busca ${target} prospectos nuevos para el proyecto y guárdalos.`;
     const askWithNotices = notices.length ? `${ask} Ten en cuenta los avisos recibidos.` : ask;
     let pushes = 0;
     const budget = {
@@ -872,6 +956,18 @@ ${[
         : result.finalText || `Guardado: ${tally}.`;
     const ok = result.status === "completed" || outOfTime || outOfBudget;
 
+    // The companies of the linked table it went through: those where it saved someone, and,
+    // when the run ended on its own, the rest too (it looked and found nobody).
+    if (linkedRefs.size) {
+      const done = [...linkedRefs.values()].filter(
+        (r) => !markedEmpty.has(r.id) && (foundIn.has(r.id) || result.status === "completed"),
+      );
+      await recordLinkedSearches(deps.db, tenant, {
+        baseId: base.id,
+        runId: run.id,
+        rows: done.map((r) => ({ id: r.id, found: foundIn.get(r.id) ?? 0 })),
+      });
+    }
     // The rows handed over are answered: what the agent didn't find is not found.
     await closeRows(deps.db, actor, base.id, run.id, handedOver);
     if (handedOver.length && !loopFinds) {

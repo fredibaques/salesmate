@@ -311,7 +311,7 @@ describe("tables on their own", () => {
     const listed = (await listAllBases(db, tenant)).find((b) => b.id === solo.id)!;
     expect([listed.projectName, listed.rows]).toEqual([null, 1]);
     expect((await listBases(db, tenant, projectId)).some((b) => b.id === solo.id)).toBe(false);
-    expect((await listBases(db, tenant, projectId, { standalone: true })).some((b) => b.id === solo.id)).toBe(
+    expect((await listBases(db, tenant, projectId, { shared: true })).some((b) => b.id === solo.id)).toBe(
       true,
     );
 

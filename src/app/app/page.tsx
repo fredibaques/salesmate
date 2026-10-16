@@ -13,7 +13,7 @@ import {
   Td,
 } from "@/components/ui";
 import { listVisibleProjects, projectAccess, requireTenant } from "@/server/auth/session";
-import { canSee } from "@/server/services/access";
+import { canSeeBase } from "@/server/services/access";
 import { getDb } from "@/server/db/client";
 import { listOrgConnections } from "@/server/services/projects";
 import { formatDateTime, plural } from "@/lib/format";
@@ -37,7 +37,7 @@ export default async function DashboardPage() {
     currentAi(),
     listAllBases(db, tenant).then(async (all) => {
       const visible = await projectAccess();
-      return all.filter((b) => canSee(visible, b.projectId));
+      return all.filter((b) => canSeeBase(visible, b));
     }),
   ]);
   const first = tenant.user.name.split(" ")[0];
@@ -135,7 +135,7 @@ export default async function DashboardPage() {
                     {b.name}
                   </Link>
                 </Td>
-                <Td className="text-muted">{b.projectName ?? "Sin proyecto"}</Td>
+                <Td className="text-muted">{b.projectName ?? "Todos los proyectos"}</Td>
                 <Td className="tabular-nums">{plural(b.rows, "fila", "filas")}</Td>
                 <Td className="whitespace-nowrap text-muted">{formatDateTime(b.lastActivity)}</Td>
               </LinkRow>

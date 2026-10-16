@@ -438,13 +438,22 @@ exportación no lo tienen en cuenta. Qué filas valen lo decide la búsqueda
 (lo que se pide en «Lo que se busca») y, si hace falta, columnas propias.
 
 **Tablas** (`prospects/`, `lib/prospect-columns.ts`). Una tabla
-(`prospect_bases`) puede ir con un proyecto o sola (`project_id` nulo,
-migración 0019; al borrar un proyecto sus tablas se quedan, sin proyecto, y
-`setBaseProject` las mueve con sus filas). No es del agente: el usuario define
+(`prospect_bases`) es de un proyecto (`project_id`), se comparte con
+algunos (`project_id` nulo y una fila por proyecto en
+`prospect_base_projects`, migración 0033) o es de toda la cuenta (`project_id`
+nulo y sin filas allí: la usan todos los proyectos). Se elige en sus ajustes,
+«Proyectos que la usan» (`setBaseProjects`: uno la hace de ese proyecto, varios
+la comparten, ninguno = todos; sus filas la siguen, y los agentes de proyectos
+que dejan de usarla dejan de rellenarla); al borrar un proyecto sus tablas
+pasan a ser de toda la cuenta. `basesOfProject(projectId)` es la condición de
+las tablas que usa un proyecto, y `canSeeBase` decide quién la ve (un miembro,
+si ve alguno de sus proyectos). Los datos de cada fila, fase incluida, son los
+mismos para todos los proyectos. El menú lateral muestra bajo cada proyecto,
+tras sus agentes, las tablas que usa (`tablesByProject`). No es del agente: el usuario define
 sus columnas (`columns`, JSONB con id, nombre, tipo, opciones, instrucciones y
 quién la rellena: agente, persona o ambos) y si cada fila es una empresa o una
-persona (`row_kind`). Un agente trabaja sobre las tablas de su proyecto y las
-que no tienen proyecto (`listBases(…, { standalone: true })`); el agente de prospección rellena la de
+persona (`row_kind`). Un agente trabaja sobre las tablas que usa su proyecto
+(`listBases(…, { shared: true })`); el agente de prospección rellena la de
 `agent_configs.prospect_base_id` (si no tiene, la primera del proyecto, o una
 «Prospectos» nueva con columnas por defecto). Cada fila (`prospects`) guarda
 los campos fijos (empresa, persona, web, fuentes, estado) y los valores
@@ -514,6 +523,37 @@ valores (no se descarta ninguno en silencio, a diferencia de lo que guarda el
 agente), las celdas que cambian quedan marcadas como escritas a mano y no se
 permite que una fila pase a duplicar otra. Al borrar una base, el agente que
 la rellenaba pasa a la primera que quede en el proyecto.
+
+**Relaciones entre tablas** (`linkColumn`, migración 0033). Una columna de
+tipo «Relación con otra tabla» (`link`, con `linkBaseId`; una por tabla como
+mucho) hace que cada fila apunte a una fila de otra tabla: la empresa de cada
+persona. El valor no va en `data` sino en `prospects.parent_id`, con clave
+ajena `on delete cascade`: **borrar una fila borra las que apuntan a ella**
+(las personas de una empresa), y borrar la tabla de empresas borra esas
+personas y quita la columna de las tablas que la apuntaban (`deleteBase`; el
+aviso dice cuántas filas de qué tablas se van, `linkedRowsOf`). Las filas se
+borran desde su panel (`deleteProspects`). En la rejilla la celda muestra el
+nombre de esa fila y se elige buscando por nombre en la otra tabla
+(`link-picker.tsx`, `searchRows`); se filtra, ordena, agrupa y exporta por ese
+nombre (`parentNameSql`). Una fila relacionada sin empresa propia toma la de su
+fila. El panel de una fila lista las filas de otras tablas que apuntan a ella
+(`linkedRows`). Cambiar la tabla de la relación, o quitarla, deja todas las
+filas sin relacionar. La celda la marca `cell_meta` (a mano o el agente), pero
+no cuenta como «por completar» (`isPendingCell`, `agentColumns`).
+
+**Agente que recorre otra tabla** (`prospects/linked.ts`). Si la tabla que
+rellena el agente de prospección tiene una relación, en lugar de buscar filas
+nuevas por su cuenta recorre la tabla relacionada: cada ejecución toma las
+siguientes `LINKED_PER_RUN` filas no descartadas que aún no ha revisado para
+esta tabla y que no tienen ya filas en ella (`linkedRowsToSearch`; con
+`settings.linked.stages`, solo las de esas fases de su columna de pipeline,
+elegidas en su configuración). Se las da con referencias (E1, E2…);
+`save_prospects` exige `linkedRef` y guarda cada fila relacionada con la suya,
+y `mark_linked_searched` marca las empresas sin nadie (más) que guardar. Lo
+revisado queda en `prospect_link_searches` (tabla, fila, cuántas encontró):
+al terminar se marcan las que tuvieron resultados y, si la ejecución acabó
+sola (no por tiempo), el resto. Cuando no queda ninguna, la ejecución termina
+sin trabajar y lo dice.
 
 **Tablero** (`[baseId]/kanban-board.tsx`). Una columna de tipo «Fase del
 pipeline» (`stage`: como una selección única cuyas opciones son las fases, en
@@ -897,7 +937,9 @@ Tablas, Por aprobar, Conversaciones, Ejecuciones ni Auditoría
 «no encontrado» (layout del proyecto, página de la tabla). Las acciones que
 puede hacer un miembro lo comprueban (`requireProjectAccess`: aprobar,
 responder en conversaciones, editar filas, preguntar al conocimiento o al
-Copilot). Las tablas sin proyecto son de la organización y las ven todos.
+Copilot; las filas de una tabla, `requireBaseAccess`). Las tablas de toda la
+cuenta las ven todos; las compartidas con algunos proyectos, quien ve alguno
+de ellos (`canSeeBase`).
 Al quitar a alguien de la organización se borran sus proyectos compartidos;
 la migración dio a los miembros que había todos los proyectos que ya veían.
 

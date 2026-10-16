@@ -6,7 +6,7 @@ import { cache } from "react";
 import { getDb } from "../db/client";
 import { member, organization, session } from "../db/schema";
 import type { TenantContext } from "../db/tenant";
-import { canSee, visibleProjectIds } from "../services/access";
+import { canSee, canSeeBase, visibleProjectIds } from "../services/access";
 import { listProjects } from "../services/projects";
 import { getAuth } from "./auth";
 
@@ -78,6 +78,16 @@ export const listVisibleProjects = cache(async () => {
 export async function requireProjectAccess(projectId: string | null | undefined): Promise<CurrentTenant> {
   const tenant = await requireTenant();
   if (!canSee(await projectAccess(), projectId)) throw new Error("No tienes acceso a este proyecto.");
+  return tenant;
+}
+
+/** Throws when the current person can't open this table (use inside server actions). */
+export async function requireBaseAccess(base: {
+  projectId: string | null;
+  projectIds?: string[];
+}): Promise<CurrentTenant> {
+  const tenant = await requireTenant();
+  if (!canSeeBase(await projectAccess(), base)) throw new Error("No tienes acceso a esta tabla.");
   return tenant;
 }
 

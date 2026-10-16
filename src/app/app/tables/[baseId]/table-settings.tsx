@@ -2,25 +2,33 @@ import { Settings2, Trash2, Webhook } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { ConfirmForm } from "@/components/confirm-form";
 import { ModalButton } from "@/components/modal";
-import { Button, Field, Input, Select } from "@/components/ui";
+import { Button, Field, Input } from "@/components/ui";
 import { deleteBaseAction, intakeAction, moveBaseAction, renameBaseAction } from "../actions";
+import { ProjectsScope } from "./projects-scope";
 
-/** The table's name, its project (or none) and deleting it. */
+/** The table's name, the projects that use it and deleting it. */
 export function TableSettings({
   baseId,
   name,
   rows,
   agents,
   projectId,
+  projectIds,
   projects,
+  linked,
 }: {
   baseId: string;
   name: string;
   rows: number;
   agents: number;
   projectId: string | null;
+  /** The projects it is shared with, when it isn't one project's. */
+  projectIds: string[];
   projects: { id: string; name: string }[];
+  /** Rows of other tables that belong to its rows, by table: deleting it deletes them. */
+  linked: { name: string; n: number }[];
 }) {
+  const linkedRows = linked.reduce((n, l) => n + l.n, 0);
   return (
     <ModalButton
       label="Ajustes de la tabla"
@@ -43,17 +51,11 @@ export function TableSettings({
           className="space-y-4"
         >
           <Field
-            label="Proyecto"
-            tip="Una tabla puede ir sola o con un proyecto. Sus agentes pueden trabajar en las tablas del proyecto y en las que no tienen."
+            label="Proyectos que la usan"
+            group
+            tip="Los agentes de esos proyectos pueden trabajar en ella y la ven en su menú. Los datos de cada fila (y su fase) son los mismos para todos."
           >
-            <Select name="projectId" defaultValue={projectId ?? ""}>
-              <option value="">Sin proyecto</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </Select>
+            <ProjectsScope projects={projects} picked={projectId ? [projectId] : projectIds} />
           </Field>
         </ActionForm>
       </div>
@@ -61,7 +63,7 @@ export function TableSettings({
         <h3 className="text-sm font-medium">Borrar la tabla</h3>
         <ConfirmForm
           action={deleteBaseAction.bind(null, baseId)}
-          message={`¿Borrar «${name}» y sus ${rows} filas? No se puede deshacer.${agents ? " El agente que la rellena pasará a otra tabla de su proyecto." : ""}`}
+          message={`¿Borrar «${name}» y sus ${rows} filas?${linkedRows ? ` También se borrarán ${linkedRows} filas relacionadas con ellas (${linked.map((l) => `${l.n} en «${l.name}»`).join(", ")}).` : ""} No se puede deshacer.${agents ? " El agente que la rellena pasará a otra tabla de su proyecto." : ""}`}
         >
           <Button variant="danger" size="sm">
             <Trash2 className="size-4" />

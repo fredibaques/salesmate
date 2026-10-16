@@ -30,7 +30,7 @@ export async function OutreachSetup({ projectId, agentId }: { projectId: string;
   const [agent, options, bases, ai, process, project] = await Promise.all([
     getAgent(db, tenant, projectId, agentId),
     listChannelOptions(db, tenant),
-    listBases(db, tenant, projectId, { standalone: true }),
+    listBases(db, tenant, projectId, { shared: true }),
     getOrgAi(db, tenant),
     withTenant(db, tenant, (tx) => projectProcess(tx, projectId)),
     getProject(db, tenant, projectId),
@@ -75,7 +75,7 @@ export async function OutreachSetup({ projectId, agentId }: { projectId: string;
                 {bases.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
-                    {b.projectId ? "" : " (sin proyecto)"}
+                    {b.projectId ? "" : " (compartida)"}
                   </option>
                 ))}
               </Select>

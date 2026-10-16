@@ -20,6 +20,7 @@ export const COLUMN_TYPES = [
   "email",
   "phone",
   "score",
+  "link",
 ] as const;
 export type ColumnType = (typeof COLUMN_TYPES)[number];
 
@@ -36,6 +37,7 @@ export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   email: "Email",
   phone: "Teléfono",
   score: "Puntuación 0–100",
+  link: "Relación con otra tabla",
 };
 
 /** Types whose values are picked from the column's options. */
@@ -66,6 +68,15 @@ export const DEFAULT_STAGES = [
  */
 export function stageColumn(columns: BaseColumn[]): BaseColumn | undefined {
   return columns.find((c) => c.type === "stage");
+}
+
+/**
+ * The relation column of a table: each row points at one row of another
+ * table (a person at their company). Its value is the row's `parent_id`, not
+ * a cell, and deleting that row deletes this one. A table has one at most.
+ */
+export function linkColumn(columns: BaseColumn[]): BaseColumn | undefined {
+  return columns.find((c) => c.type === "link" && c.linkBaseId);
 }
 
 export const FILLED_BY = ["agent", "person", "both"] as const;
@@ -108,6 +119,8 @@ export type BaseColumn = {
   options?: string[];
   /** The colour of each choice's tag; a choice without one takes the palette's by its place. */
   optionColors?: Record<string, OptionColor>;
+  /** The table a relation column points at. */
+  linkBaseId?: string;
   /** What to put here and where to find it: what the agent reads. */
   instructions?: string;
   filledBy: FilledBy;
@@ -228,6 +241,7 @@ export const columnDraft = z
     type: z.enum(COLUMN_TYPES),
     options: z.array(z.string().trim().min(1).max(80)).max(50).optional(),
     optionColors: z.record(z.string(), z.enum(OPTION_COLORS)).optional(),
+    linkBaseId: z.string().uuid().optional(),
     instructions: z.string().trim().max(1000).optional(),
     filledBy: z.enum(FILLED_BY).default("agent"),
     hidden: z.boolean().optional(),
@@ -240,11 +254,16 @@ export const columnDraft = z
       hasOptions(c.type) && c.optionColors
         ? Object.fromEntries(Object.entries(c.optionColors).filter(([o]) => c.options?.includes(o)))
         : undefined,
+    linkBaseId: c.type === "link" ? c.linkBaseId : undefined,
     instructions: c.instructions || undefined,
   }))
   .refine((c) => !c.options || c.options.length > 0, {
     message: "Una columna de selección necesita al menos una opción.",
     path: ["options"],
+  })
+  .refine((c) => c.type !== "link" || c.linkBaseId, {
+    message: "Elige la tabla con la que se relaciona.",
+    path: ["linkBaseId"],
   });
 export type ColumnDraft = z.input<typeof columnDraft>;
 
@@ -289,7 +308,9 @@ export function columnId(name: string, taken: Iterable<string>): string {
  * nobody has written and the agent hasn't already looked for in vain.
  */
 export function isPendingCell(column: BaseColumn, value: unknown, meta: unknown): boolean {
-  return column.filledBy !== "person" && (value === null || value === undefined) && !meta;
+  return (
+    column.filledBy !== "person" && column.type !== "link" && (value === null || value === undefined) && !meta
+  );
 }
 
 export type CellCheck = { ok: true; value: unknown } | { ok: false; error: string };
@@ -368,6 +389,11 @@ export function checkCell(column: BaseColumn, raw: unknown): CellCheck {
       return EMAIL.test(String(text))
         ? { ok: true, value: String(text).toLowerCase() }
         : fail("no es un email");
+    case "link":
+      // The row it points at is stored apart (parent_id), checked against the linked table.
+      return typeof text === "string" && /^[0-9a-f-]{36}$/i.test(text)
+        ? { ok: true, value: text.toLowerCase() }
+        : fail("elige una fila de la tabla relacionada");
   }
 }
 

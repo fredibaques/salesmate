@@ -13,11 +13,12 @@ import {
   type SQL,
 } from "drizzle-orm";
 import { z } from "zod";
-import { checkCell, formatCell, type BaseColumn, type RowKind } from "@/lib/prospect-columns";
+import { checkCell, formatCell, linkColumn, type BaseColumn, type RowKind } from "@/lib/prospect-columns";
 import { listOf, rangeOf, type RowFilter } from "@/lib/table-filters";
 import { audit } from "../audit";
 import type { Db } from "../db/client";
 import { prospectBases, prospects, PROSPECT_STATUSES, type CellMeta } from "../db/schema";
+import type { Tx } from "../db/tenant";
 import { withTenant, type TenantContext } from "../db/tenant";
 import { foldText } from "../knowledge/normalize";
 
@@ -60,6 +61,8 @@ export const prospectInput = z.object({
   fields: z.record(z.string(), z.unknown()).default({}),
   /** The page each value comes from, by column id (or name). */
   fieldSources: z.record(z.string(), z.string()).default({}),
+  /** The row of the linked table it belongs to (its company), in tables with a relation. */
+  parentId: z.string().uuid().optional(),
 });
 export type ProspectInput = z.input<typeof prospectInput>;
 
@@ -107,11 +110,13 @@ export function columnFor(columns: BaseColumn[], key: string) {
 
 /**
  * Checks the column values of one row. A value that doesn't fit its column
- * is left out (and reported) instead of dropping the whole row.
+ * is left out (and reported) instead of dropping the whole row. The relation
+ * column's value (the row it belongs to) comes back apart, as `parentId`.
  */
 export function cellsFromFields(columns: BaseColumn[], fields: Record<string, unknown>) {
   const data: Record<string, unknown> = {};
   const errors: string[] = [];
+  let parentId: string | undefined;
   for (const [key, raw] of Object.entries(fields)) {
     const column = columnFor(columns, key);
     if (!column) {
@@ -120,9 +125,32 @@ export function cellsFromFields(columns: BaseColumn[], fields: Record<string, un
     }
     const checked = checkCell(column, raw);
     if (!checked.ok) errors.push(checked.error);
+    else if (column.type === "link") parentId = (checked.value as string | null) ?? undefined;
     else if (checked.value !== null) data[column.id] = checked.value;
   }
-  return { data, errors };
+  return { data, errors, parentId };
+}
+
+/** How a row is called: the person, or the company. */
+export const rowNameSql = (table: { personName: AnyColumn; companyName: AnyColumn }) =>
+  sql<string>`coalesce(nullif(${table.personName}, ''), ${table.companyName})`;
+
+/**
+ * The name of the row each row belongs to (its company), for listing, sorting
+ * and filtering. Spelled out: in a select list a column would lose its table.
+ */
+const parentNameSql = sql<
+  string | null
+>`(select coalesce(nullif(parent.person_name, ''), parent.company_name) from prospects parent where parent.id = "prospects"."parent_id")`;
+
+/** Rows of a table by id, with their names: the rows others may point at. */
+async function rowsOfBase(tx: Tx, baseId: string, ids: string[]) {
+  if (ids.length === 0) return new Map<string, string>();
+  const rows = await tx
+    .select({ id: prospects.id, name: rowNameSql(prospects) })
+    .from(prospects)
+    .where(and(eq(prospects.baseId, baseId), inArray(prospects.id, ids)));
+  return new Map(rows.map((r) => [r.id, r.name]));
 }
 
 /** Only web pages count as the source of a value. */
@@ -186,6 +214,23 @@ export async function saveProspects(
       ? { by: "agent", at: now, runId: input.runId }
       : { by: "user", at: now, userId: tenant.actorId ?? undefined };
 
+  // The rows of the linked table they belong to: only real rows of that table count.
+  const link = linkColumn(base.columns);
+  const wantedParents = link
+    ? input.items.flatMap((raw) => {
+        const own = (raw as { parentId?: unknown }).parentId;
+        const fromFields = cellsFromFields(
+          [link],
+          (raw as { fields?: Record<string, unknown> }).fields ?? {},
+        );
+        const id = typeof own === "string" ? own : fromFields.parentId;
+        return id && /^[0-9a-f-]{36}$/i.test(id) ? [id.toLowerCase()] : [];
+      })
+    : [];
+  const parents = link
+    ? await withTenant(db, tenant, (tx) => rowsOfBase(tx, link.linkBaseId!, [...new Set(wantedParents)]))
+    : new Map<string, string>();
+
   const rows = input.items.flatMap((raw) => {
     const result = prospectInput.safeParse(raw);
     const named = raw as { companyName?: unknown; personName?: unknown };
@@ -198,26 +243,26 @@ export async function saveProspects(
       invalid.push(label);
       return [];
     }
-    const { fields, fieldSources, ...system } = result.data;
-    const { data, errors } = cellsFromFields(base.columns, fields);
+    const { fields, fieldSources, parentId: ownParent, ...system } = result.data;
+    const { data, errors, parentId: fieldParent } = cellsFromFields(base.columns, fields);
     const sources = sourceUrlsFor(base.columns, fieldSources);
     fieldErrors.push(...errors.map((e) => `${label} · ${e}`));
+    const wanted = (ownParent ?? fieldParent)?.toLowerCase();
+    const parentId = wanted && parents.has(wanted) ? wanted : null;
+    if (link && wanted && !parentId) {
+      fieldErrors.push(`${label} · ${link.name}: no es una fila de la tabla relacionada`);
+    }
+    // A person linked to a company works there, unless said otherwise.
+    if (parentId && !system.companyName) system.companyName = parents.get(parentId) ?? "";
     const key = dedupeKey(
       { ...system, city: typeof data.city === "string" ? data.city : undefined },
       base.rowKind,
     );
-    return [
-      {
-        key,
-        row: {
-          ...system,
-          data,
-          cellMeta: Object.fromEntries(
-            Object.keys(data).map((id) => [id, sources[id] ? { ...meta, source: sources[id] } : meta]),
-          ),
-        },
-      },
-    ];
+    const cellMeta: Record<string, CellMeta> = Object.fromEntries(
+      Object.keys(data).map((id) => [id, sources[id] ? { ...meta, source: sources[id] } : meta]),
+    );
+    if (parentId && link) cellMeta[link.id] = meta;
+    return [{ key, row: { ...system, parentId, data, cellMeta } }];
   });
   const unique = new Map(rows.map((r) => [r.key, r.row]));
   if (unique.size === 0) return { added: [], duplicates: [], invalid, fieldErrors };
@@ -278,7 +323,7 @@ export type RowEdit = {
   website?: string;
   fitScore?: number | null;
   fitReason?: string;
-  /** Values by column id; an empty value clears the cell. */
+  /** Values by column id; an empty value clears the cell. The relation column's is the row it points at. */
   fields: Record<string, unknown>;
 };
 
@@ -296,12 +341,15 @@ function checkEdit(base: BaseInfo, edit: RowEdit) {
   }
   const values: Record<string, unknown> = {};
   const errors: string[] = [];
+  /** undefined: the relation isn't touched; null: it is cleared. */
+  let parentId: string | null | undefined;
   for (const [id, raw] of Object.entries(edit.fields)) {
     const column = base.columns.find((c) => c.id === id);
     if (!column) continue;
     const checked = checkCell(column, raw);
-    if (checked.ok) values[id] = checked.value;
-    else errors.push(checked.error);
+    if (!checked.ok) errors.push(checked.error);
+    else if (column.type === "link") parentId = checked.value as string | null;
+    else values[id] = checked.value;
   }
   if (errors.length) throw new Error(errors.join(" · "));
   return {
@@ -311,6 +359,7 @@ function checkEdit(base: BaseInfo, edit: RowEdit) {
     fitScore,
     fitReason: edit.fitReason?.trim() || null,
     values,
+    parentId,
   };
 }
 
@@ -334,6 +383,7 @@ export async function addProspectRow(
         fitScore: row.fitScore ?? undefined,
         fitReason: row.fitReason ?? undefined,
         fields: data,
+        parentId: row.parentId ?? undefined,
       },
     ],
   });
@@ -415,6 +465,21 @@ export async function updateProspectRow(
         cellMeta[key] = meta;
       }
     }
+    // The row it belongs to: a row of the linked table, or none.
+    const link = linkColumn(base.columns);
+    let parentId = row.parentId;
+    if (link && next.parentId !== undefined && next.parentId !== row.parentId) {
+      const parents = next.parentId ? await rowsOfBase(tx, link.linkBaseId!, [next.parentId]) : new Map();
+      if (next.parentId && !parents.has(next.parentId)) {
+        throw new Error(`${link.name}: esa fila ya no está en la tabla relacionada.`);
+      }
+      parentId = next.parentId;
+      changed++;
+      if (parentId) cellMeta[link.id] = meta;
+      else delete cellMeta[link.id];
+      // A person linked to a company works there, unless the row says otherwise.
+      if (parentId && !next.companyName) next.companyName = parents.get(parentId) ?? "";
+    }
     const system = {
       companyName: next.companyName,
       personName: next.personName,
@@ -439,6 +504,7 @@ export async function updateProspectRow(
       .update(prospects)
       .set({
         ...system,
+        parentId,
         data,
         cellMeta,
         dedupeKey: key,
@@ -515,8 +581,12 @@ const SYSTEM_SORTS: Record<string, AnyColumn> = {
   created: prospects.createdAt,
 };
 
-/** A field's value as text in SQL, for filtering and grouping: a fixed field or a column. */
-function fieldText(key: string): SQL {
+/**
+ * A field's value as text in SQL, for filtering and grouping: a fixed field
+ * or a column (the relation column reads as the name of the row it points at).
+ */
+function fieldText(key: string, linkId?: string): SQL {
+  if (key === linkId) return parentNameSql;
   switch (key) {
     case "company":
       return sql`${prospects.companyName}`;
@@ -539,8 +609,8 @@ const asNumber = (text: SQL) =>
   sql`(case when ${text} ~ '^-?[0-9]+([.][0-9]+)?$' then (${text})::numeric end)`;
 
 /** The SQL condition of one filter. */
-function filterCondition(f: RowFilter, type: string | undefined): SQL {
-  const text = fieldText(f.key);
+function filterCondition(f: RowFilter, type: string | undefined, linkId?: string): SQL {
+  const text = fieldText(f.key, linkId);
   const value = f.value ?? "";
   const numeric = type === "number" || type === "score";
   const empty = sql`(${text} is null or ${text} = '' or ${text} = '[]')`;
@@ -621,6 +691,7 @@ export async function listProspects(
   options: ListOptions = {},
 ) {
   const base = await baseInfo(db, tenant, baseId);
+  const linkId = linkColumn(base.columns)?.id;
   return withTenant(db, tenant, async (tx) => {
     const search = options.q?.trim();
     const where = and(
@@ -634,22 +705,26 @@ export async function listProspects(
         ? or(ilike(prospects.companyName, `%${search}%`), ilike(prospects.personName, `%${search}%`))
         : undefined,
       ...(options.filters ?? []).map((f) =>
-        filterCondition(f, base.columns.find((c) => c.id === f.key)?.type),
+        filterCondition(f, base.columns.find((c) => c.id === f.key)?.type, linkId),
       ),
     );
     const column = base.columns.find((c) => c.id === options.sort);
     const sortExpr = column
-      ? sql`${prospects.data} -> ${column.id}`
+      ? column.id === linkId
+        ? parentNameSql
+        : sql`${prospects.data} -> ${column.id}`
       : (SYSTEM_SORTS[options.sort ?? ""] ?? prospects.createdAt);
     const direction = options.dir ?? (options.sort ? "asc" : "desc");
     const groupable =
       options.group &&
       (["company", "person", "web", "status", "created"].includes(options.group) ||
         base.columns.some((c) => c.id === options.group));
-    const group = groupable ? fieldText(options.group!) : null;
+    const group = groupable ? fieldText(options.group!, linkId) : null;
     const rows = await tx
       .select({
         ...getTableColumns(prospects),
+        /** The name of the row it belongs to (its company), in tables with a relation. */
+        parentName: linkId ? parentNameSql : sql<null>`null`,
         groupValue: group ? sql<string | null>`${group}` : sql<null>`null`,
       })
       .from(prospects)
@@ -687,6 +762,109 @@ export async function listProspects(
       byStatus,
       total: totals.reduce((n, t) => n + Number(t.n), 0),
     };
+  });
+}
+
+/**
+ * The rows of other tables that belong to this one (the people of a
+ * company), by table, up to `limit` in all.
+ */
+export async function linkedRows(db: Db, tenant: Pick<TenantContext, "orgId">, rowId: string, limit = 50) {
+  return withTenant(db, tenant, async (tx) => {
+    const rows = await tx
+      .select({
+        id: prospects.id,
+        baseId: prospects.baseId,
+        baseName: prospectBases.name,
+        seq: prospects.seq,
+        name: rowNameSql(prospects),
+        status: prospects.status,
+      })
+      .from(prospects)
+      .innerJoin(prospectBases, eq(prospectBases.id, prospects.baseId))
+      .where(eq(prospects.parentId, rowId))
+      .orderBy(asc(prospectBases.name), asc(prospects.seq))
+      .limit(limit);
+    const [{ total }] = await tx
+      .select({ total: count() })
+      .from(prospects)
+      .where(eq(prospects.parentId, rowId));
+    return { rows, total: Number(total) };
+  });
+}
+
+/** Rows of a table to point at, by name (the picker of a relation cell): the closest first. */
+export async function searchRows(
+  db: Db,
+  tenant: Pick<TenantContext, "orgId">,
+  baseId: string,
+  q: string,
+  limit = 20,
+) {
+  const search = q.trim();
+  const name = rowNameSql(prospects);
+  return withTenant(db, tenant, (tx) =>
+    tx
+      .select({
+        id: prospects.id,
+        seq: prospects.seq,
+        name,
+        companyName: prospects.companyName,
+        personName: prospects.personName,
+      })
+      .from(prospects)
+      .where(
+        and(
+          eq(prospects.baseId, baseId),
+          search
+            ? or(ilike(prospects.companyName, `%${search}%`), ilike(prospects.personName, `%${search}%`))
+            : undefined,
+        ),
+      )
+      .orderBy(
+        ...(search ? [sql`(${name} ilike ${`${search}%`}) desc`] : []),
+        sql`lower(${name}) asc`,
+        asc(prospects.seq),
+      )
+      .limit(limit),
+  );
+}
+
+/**
+ * Deletes rows of a table, and the rows of other tables that belong to them
+ * (the people of a deleted company). Says how many of each went.
+ */
+export async function deleteProspects(
+  db: Db,
+  tenant: TenantContext,
+  baseId: string,
+  ids: string[],
+): Promise<{ deleted: number; linked: number }> {
+  if (ids.length === 0) return { deleted: 0, linked: 0 };
+  const base = await baseInfo(db, tenant, baseId);
+  return withTenant(db, tenant, async (tx) => {
+    const [{ linked }] = await tx
+      .select({ linked: count() })
+      .from(prospects)
+      .where(inArray(prospects.parentId, ids));
+    const deleted = await tx
+      .delete(prospects)
+      .where(and(eq(prospects.baseId, baseId), inArray(prospects.id, ids)))
+      .returning({ name: rowNameSql(prospects) });
+    if (deleted.length) {
+      await audit(tx, tenant, {
+        event: "prospects.deleted",
+        projectId: base.projectId,
+        entityType: "prospect_base",
+        entityId: base.id,
+        data: {
+          count: deleted.length,
+          names: deleted.slice(0, 20).map((d) => d.name),
+          ...(Number(linked) ? { linked: Number(linked) } : {}),
+        },
+      });
+    }
+    return { deleted: deleted.length, linked: deleted.length ? Number(linked) : 0 };
   });
 }
 
@@ -749,7 +927,7 @@ export async function tableForExport(
   const base = await baseInfo(db, tenant, baseId);
   const rows = await withTenant(db, tenant, (tx) =>
     tx
-      .select()
+      .select({ ...getTableColumns(prospects), parentName: parentNameSql })
       .from(prospects)
       .where(
         and(
@@ -786,7 +964,7 @@ export async function tableForExport(
         ...(base.rowKind === "person" ? [r.personName] : []),
         r.companyName,
         r.website,
-        ...base.columns.map((c) => formatCell(c, r.data[c.id])),
+        ...base.columns.map((c) => (c.type === "link" ? r.parentName : formatCell(c, r.data[c.id]))),
         r.sources,
         STATUS_LABELS[r.status],
         r.createdAt,
