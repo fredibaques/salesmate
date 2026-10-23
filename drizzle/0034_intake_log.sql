@@ -1,0 +1,1 @@
+ALTER TABLE "prospect_bases" ADD COLUMN "intake_log" jsonb DEFAULT '[]'::jsonb NOT NULL;

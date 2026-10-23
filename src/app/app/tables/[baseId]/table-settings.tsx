@@ -5,6 +5,8 @@ import { ModalButton } from "@/components/modal";
 import { Button, Field, Input } from "@/components/ui";
 import { deleteBaseAction, intakeAction, moveBaseAction, renameBaseAction } from "../actions";
 import { ProjectsScope } from "./projects-scope";
+import { formatDateTime } from "@/lib/format";
+import { INTAKE_OUTCOME_LABELS, type IntakeAttempt } from "@/lib/intake-attempts";
 
 /** The table's name, the projects that use it and deleting it. */
 export function TableSettings({
@@ -85,12 +87,15 @@ export function TableIntake({
   appUrl,
   person,
   columns,
+  attempts = [],
 }: {
   baseId: string;
   intakeKey: string | null;
   appUrl: string;
   person: boolean;
   columns: { name: string }[];
+  /** The last submissions that didn't add a row, newest first. */
+  attempts?: IntakeAttempt[];
 }) {
   const endpoint = `${appUrl}/api/tables/${baseId}/rows`;
   const fixed = person ? ["nombre", "empresa", "web"] : ["empresa", "web"];
@@ -134,9 +139,10 @@ ${[...fixed, ...columns.slice(0, 4).map((c) => c.name)].map((n) => `  <input nam
             <pre className="mt-2 overflow-x-auto rounded-lg bg-background p-3 text-xs">{example}</pre>
           </details>
           <p className="text-xs text-muted">
-            También vale JSON, con la clave en la cabecera <code>x-salesmate-key</code> (Zapier, Make, tu
-            backend…).
+            También vale JSON (Zapier, Make, tu backend…), con la clave en la cabecera{" "}
+            <code>x-salesmate-key</code> o <code>Authorization: Bearer</code>, o en un campo <code>key</code>.
           </p>
+          <IntakeAttempts attempts={attempts} />
           <div className="flex flex-wrap gap-2 border-t border-border pt-4">
             <ActionForm
               action={intakeAction.bind(null, baseId, true)}
@@ -162,8 +168,32 @@ ${[...fixed, ...columns.slice(0, 4).map((c) => c.name)].map((n) => `  <input nam
             tabla. Te daremos una dirección y una clave solo para ella.
           </p>
           <ActionForm action={intakeAction.bind(null, baseId, true)} submitLabel="Activar" stayOpen />
+          <IntakeAttempts attempts={attempts} />
         </div>
       )}
     </ModalButton>
+  );
+}
+
+/** The last submissions to the form address that didn't add a row, with why. */
+function IntakeAttempts({ attempts }: { attempts: IntakeAttempt[] }) {
+  if (!attempts.length) return null;
+  return (
+    <div className="border-t border-border pt-4">
+      <h3 className="text-sm font-medium">Últimos envíos que no han entrado</h3>
+      <ul className="mt-2 space-y-2">
+        {attempts.slice(0, 10).map((a, i) => (
+          <li key={`${a.at}-${i}`} className="text-xs">
+            <span className="text-muted tabular-nums">{formatDateTime(new Date(a.at))}</span>
+            {" · "}
+            {INTAKE_OUTCOME_LABELS[a.outcome]}
+            {a.message ? <span className="block text-muted">{a.message}</span> : null}
+            {a.fields?.length ? (
+              <span className="block break-words text-muted">Campos: {a.fields.join(", ")}</span>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

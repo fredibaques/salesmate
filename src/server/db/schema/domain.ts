@@ -18,6 +18,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { AI_PROVIDERS } from "../../../lib/ai-providers";
+import type { IntakeAttempt } from "../../../lib/intake-attempts";
 import { ROW_KINDS, type BaseColumn, type SystemField } from "../../../lib/prospect-columns";
 import { invitation, organization, user } from "./auth";
 
@@ -1007,6 +1008,8 @@ export const prospectBases = pgTable(
     columnWidths: jsonb("column_widths").$type<Record<string, number>>().notNull().default({}),
     /** Secret that external forms send to add rows (POST /api/tables/:id/rows); null = closed. */
     intakeKey: text("intake_key"),
+    /** The last submissions to its form address that didn't add a row, and why (newest first). */
+    intakeLog: jsonb("intake_log").$type<IntakeAttempt[]>().notNull().default([]),
     /** Last row number given (prospects.seq): a trigger hands out the next one. */
     rowSeq: integer("row_seq").notNull().default(0),
     createdBy: text("created_by"),
