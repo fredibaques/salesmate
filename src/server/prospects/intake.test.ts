@@ -3,7 +3,7 @@ import { createTestDb, seedOrg } from "../../../tests/helpers/db";
 import type { Db } from "../db/client";
 import type { TenantContext } from "../db/tenant";
 import { createBase, getBase } from "./bases";
-import { intakeKeyOf, intakeRow, parseIntakeBody, setIntakeKey } from "./intake";
+import { intakeKeyOf, intakeRow, keyHint, newIntakeKey, parseIntakeBody, setIntakeKey } from "./intake";
 import { listProspects } from "./service";
 
 let db: Db;
@@ -40,7 +40,7 @@ describe("rows from a web form", () => {
     // Closed until the table has a key.
     expect((await intakeRow(db, { baseId: base.id, key: "x", fields })).status).toBe("unauthorized");
     const { intakeKey } = await setIntakeKey(db, tenant, base.id);
-    expect(intakeKey).toMatch(/^[\w-]{20,}$/);
+    expect(intakeKey).toMatch(/^[A-Za-z0-9]{24}$/);
     expect((await intakeRow(db, { baseId: base.id, key: "otra-clave", fields })).status).toBe("unauthorized");
 
     const added = await intakeRow(db, { baseId: base.id, key: intakeKey, fields });
@@ -179,7 +179,7 @@ describe("rows from a web form", () => {
     expect((await post(json({ nombre: "Ana" }))).status).toBe(401); // closed
     const { intakeKey } = await setIntakeKey(db, tenant, base.id);
     expect((await post(json({ nombre: "Ana", email: "ana@x.es" }))).status).toBe(401);
-    expect((await post(json({ nombre: "Ana" }, { "x-salesmate-key": "vieja" }))).status).toBe(401);
+    expect((await post(json({ nombre: "Ana" }, { "x-salesmate-key": "!!!!!" }))).status).toBe(401);
     expect((await post({ headers: { "content-type": "application/json" }, body: "{roto" })).status).toBe(400);
     expect((await post(json({ nombre: "Ana" }, { "x-salesmate-key": intakeKey! }))).status).toBe(201);
     expect((await post(json({ nombre: "Ana" }, { "x-salesmate-key": intakeKey! }))).status).toBe(200);
@@ -196,9 +196,9 @@ describe("rows from a web form", () => {
     expect(JSON.stringify(log)).not.toContain("ana@x.es");
     // A wrong key says where it came from and its length, never the key.
     expect(log[2].message).toBe(
-      `cabecera x-salesmate-key: 5 caracteres, empieza distinto. La de la tabla tiene ${intakeKey!.length} caracteres.`,
+      `cabecera x-salesmate-key: 5 caracteres, no se parece a la de la tabla. La de la tabla tiene ${intakeKey!.length} caracteres.`,
     );
-    expect(JSON.stringify(log)).not.toContain("vieja");
+    expect(JSON.stringify(log)).not.toContain("!!!!!");
   });
 });
 
@@ -244,5 +244,26 @@ describe("reading a submission", () => {
       ["cabecera Authorization", "tool-token"],
     ]);
     expect(of({}, {})).toEqual([]);
+  });
+});
+
+describe("the table's key", () => {
+  it("is letters and digits only, so a double click selects it whole", () => {
+    const keys = Array.from({ length: 50 }, newIntakeKey);
+    for (const k of keys) expect(k).toMatch(/^[A-Za-z0-9]{24}$/);
+    expect(new Set(keys).size).toBe(50);
+  });
+
+  it("says where a wrong key stops matching, without saying it", () => {
+    const table = "x1_QabcdefghijklmnopqSQ-";
+    const from = "cabecera x-api-key";
+    expect(keyHint([{ from, key: table.slice(0, -1) }], table)).toBe(
+      "cabecera x-api-key: 23 caracteres, coinciden los 23 primeros y los 0 últimos: le falta el carácter 24 (el último). La de la tabla tiene 24 caracteres.",
+    );
+    expect(keyHint([{ from, key: table.slice(0, 5) + table.slice(6) }], table)).toContain(
+      "coinciden los 5 primeros y los 18 últimos: le falta el carácter 6",
+    );
+    expect(keyHint([{ from, key: "x1_QZZZ" }], table)).toContain("coinciden los 4 primeros y los 0 últimos");
+    expect(keyHint([{ from, key: "otra" }], table)).not.toContain(table.slice(4));
   });
 });

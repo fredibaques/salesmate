@@ -5,6 +5,7 @@ import { ModalButton } from "@/components/modal";
 import { Button, Field, Input } from "@/components/ui";
 import { deleteBaseAction, intakeAction, moveBaseAction, renameBaseAction } from "../actions";
 import { ProjectsScope } from "./projects-scope";
+import { CopyButton } from "@/components/copy-button";
 import { formatDateTime } from "@/lib/format";
 import { INTAKE_OUTCOME_LABELS, type IntakeAttempt } from "@/lib/intake-attempts";
 
@@ -122,11 +123,27 @@ ${[...fixed, ...columns.slice(0, 4).map((c) => c.name)].map((n) => `  <input nam
           </p>
           <div>
             <span className="text-xs font-medium tracking-wide text-muted uppercase">Dirección (POST)</span>
-            <code className="mt-1 block rounded-lg bg-background p-2 text-xs break-all">{endpoint}</code>
+            <div className="mt-1 flex items-start gap-2">
+              <code className="block min-w-0 flex-1 rounded-lg bg-background p-2 text-xs break-all">
+                {endpoint}
+              </code>
+              <CopyButton text={endpoint} />
+            </div>
           </div>
           <div>
             <span className="text-xs font-medium tracking-wide text-muted uppercase">Clave</span>
-            <code className="mt-1 block rounded-lg bg-background p-2 text-xs break-all">{intakeKey}</code>
+            <div className="mt-1 flex items-start gap-2">
+              <code className="block min-w-0 flex-1 rounded-lg bg-background p-2 text-xs break-all">
+                {intakeKey}
+              </code>
+              <CopyButton text={intakeKey} />
+            </div>
+            {/[-_]/.test(intakeKey) ? (
+              <p className="mt-1 text-xs text-muted">
+                Esta clave tiene «-» o «_»: al seleccionarla con doble clic se pierde un trozo. Usa «Copiar»,
+                o «Cambiar la clave» para tener una solo con letras y números.
+              </p>
+            ) : null}
           </div>
           <div>
             <span className="text-xs font-medium tracking-wide text-muted uppercase">Nombres de campo</span>
