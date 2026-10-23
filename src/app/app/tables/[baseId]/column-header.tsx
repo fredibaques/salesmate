@@ -18,7 +18,7 @@ import type { FormAction } from "@/components/action-form";
 import { Popover } from "@/components/popover";
 import { useToast } from "@/components/toast";
 import { Badge, buttonClass, cx } from "@/components/ui";
-import { COLUMN_TYPE_LABELS, type BaseColumn, type RowKind } from "@/lib/prospect-columns";
+import { COLUMN_TYPE_LABELS, type BaseColumn, type RowKind, type SystemField } from "@/lib/prospect-columns";
 import { columnCatalog, type CatalogColumn } from "@/lib/column-catalog";
 import { COLUMN_ICONS } from "../column-icons";
 import { ColumnForm, type LinkTarget } from "../column-form";
@@ -253,21 +253,35 @@ export function AddColumnHeader({
   existing,
   rowKind,
   tables,
+  hiddenFields = [],
+  toggleField,
 }: {
   save: FormAction;
   existing: string[];
   rowKind: RowKind;
   /** The other tables, for a relation. */
   tables?: LinkTarget[];
+  /** The fixed fields hidden from the table: the catalogue offers some of them. */
+  hiddenFields?: SystemField[];
+  /** Shows (false) or hides a fixed field. */
+  toggleField?: (field: SystemField, hidden: boolean) => Promise<void>;
 }) {
   const toast = useToast();
   const [view, setView] = useState<"form" | "suggest">("form");
   const [added, setAdded] = useState<string[]>([]);
   const [pending, start] = useTransition();
   const taken = new Set([...existing, ...added].map((n) => n.toLowerCase()));
+  const isTaken = (c: CatalogColumn) =>
+    c.field ? !hiddenFields.includes(c.field) || added.includes(c.name) : taken.has(c.name.toLowerCase());
 
   const add = (c: CatalogColumn) =>
     start(async () => {
+      if (c.field) {
+        await toggleField?.(c.field, false);
+        setAdded((a) => [...a, c.name]);
+        toast?.({ ok: true, message: `«${c.name}» ya se ve en la tabla.` });
+        return;
+      }
       const form = new FormData();
       form.set("name", c.name);
       form.set("type", c.type);
@@ -316,37 +330,41 @@ export function AddColumnHeader({
               <section key={group.title} className="space-y-2">
                 <h4 className="text-xs font-medium tracking-wide text-muted uppercase">{group.title}</h4>
                 <ul className="space-y-1.5">
-                  {group.columns.map((c) => {
-                    const Icon = COLUMN_ICONS[c.type];
-                    const isTaken = taken.has(c.name.toLowerCase());
-                    return (
-                      <li
-                        key={c.name}
-                        title={c.instructions}
-                        className="flex items-center gap-3 rounded-lg border border-border px-2.5 py-2"
-                      >
-                        <Icon className="size-4 shrink-0 text-muted" aria-hidden />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-medium">{c.name}</span>
-                          <span className="block text-xs text-muted">
-                            {COLUMN_TYPE_LABELS[c.type]} · {FILLED_BY_LABELS[c.filledBy ?? "agent"]}
+                  {group.columns
+                    // A fixed field only where the table can show it.
+                    .filter((c) => !c.field || toggleField)
+                    .map((c) => {
+                      const Icon = COLUMN_ICONS[c.type];
+                      const shown = isTaken(c);
+                      return (
+                        <li
+                          key={c.name}
+                          title={c.instructions}
+                          className="flex items-center gap-3 rounded-lg border border-border px-2.5 py-2"
+                        >
+                          <Icon className="size-4 shrink-0 text-muted" aria-hidden />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-medium">{c.name}</span>
+                            <span className="block text-xs text-muted">
+                              {c.field ? "Campo de SalesMate" : COLUMN_TYPE_LABELS[c.type]} ·{" "}
+                              {FILLED_BY_LABELS[c.filledBy ?? "agent"]}
+                            </span>
                           </span>
-                        </span>
-                        {isTaken ? (
-                          <Badge tone="success">Añadida</Badge>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={pending}
-                            onClick={() => add(c)}
-                            className={buttonClass({ variant: "secondary", size: "sm" })}
-                          >
-                            Añadir
-                          </button>
-                        )}
-                      </li>
-                    );
-                  })}
+                          {shown ? (
+                            <Badge tone="success">Añadida</Badge>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={pending}
+                              onClick={() => add(c)}
+                              className={buttonClass({ variant: "secondary", size: "sm" })}
+                            >
+                              Añadir
+                            </button>
+                          )}
+                        </li>
+                      );
+                    })}
                 </ul>
               </section>
             ))}

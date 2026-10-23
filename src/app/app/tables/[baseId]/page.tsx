@@ -595,6 +595,8 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                         existing={base.columns.map((c) => c.name)}
                         rowKind={base.rowKind}
                         tables={otherTables}
+                        hiddenFields={hiddenFields}
+                        toggleField={toggleFieldAction.bind(null, baseId)}
                       />
                     ) : (
                       <span className="sr-only">Acciones</span>

@@ -1,4 +1,4 @@
-import type { ColumnDraft, RowKind } from "./prospect-columns";
+import type { ColumnDraft, RowKind, SystemField } from "./prospect-columns";
 
 /**
  * Columns that are useful in almost any sales table, whatever the business:
@@ -6,7 +6,11 @@ import type { ColumnDraft, RowKind } from "./prospect-columns";
  * the same handful of answers). Each one says what to put in it, which is
  * what the agent reads to fill it.
  */
-export type CatalogColumn = ColumnDraft & { name: string };
+export type CatalogColumn = ColumnDraft & {
+  name: string;
+  /** A fixed field of the table (hidden until added): adding it shows it instead of a new column. */
+  field?: SystemField;
+};
 
 export type CatalogGroup = { title: string; columns: CatalogColumn[] };
 
@@ -59,6 +63,22 @@ const PERSON_CONTACT: CatalogColumn[] = [
   },
   { name: "Cargo", type: "text", filledBy: "agent", instructions: "Cargo en la empresa." },
   { name: "LinkedIn", type: "url", filledBy: "agent", instructions: "Perfil público de LinkedIn." },
+];
+
+/**
+ * In a table of people, the company they work at and its web are fixed
+ * fields (the agent fills them, and they tell people apart): offered here as
+ * columns, adding one shows it.
+ */
+const PERSON_COMPANY: CatalogColumn[] = [
+  {
+    name: "Empresa",
+    field: "company",
+    type: "text",
+    filledBy: "agent",
+    instructions: "Nombre de la empresa donde trabaja: el comercial, no la razón social.",
+  },
+  { name: "Web", field: "web", type: "url", filledBy: "agent", instructions: "Web de su empresa." },
 ];
 
 const COMPANY: CatalogColumn[] = [
@@ -136,7 +156,10 @@ const SALES: CatalogColumn[] = [
 export function columnCatalog(rowKind: RowKind): CatalogGroup[] {
   return [
     { title: "Contacto", columns: rowKind === "person" ? PERSON_CONTACT : CONTACT },
-    { title: rowKind === "person" ? "Su empresa" : "Empresa", columns: COMPANY },
+    {
+      title: rowKind === "person" ? "Su empresa" : "Empresa",
+      columns: rowKind === "person" ? [...PERSON_COMPANY, ...COMPANY] : COMPANY,
+    },
     { title: "Seguimiento comercial", columns: SALES },
   ];
 }
