@@ -28,7 +28,7 @@ export const MAX_INTAKE_ATTEMPTS = 20;
 
 export const INTAKE_OUTCOME_LABELS: Record<IntakeOutcome, string> = {
   missing_key:
-    "Sin clave: mándala en la cabecera x-salesmate-key, en Authorization: Bearer, en el campo _key (o key) o en ?key= de la dirección.",
+    "Sin clave: mándala en la cabecera x-salesmate-key (o x-api-key), en Authorization: Bearer, en un campo key o en ?key= de la dirección.",
   wrong_key: "Clave incorrecta: copia la clave actual de la tabla (si la cambiaste, la anterior ya no vale).",
   closed: "El formulario de la tabla está desconectado.",
   invalid_body: "No se ha podido leer lo que envía: manda un objeto JSON o los campos de un formulario.",

@@ -17,7 +17,8 @@ import { intakeKeyOf, intakeRow, parseIntakeBody, recordIntakeAttempt } from "@/
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, x-salesmate-key, Authorization",
+  "Access-Control-Allow-Headers":
+    "Content-Type, Authorization, x-salesmate-key, x-api-key, api-key, apikey, x-key",
 };
 
 export function OPTIONS() {
@@ -54,7 +55,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/tables/[bas
     await recordIntakeAttempt(db, baseId, { outcome: "invalid_body" });
     return NextResponse.json({ error: "invalid_body" }, { status: 400, headers: CORS });
   }
-  const { key, field: keyField } = intakeKeyOf({ headers: request.headers, body, url: request.url });
+  const { keys, fields: keyFields } = intakeKeyOf({ headers: request.headers, body, url: request.url });
   const redirectTo =
     typeof body._redirect === "string" && /^https?:\/\//.test(body._redirect) ? body._redirect : null;
   const respond = (status: number, json: Record<string, unknown>) =>
@@ -66,9 +67,9 @@ export async function POST(request: Request, ctx: RouteContext<"/api/tables/[bas
   if (typeof body._gotcha === "string" && body._gotcha.trim() !== "") return respond(200, { ok: true });
 
   const fields = Object.fromEntries(
-    Object.entries(body).filter(([k]) => !k.startsWith("_") && k !== keyField),
+    Object.entries(body).filter(([k]) => !k.startsWith("_") && !keyFields.includes(k)),
   );
-  const result = await intakeRow(db, { baseId, key, fields });
+  const result = await intakeRow(db, { baseId, key: keys, fields });
   if (result.status === "unauthorized") return respond(401, { error: "unauthorized" });
   if (result.status === "invalid")
     return respond(400, { error: "invalid", message: result.message, ignored: result.ignored });

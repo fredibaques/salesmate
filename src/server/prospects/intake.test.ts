@@ -141,6 +141,12 @@ describe("rows from a web form", () => {
     });
     expect(bearer.status).toBe(201);
     expect(await bearer.json()).toMatchObject({ ignored: ["source"] });
+    // The tool's own token in Authorization doesn't hide the table's key elsewhere, quoted.
+    const both = await post({
+      headers: { authorization: "Bearer token-de-la-herramienta", "x-api-key": `"${intakeKey}"` },
+      body: JSON.stringify({ nombre: "Marta Gil" }),
+    });
+    expect(both.status).toBe(201);
     // The key in a «key» field is the key, not a value of the row.
     const field = await post({
       headers: { "content-type": "application/json" },
@@ -152,6 +158,7 @@ describe("rows from a web form", () => {
     expect(rows.map((r) => [r.personName, r.data[base.columns[0].id] ?? null])).toEqual([
       ["Eva Sanz", "eva@flotas.es"],
       ["Luis Gil", null],
+      ["Marta Gil", null],
     ]);
   });
 
@@ -187,6 +194,11 @@ describe("rows from a web form", () => {
     ]);
     expect(log[3].fields).toEqual(["nombre", "email"]);
     expect(JSON.stringify(log)).not.toContain("ana@x.es");
+    // A wrong key says where it came from and its length, never the key.
+    expect(log[2].message).toBe(
+      `cabecera x-salesmate-key: 5 caracteres, empieza distinto. La de la tabla tiene ${intakeKey!.length} caracteres.`,
+    );
+    expect(JSON.stringify(log)).not.toContain("vieja");
   });
 });
 
@@ -205,14 +217,32 @@ describe("reading a submission", () => {
     expect(parseIntakeBody("{roto", "application/json")).toBeNull();
   });
 
-  it("finds the key in the usual places", () => {
+  it("finds every key a submission carries, cleaned of quotes, spaces and «Bearer»", () => {
     const of = (headers: Record<string, string>, body: Record<string, unknown>, url = "http://x/r") =>
-      intakeKeyOf({ headers: new Headers(headers), body, url });
-    expect(of({ "x-salesmate-key": "a" }, {})).toEqual({ key: "a" });
-    expect(of({ authorization: "Bearer b" }, {})).toEqual({ key: "b" });
-    expect(of({}, { _key: "c" })).toEqual({ key: "c", field: "_key" });
-    expect(of({}, { key: "d" })).toEqual({ key: "d", field: "key" });
-    expect(of({}, {}, "http://x/r?key=e")).toEqual({ key: "e" });
-    expect(of({}, {})).toEqual({ key: null });
+      intakeKeyOf({ headers: new Headers(headers), body, url }).keys.map((k) => [k.from, k.key]);
+    expect(of({ "x-salesmate-key": ' "a" ' }, {})).toEqual([["cabecera x-salesmate-key", "a"]]);
+    expect(of({ "x-api-key": "Bearer b" }, {})).toEqual([["cabecera x-api-key", "b"]]);
+    expect(of({ authorization: "Bearer c" }, {})).toEqual([["cabecera Authorization", "c"]]);
+    expect(of({ authorization: "d" }, {})).toEqual([["cabecera Authorization", "d"]]);
+    expect(of({ authorization: `Basic ${Buffer.from("e:f").toString("base64")}` }, {})).toEqual([
+      ["Authorization: Basic (usuario)", "e"],
+      ["Authorization: Basic (contraseña)", "f"],
+    ]);
+    expect(
+      intakeKeyOf({ headers: new Headers(), body: { _key: "g", api_key: "h" }, url: "http://x/r" }),
+    ).toEqual({
+      keys: [
+        { from: "campo _key", key: "g" },
+        { from: "campo api_key", key: "h" },
+      ],
+      fields: ["_key", "api_key"],
+    });
+    expect(of({}, {}, "http://x/r?token=i")).toEqual([["?token= de la dirección", "i"]]);
+    // Its own token in Authorization and the table's key elsewhere: both are tried.
+    expect(of({ authorization: "Bearer tool-token", "x-salesmate-key": "j" }, {})).toEqual([
+      ["cabecera x-salesmate-key", "j"],
+      ["cabecera Authorization", "tool-token"],
+    ]);
+    expect(of({}, {})).toEqual([]);
   });
 });

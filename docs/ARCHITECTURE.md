@@ -566,8 +566,14 @@ la fila.
 **Formularios** (`prospects/intake.ts`, `POST /api/tables/<id>/rows`). Cada
 tabla puede abrirse a formularios externos con su propia clave
 (`prospect_bases.intake_key`; «Conectar formulario» en la tabla). La clave
-vale en la cabecera `x-salesmate-key` o `Authorization: Bearer`, en un campo
-`_key` o `key`, o en `?key=` (`intakeKeyOf`). JSON aunque no venga marcado como
+vale en cualquiera de los sitios donde las herramientas suelen ponerla
+(`intakeKeyOf`): las cabeceras `x-salesmate-key`, `x-api-key` y parecidas,
+`Authorization` (Bearer, Token, sola o Basic), un campo `_key`, `key`,
+`api_key` o `token`, o lo mismo en la dirección; se prueban todas (una
+herramienta puede mandar su propio token además) y se limpian espacios,
+comillas y un «Bearer » sobrante (`cleanKey`). Si ninguna coincide, la anotación
+dice por dónde llegó cada una y cuántos caracteres tiene, y si empieza como la
+de la tabla, sin guardarla. JSON aunque no venga marcado como
 tal (los objetos anidados se aplanan por sus nombres de dentro), urlencoded o
 multipart (`parseIntakeBody`), CORS abierto, `_redirect` y `_gotcha` como en
 el formulario del agente inbound. Cada envío que no añade una fila (sin clave,
