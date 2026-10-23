@@ -572,8 +572,11 @@ vale en cualquiera de los sitios donde las herramientas suelen ponerla
 `api_key` o `token`, o lo mismo en la dirección; se prueban todas (una
 herramienta puede mandar su propio token además) y se limpian espacios,
 comillas y un «Bearer » sobrante (`cleanKey`). Si ninguna coincide, la anotación
-dice por dónde llegó cada una y cuántos caracteres tiene, y si empieza como la
-de la tabla, sin guardarla. JSON aunque no venga marcado como
+dice por dónde llegó cada una, cuántos caracteres tiene y dónde deja de
+coincidir (`keyHint`: «coinciden los 23 primeros…: le falta el carácter 24»),
+sin guardarla. Las claves nuevas son 24 letras y números (`newIntakeKey`): con
+«-» o «_», un doble clic no las selecciona enteras. El modal tiene «Copiar»
+para la dirección y la clave, y avisa si la clave es de las antiguas. JSON aunque no venga marcado como
 tal (los objetos anidados se aplanan por sus nombres de dentro), urlencoded o
 multipart (`parseIntakeBody`), CORS abierto, `_redirect` y `_gotcha` como en
 el formulario del agente inbound. Cada envío que no añade una fila (sin clave,

@@ -1,4 +1,4 @@
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { randomInt, timingSafeEqual } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { MAX_INTAKE_ATTEMPTS, type IntakeAttempt, type IntakeOutcome } from "@/lib/intake-attempts";
 import { audit } from "../audit";
@@ -32,9 +32,20 @@ function keyMatches(a: string, b: string) {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
+/**
+ * Letters and digits only: a key with «-» or «_» loses a piece when it is
+ * selected with a double click, and the tool gets a key that doesn't match.
+ */
+const KEY_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+/** 24 random letters and digits (about 143 bits). */
+export function newIntakeKey(): string {
+  return Array.from({ length: 24 }, () => KEY_ALPHABET[randomInt(KEY_ALPHABET.length)]).join("");
+}
+
 /** A new key for the table's forms (the old one stops working); `open: false` closes the entry. */
 export async function setIntakeKey(db: Db, tenant: TenantContext, baseId: string, open = true) {
-  const key = open ? randomBytes(18).toString("base64url") : null;
+  const key = open ? newIntakeKey() : null;
   return withTenant(db, tenant, async (tx) => {
     const [base] = await tx
       .update(prospectBases)
@@ -146,13 +157,32 @@ export function intakeKeyOf(input: { headers: Headers; body: Record<string, unkn
   return { keys, fields };
 }
 
-/** Why the keys sent aren't the table's, without saying them: where each came from and its length. */
-function keyHint(keys: KeyCandidate[], tableKey: string): string {
+/** How many characters two keys share at the start and at the end. */
+function sharedEnds(a: string, b: string) {
+  let start = 0;
+  while (start < a.length && start < b.length && a[start] === b[start]) start++;
+  let end = 0;
+  while (end < a.length - start && end < b.length - start && a.at(-1 - end) === b.at(-1 - end)) end++;
+  return { start, end };
+}
+
+/**
+ * Why the keys sent aren't the table's, without saying them: where each came
+ * from, its length and where it stops matching (a lost last «-» reads as
+ * «coinciden los 23 primeros; le falta el último»).
+ */
+export function keyHint(keys: KeyCandidate[], tableKey: string): string {
   return `${keys
-    .map(
-      (k) =>
-        `${k.from}: ${k.key.length} caracteres, ${k.key.slice(0, 4) === tableKey.slice(0, 4) ? "empieza como la de la tabla" : "empieza distinto"}`,
-    )
+    .map((k) => {
+      const { start, end } = sharedEnds(k.key, tableKey);
+      const where =
+        start === 0 && end === 0
+          ? "no se parece a la de la tabla"
+          : k.key.length === tableKey.length - 1 && start + end === k.key.length
+            ? `coinciden los ${start} primeros y los ${end} últimos: le falta el carácter ${start + 1}${start + 1 === tableKey.length ? " (el último)" : ""}`
+            : `coinciden los ${start} primeros y los ${end} últimos`;
+      return `${k.from}: ${k.key.length} caracteres, ${where}`;
+    })
     .join("; ")}. La de la tabla tiene ${tableKey.length} caracteres.`;
 }
 
