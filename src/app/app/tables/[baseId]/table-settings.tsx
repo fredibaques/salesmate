@@ -140,7 +140,8 @@ ${[...fixed, ...columns.slice(0, 4).map((c) => c.name)].map((n) => `  <input nam
           </details>
           <p className="text-xs text-muted">
             También vale JSON (Zapier, Make, tu backend…), con la clave en la cabecera{" "}
-            <code>x-salesmate-key</code> o <code>Authorization: Bearer</code>, o en un campo <code>key</code>.
+            <code>x-salesmate-key</code> (o <code>x-api-key</code>), en <code>Authorization: Bearer</code>, en
+            un campo <code>key</code> o en <code>?key=</code> de la dirección.
           </p>
           <IntakeAttempts attempts={attempts} />
           <div className="flex flex-wrap gap-2 border-t border-border pt-4">

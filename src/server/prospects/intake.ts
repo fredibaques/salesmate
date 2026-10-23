@@ -11,7 +11,8 @@ import { saveProspects } from "./service";
 /**
  * Rows that arrive from outside: a form on the team's website (or any tool
  * that can POST) adds a row to one table, authenticated by the table's own
- * key. Fields are matched to the table's columns by name; the usual names
+ * key (any of the places a tool may put it). Fields are matched to the
+ * table's columns by name; the usual names
  * of the fixed fields (empresa, nombre, web…) fill those.
  */
 
@@ -88,24 +89,71 @@ function flatten(value: Record<string, unknown>, depth = 0): Record<string, unkn
   return out;
 }
 
+/** A key found in a submission, and where it came from (said to people when it doesn't match). */
+export type KeyCandidate = { from: string; key: string };
+
+/** Headers that tools use for an API key. */
+const KEY_HEADERS = ["x-salesmate-key", "x-api-key", "api-key", "apikey", "x-key"];
+/** Fields (of the body, or of the address) that carry a key, not a value of the row. */
+const KEY_FIELDS = ["_key", "key", "api_key", "apikey", "apiKey", "token"];
+
+/** A key as typed into a tool: spaces, quotes and a «Bearer » prefix are not part of it. */
+export function cleanKey(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^(bearer|token)\s+/i, "")
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .trim();
+}
+
 /**
- * The table's key in a submission: the x-salesmate-key header, an
- * Authorization: Bearer header, a `_key` or `key` field, or ?key= in the
- * address. `field` says which field carried it (not a value for the row).
+ * Every key a submission carries: the x-salesmate-key header (or another
+ * usual API-key header), Authorization (Bearer, Token, bare or Basic), a
+ * `_key`, `key`, `api_key` or `token` field, or the same in the address.
+ * Any of them may be the table's. `fields` are the body fields that carried
+ * one (not values for the row).
  */
 export function intakeKeyOf(input: { headers: Headers; body: Record<string, unknown>; url: string }): {
-  key: string | null;
-  field?: string;
+  keys: KeyCandidate[];
+  fields: string[];
 } {
-  const header = input.headers.get("x-salesmate-key")?.trim();
-  if (header) return { key: header };
-  const bearer = input.headers.get("authorization")?.match(/^Bearer\s+(\S+)/i)?.[1];
-  if (bearer) return { key: bearer };
-  for (const field of ["_key", "key"]) {
-    const value = input.body[field];
-    if (typeof value === "string" && value.trim()) return { key: value.trim(), field };
+  const keys: KeyCandidate[] = [];
+  const fields: string[] = [];
+  const add = (from: string, raw: string | null | undefined) => {
+    const key = raw ? cleanKey(raw) : "";
+    if (key && !keys.some((k) => k.key === key)) keys.push({ from, key });
+  };
+  for (const name of KEY_HEADERS) add(`cabecera ${name}`, input.headers.get(name));
+  const auth = input.headers.get("authorization")?.trim();
+  const basic = auth?.match(/^Basic\s+(\S+)/i)?.[1];
+  if (basic) {
+    // user:password: the key may be either.
+    const [user = "", password = ""] = Buffer.from(basic, "base64").toString("utf8").split(":");
+    add("Authorization: Basic (usuario)", user);
+    add("Authorization: Basic (contraseña)", password);
+  } else {
+    add("cabecera Authorization", auth);
   }
-  return { key: new URL(input.url).searchParams.get("key")?.trim() || null };
+  for (const field of KEY_FIELDS) {
+    const value = input.body[field];
+    if (typeof value === "string" && value.trim()) {
+      add(`campo ${field}`, value);
+      fields.push(field);
+    }
+  }
+  const params = new URL(input.url).searchParams;
+  for (const field of KEY_FIELDS) add(`?${field}= de la dirección`, params.get(field));
+  return { keys, fields };
+}
+
+/** Why the keys sent aren't the table's, without saying them: where each came from and its length. */
+function keyHint(keys: KeyCandidate[], tableKey: string): string {
+  return `${keys
+    .map(
+      (k) =>
+        `${k.from}: ${k.key.length} caracteres, ${k.key.slice(0, 4) === tableKey.slice(0, 4) ? "empieza como la de la tabla" : "empieza distinto"}`,
+    )
+    .join("; ")}. La de la tabla tiene ${tableKey.length} caracteres.`;
 }
 
 /**
@@ -146,16 +194,23 @@ export type IntakeResult =
 /** Turns a submission into a row of the table, if the key is the table's. */
 export async function intakeRow(
   db: Db,
-  input: { baseId: string; key: string | null; fields: Record<string, unknown> },
+  input: { baseId: string; key: string | null | KeyCandidate[]; fields: Record<string, unknown> },
 ): Promise<IntakeResult> {
   const [base] = await withSystem(db, (tx) =>
     tx.select().from(prospectBases).where(eq(prospectBases.id, input.baseId)).limit(1),
   );
   if (!base) return { status: "unauthorized" };
   const fieldNames = Object.keys(input.fields);
-  if (!base.intakeKey || !input.key || !keyMatches(base.intakeKey, input.key)) {
+  const keys = Array.isArray(input.key)
+    ? input.key
+    : input.key
+      ? [{ from: "clave", key: cleanKey(input.key) }]
+      : [];
+  const tableKey = base.intakeKey;
+  if (!tableKey || !keys.some((k) => keyMatches(tableKey, k.key))) {
     await recordIntakeAttempt(db, base.id, {
-      outcome: !base.intakeKey ? "closed" : !input.key ? "missing_key" : "wrong_key",
+      outcome: !tableKey ? "closed" : keys.length === 0 ? "missing_key" : "wrong_key",
+      message: tableKey && keys.length ? keyHint(keys, tableKey) : undefined,
       fields: fieldNames,
     });
     return { status: "unauthorized" };
