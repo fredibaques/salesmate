@@ -17,7 +17,7 @@ import { intakeKeyOf, intakeRow, parseIntakeBody, recordIntakeAttempt } from "@/
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, x-salesmate-key",
+  "Access-Control-Allow-Headers": "Content-Type, x-salesmate-key, Authorization",
 };
 
 export function OPTIONS() {
