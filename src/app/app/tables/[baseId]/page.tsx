@@ -32,6 +32,7 @@ import {
 } from "@/lib/table-filters";
 import { Badge, Button, cx, Input, LinkButton, Notice, PageHeader, Tooltip } from "@/components/ui";
 import { formatDateTime, plural } from "@/lib/format";
+import { INTAKE_OUTCOME_LABELS, isRejection } from "@/lib/intake-attempts";
 import {
   formatCell,
   isPendingCell,
@@ -154,6 +155,11 @@ function watchRuns<R extends { startedAt: Date; finishedAt: Date | null }>(
   return { starting, lastRun: ended ? runs[0] : null };
 }
 
+/** Within the last 24 hours. */
+function isLastDay(at: string) {
+  return Date.now() - Date.parse(at) < 24 * 3600_000;
+}
+
 /** A run cut off by the platform stays "running"; after 10 minutes it isn't really searching. */
 function isRecent(startedAt: Date) {
   return Date.now() - new Date(startedAt).getTime() < 10 * 60_000;
@@ -224,6 +230,9 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
       ])
     : [null, null];
   const filledByAgent = Boolean(filler);
+  // The form's last submission was turned away in the last day: say why, so a tool can be fixed.
+  const [lastAttempt] = base.intakeLog;
+  const rejected = lastAttempt && isRejection(lastAttempt) && isLastDay(lastAttempt.at) ? lastAttempt : null;
   const running = filledByAgent && runs[0]?.status === "running" && isRecent(runs[0].startedAt);
   const { starting, lastRun } = watchRuns(filledByAgent && !running, runs, Number(query.working) || 0);
   const columns = base.columns.filter((c) => !c.hidden);
@@ -381,6 +390,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
                 appUrl={env().APP_URL}
                 person={person}
                 columns={base.columns}
+                attempts={base.intakeLog}
               />
             ) : null}
             {canEdit ? (
@@ -401,6 +411,13 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
 
       <div className="space-y-4">
         {filledByAgent ? <AiNotice feature="La búsqueda de prospectos" /> : null}
+        {rejected ? (
+          <Notice tone="warning">
+            Un envío al formulario de esta tabla no ha entrado ({formatDateTime(new Date(rejected.at))}
+            ): {INTAKE_OUTCOME_LABELS[rejected.outcome]}
+            {canEdit ? " Los últimos están en «Formulario conectado»." : ""}
+          </Notice>
+        ) : null}
         {running || starting ? (
           <>
             <AutoRefresh seconds={6} />

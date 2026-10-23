@@ -565,10 +565,17 @@ la fila.
 
 **Formularios** (`prospects/intake.ts`, `POST /api/tables/<id>/rows`). Cada
 tabla puede abrirse a formularios externos con su propia clave
-(`prospect_bases.intake_key`, cabecera `x-salesmate-key`, campo `_key` o
-`?key=`; «Conectar formulario» en la tabla). JSON, urlencoded o multipart,
-CORS abierto, `_redirect` y `_gotcha` como en el formulario del agente
-inbound. Los campos se emparejan con las columnas por nombre o id (sin
+(`prospect_bases.intake_key`; «Conectar formulario» en la tabla). La clave
+vale en la cabecera `x-salesmate-key` o `Authorization: Bearer`, en un campo
+`_key` o `key`, o en `?key=` (`intakeKeyOf`). JSON aunque no venga marcado como
+tal (los objetos anidados se aplanan por sus nombres de dentro), urlencoded o
+multipart (`parseIntakeBody`), CORS abierto, `_redirect` y `_gotcha` como en
+el formulario del agente inbound. Cada envío que no añade una fila (sin clave,
+clave incorrecta, formulario desconectado, cuerpo ilegible, datos que no
+encajan o fila repetida) queda anotado en la tabla con el motivo y los
+nombres de sus campos, nunca sus valores (`prospect_bases.intake_log`, los 20
+últimos, migración 0034, `recordIntakeAttempt`): se ven en «Formulario
+conectado», y si el último del día fue rechazado, un aviso en la tabla lo dice. Los campos se emparejan con las columnas por nombre o id (sin
 acentos ni mayúsculas); empresa, nombre, web, email y teléfono por sus nombres
 habituales; lo que no encaja vuelve en `ignored`. Cada envío es una fila (con
 la misma deduplicación) y avisa al agente que complete filas nuevas. Es
