@@ -8,6 +8,7 @@ import {
   Link2,
   ListChecks,
   Mail,
+  Network,
   Smartphone,
   SquareCheck,
   Type,
@@ -29,4 +30,5 @@ export const COLUMN_ICONS: Record<ColumnType, LucideIcon> = {
   email: Mail,
   phone: Smartphone,
   score: Gauge,
+  link: Network,
 };

@@ -8,7 +8,7 @@ import { withSystem, withTenant, type TenantContext, type Tx } from "../db/tenan
  * Who sees which project. Owners and admins see every project of the
  * organization; a member («Miembro») only the projects shared with them
  * (`project_members`). Tables without a project are the organization's and
- * everyone sees them.
+ * everyone sees them, unless they are shared with some projects only.
  */
 
 export type AccessActor = { orgId: string; userId: string; role: string };
@@ -30,6 +30,19 @@ export async function visibleProjectIds(db: Db, actor: AccessActor): Promise<str
 /** Whether a set of visible projects (null = all) includes this one; no project means the organization's. */
 export const canSee = (visible: string[] | null, projectId: string | null | undefined) =>
   visible === null || !projectId || visible.includes(projectId);
+
+/**
+ * Whether a person sees a table: one project's, if they see that project;
+ * one shared with some projects, if they see any of them; the whole
+ * account's, always.
+ */
+export const canSeeBase = (
+  visible: string[] | null,
+  base: { projectId: string | null; projectIds?: string[] },
+) =>
+  base.projectId || !base.projectIds?.length
+    ? canSee(visible, base.projectId)
+    : visible === null || base.projectIds.some((id) => visible.includes(id));
 
 /** The organization's members and whether each one has the project (owners and admins always do). */
 export async function projectPeople(db: Db, orgId: string, projectId: string) {

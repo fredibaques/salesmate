@@ -61,10 +61,10 @@ export function NewTableForm({
       <Field
         label="Proyecto"
         optional
-        tip="Una tabla puede ir sola. Con un proyecto, sus agentes la usan con lo que sabe del proyecto; podrás cambiarlo en sus ajustes."
+        tip="Con «Todos los proyectos», cualquier proyecto puede usarla. En sus ajustes podrás compartirla solo con algunos."
       >
         <Select name="projectId" defaultValue={projectId ?? ""}>
-          <option value="">Sin proyecto</option>
+          <option value="">Todos los proyectos</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}

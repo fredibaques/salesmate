@@ -18,10 +18,10 @@ import type { FormAction } from "@/components/action-form";
 import { Popover } from "@/components/popover";
 import { useToast } from "@/components/toast";
 import { Badge, buttonClass, cx } from "@/components/ui";
-import { COLUMN_TYPE_LABELS, type BaseColumn, type RowKind } from "@/lib/prospect-columns";
+import { COLUMN_TYPE_LABELS, type BaseColumn, type RowKind, type SystemField } from "@/lib/prospect-columns";
 import { columnCatalog, type CatalogColumn } from "@/lib/column-catalog";
 import { COLUMN_ICONS } from "../column-icons";
-import { ColumnForm } from "../column-form";
+import { ColumnForm, type LinkTarget } from "../column-form";
 import { useColumnDrag, type DropTarget } from "./column-drag";
 
 const FILLED_BY_LABELS = {
@@ -85,6 +85,7 @@ export function ColumnHeader({
   hide,
   remove,
   retry,
+  tables,
 }: {
   column: BaseColumn;
   first: boolean;
@@ -99,6 +100,8 @@ export function ColumnHeader({
   remove: () => Promise<void>;
   /** Clears its «no encontrado» cells; says how many. */
   retry: () => Promise<string>;
+  /** The other tables, for a relation. */
+  tables?: LinkTarget[];
 }) {
   const toast = useToast();
   const [view, setView] = useState<"menu" | "edit">("menu");
@@ -122,14 +125,16 @@ export function ColumnHeader({
           view === "edit" ? (
             <div className="space-y-4">
               <p className="font-semibold">Editar «{column.name}»</p>
-              <ColumnForm action={save} column={column} />
+              <ColumnForm action={save} column={column} tables={tables} />
             </div>
           ) : (
             <div className="-m-2 space-y-1">
               <div className="px-2 pt-1 pb-2">
                 <p className="font-semibold">{column.name}</p>
                 <p className="text-xs text-muted">
-                  {COLUMN_TYPE_LABELS[column.type]} · {FILLED_BY_LABELS[column.filledBy]}
+                  {column.type === "link"
+                    ? `Relación con «${tables?.find((t) => t.id === column.linkBaseId)?.name ?? "otra tabla"}»`
+                    : `${COLUMN_TYPE_LABELS[column.type]} · ${FILLED_BY_LABELS[column.filledBy]}`}
                 </p>
               </div>
               <button type="button" className={item} onClick={() => setView("edit")}>
@@ -152,7 +157,7 @@ export function ColumnHeader({
                 <ArrowRight />
                 Mover a la derecha
               </ActionItem>
-              {column.filledBy !== "person" ? (
+              {column.filledBy !== "person" && column.type !== "link" ? (
                 <ActionItem run={async () => toast?.({ ok: true, message: await retry() })} close={close}>
                   <RotateCcw />
                   Volver a buscar lo no encontrado
@@ -247,19 +252,36 @@ export function AddColumnHeader({
   save,
   existing,
   rowKind,
+  tables,
+  hiddenFields = [],
+  toggleField,
 }: {
   save: FormAction;
   existing: string[];
   rowKind: RowKind;
+  /** The other tables, for a relation. */
+  tables?: LinkTarget[];
+  /** The fixed fields hidden from the table: the catalogue offers some of them. */
+  hiddenFields?: SystemField[];
+  /** Shows (false) or hides a fixed field. */
+  toggleField?: (field: SystemField, hidden: boolean) => Promise<void>;
 }) {
   const toast = useToast();
   const [view, setView] = useState<"form" | "suggest">("form");
   const [added, setAdded] = useState<string[]>([]);
   const [pending, start] = useTransition();
   const taken = new Set([...existing, ...added].map((n) => n.toLowerCase()));
+  const isTaken = (c: CatalogColumn) =>
+    c.field ? !hiddenFields.includes(c.field) || added.includes(c.name) : taken.has(c.name.toLowerCase());
 
   const add = (c: CatalogColumn) =>
     start(async () => {
+      if (c.field) {
+        await toggleField?.(c.field, false);
+        setAdded((a) => [...a, c.name]);
+        toast?.({ ok: true, message: `«${c.name}» ya se ve en la tabla.` });
+        return;
+      }
       const form = new FormData();
       form.set("name", c.name);
       form.set("type", c.type);
@@ -301,44 +323,48 @@ export function AddColumnHeader({
           ))}
         </div>
         {view === "form" ? (
-          <ColumnForm action={save} />
+          <ColumnForm action={save} tables={tables} />
         ) : (
           <div className="space-y-4">
             {columnCatalog(rowKind).map((group) => (
               <section key={group.title} className="space-y-2">
                 <h4 className="text-xs font-medium tracking-wide text-muted uppercase">{group.title}</h4>
                 <ul className="space-y-1.5">
-                  {group.columns.map((c) => {
-                    const Icon = COLUMN_ICONS[c.type];
-                    const isTaken = taken.has(c.name.toLowerCase());
-                    return (
-                      <li
-                        key={c.name}
-                        title={c.instructions}
-                        className="flex items-center gap-3 rounded-lg border border-border px-2.5 py-2"
-                      >
-                        <Icon className="size-4 shrink-0 text-muted" aria-hidden />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-medium">{c.name}</span>
-                          <span className="block text-xs text-muted">
-                            {COLUMN_TYPE_LABELS[c.type]} · {FILLED_BY_LABELS[c.filledBy ?? "agent"]}
+                  {group.columns
+                    // A fixed field only where the table can show it.
+                    .filter((c) => !c.field || toggleField)
+                    .map((c) => {
+                      const Icon = COLUMN_ICONS[c.type];
+                      const shown = isTaken(c);
+                      return (
+                        <li
+                          key={c.name}
+                          title={c.instructions}
+                          className="flex items-center gap-3 rounded-lg border border-border px-2.5 py-2"
+                        >
+                          <Icon className="size-4 shrink-0 text-muted" aria-hidden />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-medium">{c.name}</span>
+                            <span className="block text-xs text-muted">
+                              {c.field ? "Campo de SalesMate" : COLUMN_TYPE_LABELS[c.type]} ·{" "}
+                              {FILLED_BY_LABELS[c.filledBy ?? "agent"]}
+                            </span>
                           </span>
-                        </span>
-                        {isTaken ? (
-                          <Badge tone="success">Añadida</Badge>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={pending}
-                            onClick={() => add(c)}
-                            className={buttonClass({ variant: "secondary", size: "sm" })}
-                          >
-                            Añadir
-                          </button>
-                        )}
-                      </li>
-                    );
-                  })}
+                          {shown ? (
+                            <Badge tone="success">Añadida</Badge>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={pending}
+                              onClick={() => add(c)}
+                              className={buttonClass({ variant: "secondary", size: "sm" })}
+                            >
+                              Añadir
+                            </button>
+                          )}
+                        </li>
+                      );
+                    })}
                 </ul>
               </section>
             ))}

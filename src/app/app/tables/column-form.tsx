@@ -19,9 +19,24 @@ const FILLED_BY_OPTIONS = [
   { value: "both", label: "Los dos" },
 ];
 
-/** Adds a column or changes one: name, type, choices and how the agent fills it. */
-export function ColumnForm({ action, column }: { action: FormAction; column?: BaseColumn }) {
+/** A table a relation column can point at. */
+export type LinkTarget = { id: string; name: string };
+
+/**
+ * Adds a column or changes one: name, type, choices and how the agent fills
+ * it. A relation picks the table it points at (`tables`: the others).
+ */
+export function ColumnForm({
+  action,
+  column,
+  tables = [],
+}: {
+  action: FormAction;
+  column?: BaseColumn;
+  tables?: LinkTarget[];
+}) {
   const [type, setType] = useState<ColumnType>(column?.type ?? "text");
+  const link = type === "link";
   return (
     <ActionForm action={action} submitLabel={column ? "Guardar" : "Añadir columna"} className="space-y-5">
       <Field label="Nombre">
@@ -49,6 +64,28 @@ export function ColumnForm({ action, column }: { action: FormAction; column?: Ba
           ))}
         </Select>
       </Field>
+      {link ? (
+        <Field
+          label="Tabla relacionada"
+          hint={
+            column?.type === "link"
+              ? "Si eliges otra tabla, las filas pierden la relación que tenían."
+              : "Cada fila apuntará a una fila de esa tabla, p. ej. la empresa de cada persona."
+          }
+          tip="Una tabla solo tiene una relación. Si borras una fila de la tabla relacionada, se borran también las filas que apuntan a ella."
+        >
+          <Select name="linkBaseId" required defaultValue={column?.linkBaseId ?? ""}>
+            <option value="" disabled>
+              Elige una tabla
+            </option>
+            {tables.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      ) : null}
       {type === "stage" ? (
         <Field
           label="Fases"
@@ -77,22 +114,29 @@ export function ColumnForm({ action, column }: { action: FormAction; column?: Ba
           />
         </Field>
       ) : null}
-      <Field
-        label="Instrucciones para el agente"
-        optional
-        hint="Qué poner y de dónde sacarlo. Es lo que más mejora lo que encuentra."
-      >
-        <Textarea name="instructions" defaultValue={column?.instructions ?? ""} className="min-h-24" />
-      </Field>
-      <Field label="La rellena" group tip="Las columnas de una persona no se le muestran al agente.">
-        {/* The phase of a row is moved by people (or the board), not looked up by the agent. */}
-        <Segmented
-          key={column ? "saved" : type === "stage" ? "stage" : "other"}
-          name="filledBy"
-          options={FILLED_BY_OPTIONS}
-          defaultValue={column?.filledBy ?? (type === "stage" ? "person" : "agent")}
-        />
-      </Field>
+      {link ? (
+        // The agent links each row it saves to the row it searched in; people pick it by hand.
+        <input type="hidden" name="filledBy" value="both" />
+      ) : (
+        <>
+          <Field
+            label="Instrucciones para el agente"
+            optional
+            hint="Qué poner y de dónde sacarlo. Es lo que más mejora lo que encuentra."
+          >
+            <Textarea name="instructions" defaultValue={column?.instructions ?? ""} className="min-h-24" />
+          </Field>
+          <Field label="La rellena" group tip="Las columnas de una persona no se le muestran al agente.">
+            {/* The phase of a row is moved by people (or the board), not looked up by the agent. */}
+            <Segmented
+              key={column ? "saved" : type === "stage" ? "stage" : "other"}
+              name="filledBy"
+              options={FILLED_BY_OPTIONS}
+              defaultValue={column?.filledBy ?? (type === "stage" ? "person" : "agent")}
+            />
+          </Field>
+        </>
+      )}
     </ActionForm>
   );
 }

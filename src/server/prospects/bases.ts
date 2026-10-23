@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray, isNotNull, isNull, max, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, isNull, max, ne, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { AGENT_INFO, agentName, type ProjectAgentKey } from "@/lib/agents";
 import {
@@ -12,11 +12,19 @@ import {
   systemFields,
   type BaseColumn,
   type ColumnDraft,
+  type RowKind,
   type SystemField,
 } from "@/lib/prospect-columns";
 import { audit } from "../audit";
 import type { Db } from "../db/client";
-import { agentConfigs, projects, prospectBases, prospects } from "../db/schema";
+import {
+  agentConfigs,
+  projects,
+  prospectBaseProjects,
+  prospectBases,
+  prospectLinkSearches,
+  prospects,
+} from "../db/schema";
 import { workingSql } from "../agents/working";
 import { withTenant, type TenantContext, type Tx } from "../db/tenant";
 import { foldText } from "../knowledge/normalize";
@@ -24,17 +32,55 @@ import { foldText } from "../knowledge/normalize";
 /**
  * Tables («bases»): the user decides their columns; agents, people and
  * external forms fill them; people review and export them. A table may
- * belong to a project or stand on its own. An agent works on a table of its
- * project or on one without a project.
+ * belong to one project, be shared with some projects, or be the whole
+ * account's (every project uses it). An agent works on the tables its
+ * project uses.
  */
 
-export type ProspectBase = typeof prospectBases.$inferSelect;
+export type ProspectBase = typeof prospectBases.$inferSelect & {
+  /** The projects it is shared with, when it isn't one project's (none = every project). */
+  projectIds: string[];
+};
 
-export async function getBase(db: Db, tenant: Pick<TenantContext, "orgId">, baseId: string) {
-  const [row] = await withTenant(db, tenant, (tx) =>
-    tx.select().from(prospectBases).where(eq(prospectBases.id, baseId)),
-  );
-  return row ?? null;
+/**
+ * The tables a project uses: its own, those shared with it and those of the
+ * whole account (no project and shared with none in particular).
+ */
+export function basesOfProject(projectId: string): SQL {
+  const shared = (more: SQL = sql`true`) =>
+    sql`exists (select 1 from ${prospectBaseProjects} where ${prospectBaseProjects.baseId} = ${prospectBases.id} and ${more})`;
+  return or(
+    eq(prospectBases.projectId, projectId),
+    and(
+      isNull(prospectBases.projectId),
+      or(sql`not ${shared()}`, shared(sql`${prospectBaseProjects.projectId} = ${projectId}`)),
+    ),
+  )!;
+}
+
+/** The projects each of these tables is shared with, by table. */
+async function sharedProjects(tx: Tx, baseIds: string[]): Promise<Map<string, string[]>> {
+  const rows = baseIds.length
+    ? await tx
+        .select({ baseId: prospectBaseProjects.baseId, projectId: prospectBaseProjects.projectId })
+        .from(prospectBaseProjects)
+        .where(inArray(prospectBaseProjects.baseId, baseIds))
+    : [];
+  const out = new Map<string, string[]>();
+  for (const r of rows) out.set(r.baseId, [...(out.get(r.baseId) ?? []), r.projectId]);
+  return out;
+}
+
+export async function getBase(
+  db: Db,
+  tenant: Pick<TenantContext, "orgId">,
+  baseId: string,
+): Promise<ProspectBase | null> {
+  return withTenant(db, tenant, async (tx) => {
+    const [row] = await tx.select().from(prospectBases).where(eq(prospectBases.id, baseId));
+    if (!row) return null;
+    return { ...row, projectIds: (await sharedProjects(tx, [row.id])).get(row.id) ?? [] };
+  });
 }
 
 /** How the agents that fill a base are called. */
@@ -46,24 +92,20 @@ function agentNames(agents: { agentType: string; name: string | null }[]): strin
 
 /**
  * The tables an agent of the project may work on, with their row counts and
- * the agents that fill them: the project's own and, with `standalone`, those
- * without a project.
+ * the agents that fill them: the project's own and, with `shared`, those
+ * shared with it and the whole account's.
  */
 export async function listBases(
   db: Db,
   tenant: Pick<TenantContext, "orgId">,
   projectId: string,
-  options: { standalone?: boolean } = {},
+  options: { shared?: boolean } = {},
 ) {
   return withTenant(db, tenant, async (tx) => {
     const bases = await tx
       .select()
       .from(prospectBases)
-      .where(
-        options.standalone
-          ? or(eq(prospectBases.projectId, projectId), isNull(prospectBases.projectId))
-          : eq(prospectBases.projectId, projectId),
-      )
+      .where(options.shared ? basesOfProject(projectId) : eq(prospectBases.projectId, projectId))
       .orderBy(asc(prospectBases.createdAt));
     const counts = bases.length
       ? await tx
@@ -101,9 +143,11 @@ export async function listBases(
 }
 
 /**
- * Every table of the organization (or of one project), most recently active
- * first: the «Tablas» section and a project's tab. Activity is the last row
- * added or changed, or the last change to the table itself.
+ * Every table of the organization (or those one project uses), most recently
+ * active first: the «Tablas» section, a project's tab and the sidebar.
+ * Activity is the last row added or changed, or the last change to the table
+ * itself. `projectName` says whose it is: a project, the projects it is
+ * shared with, or the whole account (null).
  */
 export async function listAllBases(
   db: Db,
@@ -115,7 +159,14 @@ export async function listAllBases(
       .select({ base: prospectBases, projectName: projects.name })
       .from(prospectBases)
       .leftJoin(projects, eq(projects.id, prospectBases.projectId))
-      .where(filter.projectId ? eq(prospectBases.projectId, filter.projectId) : undefined);
+      .where(filter.projectId ? basesOfProject(filter.projectId) : undefined);
+    const shared = await sharedProjects(
+      tx,
+      bases.map((b) => b.base.id),
+    );
+    const names = new Map(
+      (await tx.select({ id: projects.id, name: projects.name }).from(projects)).map((p) => [p.id, p.name]),
+    );
     const stats = await tx
       .select({ baseId: prospects.baseId, n: count(), last: max(prospects.updatedAt) })
       .from(prospects)
@@ -132,9 +183,18 @@ export async function listAllBases(
       .map(({ base, projectName }) => {
         const stat = stats.find((s) => s.baseId === base.id);
         const last = stat?.last ? new Date(stat.last) : null;
+        const projectIds = shared.get(base.id) ?? [];
         return {
           ...base,
-          projectName,
+          projectIds,
+          projectName:
+            projectName ??
+            (projectIds.length
+              ? projectIds
+                  .map((id) => names.get(id))
+                  .filter(Boolean)
+                  .join(", ")
+              : null),
           rows: Number(stat?.n ?? 0),
           agents: agents.filter((a) => a.baseId === base.id).map((a) => a.agentType),
           agentNames: agentNames(agents.filter((a) => a.baseId === base.id)),
@@ -143,6 +203,54 @@ export async function listAllBases(
       })
       .sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime());
   });
+}
+
+/**
+ * The tables each project uses, for the sidebar: its own, those shared with
+ * it and the whole account's, by name.
+ */
+export async function tablesByProject(
+  db: Db,
+  tenant: Pick<TenantContext, "orgId">,
+  projectIds: string[],
+): Promise<Map<string, { id: string; name: string; rowKind: RowKind }[]>> {
+  return withTenant(db, tenant, async (tx) => {
+    const bases = await tx
+      .select({
+        id: prospectBases.id,
+        name: prospectBases.name,
+        rowKind: prospectBases.rowKind,
+        projectId: prospectBases.projectId,
+      })
+      .from(prospectBases)
+      .orderBy(asc(prospectBases.name));
+    const shared = await sharedProjects(
+      tx,
+      bases.filter((b) => !b.projectId).map((b) => b.id),
+    );
+    return new Map(
+      projectIds.map((projectId) => [
+        projectId,
+        bases
+          .filter((b) =>
+            b.projectId
+              ? b.projectId === projectId
+              : !shared.get(b.id)?.length || shared.get(b.id)!.includes(projectId),
+          )
+          .map(({ id, name, rowKind }) => ({ id, name, rowKind })),
+      ]),
+    );
+  });
+}
+
+/** Every table of the organization by name: what a relation column can point at. */
+export async function listBaseNames(db: Db, tenant: Pick<TenantContext, "orgId">) {
+  return withTenant(db, tenant, (tx) =>
+    tx
+      .select({ id: prospectBases.id, name: prospectBases.name, rowKind: prospectBases.rowKind })
+      .from(prospectBases)
+      .orderBy(asc(prospectBases.name)),
+  );
 }
 
 /** The agents that fill a table (from any project), with how they are called. */
@@ -169,34 +277,72 @@ export async function baseAgents(db: Db, tenant: Pick<TenantContext, "orgId">, b
   return rows.map((a, i) => ({ ...a, label: labels[i] }));
 }
 
-/** Moves a table to a project, or leaves it on its own (null). */
+/** Moves a table to a project, or makes it the whole account's (null). */
 export async function setBaseProject(
   db: Db,
   tenant: TenantContext,
   baseId: string,
   projectId: string | null,
 ) {
+  return setBaseProjects(db, tenant, baseId, projectId ? [projectId] : null);
+}
+
+/**
+ * The projects that use a table: one (it becomes that project's), several
+ * (shared with them), or null for every project of the account. Agents of
+ * projects that no longer use it stop filling it.
+ */
+export async function setBaseProjects(
+  db: Db,
+  tenant: TenantContext,
+  baseId: string,
+  projectIds: string[] | null,
+) {
+  const wanted = projectIds ? [...new Set(projectIds)] : null;
+  if (wanted && wanted.length === 0) throw new Error("Elige al menos un proyecto.");
   return withTenant(db, tenant, async (tx) => {
-    if (projectId) {
-      const [project] = await tx.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId));
-      if (!project) throw new Error("Proyecto no encontrado.");
+    if (wanted) {
+      const found = await tx.select({ id: projects.id }).from(projects).where(inArray(projects.id, wanted));
+      if (found.length !== wanted.length) throw new Error("Proyecto no encontrado.");
     }
+    const projectId = wanted?.length === 1 ? wanted[0] : null;
     const [base] = await tx
       .update(prospectBases)
       .set({ projectId, updatedAt: new Date() })
       .where(eq(prospectBases.id, baseId))
       .returning();
     if (!base) throw new Error("Tabla no encontrada.");
+    await tx.delete(prospectBaseProjects).where(eq(prospectBaseProjects.baseId, baseId));
+    if (wanted && wanted.length > 1) {
+      await tx
+        .insert(prospectBaseProjects)
+        .values(wanted.map((id) => ({ orgId: tenant.orgId, baseId, projectId: id })));
+    }
     // Its rows follow it.
     await tx.update(prospects).set({ projectId }).where(eq(prospects.baseId, baseId));
+    // Agents of the projects that don't use it any more stop filling it.
+    if (wanted) {
+      await tx
+        .update(agentConfigs)
+        .set({ prospectBaseId: null })
+        .where(
+          and(
+            eq(agentConfigs.prospectBaseId, baseId),
+            sql`${agentConfigs.projectId} not in (${sql.join(
+              wanted.map((id) => sql`${id}`),
+              sql`, `,
+            )})`,
+          ),
+        );
+    }
     await audit(tx, tenant, {
       event: "prospect_base.moved",
       projectId,
       entityType: "prospect_base",
       entityId: base.id,
-      data: { projectId },
+      data: { projectIds: wanted ?? "all" },
     });
-    return base;
+    return { ...base, projectIds: wanted && wanted.length > 1 ? wanted : [] };
   });
 }
 
@@ -244,7 +390,7 @@ export async function ensureAgentBaseIn(
   if (!agent) throw new Error("Agente no encontrado.");
   if (agent.prospectBaseId) {
     const [base] = await tx.select().from(prospectBases).where(eq(prospectBases.id, agent.prospectBaseId));
-    if (base) return base;
+    if (base) return { ...base, projectIds: (await sharedProjects(tx, [base.id])).get(base.id) ?? [] };
   }
   const [first] = await tx
     .select()
@@ -255,7 +401,7 @@ export async function ensureAgentBaseIn(
   const base = first ?? (await createDefaultBase(tx, tenant, agent.projectId));
   await tx.update(agentConfigs).set({ prospectBaseId: base.id }).where(eq(agentConfigs.id, agent.id));
   await showAgentFields(tx, base.id);
-  return { ...base, hiddenFields: [] };
+  return { ...base, hiddenFields: [], projectIds: [] };
 }
 
 /**
@@ -266,7 +412,7 @@ async function showAgentFields(tx: Tx, baseId: string) {
   await tx.update(prospectBases).set({ hiddenFields: [] }).where(eq(prospectBases.id, baseId));
 }
 
-/** Points an agent at a table of its project, or at one without a project; null = none. */
+/** Points an agent at a table its project uses; null = none. */
 export async function setAgentBase(
   db: Db,
   tenant: TenantContext,
@@ -294,13 +440,8 @@ export async function setAgentBase(
     const [base] = await tx
       .select({ id: prospectBases.id, name: prospectBases.name })
       .from(prospectBases)
-      .where(
-        and(
-          eq(prospectBases.id, baseId),
-          or(eq(prospectBases.projectId, projectId), isNull(prospectBases.projectId)),
-        ),
-      );
-    if (!base) throw new Error("Esa tabla es de otro proyecto.");
+      .where(and(eq(prospectBases.id, baseId), basesOfProject(projectId)));
+    if (!base) throw new Error("Este proyecto no usa esa tabla.");
     const [agent] = await tx
       .update(agentConfigs)
       .set({ prospectBaseId: base.id })
@@ -340,11 +481,34 @@ function newColumns(drafts: ColumnDraft[], existing: BaseColumn[] = []): BaseCol
   return out.slice(existing.length);
 }
 
-/** The board view lists rows by one column: a table has one pipeline column at most. */
+/**
+ * The board view lists rows by one column, and a row belongs to one row of
+ * another table: a table has one pipeline column and one relation at most.
+ */
 function assertOneStage(columns: BaseColumn[]) {
   if (columns.filter((c) => c.type === "stage").length > 1) {
     throw new Error("Esta tabla ya tiene una columna de fase del pipeline: solo puede tener una.");
   }
+  if (columns.filter((c) => c.type === "link").length > 1) {
+    throw new Error("Esta tabla ya tiene una relación con otra tabla: solo puede tener una.");
+  }
+}
+
+/** A relation points at another table of the organization. */
+async function assertLinkTarget(tx: Tx, baseId: string | null, column: BaseColumn) {
+  if (column.type !== "link") return;
+  if (column.linkBaseId === baseId) throw new Error("Una tabla no puede relacionarse consigo misma.");
+  const [target] = await tx
+    .select({ id: prospectBases.id })
+    .from(prospectBases)
+    .where(eq(prospectBases.id, column.linkBaseId ?? ""));
+  if (!target) throw new Error("La tabla relacionada no existe.");
+}
+
+/** Rows no longer linked: the relation changed table, or went away. */
+async function unlinkRows(tx: Tx, baseId: string) {
+  await tx.update(prospects).set({ parentId: null }).where(eq(prospects.baseId, baseId));
+  await tx.delete(prospectLinkSearches).where(eq(prospectLinkSearches.baseId, baseId));
 }
 
 function assertFreeName(columns: BaseColumn[], name: string, except?: string) {
@@ -368,6 +532,7 @@ export async function createBase(
     (f) => systemFields(rowKind).includes(f) && f !== primaryField(rowKind),
   );
   return withTenant(db, tenant, async (tx) => {
+    for (const column of columns) await assertLinkTarget(tx, null, column);
     const [base] = await tx
       .insert(prospectBases)
       .values({
@@ -387,7 +552,7 @@ export async function createBase(
       entityId: base.id,
       data: { name, rowKind, columns: columns.length },
     });
-    return base;
+    return { ...base, projectIds: [] };
   });
 }
 
@@ -412,20 +577,61 @@ export async function renameBase(db: Db, tenant: TenantContext, baseId: string, 
 }
 
 /**
- * Deletes a base and its rows. Agents that filled it go back to the
+ * The rows of other tables that belong to rows of this one (people of its
+ * companies), by table: deleting this table deletes them too.
+ */
+export async function linkedRowsOf(db: Db, tenant: Pick<TenantContext, "orgId">, baseId: string) {
+  return withTenant(db, tenant, async (tx) => {
+    const rows = await tx
+      .select({ baseId: prospects.baseId, name: prospectBases.name, n: count() })
+      .from(prospects)
+      .innerJoin(prospectBases, eq(prospectBases.id, prospects.baseId))
+      .where(
+        and(
+          ne(prospects.baseId, baseId),
+          inArray(
+            prospects.parentId,
+            tx.select({ id: prospects.id }).from(prospects).where(eq(prospects.baseId, baseId)),
+          ),
+        ),
+      )
+      .groupBy(prospects.baseId, prospectBases.name);
+    return rows.map((r) => ({ ...r, n: Number(r.n) }));
+  });
+}
+
+/**
+ * Deletes a base and its rows, and the rows of other tables that belong to
+ * them (their relation goes away too). Agents that filled it go back to the
  * project's first base (or a new one) on their next run.
  */
 export async function deleteBase(db: Db, tenant: TenantContext, baseId: string) {
+  const linked = await linkedRowsOf(db, tenant, baseId);
   return withTenant(db, tenant, async (tx) => {
     const [rows] = await tx.select({ n: count() }).from(prospects).where(eq(prospects.baseId, baseId));
     const [base] = await tx.delete(prospectBases).where(eq(prospectBases.id, baseId)).returning();
     if (!base) throw new Error("Base de prospectos no encontrada.");
+    // The tables that pointed at it lose their relation column.
+    const pointing = await tx
+      .select()
+      .from(prospectBases)
+      .where(sql`${prospectBases.columns} @> ${JSON.stringify([{ linkBaseId: baseId }])}::jsonb`);
+    for (const other of pointing) {
+      await tx
+        .update(prospectBases)
+        .set({ columns: other.columns.filter((c) => c.linkBaseId !== baseId), updatedAt: new Date() })
+        .where(eq(prospectBases.id, other.id));
+    }
     await audit(tx, tenant, {
       event: "prospect_base.deleted",
       projectId: base.projectId,
       entityType: "prospect_base",
       entityId: base.id,
-      data: { name: base.name, rows: Number(rows.n) },
+      data: {
+        name: base.name,
+        rows: Number(rows.n),
+        ...(linked.length ? { linked: linked.map((l) => `${l.name}: ${l.n}`) } : {}),
+      },
     });
     return base;
   });
@@ -441,7 +647,7 @@ async function lockedBase(tx: Tx, baseId: string) {
 async function writeColumns(
   tx: Tx,
   tenant: TenantContext,
-  base: ProspectBase,
+  base: typeof prospectBases.$inferSelect,
   columns: BaseColumn[],
   event: string,
   data: Record<string, unknown>,
@@ -473,6 +679,7 @@ export async function saveColumn(
     const base = await lockedBase(tx, baseId);
     if (!existingId) {
       const [column] = newColumns([draft], base.columns);
+      await assertLinkTarget(tx, base.id, column);
       await writeColumns(tx, tenant, base, [...base.columns, column], "prospect_base.column_added", {
         column: column.name,
         type: column.type,
@@ -488,6 +695,11 @@ export async function saveColumn(
     const column: BaseColumn = { ...before, ...parsed.data, id: before.id };
     const columns = base.columns.map((c, i) => (i === index ? column : c));
     assertOneStage(columns);
+    await assertLinkTarget(tx, base.id, column);
+    // Pointing at another table (or no longer being a relation) unlinks every row.
+    if (before.type === "link" && (column.type !== "link" || column.linkBaseId !== before.linkBaseId)) {
+      await unlinkRows(tx, base.id);
+    }
     const reshaped =
       before.type !== column.type ||
       JSON.stringify(before.options ?? []) !== JSON.stringify(column.options ?? []);
@@ -684,6 +896,7 @@ export async function removeColumn(db: Db, tenant: TenantContext, baseId: string
     const base = await lockedBase(tx, baseId);
     const column = base.columns.find((c) => c.id === id);
     if (!column) throw new Error("Esa columna ya no existe.");
+    if (column.type === "link") await unlinkRows(tx, base.id);
     await tx
       .update(prospects)
       .set({ data: sql`${prospects.data} - ${id}`, cellMeta: sql`${prospects.cellMeta} - ${id}` })

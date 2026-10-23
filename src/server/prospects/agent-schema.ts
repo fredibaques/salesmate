@@ -6,9 +6,13 @@ import { COLUMN_TYPE_LABELS, formatCell, type BaseColumn, type RowKind } from "@
  * section that explains each column.
  */
 
-/** Columns the agent fills: the ones not reserved for people. */
+/**
+ * Columns the agent fills: the ones not reserved for people. The relation
+ * column isn't one: the agent links a row by the reference of the row it
+ * belongs to, not as a value.
+ */
 export function agentColumns(columns: BaseColumn[]) {
-  return columns.filter((c) => c.filledBy !== "person");
+  return columns.filter((c) => c.filledBy !== "person" && c.type !== "link");
 }
 
 function columnSchema(column: BaseColumn): Record<string, unknown> {
@@ -46,11 +50,29 @@ function sourcesSchema(columns: BaseColumn[]): Record<string, unknown> {
   };
 }
 
-export function saveRowsSchema(rowKind: RowKind, columns: BaseColumn[]): Record<string, unknown> {
+/**
+ * JSON Schema of `save_prospects`. With `linkedRefs` (the rows of the linked
+ * table this run goes through: E1, E2…), each row says which one it belongs to.
+ */
+export function saveRowsSchema(
+  rowKind: RowKind,
+  columns: BaseColumn[],
+  linkedRefs?: string[],
+): Record<string, unknown> {
   const fields = agentColumns(columns);
+  const linked = Boolean(linkedRefs?.length);
   const row: Record<string, unknown> = {
     type: "object",
     properties: {
+      ...(linked
+        ? {
+            linkedRef: {
+              type: "string",
+              enum: linkedRefs,
+              description: "Referencia de la empresa de la lista donde la has encontrado (E1, E2…)",
+            },
+          }
+        : {}),
       ...(rowKind === "person"
         ? { personName: { type: "string", description: "Nombre y apellidos de la persona" } }
         : {}),
@@ -73,7 +95,10 @@ export function saveRowsSchema(rowKind: RowKind, columns: BaseColumn[]): Record<
       },
       fieldSources: sourcesSchema(fields),
     },
-    required: rowKind === "person" ? ["personName", "companyName"] : ["companyName"],
+    required: [
+      ...(linked ? ["linkedRef"] : []),
+      ...(rowKind === "person" ? ["personName", "companyName"] : ["companyName"]),
+    ],
   };
   return {
     type: "object",

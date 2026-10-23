@@ -177,7 +177,10 @@ export async function completeProspects(
       const cellMeta = { ...row.cellMeta };
       let changed = false;
       const writable = (column: BaseColumn) => {
-        if (column.filledBy === "person" || cellMeta[column.id]?.by === "user") return false;
+        // The relation is set when a row is saved (its linked row), never as a value.
+        if (column.filledBy === "person" || column.type === "link" || cellMeta[column.id]?.by === "user") {
+          return false;
+        }
         return data[column.id] === undefined || data[column.id] === null;
       };
       for (const [key, raw] of Object.entries(item.fields)) {
