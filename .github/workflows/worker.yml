@@ -44,7 +44,8 @@ jobs:
             exit 0
           fi
           api="https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches/$NEON_BRANCH_ID/functions/salesmateagents"
-          current() { curl --fail --silent -H "Authorization: Bearer $NEON_API_KEY" "$api" | jq -r ".current_deployment.$1"; }
+          # The API wraps the function in {"function": …}.
+          current() { curl --fail --silent -H "Authorization: Bearer $NEON_API_KEY" "$api" | jq -r "(.function // .).current_deployment.$1"; }
           before=$(current id || true)  # none before the first deploy
           curl --fail-with-body --silent --show-error -X POST "$api/deployments" \
             -H "Authorization: Bearer $NEON_API_KEY" \
