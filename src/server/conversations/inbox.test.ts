@@ -17,6 +17,7 @@ import {
   addNote,
   changePerson,
   getPerson,
+  inboxVersion,
   listInbox,
   markRead,
   replyToPerson,
@@ -364,5 +365,12 @@ describe("the conversations inbox", () => {
     expect(
       (await listInbox(db, { orgId, userId }, { box: "all", projectId: other })).rows.map((r) => r.key),
     ).toEqual([ANA]);
+  });
+
+  it("has a version that moves when a message lands and stays put otherwise", async () => {
+    const before = await inboxVersion(db, person);
+    expect(await inboxVersion(db, person)).toBe(before);
+    await addNote(db, person, ANA, "Fredi", "Revisar presupuesto.");
+    expect(await inboxVersion(db, person)).not.toBe(before);
   });
 });

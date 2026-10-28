@@ -76,7 +76,8 @@ export default async function AgentTasksPage({
 
   return (
     <div className="grid items-start gap-6 xl:grid-cols-[1fr_20rem]">
-      {busy ? <AutoRefresh seconds={8} /> : null}
+      {/* The layout already follows a working agent; one refresher is enough. */}
+      {busy && !agent.working ? <AutoRefresh seconds={10} /> : null}
       <div className="min-w-0 space-y-6">
         <Card
           title="En curso"
