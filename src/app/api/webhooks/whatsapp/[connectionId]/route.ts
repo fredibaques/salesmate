@@ -1,10 +1,8 @@
-import { after, NextResponse } from "next/server";
-import { processInboundEvent } from "@/server/agents/inbound";
-import { inboundDeps } from "@/server/agents/runtime";
+import { NextResponse } from "next/server";
 import { queueWhatsappMessages, whatsappConnection } from "@/server/agents/whatsapp-inbound";
 import { parseWhatsappWebhook, verifyWhatsappSignature } from "@/server/connectors/whatsapp";
 import { getDb } from "@/server/db/client";
-import { orgLlm } from "@/server/llm/org-ai";
+import { dispatchJob } from "@/server/jobs/dispatch";
 
 export const maxDuration = 300;
 
@@ -49,14 +47,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/webhooks/wh
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
   const { eventIds } = await queueWhatsappMessages(db, connection, parseWhatsappWebhook(body));
-  if (eventIds.length) {
-    // Without the organization's AI the messages wait in the queue.
-    const llm = await orgLlm(db, { orgId: connection.orgId });
-    if (llm) {
-      after(async () => {
-        for (const id of eventIds) await processInboundEvent(inboundDeps(llm), connection.orgId, id);
-      });
-    }
-  }
+  // Without the organization's AI the messages wait in the queue.
+  if (eventIds.length) dispatchJob({ kind: "inbound-events", orgId: connection.orgId, eventIds });
   return NextResponse.json({ ok: true });
 }

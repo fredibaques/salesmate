@@ -1,12 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { after, NextResponse } from "next/server";
-import { processInboundEvent } from "@/server/agents/inbound";
-import { inboundDeps } from "@/server/agents/runtime";
+import { NextResponse } from "next/server";
 import { getDb } from "@/server/db/client";
 import { inboundEvents, projects } from "@/server/db/schema";
 import { withSystem, withTenant } from "@/server/db/tenant";
-import { orgLlm } from "@/server/llm/org-ai";
+import { dispatchJob } from "@/server/jobs/dispatch";
 
 /**
  * Public endpoint for a project's web forms. Accepts JSON, urlencoded or
@@ -94,11 +92,6 @@ export async function POST(request: Request, ctx: RouteContext<"/api/inbound/for
   );
 
   // Without the organization's AI the event waits in the queue.
-  const llm = await orgLlm(db, { orgId: project.orgId });
-  if (llm) {
-    after(async () => {
-      await processInboundEvent(inboundDeps(llm), project.orgId, event.id);
-    });
-  }
+  dispatchJob({ kind: "inbound-events", orgId: project.orgId, eventIds: [event.id] });
   return respond();
 }

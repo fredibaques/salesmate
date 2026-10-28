@@ -29,10 +29,11 @@ src/
     api/auth/               Better Auth
     api/connections/google/ OAuth para conectar buzones y calendarios
     api/webhooks/twenty/    Webhooks firmados de Twenty → inbound_events
-    api/cron/               Liberación de acciones programadas
+    api/cron/               Pasadas del programador (correo, agentes, acciones programadas)
   components/               UI mínima (sin librería de componentes)
   server/
     db/                     Esquema Drizzle, cliente, migraciones, withTenant()
+    jobs/                   Trabajo en segundo plano: tareas, pasadas del programador, envío al worker
     auth/                   Better Auth y helpers de sesión/tenant
     gateway/                Action Gateway: definiciones, políticas, flujo
     connectors/             Capacidades, Twenty, Google, Apollo/Lusha/Hunter/Serper, Airtable/Trello/monday, MCP, ejecutor, servicio
@@ -347,7 +348,7 @@ src/server/
   mensaje del contacto van en el turno de usuario. El historial del bucle es
   solo de anexado.
 - **Entradas.** Formularios: `POST /api/inbound/form/:projectId` con la clave
-  del proyecto; se procesa justo después de responder (`after()`). Email y
+  del proyecto; se procesa justo después de responder (`dispatchJob`). Email y
   pendientes: `GET /api/cron/inbound` desde el workflow programado.
 - **Trazabilidad.** Cada ejecución queda en `agent_runs` (pasos, tokens de
   entrada, salida y caché leída/escrita, búsquedas web, coste); cada conversación guarda mensajes entrantes y salientes (los emails
@@ -801,7 +802,7 @@ modelo, Comunicación y Siguiente paso; `/automation` redirige ahí:
     (`leadFromEvent`).
   - Tras añadir filas, `workOnAddedRows` lanza después de responder lo que
     toque a cada agente. Los eventos se guardan en `agent_events` y se
-    procesan enseguida (`after()`) o en la siguiente pasada del programador si
+    procesan enseguida (`dispatchJob`) o en la siguiente pasada del programador si
     el agente está ocupado (`agents/events.ts`); cada evento se reclama antes de
     ejecutar, así que nunca se procesa dos veces.
 - **Límite de gasto** (`budget.maxCostPerMonthUsd`): el único límite de un
@@ -909,6 +910,15 @@ horas desde el último mensaje del contacto, Meta exige plantillas aprobadas
 - Las funciones de Vercel corren en `fra1` (`vercel.json`), junto a Neon
   (`aws-eu-central-1`): cada consulta son varios viajes de ida y vuelta, y
   desde `iad1` cada uno costaba ~90 ms.
+- Los agentes no corren en Vercel: `dispatchJob` (`server/jobs`) pasa cada
+  ejecución (botones «Buscar ahora», «Ejecutar ahora», filas nuevas,
+  formularios, WhatsApp, webhooks y las pasadas del programador) al worker,
+  una Neon Function junto a la base de datos (`scripts/neon-worker`), y la
+  app responde al momento. Allí la espera al modelo se cobra como cómputo
+  «en espera» y cada trabajo tiene hasta 15 minutos. Sin `WORKER_URL`, o si el
+  worker no acepta el trabajo, se ejecuta en la app tras responder
+  (`after()`), como antes; por eso los tiempos de cada ejecución siguen por
+  debajo de los 300 s de Vercel.
 - `withTenant` fija la organización y el rol en una sola sentencia
   (`set_config('app.org_id')` y `set_config('role')`, locales a la transacción).
 - Better Auth guarda la sesión firmada en una cookie 5 minutos

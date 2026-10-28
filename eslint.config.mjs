@@ -20,6 +20,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The worker bundle (pnpm worker:build).
+    "dist/**",
   ]),
 ]);
 

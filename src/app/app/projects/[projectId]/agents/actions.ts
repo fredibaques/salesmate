@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { after } from "next/server";
 import { redirect } from "next/navigation";
 import type { FormState } from "@/components/action-form";
 import { scheduleFromForm } from "@/lib/schedule";
@@ -11,13 +10,11 @@ import { getDb } from "@/server/db/client";
 import { PROSPECTING_MODES, SALES_MOTIONS, type ProspectingMode } from "@/server/db/schema";
 import { bool, list, num, runForm, str } from "@/server/form";
 import { ACTION_DEFINITIONS } from "@/server/gateway/definitions";
-import { MAX_FIND_PER_RUN, runProspecting } from "@/server/agents/prospector";
+import { MAX_FIND_PER_RUN } from "@/server/agents/prospector";
 import { closeStaleRuns, zonedInstant } from "@/server/agents/scheduler";
 import { cancelQueuedTask, formatWhen, planTask } from "@/server/agents/tasks";
 import { DEFAULT_HANDOFF_PER_RUN } from "@/server/agents/first-contact";
-import { runInboundSweep } from "@/server/agents/inbound-sweep";
-import { runOutreach } from "@/server/agents/outreach";
-import { agentRunDeps, inboundDeps } from "@/server/agents/runtime";
+import { dispatchJob } from "@/server/jobs/dispatch";
 import { setAgentBase } from "@/server/prospects/bases";
 import { getProject } from "@/server/services/projects";
 import {
@@ -373,18 +370,8 @@ export async function runOutreachNow(
     const db = getDb();
     const agent = await getAgent(db, tenant, projectId, agentId);
     if (agent?.config.agentType !== "outbound") throw new Error("Agente no encontrado.");
-    const llm = await requireOrgLlm(db, tenant);
-    after(async () => {
-      try {
-        await runOutreach(agentRunDeps(llm), tenant, {
-          agentId,
-          trigger: "manual",
-          triggerRef: tenant.userId,
-        });
-      } catch (err) {
-        console.error("outreach run failed", err);
-      }
-    });
+    await requireOrgLlm(db, tenant);
+    dispatchJob({ kind: "outreach", orgId: tenant.orgId, agentId, triggerRef: tenant.userId });
     return "En marcha: los primeros emails aparecerán en «Por aprobar» en unos minutos.";
   });
   refresh(projectId);
@@ -461,23 +448,12 @@ async function startRun(
   const db = getDb();
   const agent = await getAgent(db, tenant, projectId, agentId);
   if (agent?.config.agentType !== "prospecting") throw new Error("Agente no encontrado.");
-  const llm = await requireOrgLlm(db, tenant);
+  await requireOrgLlm(db, tenant);
   await closeStaleRuns(db, new Date());
   const [last] = await listAgentRuns(db, tenant, projectId, agentId, 1);
   if (last?.status === "running")
     throw new Error("El agente ya está trabajando. Espera a que termine (unos minutos).");
-  after(async () => {
-    try {
-      await runProspecting(agentRunDeps(llm), tenant, {
-        agentId,
-        trigger: "manual",
-        triggerRef: tenant.userId,
-        ...options,
-      });
-    } catch (err) {
-      console.error("prospecting run failed", err);
-    }
-  });
+  dispatchJob({ kind: "prospecting", orgId: tenant.orgId, agentId, triggerRef: tenant.userId, ...options });
 }
 
 /**
@@ -507,14 +483,8 @@ export async function runInboundNow(
     const db = getDb();
     const agent = await getAgent(db, tenant, projectId, agentId);
     if (agent?.config.agentType !== "inbound") throw new Error("Agente no encontrado.");
-    const llm = await requireOrgLlm(db, tenant);
-    after(async () => {
-      try {
-        await runInboundSweep(inboundDeps(llm), tenant, agentId);
-      } catch (err) {
-        console.error("inbound run failed", err);
-      }
-    });
+    await requireOrgLlm(db, tenant);
+    dispatchJob({ kind: "inbound-sweep", orgId: tenant.orgId, agentId });
     return "En marcha: revisa su buzón y atiende lo que tenga pendiente.";
   });
   refresh(projectId);
