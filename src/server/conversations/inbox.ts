@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, max, ne, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, max, ne, sql } from "drizzle-orm";
 import { audit } from "../audit";
 import { openConnection, type ConnectorDeps } from "../connectors/service";
 import { ConnectorError, describeConnectorError } from "../connectors/types";
@@ -242,6 +242,26 @@ export async function listInbox(
     for (const r of all) counts[r.box]++;
     const box = filter.box ?? "needs";
     return { rows: box === "all" ? all : all.filter((r) => r.box === box), counts };
+  });
+}
+
+/**
+ * A cheap signature of what the inbox shows: it changes when a message
+ * arrives or is sent, a conversation changes, or an action starts or stops
+ * waiting for approval. The open inbox polls it and renders again only when
+ * it changes (a full render is far more work on the server).
+ */
+export async function inboxVersion(db: Db, tenant: Pick<TenantContext, "orgId">): Promise<string> {
+  return withTenant(db, tenant, async (tx) => {
+    const [[m], [c], [a]] = await Promise.all([
+      tx.select({ n: count(), at: max(messages.sentAt) }).from(messages),
+      tx.select({ n: count(), at: max(conversations.updatedAt) }).from(conversations),
+      tx
+        .select({ n: count(), at: max(actions.updatedAt) })
+        .from(actions)
+        .where(eq(actions.status, "pending_approval")),
+    ]);
+    return JSON.stringify([m, c, a]);
   });
 }
 

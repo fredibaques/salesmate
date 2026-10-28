@@ -898,7 +898,10 @@ horas desde el último mensaje del contacto, Meta exige plantillas aprobadas
   También se cierran y reabren.
 - **Notas internas**: mensajes `direction: internal`, canal `note`; no
   cuentan como último mensaje ni los ve el cliente.
-- La página se refresca sola cada 15 s mientras está visible. La antigua
+- Mientras está visible, la página pregunta a `GET /api/inbox/version`
+  (`inboxVersion`: mensajes, conversaciones y acciones por aprobar) y solo
+  se vuelve a pintar cuando cambia, o cada 5 minutos. Empieza cada 15 s y,
+  sin cambios, espacia las preguntas hasta 1 por minuto. La antigua
   página de una conversación redirige a la bandeja con esa persona abierta.
 
 ## Rendimiento

@@ -164,7 +164,7 @@ export async function InboxView({
 
   return (
     <div className={cx("flex overflow-hidden rounded-xl border border-border bg-surface", heightClass)}>
-      <AutoRefresh />
+      <AutoRefresh watch="/api/inbox/version" />
       {/* People */}
       <aside
         className={cx(

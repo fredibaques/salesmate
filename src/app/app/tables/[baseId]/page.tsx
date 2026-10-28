@@ -420,7 +420,7 @@ export default async function TablePage({ params, searchParams }: PageProps<"/ap
         ) : null}
         {running || starting ? (
           <>
-            <AutoRefresh seconds={6} />
+            <AutoRefresh seconds={10} />
             <Notice>
               {filler!.label} está trabajando en esta tabla: lo que encuentre aparece aquí solo, según lo
               guarda (tarda unos minutos).
