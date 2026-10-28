@@ -81,6 +81,9 @@ Las migraciones nuevas se aplican con `pnpm db:migrate`.
   workflow de GitHub Actions queda de respaldo cada hora (secretos `APP_URL` y
   `CRON_SECRET` del repositorio). Todas las llamadas son idempotentes, y el
   consumo cabe en el plan gratuito de Neon.
+- **Worker de agentes**: con `WORKER_URL` y `WORKER_SECRET`, los agentes y las
+  pasadas del programador corren en otra Neon Function, junto a la base de
+  datos, en lugar de en Vercel: ver `scripts/neon-worker/README.md`.
 
 ### IA (cuenta de cada organización)
 

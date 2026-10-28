@@ -1,14 +1,7 @@
-import { after, NextResponse } from "next/server";
-import {
-  agentByHookToken,
-  processAgentEvents,
-  queueWebhookLead,
-  recordAgentEvent,
-} from "@/server/agents/events";
-import { processPendingInbound } from "@/server/agents/inbound";
-import { agentRunDeps, inboundDeps } from "@/server/agents/runtime";
+import { NextResponse } from "next/server";
+import { agentByHookToken, queueWebhookLead, recordAgentEvent } from "@/server/agents/events";
 import { getDb } from "@/server/db/client";
-import { orgLlm } from "@/server/llm/org-ai";
+import { dispatchJob } from "@/server/jobs/dispatch";
 
 export const maxDuration = 300;
 
@@ -40,14 +33,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/hooks/agent
   if (agent.agentType === "inbound") {
     const queued = await queueWebhookLead(db, tenant, agent, body);
     if (!queued) return NextResponse.json({ error: "no_contact_data" }, { status: 422 });
-    after(async () => {
-      try {
-        const llm = await orgLlm(db, tenant);
-        if (llm) await processPendingInbound(inboundDeps(llm), tenant.orgId, 5, { agentId: agent.id });
-      } catch (err) {
-        console.error("inbound webhook run failed", err);
-      }
-    });
+    dispatchJob({ kind: "pending-inbound", orgId: agent.orgId, agentId: agent.id });
     return NextResponse.json({ ok: true }, { status: 202 });
   }
   const stored = await recordAgentEvent(db, tenant, {
@@ -56,13 +42,6 @@ export async function POST(request: Request, ctx: RouteContext<"/api/hooks/agent
     payload: { body },
   });
   if (!stored) return NextResponse.json({ error: "too_many_pending" }, { status: 429 });
-  after(async () => {
-    try {
-      const llm = await orgLlm(db, tenant);
-      if (llm) await processAgentEvents(agentRunDeps(llm), tenant, agent.id);
-    } catch (err) {
-      console.error("webhook run failed", err);
-    }
-  });
+  dispatchJob({ kind: "agent-events", orgId: agent.orgId, agentId: agent.id });
   return NextResponse.json({ ok: true }, { status: 202 });
 }

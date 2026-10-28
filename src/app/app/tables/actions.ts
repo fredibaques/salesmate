@@ -17,7 +17,7 @@ import {
   type SystemField,
 } from "@/lib/prospect-columns";
 import { queueTableCompletion, rowsAdded } from "@/server/agents/events";
-import { workOnAddedRows } from "@/server/agents/runtime";
+import { workOnAddedRows } from "@/server/jobs/dispatch";
 import { requireBaseAccess, requireRole, requireTenant } from "@/server/auth/session";
 import { connections } from "@/server/db/schema";
 import { withTenant } from "@/server/db/tenant";

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { rowsAdded } from "@/server/agents/events";
-import { workOnAddedRows } from "@/server/agents/runtime";
+import { workOnAddedRows } from "@/server/jobs/dispatch";
 import { getDb } from "@/server/db/client";
 import { intakeKeyOf, intakeRow, parseIntakeBody, recordIntakeAttempt } from "@/server/prospects/intake";
 
