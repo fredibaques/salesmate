@@ -3,8 +3,8 @@ name: Deploy worker
 # Bundles scripts/neon-worker with the server code it runs and deploys it to
 # the Neon Function `salesmateagents`, code only: its environment stays as
 # set in Neon (see scripts/neon-worker/README.md).
-# Requires the repository secret NEON_API_KEY and the variables
-# NEON_PROJECT_ID and NEON_BRANCH_ID; skipped otherwise.
+# Requires the repository secret NEON_API_KEY; skipped otherwise. The
+# variables NEON_PROJECT_ID and NEON_BRANCH_ID override the project's main branch.
 on:
   push:
     branches: [main]
@@ -26,8 +26,8 @@ jobs:
     timeout-minutes: 10
     env:
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-      NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
-      NEON_BRANCH_ID: ${{ vars.NEON_BRANCH_ID }}
+      NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID || 'flat-firefly-25602635' }}
+      NEON_BRANCH_ID: ${{ vars.NEON_BRANCH_ID || 'br-lingering-frog-b1ppvbid' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -39,13 +39,13 @@ jobs:
       - run: pnpm worker:build
       - name: Deploy to Neon
         run: |
-          if [ -z "$NEON_API_KEY" ] || [ -z "$NEON_PROJECT_ID" ] || [ -z "$NEON_BRANCH_ID" ]; then
-            echo "NEON_API_KEY, NEON_PROJECT_ID or NEON_BRANCH_ID not configured; skipping."
+          if [ -z "$NEON_API_KEY" ]; then
+            echo "NEON_API_KEY not configured; skipping."
             exit 0
           fi
           api="https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/branches/$NEON_BRANCH_ID/functions/salesmateagents"
           current() { curl --fail --silent -H "Authorization: Bearer $NEON_API_KEY" "$api" | jq -r ".current_deployment.$1"; }
-          before=$(current id)
+          before=$(current id || true)  # none before the first deploy
           curl --fail-with-body --silent --show-error -X POST "$api/deployments" \
             -H "Authorization: Bearer $NEON_API_KEY" \
             -F "zip=@dist/neon-worker/function.zip"
@@ -54,7 +54,7 @@ jobs:
           for _ in $(seq 1 36); do
             sleep 5
             [ "$(current id)" = "$before" ] && continue
-            status=$(current status)
+            status=$(current status || true)
             echo "status: $status"
             [ "$status" = "completed" ] && exit 0
             [ "$status" = "failed" ] && exit 1

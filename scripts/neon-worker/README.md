@@ -24,9 +24,10 @@ mismo `WORKER_SECRET`.
 ## Desplegar
 
 El workflow `Deploy worker` lo construye y despliega solo en cada push a
-`main` que toque el servidor. Necesita en GitHub el secreto `NEON_API_KEY` y
-las variables `NEON_PROJECT_ID` y `NEON_BRANCH_ID`. Despliega solo el código:
-las variables se quedan como estén en Neon.
+`main` que toque el servidor (o a mano, desde Actions). Necesita en GitHub el
+secreto `NEON_API_KEY` (una API key de Neon); el proyecto y la rama son los de
+producción salvo que se fijen las variables `NEON_PROJECT_ID` y `NEON_BRANCH_ID`.
+Despliega solo el código: las variables se quedan como estén en Neon.
 
 A mano:
 
