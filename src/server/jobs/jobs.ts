@@ -1,5 +1,4 @@
 import { and, eq, inArray, lte, or } from "drizzle-orm";
-import { z } from "zod";
 import { processAgentEvents, runPendingEvents } from "../agents/events";
 import { pollMailboxes } from "../agents/gmail-poller";
 import { processInboundEvent, processPendingInbound } from "../agents/inbound";
@@ -10,7 +9,7 @@ import { agentRunDeps, inboundDeps } from "../agents/runtime";
 import { runDueAgents } from "../agents/scheduler";
 import type { Db } from "../db/client";
 import { getDb } from "../db/client";
-import { PROSPECTING_MODES, actions, connections, inboundEvents } from "../db/schema";
+import { actions, connections, inboundEvents, type ProspectingMode } from "../db/schema";
 import { withSystem } from "../db/tenant";
 import { releaseDueActions } from "../gateway/gateway";
 import { gatewayDeps } from "../gateway/runtime";
@@ -18,52 +17,37 @@ import { orgLlm } from "../llm/org-ai";
 import { syncPendingTranscripts } from "../meetings/service";
 
 /**
- * Background work: agent runs and the scheduler's passes. Each job is plain
- * JSON, so it can run here after a response or be sent to the worker (a Neon
- * Function, see `dispatch.ts` and scripts/neon-worker), which keeps the long
- * waits on the model off the web app's functions.
+ * Background work: agent runs and the scheduler's passes, as plain data that
+ * `dispatchJob` runs after the response and the cron routes run in place.
  */
-const id = z.string().min(1).max(100);
-const ids = z.array(id).max(500);
+export type CronJob = "inbound" | "agents" | "release-deferred";
 
-export const CRON_JOBS = ["inbound", "agents", "release-deferred"] as const;
-export type CronJob = (typeof CRON_JOBS)[number];
-
-const jobSchema = z.discriminatedUnion("kind", [
+export type Job =
   /** «Buscar ahora», «Completar vacíos» or one row's «Completar esta fila». */
-  z.object({
-    kind: z.literal("prospecting"),
-    orgId: id,
-    agentId: id,
-    triggerRef: id.optional(),
-    mode: z.enum(PROSPECTING_MODES).optional(),
-    rowIds: ids.optional(),
-    allPending: z.boolean().optional(),
-    wanted: z.number().int().positive().optional(),
-  }),
+  | {
+      kind: "prospecting";
+      orgId: string;
+      agentId: string;
+      triggerRef?: string;
+      mode?: ProspectingMode;
+      rowIds?: string[];
+      allPending?: boolean;
+      wanted?: number;
+    }
   /** «Ejecutar ahora» of the outbound agent. */
-  z.object({ kind: z.literal("outreach"), orgId: id, agentId: id, triggerRef: id.optional() }),
+  | { kind: "outreach"; orgId: string; agentId: string; triggerRef?: string }
   /** «Ejecutar ahora» of the inbound agent: reads its mailbox and attends what waits. */
-  z.object({ kind: z.literal("inbound-sweep"), orgId: id, agentId: id }),
+  | { kind: "inbound-sweep"; orgId: string; agentId: string }
   /** An agent's pending events (rows added, webhook notices). */
-  z.object({ kind: z.literal("agent-events"), orgId: id, agentId: id }),
+  | { kind: "agent-events"; orgId: string; agentId: string }
   /** The inbound agent's pending leads (a notice on its webhook). */
-  z.object({ kind: z.literal("pending-inbound"), orgId: id, agentId: id }),
+  | { kind: "pending-inbound"; orgId: string; agentId: string }
   /** Queued inbound events (a web form, WhatsApp messages). */
-  z.object({ kind: z.literal("inbound-events"), orgId: id, eventIds: ids }),
+  | { kind: "inbound-events"; orgId: string; eventIds: string[] }
   /** New rows of a table, for the agents that listen to them (see `rowsAdded`). */
-  z.object({ kind: z.literal("rows-added"), orgId: id, prospecting: ids, inbound: ids }),
+  | { kind: "rows-added"; orgId: string; prospecting: string[]; inbound: string[] }
   /** One of the scheduler's passes. */
-  z.object({ kind: z.literal("cron"), name: z.enum(CRON_JOBS) }),
-]);
-
-export type Job = z.infer<typeof jobSchema>;
-
-/** A job from the outside (the worker's request body); null when it isn't one. */
-export function parseJob(value: unknown): Job | null {
-  const parsed = jobSchema.safeParse(value);
-  return parsed.success ? parsed.data : null;
-}
+  | { kind: "cron"; name: CronJob };
 
 /** Runs a job to the end. Without the organization's AI, agent work waits for the scheduler. */
 export async function runJob(job: Job): Promise<unknown> {

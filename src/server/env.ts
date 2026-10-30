@@ -14,12 +14,6 @@ const schema = z.object({
   JINA_API_KEY: z.string().optional(),
   /** Shared secret for scheduler calls (Authorization: Bearer …). */
   CRON_SECRET: z.string().optional(),
-  /**
-   * The worker that runs agents (scripts/neon-worker) and the secret both
-   * share. Without them agents run in the app's own functions.
-   */
-  WORKER_URL: z.string().url().optional(),
-  WORKER_SECRET: z.string().min(32).optional(),
   /** Resend key for SalesMate's own emails (invitations). Without it, invitations are links to copy. */
   RESEND_API_KEY: z.string().optional(),
   /** Sender of those emails, on a domain verified in Resend: «SalesMate <hola@tudominio.com>». */

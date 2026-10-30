@@ -43,4 +43,3 @@ next-env.d.ts
 # local data
 /.data/
 !.env.example
-/dist/
