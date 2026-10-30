@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/link";
 import { ActionForm } from "@/components/action-form";
 import { buttonClass, Card, Notice } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";

@@ -1,5 +1,5 @@
 import { FileInput, Video } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/link";
 import { LinkRow } from "@/components/link-row";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";

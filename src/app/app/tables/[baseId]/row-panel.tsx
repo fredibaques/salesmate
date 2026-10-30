@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/link";
 import { Building2, Lock, Network, Trash2, Undo2, User, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { ActionForm } from "@/components/action-form";

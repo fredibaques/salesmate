@@ -1,5 +1,5 @@
 import { Webhook } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { CopyButton } from "@/components/copy-button";

@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight, RotateCcw } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/link";
 import { useState, useTransition, type ReactNode } from "react";
 import {
   ChatComposer,

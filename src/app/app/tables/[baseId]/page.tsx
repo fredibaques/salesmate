@@ -11,7 +11,7 @@ import {
   User,
   X,
 } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/link";
 import { Fragment } from "react";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/action-form";

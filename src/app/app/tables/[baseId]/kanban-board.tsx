@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/link";
 import { useState, useTransition } from "react";
 import { OptionChip } from "@/components/option-chip";
 import { useToast } from "@/components/toast";

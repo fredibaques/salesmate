@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ActionForm, type FormState } from "@/components/action-form";
 import { Logo } from "@/components/logo";
-import Link from "next/link";
+import Link from "@/components/link";
 import { buttonClass, cx, Field, Input } from "@/components/ui";
 import { getAuth } from "@/server/auth/auth";
 import { requireUser } from "@/server/auth/session";

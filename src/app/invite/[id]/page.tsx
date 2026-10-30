@@ -1,7 +1,7 @@
 import { ActionForm } from "@/components/action-form";
 import { Logo } from "@/components/logo";
 import { buttonClass, Notice } from "@/components/ui";
-import Link from "next/link";
+import Link from "@/components/link";
 import { getSession } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { getInvitation } from "@/server/services/team";

@@ -14,6 +14,12 @@ export function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
+// Only full page loads: client navigations, refreshes and prefetches (the
+// `rsc` header) skip it, since each is a function run of its own and the page
+// checks the session anyway.
 export const config = {
-  matcher: ["/app/:path*", "/onboarding"],
+  matcher: [
+    { source: "/app/:path*", missing: [{ type: "header", key: "rsc" }] },
+    { source: "/onboarding", missing: [{ type: "header", key: "rsc" }] },
+  ],
 };

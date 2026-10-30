@@ -907,6 +907,14 @@ horas desde el último mensaje del contacto, Meta exige plantillas aprobadas
 
 ## Rendimiento
 
+- Los enlaces precargan solo con intención (pasar el ratón, foco o toque):
+  `@/components/link` en lugar de `next/link` (ESLint lo exige). Precargar al
+  entrar en pantalla volvía a pedir cada enlace visible (menú, filas, cabeceras
+  de orden) en cada `router.refresh()`, y una tabla con un agente trabajando
+  llegaba a cientos de miles de peticiones al día.
+- `proxy.ts` solo corre en cargas completas: las navegaciones, recargas y
+  precargas (cabecera `rsc`) no lo ejecutan, porque cada página exige la sesión
+  igualmente (`requireTenant`).
 - Las funciones de Vercel corren en `fra1` (`vercel.json`), junto a Neon
   (`aws-eu-central-1`): cada consulta son varios viajes de ida y vuelta, y
   desde `iad1` cada uno costaba ~90 ms.

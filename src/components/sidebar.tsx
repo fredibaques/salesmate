@@ -2,7 +2,7 @@
 
 import { colorLook } from "@/lib/agent-look";
 import { ChevronRight, ChevronsUpDown, Check, LogOut, Menu, Plus, UserRound, X } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cx } from "./cx";

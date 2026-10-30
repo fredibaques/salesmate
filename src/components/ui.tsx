@@ -1,5 +1,5 @@
 import { CircleAlert, CircleCheck, Info, TriangleAlert } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/link";
 import type { ComponentProps, ReactNode } from "react";
 
 import { cx } from "./cx";

@@ -1,5 +1,5 @@
 import { ChevronRight, Clock, ListTree } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/link";
 import { AgentTile } from "@/components/agent-look-fields";
 import { Drawer } from "@/components/drawer";
 import { RichText } from "@/components/rich-text";

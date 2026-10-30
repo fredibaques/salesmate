@@ -1,7 +1,7 @@
 "use client";
 
 import { ExternalLink } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/link";
 import { useState } from "react";
 import type { FormAction } from "@/components/action-form";
 import { Choice, Field, Notice, Select, buttonClass } from "@/components/ui";

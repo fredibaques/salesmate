@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/link";
 import { startTransition, useActionState, useRef, useState, type ReactNode } from "react";
 import { callAction, type FormAction, type FormState } from "./action-form";
 import { useModal } from "./modal";

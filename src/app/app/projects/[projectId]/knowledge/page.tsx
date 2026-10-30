@@ -1,5 +1,5 @@
 import { BookOpen } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/link";
 import { InfoTip } from "@/components/tooltip";
 import { Card, EmptyState, Toolbar } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";

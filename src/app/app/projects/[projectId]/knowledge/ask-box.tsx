@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowUp, FileText, Search, Sparkles } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/link";
 import { useActionState } from "react";
 import { RichText } from "@/components/rich-text";
 import { buttonClass, Input } from "@/components/ui";
