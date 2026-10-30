@@ -918,15 +918,11 @@ horas desde el último mensaje del contacto, Meta exige plantillas aprobadas
 - Las funciones de Vercel corren en `fra1` (`vercel.json`), junto a Neon
   (`aws-eu-central-1`): cada consulta son varios viajes de ida y vuelta, y
   desde `iad1` cada uno costaba ~90 ms.
-- Los agentes no corren en Vercel: `dispatchJob` (`server/jobs`) pasa cada
-  ejecución (botones «Buscar ahora», «Ejecutar ahora», filas nuevas,
-  formularios, WhatsApp, webhooks y las pasadas del programador) al worker,
-  una Neon Function junto a la base de datos (`scripts/neon-worker`), y la
-  app responde al momento. Allí la espera al modelo se cobra como cómputo
-  «en espera» y cada trabajo tiene hasta 15 minutos. Sin `WORKER_URL`, o si el
-  worker no acepta el trabajo, se ejecuta en la app tras responder
-  (`after()`), como antes; por eso los tiempos de cada ejecución siguen por
-  debajo de los 300 s de Vercel.
+- Las ejecuciones de agentes (botones «Buscar ahora», «Ejecutar ahora», filas
+  nuevas, formularios, WhatsApp, webhooks) son trabajos (`server/jobs`) que
+  `dispatchJob` ejecuta tras responder (`after()`), por debajo de los 300 s de
+  Vercel. En la factura de Vercel la memoria que ocupan es poco (menos de 1 $
+  al mes en octubre de 2026), así que no compensa sacarlos a otro servicio.
 - `withTenant` fija la organización y el rol en una sola sentencia
   (`set_config('app.org_id')` y `set_config('role')`, locales a la transacción).
 - Better Auth guarda la sesión firmada en una cookie 5 minutos
