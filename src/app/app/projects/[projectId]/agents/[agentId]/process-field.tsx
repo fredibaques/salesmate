@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/link";
 import { Field } from "@/components/ui";
 import type { PlaybookWithSpec } from "@/server/playbooks/service";
 import { NEXT_STEP_LABELS } from "@/server/playbooks/spec";

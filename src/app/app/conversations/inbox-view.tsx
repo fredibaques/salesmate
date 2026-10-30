@@ -14,7 +14,7 @@ import {
   Video,
   type LucideIcon,
 } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/link";
 import { approve, reject } from "@/app/app/(copilot)/inbox/actions";
 import { ActionForm } from "@/components/action-form";
 import { ModalButton } from "@/components/modal";

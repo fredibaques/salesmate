@@ -1,7 +1,7 @@
 "use client";
 
 import { Search } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/link";
 import { useEffect, useState, useTransition, type ReactNode } from "react";
 import type { FormState } from "@/components/action-form";
 import { IntegrationLogo } from "@/components/integration-logo";

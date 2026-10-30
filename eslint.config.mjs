@@ -11,7 +11,22 @@ const eslintConfig = defineConfig([
         "warn",
         { argsIgnorePattern: "^_|^t$", varsIgnorePattern: "^_", destructuredArrayIgnorePattern: "^_" },
       ],
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "next/link",
+              message: "Use @/components/link: it prefetches on intent, not on every refresh.",
+            },
+          ],
+        },
+      ],
     },
+  },
+  {
+    files: ["src/components/link.tsx"],
+    rules: { "no-restricted-imports": "off" },
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([

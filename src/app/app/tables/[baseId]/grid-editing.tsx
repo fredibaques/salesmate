@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Maximize2, Plus } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/link";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import type { FormState } from "@/components/action-form";
 import { stickyLeft } from "@/components/data-grid";

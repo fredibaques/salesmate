@@ -1,7 +1,7 @@
 "use client";
 
 import { ExternalLink } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/link";
 import type { ReactNode } from "react";
 import { Badge, Choice, Field, Input, Notice, Select, Textarea } from "@/components/ui";
 import { ScheduleFields } from "@/components/schedule-fields";

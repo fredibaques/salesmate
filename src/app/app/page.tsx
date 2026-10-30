@@ -1,5 +1,5 @@
 import { Bot, Building2, CheckCircle2, Circle, FolderKanban, Plug, Sheet, User } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/link";
 import { LinkRow } from "@/components/link-row";
 import {
   Badge,

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/link";
 import { CalendarClock, Loader2, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { ConfirmForm } from "@/components/confirm-form";

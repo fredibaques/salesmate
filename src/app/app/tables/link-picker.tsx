@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ExternalLink, Network, Search, X } from "lucide-react";
-import Link from "next/link";
+import Link from "@/components/link";
 import { useEffect, useState, useTransition } from "react";
 import type { FormState } from "@/components/action-form";
 import { Popover } from "@/components/popover";

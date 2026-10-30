@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/link";
 import { Card, LinkButton } from "@/components/ui";
 import { requireTenant } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
